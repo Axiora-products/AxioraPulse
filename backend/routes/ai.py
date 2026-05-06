@@ -9,7 +9,7 @@ import json
 from typing import List
 from fastapi import Request
 from fastapi import APIRouter, Depends, HTTPException
-from google import genai
+import google.generativeai as genai
 from pydantic import ValidationError
 from starlette.concurrency import run_in_threadpool
 from core.rate_limiter import limiter
