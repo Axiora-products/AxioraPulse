@@ -1,0 +1,236 @@
+/* ═══════════════════════════════════════════════════════════════
+   Axiora PULSE — APP INTERIOR DESIGN OVERRIDES
+   Transforms the generic Tailwind baseline into the warm,
+   editorial design language established in Landing.jsx
+═══════════════════════════════════════════════════════════════ */
+
+/* ── 1. PAGE BACKGROUNDS ── */
+body { background: var(--cream) !important; }
+.bg-soft { background-color: var(--cream) !important; }
+.bg-gray-50 { background-color: var(--cream) !important; }
+.bg-gray-100 { background-color: var(--cream-deep) !important; }
+
+/* ── 2. CARDS: warm-white, not sterile white ── */
+.bg-white { background-color: var(--warm-white) !important; }
+
+/* ── 3. WARM UP ALL COLD GRAYS ── */
+.border-gray-100,
+.divide-gray-100 > * + * { border-color: rgba(22,15,8,0.06) !important; }
+.border-gray-200 { border-color: rgba(22,15,8,0.1) !important; }
+.text-gray-300 { color: rgba(22,15,8,0.2) !important; }
+.text-gray-400 { color: rgba(22,15,8,0.28) !important; }
+.text-gray-500 { color: rgba(22,15,8,0.38) !important; }
+.placeholder\:text-gray-300::placeholder,
+.placeholder\:text-gray-400::placeholder { color: rgba(22,15,8,0.22) !important; }
+.hover\:bg-gray-100:hover { background-color: var(--cream-deep) !important; }
+.hover\:bg-gray-50:hover  { background-color: var(--cream) !important; }
+
+/* ── 4. TYPOGRAPHY ── */
+h1 {
+  font-family: 'Playfair Display', serif !important;
+  font-weight: 900 !important;
+  letter-spacing: -2px !important;
+  line-height: 1.05 !important;
+}
+h2, h3 {
+  font-family: 'Playfair Display', serif !important;
+  font-weight: 700 !important;
+}
+.text-5xl, .text-4xl, .text-3xl {
+  font-family: 'Playfair Display', serif !important;
+  font-weight: 900 !important;
+  letter-spacing: -2px !important;
+}
+.text-xl.font-bold, .text-2xl.font-bold {
+  font-family: 'Playfair Display', serif !important;
+  font-weight: 700 !important;
+}
+/* All-caps labels → Syne */
+.uppercase.tracking-wider,
+.uppercase.tracking-\[0\.15em\],
+.uppercase.tracking-\[0\.2em\],
+.uppercase.tracking-\[0\.1em\] {
+  font-family: 'Syne', sans-serif !important;
+  font-weight: 700 !important;
+}
+/* Body copy → Fraunces */
+p, li, td, th { font-family: 'Fraunces', serif !important; }
+
+/* ── 5. BUTTONS ── */
+button.rounded-full,
+a.rounded-full {
+  font-family: 'Syne', sans-serif !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  font-size: 11px !important;
+  transition: background 0.25s ease, transform 0.2s ease, box-shadow 0.25s ease !important;
+}
+/* Primary dark → espresso */
+button.bg-dark, a.bg-dark {
+  background-color: var(--espresso) !important;
+  color: var(--cream) !important;
+}
+button.bg-dark:hover, a.bg-dark:hover,
+button.hover\:bg-accent:hover, a.hover\:bg-accent:hover {
+  background-color: var(--coral) !important;
+  transform: translateY(-1px) !important;
+}
+button.bg-dark:disabled { transform: none !important; opacity: 0.45 !important; }
+
+/* ── 6. INPUTS ── */
+input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="range"]),
+textarea, select {
+  font-family: 'Fraunces', serif !important;
+  font-size: 15px !important;
+  background: var(--warm-white) !important;
+}
+input:focus:not([type="checkbox"]):not([type="radio"]):not([type="color"]),
+textarea:focus, select:focus {
+  border-color: var(--coral) !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+.focus-within\:border-accent:focus-within { border-color: var(--coral) !important; }
+.focus\:border-accent:focus { border-color: var(--coral) !important; }
+.border-accent { border-color: var(--coral) !important; }
+
+/* ── 7. DANGER → TERRACOTTA ── */
+.text-red-500 { color: var(--terracotta) !important; }
+.bg-red-50  { background-color: rgba(214,59,31,0.06) !important; }
+.hover\:bg-red-50:hover { background-color: rgba(214,59,31,0.06) !important; }
+.border-red-200 { border-color: rgba(214,59,31,0.2) !important; }
+
+/* ── 8. SEMANTIC COLORS ── */
+.text-yellow-600 { color: #A07000 !important; }
+.bg-yellow-50    { background-color: rgba(255,184,0,0.08) !important; }
+.text-blue-600, .text-blue-500 { color: var(--cobalt) !important; }
+.bg-blue-50      { background-color: rgba(0,71,255,0.06) !important; }
+
+/* ── 9. SHADOWS ── */
+.hover\:shadow-lg:hover,
+.shadow-lg { box-shadow: 0 24px 64px rgba(22,15,8,0.1), 0 4px 12px rgba(22,15,8,0.05) !important; }
+.shadow-sm { box-shadow: 0 2px 8px rgba(22,15,8,0.06) !important; }
+
+/* ── 10. LOADING SKELETONS ── */
+.animate-pulse {
+  background: linear-gradient(90deg,
+    var(--cream-deep) 25%,
+    rgba(250,221,202,0.6) 50%,
+    var(--cream-deep) 75%
+  ) !important;
+  background-size: 400% 100% !important;
+  animation: nx-shimmer 1.8s ease-in-out infinite !important;
+}
+@keyframes nx-shimmer {
+  0%   { background-position:  100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+/* ── 11. SURVEY STATUS BADGES (alias classes pages use) ── */
+.badge-active  { background: rgba(30,122,74,0.12)  !important; color: #1E7A4A !important; }
+.badge-draft   { background: rgba(22,15,8,0.08)    !important; color: rgba(22,15,8,0.45) !important; }
+.badge-paused  { background: rgba(255,184,0,0.15)  !important; color: #A07000 !important; }
+.badge-closed  { background: rgba(214,59,31,0.12)  !important; color: var(--terracotta) !important; }
+.badge-expired { background: rgba(214,59,31,0.1)   !important; color: var(--terracotta) !important; }
+
+/* ── 12. TABS (survey builder) ── */
+.bg-gray-100.rounded-full { background: var(--cream-deep) !important; }
+.bg-gray-100.rounded-full button.bg-white { background: var(--warm-white) !important; }
+
+/* ── 13. FORM CARDS (survey builder question cards) ── */
+.bg-white.rounded-2xl.border.border-gray-200 {
+  border-color: rgba(22,15,8,0.09) !important;
+}
+
+/* ── 14. CHECKBOXES / RADIOS ── */
+input[type="checkbox"]:checked,
+input[type="radio"]:checked { accent-color: var(--coral); }
+
+/* ── 15. SCROLLBAR ── */
+::-webkit-scrollbar { width: 3px; height: 3px; }
+::-webkit-scrollbar-track { background: var(--cream); }
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--coral), var(--saffron));
+  border-radius: 10px;
+}
+::selection { background: var(--coral); color: #fff; }
+
+/* ── 16. TABLE ── */
+thead tr { border-color: rgba(22,15,8,0.08) !important; }
+tbody tr { border-color: rgba(22,15,8,0.05) !important; }
+tbody tr:hover { background-color: var(--cream-deep) !important; }
+th { font-family: 'Syne', sans-serif !important; font-weight: 700 !important; }
+
+/* ── 17. DASHED BORDER BUTTON (add question) ── */
+button.border-dashed {
+  border-color: rgba(22,15,8,0.18) !important;
+  color: rgba(22,15,8,0.35) !important;
+  font-family: 'Syne', sans-serif !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.1em !important;
+  text-transform: uppercase !important;
+  background: transparent !important;
+}
+button.border-dashed:hover {
+  border-color: var(--coral) !important;
+  color: var(--coral) !important;
+  background: rgba(255,69,0,0.04) !important;
+}
+
+/* ── 18. SEARCH INPUT ── */
+input[type="text"].rounded-full {
+  font-family: 'Fraunces', serif !important;
+  background: var(--warm-white) !important;
+  border-color: rgba(22,15,8,0.1) !important;
+}
+input[type="text"].rounded-full:focus {
+  border-color: var(--coral) !important;
+}
+
+/* ── 19. FILTER PILLS ── */
+button.rounded-full.text-muted { 
+  color: rgba(22,15,8,0.4) !important; 
+  font-family: 'Syne', sans-serif !important;
+  font-size: 10px !important;
+}
+button.rounded-full.bg-dark.text-white {
+  background: var(--espresso) !important;
+}
+
+/* ── 20. MODAL OVERLAY ── */
+.fixed.inset-0.bg-dark\/20 {
+  background-color: rgba(22,15,8,0.25) !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+/* ── 21. PREMIUM TOAST OVERRIDES ── */
+/* Style the inner content div of react-hot-toast */
+[class*="react-hot-toast"] > div {
+  padding: 0 !important;
+}
+/* The toast wrapper that contains icon + message */
+[data-hot-toast] > div > div:last-child {
+  padding: 14px 18px 14px 6px !important;
+}
+
+/* ── 22. SONAR RING ANIMATION ── */
+@keyframes sonar {
+  0%   { transform: scale(1); opacity: 0.8; }
+  100% { transform: scale(2.8); opacity: 0; }
+}
+.sonar-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255,69,0,0.55);
+  animation: sonar 2s ease-out infinite;
+}
+.sonar-ring:nth-child(2) { animation-delay: 0.6s; }
+.sonar-ring:nth-child(3) { animation-delay: 1.2s; }
+
+/* ── 23. HEALTH BAR ANIMATED FILL ── */
+.health-bar-fill {
+  transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}

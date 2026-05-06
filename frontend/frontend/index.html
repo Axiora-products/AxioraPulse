@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Axiora Pulse — Survey Science Platform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700;1,900&family=Syne:wght@400;500;600;700;800&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&display=swap"
+    rel="stylesheet" />
+  <link rel="icon" type="image/svg+xml" href="./favicons.svg" />
+  <style>
+    /* Prevent FOUC */
+    body {
+      background: #160F08;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Branded cursor — lives outside React so it never remounts -->
+  <div id="np-cur-dot"  aria-hidden="true" style="position:fixed;pointer-events:none;z-index:99999;width:6px;height:6px;background:#FF4500;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 0 2px rgba(255,255,255,.8),0 0 0 3.5px rgba(255,69,0,.18);transition:width .18s,height .18s,opacity .18s;will-change:left,top;top:-100px;left:-100px;"></div>
+  <div id="np-cur-ring" aria-hidden="true" style="position:fixed;pointer-events:none;z-index:99998;width:30px;height:30px;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 0 1px rgba(22,15,8,.2),0 0 0 2px rgba(255,255,255,.4);transition:width .32s,height .32s,opacity .32s;opacity:.5;will-change:left,top;top:-100px;left:-100px;"></div>
+  <script>
+    (function () {
+      var dot  = document.getElementById('np-cur-dot');
+      var ring = document.getElementById('np-cur-ring');
+      var mx = 0, my = 0, rx = 0, ry = 0;
+
+      document.addEventListener('mousemove', function (e) {
+        mx = e.clientX; my = e.clientY;
+        dot.style.left = mx + 'px'; dot.style.top = my + 'px';
+      });
+
+      (function loop() {
+        rx += (mx - rx) * 0.07; ry += (my - ry) * 0.07;
+        ring.style.left = rx + 'px'; ring.style.top = ry + 'px';
+        requestAnimationFrame(loop);
+      })();
+
+      function addHover(el) {
+        if (el._npH) return; el._npH = true;
+        el.addEventListener('mouseenter', function () { document.documentElement.classList.add('np-hovering'); });
+        el.addEventListener('mouseleave', function () { document.documentElement.classList.remove('np-hovering'); });
+      }
+
+      function bindAll() {
+        document.querySelectorAll('a,button,[role="button"],input,textarea,select,label,[tabindex]').forEach(addHover);
+      }
+
+      document.addEventListener('mousedown', function () { document.documentElement.classList.add('np-clicking'); });
+      document.addEventListener('mouseup',   function () { document.documentElement.classList.remove('np-clicking'); });
+      document.addEventListener('mouseleave', function () { dot.style.opacity = '0'; ring.style.opacity = '0'; });
+      document.addEventListener('mouseenter', function () { dot.style.opacity = '';  ring.style.opacity = ''; });
+
+      // Bind on load + watch for new elements
+      document.addEventListener('DOMContentLoaded', bindAll);
+      new MutationObserver(bindAll).observe(document.documentElement, { childList: true, subtree: true });
+    })();
+  </script>
+
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+
+</html>
