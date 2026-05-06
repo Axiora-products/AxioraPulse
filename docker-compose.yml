@@ -1,0 +1,28 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:root@db:5432/nexpulse
+      - SECRET_KEY=your-secret-key-here  # Replace with a secure key
+    depends_on:
+      - db
+    volumes:
+      - ./backend:/app  # For development, mount the code
+
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: nexpulse
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: root
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
