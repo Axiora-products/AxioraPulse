@@ -17,7 +17,7 @@ from core.rate_limiter import limiter
 from sqlalchemy.orm import Session, joinedload
 from db.database import get_db
 from db.models import UserProfile, Survey, SurveyQuestion, SurveyResponse, SurveyAnswer, ResponseStatusEnum
-from schemas import AIInsightsRequest, AIInsightsResponse, AISuggestionsRequest, AISuggestionsResponse
+from schemas import AIInsightsRequest, AIInsightsResponse, AISuggestionsRequest, AISuggestionsResponse, AIGenerateRequest, AIGenerateResponse
 from dependencies import get_current_user
 
 router = APIRouter(prefix="/ai", tags=["ai"])
@@ -219,11 +219,12 @@ async def generate_suggestions(
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel("gemini-flash-latest")
 
+        intent_source = f"User's specific request for questions: {body.aiContext}" if body.aiContext else f"Survey Title: {body.surveyTitle}\n        Survey Description: {body.surveyDescription}"
         prompt = f"""
-        Based on the following survey title and existing questions, suggest 3-5 relevant follow-up questions.
+        Based on the following context, suggest 3-5 relevant follow-up questions for a survey.
         
-        Survey Title: {body.surveyTitle}
-        Survey Description: {body.surveyDescription}
+        Context:
+        {intent_source}
         
         Existing Questions:
         {json.dumps(body.existingQuestions, indent=2)}
@@ -260,3 +261,68 @@ async def generate_suggestions(
         if "quota" in str(e).lower() or "429" in str(e):
              raise HTTPException(status_code=429, detail="Google API quota exceeded or rate limited.")
         raise HTTPException(status_code=500, detail=f"Failed to generate Gemini suggestions: {str(e)}")
+
+@router.post("/generate")
+@limiter.limit("5/minute")
+async def generate_survey_full(
+    request: Request,
+    body: AIGenerateRequest,
+    current_user: UserProfile = Depends(get_current_user)
+):
+    print(f"[AI] Received full survey generation request")
+    
+    api_key = os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        raise HTTPException(
+            status_code=500, 
+            detail="Google API key not configured on server"
+        )
+
+    try:
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel("gemini-flash-latest")
+
+        prompt = f"""
+        You are an expert survey designer. Create a highly professional and relevant survey based on this user request:
+        "{body.aiContext}"
+        
+        Provide the following:
+        1. A concise, professional survey title.
+        2. A short description of the survey's purpose.
+        3. A welcoming message to display to respondents.
+        4. 8-12 highly relevant questions.
+        
+        Return a JSON object with this exact structure:
+        {{
+          "title": "string",
+          "description": "string",
+          "welcome_message": "string",
+          "questions": [
+            {{
+              "text": "The question text",
+              "type": "short_text|long_text|single_choice|multiple_choice|rating|scale|yes_no",
+              "options": [{{ "label": "string", "value": "string" }}] (required for single_choice/multiple_choice, omit otherwise)
+            }}
+          ]
+        }}
+        """
+
+        response = await run_in_threadpool(
+            model.generate_content,
+            prompt,
+            generation_config=genai.GenerationConfig(
+                response_mime_type="application/json",
+            )
+        )
+
+        result_json = json.loads(response.text)
+        return AIGenerateResponse(**result_json)
+
+    except ValidationError as ve:
+        print(f"[AI] Gemini Validation Error: {ve}")
+        raise HTTPException(status_code=500, detail="Gemini returned invalid survey structure")
+    except Exception as e:
+        print(f"[AI] Gemini Error: {e}")
+        if "quota" in str(e).lower() or "429" in str(e):
+             raise HTTPException(status_code=429, detail="Google API quota exceeded or rate limited.")
+        raise HTTPException(status_code=500, detail=f"Failed to generate full survey: {str(e)}")

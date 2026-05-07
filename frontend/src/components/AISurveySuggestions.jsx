@@ -35,7 +35,7 @@ const SUGGESTION_TYPES = {
   matrix:          { label: 'Matrix',       emoji: '⊞'  },
 };
 
-export default function AISurveySuggestions({ survey, questions = [], onAdd, tc = '#FF4500' }) {
+export default function AISurveySuggestions({ survey, questions = [], onAdd, tc = '#FF4500', aiContext = '' }) {
   const [state,       setState]       = useState('idle'); // idle | loading | done | error
   const [suggestions, setSuggestions] = useState([]);
   const [added,       setAdded]       = useState(new Set());
@@ -72,6 +72,7 @@ export default function AISurveySuggestions({ survey, questions = [], onAdd, tc 
         surveyTitle: survey.title,
         surveyDescription: survey.description || '',
         existingQuestions: questionList,
+        aiContext: aiContext,
       });
 
       if (data.suggestions?.length) {

@@ -36,6 +36,21 @@ class AISuggestionsRequest(BaseModel):
     surveyTitle: str
     surveyDescription: Optional[str] = ""
     existingQuestions: List[Dict[str, Any]]
+    aiContext: Optional[str] = ""
 
 class AISuggestionsResponse(BaseModel):
     suggestions: List[AISuggestionItem]
+
+class AIGeneratedQuestionItem(BaseModel):
+    text: str
+    type: str
+    options: Optional[List[Dict[str, Any]]] = None
+
+class AIGenerateRequest(BaseModel):
+    aiContext: str
+
+class AIGenerateResponse(BaseModel):
+    title: str
+    description: str
+    welcome_message: str
+    questions: List[AIGeneratedQuestionItem]
