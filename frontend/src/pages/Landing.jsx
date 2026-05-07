@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useLoading } from "../context/LoadingContext";
 
 /* ─────────────────────────────────────────────────────────────────
-   LANDING PAGE — Nexora Pulse
+   LANDING PAGE — Axiora Pulse
    Faithful React port of pulse-v10.html
    All CSS is injected via <style> so Tailwind does not interfere.
 ───────────────────────────────────────────────────────────────── */
@@ -645,7 +645,7 @@ export default function Landing() {
       {/* ── NAV ── */}
       <nav className={`lp-nav${stuck ? " stuck" : ""}`}>
         <a href="#" className="lp-logo">
-          <span className="lp-logo-parent">Nexora</span>
+          <span className="lp-logo-parent">Axiora</span>
           <span className="lp-logo-product">Pulse</span>
           <div className="lp-logo-dot">
             <div className="sonar-ring" /><div className="sonar-ring" /><div className="sonar-ring" />
@@ -678,7 +678,7 @@ export default function Landing() {
               <span className="lp-hline"><span className="lp-h-word lp-hw3"><em>evidence.</em>&nbsp;</span></span>
               <span className="lp-hline"><span className="lp-h-word lp-hw4">Treat&nbsp;</span><span className="lp-h-word lp-hw5">it&nbsp;</span><span className="lp-h-word lp-hw6">that way.</span></span>
             </h1>
-            <p className="lp-h-sub">Nexora Pulse is engineered on Likert-scale rigour, cognitive load reduction, and response-bias elimination — so every data point you collect is one you can defend in a boardroom.</p>
+            <p className="lp-h-sub">Axiora Pulse is engineered on Likert-scale rigour, cognitive load reduction, and response-bias elimination — so every data point you collect is one you can defend in a boardroom.</p>
             <div className="lp-h-ctas">
               <button className="lp-btn-fire" onClick={onEnterApp}>
                 <span>Design Your First Study</span>
@@ -1032,7 +1032,7 @@ export default function Landing() {
           <div className="lp-footer-top">
             <div>
               <div className="lp-f-brand">
-                <span style={{ fontFamily: "Syne,sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: ".2em", textTransform: "uppercase", opacity: .35, marginRight: 7, position: "relative", top: -3 }}>Nexora</span>
+                <span style={{ fontFamily: "Syne,sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: ".2em", textTransform: "uppercase", opacity: .35, marginRight: 7, position: "relative", top: -3 }}>Axiora</span>
                 Pulse
                 <div className="lp-f-brand-dot">
                   <div className="sonar-ring" /><div className="sonar-ring" /><div className="sonar-ring" />
@@ -1057,7 +1057,7 @@ export default function Landing() {
             ))}
           </div>
           <div className="lp-footer-bottom">
-            <div className="lp-f-copy">© 2025 Nexora · Pulse is a product of Nexora Pvt Ltd · Built for researchers, by researchers · Bengaluru</div>
+            <div className="lp-f-copy">© 2025 Axiora · Pulse is a product of Axiora Pvt Ltd · Built for researchers, by researchers · Bengaluru</div>
             <div className="lp-f-award"><span className="lp-award-star">★</span>Paris Design Award Nominee 2025<span className="lp-award-star">★</span></div>
           </div>
         </div>

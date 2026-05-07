@@ -255,7 +255,7 @@ export default function Settings() {
               <label style={label}>Workspace URL</label>
               <div style={{ ...dis, display: 'flex', alignItems: 'center', gap: 4 }}>
                 <span style={{ fontFamily: 'Fraunces, serif', fontWeight: 500 }}>{tenant?.slug}</span>
-                <span style={{ fontFamily: 'Syne, sans-serif', fontSize: 10, opacity: 0.5 }}>.nexora.io</span>
+                <span style={{ fontFamily: 'Syne, sans-serif', fontSize: 10, opacity: 0.5 }}>.Axiora.io</span>
               </div>
             </div>
             <div>

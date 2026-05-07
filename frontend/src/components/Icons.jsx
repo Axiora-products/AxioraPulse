@@ -1,5 +1,5 @@
 /**
- * Nexora Icon System
+ * Axiora Icon System
  * Paris Design Award-level SVG icons — stroke-based, geometric precision.
  * All icons: 24×24 viewBox, strokeWidth 1.5, round caps & joins.
  * Usage: <Icon.Bell size={18} color="currentColor" />

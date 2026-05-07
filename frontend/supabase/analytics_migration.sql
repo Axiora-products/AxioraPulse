@@ -1,5 +1,5 @@
 -- ============================================================
--- NEXORA PULSE — Analytics Enhancement Migration
+-- Axiora PULSE — Analytics Enhancement Migration
 -- Run this AFTER the base schema.sql
 -- Adds: caching views, performance indexes, analytics helpers
 -- ============================================================

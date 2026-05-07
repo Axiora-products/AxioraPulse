@@ -7,7 +7,7 @@ import { registerUser } from "../api/authApi";
 import useAuthStore from "../hooks/useAuth";
 const Logo = ({ dark }) => (
   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 0, lineHeight: 1 }}>
-    <span style={{ fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: dark ? 'rgba(253,245,232,0.35)' : 'rgba(22,15,8,0.35)', marginRight: 8, position: 'relative', top: -2 }}>Nexora</span>
+    <span style={{ fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: dark ? 'rgba(253,245,232,0.35)' : 'rgba(22,15,8,0.35)', marginRight: 8, position: 'relative', top: -2 }}>Axiora</span>
     <span style={{ fontFamily: 'Playfair Display, serif', fontWeight: 900, fontSize: 24, letterSpacing: '-1px', color: dark ? 'var(--cream)' : 'var(--espresso)', lineHeight: 1 }}>Pulse</span>
     <div style={{ position: 'relative', width: 9, height: 9, background: 'var(--coral)', borderRadius: '50%', boxShadow: '0 0 10px rgba(255,69,0,0.55)', alignSelf: 'flex-start', marginTop: 5, marginLeft: 8, flexShrink: 0 }}>
       <div className="sonar-ring" /><div className="sonar-ring" /><div className="sonar-ring" />
@@ -38,7 +38,7 @@ export default function Register() {
   //     const r = await signUp(f.email, f.password, f.tenantName, f.tenantSlug, f.fullName);
   //     if (r.existing) { toast.success(r.message); r.session ? nav('/dashboard') : nav('/login'); }
   //     else if (r.needsConfirmation) { toast.success('Check your email to confirm!', { duration: 8000 }); nav('/login'); }
-  //     else { toast.success('Welcome to Nexora Pulse!'); nav('/dashboard'); }
+  //     else { toast.success('Welcome to Axiora Pulse!'); nav('/dashboard'); }
   //   } catch (e) { toast.error(e.message); } finally { setBusy(false); }
   // };
 
@@ -104,7 +104,7 @@ export default function Register() {
           <div style={{ position: 'absolute', width: 400, height: 400, borderRadius: '50%', filter: 'blur(80px)', background: 'radial-gradient(circle,rgba(255,184,0,0.18),transparent 70%)', bottom: -80, right: -80 }} />
         </div>
         <div className="grain" style={{ opacity: 0.035 }} />
-        <div style={{ position: 'absolute', bottom: -30, right: -20, fontFamily: 'Playfair Display, serif', fontWeight: 900, fontSize: 'clamp(120px,15vw,200px)', color: 'transparent', WebkitTextStroke: '1px rgba(253,245,232,0.04)', letterSpacing: -5, lineHeight: 1, userSelect: 'none', pointerEvents: 'none' }}>Nexora</div>
+        <div style={{ position: 'absolute', bottom: -30, right: -20, fontFamily: 'Playfair Display, serif', fontWeight: 900, fontSize: 'clamp(120px,15vw,200px)', color: 'transparent', WebkitTextStroke: '1px rgba(253,245,232,0.04)', letterSpacing: -5, lineHeight: 1, userSelect: 'none', pointerEvents: 'none' }}>Axiora</div>
 
         <div style={{ position: 'relative', zIndex: 1 }}>
           <div style={{ marginBottom: 72 }}><Logo dark /></div>
@@ -163,7 +163,7 @@ export default function Register() {
                   placeholder="acme"
                   style={{ ...inputStyle, flex: 1, border: 'none', borderBottom: 'none', fontFamily: 'Fraunces, serif' }}
                 />
-                <span style={{ fontFamily: 'Syne, sans-serif', fontSize: 11, color: 'rgba(22,15,8,0.3)', paddingBottom: 12, whiteSpace: 'nowrap' }}>.nexora.io</span>
+                <span style={{ fontFamily: 'Syne, sans-serif', fontSize: 11, color: 'rgba(22,15,8,0.3)', paddingBottom: 12, whiteSpace: 'nowrap' }}>.Axiora.io</span>
               </div>
             </div>
 

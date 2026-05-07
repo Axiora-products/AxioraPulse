@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 /**
- * PageLoader — Full-page overlay spinner derived from the Nexora favicon.
+ * PageLoader — Full-page overlay spinner derived from the Axiora favicon.
  *
  * Usage:
  *   import PageLoader from "./PageLoader";

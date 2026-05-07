@@ -157,7 +157,7 @@ export default function DashboardLayout() {
       }}>
         {/* Logo with sonar dot (issue #4) */}
         <NavLink to="/dashboard" style={{ textDecoration: 'none', display: 'flex', alignItems: 'flex-start', gap: 0, lineHeight: 1 }}>
-          <span style={{ fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.35)', marginRight: 8, position: 'relative', top: -2 }}>Nexora</span>
+          <span style={{ fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.35)', marginRight: 8, position: 'relative', top: -2 }}>Axiora</span>
           <span style={{ fontFamily: 'Playfair Display, serif', fontWeight: 900, fontSize: 22, letterSpacing: '-1px', color: 'var(--espresso)', lineHeight: 1 }}>Pulse</span>
           <div style={{ position: 'relative', width: 9, height: 9, background: 'var(--coral)', borderRadius: '50%', boxShadow: '0 0 10px rgba(255,69,0,0.55)', alignSelf: 'flex-start', marginTop: 5, marginLeft: 8, flexShrink: 0 }}>
             <div className="sonar-ring" /><div className="sonar-ring" /><div className="sonar-ring" />
@@ -296,7 +296,7 @@ export default function DashboardLayout() {
       {/* Issue #6: Footer */}
       <footer style={{ maxWidth: 1320, margin: '0 auto', padding: '24px 48px 40px', width: '100%', boxSizing: 'border-box', borderTop: '1px solid rgba(22,15,8,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <p style={{ fontFamily: 'Syne, sans-serif', fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', color: 'rgba(22,15,8,0.25)', textAlign: 'center', margin: 0 }}>
-          © 2026 Nexora Pulse is a product of Axiora Labs · Built for researchers, by researchers · Hyderabad
+          © 2026 Axiora Pulse is a product of Axiora Labs · Built for researchers, by researchers · Hyderabad
         </p>
       </footer>
 

@@ -11,7 +11,7 @@ const SERVICE_ROLE_KEY =
   '';
 
 // req #19: correct site URL
-const SITE_URL = 'https://nexorapulse.netlify.app';
+const SITE_URL = 'https://Axiorapulse.netlify.app';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',

@@ -172,7 +172,17 @@ export default function SurveyCreate() {
 
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState('details');
-  const [f, sf] = useState({ title: '', description: '', welcome_message: '', thank_you_message: 'Thank you for completing this survey!', expires_at: '', theme_color: '#FF4500', allow_anonymous: true, require_email: false, show_progress_bar: true });
+  const [f, sf] = useState({ 
+    title: '', 
+    description: '', 
+    welcome_message: '', 
+    thank_you_message: 'Thank you for completing this survey!', 
+    expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16), 
+    theme_color: '#FF4500', 
+    allow_anonymous: true, 
+    require_email: false, 
+    show_progress_bar: true 
+  });
   const [qs, sQs] = useState([newQ()]);
   const [dirty, setDirty] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);

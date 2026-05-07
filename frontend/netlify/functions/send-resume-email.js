@@ -15,7 +15,7 @@
  * Required env vars
  * ─────────────────
  *   RESEND_API_KEY        — from resend.com (free tier: 3000/mo)
- *   EMAIL_FROM            — e.g. "Nexora Pulse <noreply@yourdomain.com>"
+ *   EMAIL_FROM            — e.g. "Axiora Pulse <noreply@yourdomain.com>"
  *   VITE_SUPABASE_URL     — used to validate the request origin (optional)
  *
  * Request body
@@ -44,7 +44,7 @@ export const handler = async (event) => {
   }
 
   const RESEND_KEY  = process.env.RESEND_API_KEY;
-  const FROM        = process.env.EMAIL_FROM || 'Nexora Pulse <noreply@nexorapulse.com>';
+  const FROM        = process.env.EMAIL_FROM || 'Axiora Pulse <noreply@Axiorapulse.com>';
 
   if (!RESEND_KEY) {
     return {
@@ -130,7 +130,11 @@ function buildEmail({ to, surveyTitle, surveyUrl, isResume, respondentName }) {
       <tr>
         <td style="background:#160F08;padding:22px 36px;">
           <table cellpadding="0" cellspacing="0"><tr>
+<<<<<<< HEAD
             <td style="font-family:Arial,sans-serif;font-size:8px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:rgba(253,245,232,0.4);padding-right:6px;vertical-align:middle;">NEXORA</td>
+=======
+            <td style="font-family:Arial,sans-serif;font-size:8px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:rgba(253,245,232,0.4);padding-right:6px;vertical-align:middle;">Axiora</td>
+>>>>>>> fd890e68ca3c9bca4a377f929c0986334677b689
             <td style="font-family:Georgia,serif;font-size:20px;font-weight:700;color:#FDF5E8;letter-spacing:-0.5px;vertical-align:middle;">Pulse</td>
             <td style="width:8px;height:8px;background:#FF4500;border-radius:50%;vertical-align:top;padding-top:4px;padding-left:6px;"></td>
           </tr></table>

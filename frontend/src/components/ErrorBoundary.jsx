@@ -11,7 +11,7 @@ export default class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, info) {
-    console.error('[Nexora ErrorBoundary]', error, info);
+    console.error('[Axiora ErrorBoundary]', error, info);
   }
 
   render() {

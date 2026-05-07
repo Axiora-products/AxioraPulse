@@ -230,7 +230,7 @@ export default function CommandPalette({ onClose }) {
               <span style={{ fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 600, color: 'rgba(22,15,8,0.3)', letterSpacing: '0.08em' }}>{label}</span>
             </div>
           ))}
-          <div style={{ marginLeft: 'auto', fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.2)' }}>Nexora Command</div>
+          <div style={{ marginLeft: 'auto', fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.2)' }}>Axiora Command</div>
         </div>
       </motion.div>
     </motion.div>

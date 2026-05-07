@@ -1,7 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 
 /**
- * Nexora Pulse — Design System Tokens
+ * Axiora Pulse — Design System Tokens
  * ─────────────────────────────────────
  * Colour philosophy: warm espresso darks, coral as the singular
  * energy colour, saffron as the secondary signal, cream as the

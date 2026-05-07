@@ -25,7 +25,14 @@ const SUGGESTION_TYPES = {
   multiple_choice: { label: 'Multi',        emoji: '☑️' },
   rating:          { label: 'Rating',       emoji: '⭐' },
   scale:           { label: 'Scale 1–10',   emoji: '📊' },
-  yes_no:          { label: 'Yes / No',     emoji: '👍' },
+  yes_no:          { label: 'Yes/No',       emoji: '👍' },
+  dropdown:        { label: 'Dropdown',     emoji: '⌄'  },
+  number:          { label: 'Number',       emoji: '#'  },
+  email:           { label: 'Email',        emoji: '@'  },
+  date:            { label: 'Date',         emoji: '📅' },
+  ranking:         { label: 'Ranking',      emoji: '↕️' },
+  slider:          { label: 'Slider',       emoji: '↔️' },
+  matrix:          { label: 'Matrix',       emoji: '⊞'  },
 };
 
 export default function AISurveySuggestions({ survey, questions = [], onAdd, tc = '#FF4500' }) {
@@ -82,10 +89,11 @@ export default function AISurveySuggestions({ survey, questions = [], onAdd, tc 
   }
 
   function handleAdd(sug) {
+    const defaultOptions = sug.type === 'matrix' ? { rows: [], columns: [] } : [];
     onAdd?.({
       question_text: sug.text,
       question_type: sug.type,
-      options:       sug.options || [],
+      options:       sug.options || defaultOptions,
       is_required:   false,
       description:   sug.rationale || '',
     });
@@ -167,12 +175,17 @@ export default function AISurveySuggestions({ survey, questions = [], onAdd, tc 
                   <div style={{ fontFamily:'Fraunces,serif', fontWeight:400, fontSize:14, color:'var(--espresso)', lineHeight:1.4, marginBottom: sug.rationale ? 5 : 0 }}>{sug.text}</div>
                   {sug.rationale && <div style={{ fontFamily:'Fraunces,serif', fontWeight:300, fontSize:12, color:'rgba(22,15,8,0.4)', lineHeight:1.5 }}>{sug.rationale}</div>}
                   {/* Options preview for choice types */}
-                  {sug.options?.length > 0 && !isAdded && (
+                  {!isAdded && sug.options && (
                     <div style={{ display:'flex', flexWrap:'wrap', gap:4, marginTop:7 }}>
-                      {sug.options.slice(0,4).map((o, j) => (
-                        <span key={j} style={{ fontFamily:'Syne,sans-serif', fontSize:9, fontWeight:600, letterSpacing:'0.06em', padding:'2px 8px', borderRadius:999, background:'rgba(22,15,8,0.06)', color:'rgba(22,15,8,0.5)' }}>{o.label}</span>
-                      ))}
-                      {sug.options.length > 4 && <span style={{ fontFamily:'Syne,sans-serif', fontSize:9, fontWeight:600, color:'rgba(22,15,8,0.3)' }}>+{sug.options.length-4}</span>}
+                      {Array.isArray(sug.options) 
+                        ? sug.options.slice(0,4).map((o, j) => (
+                            <span key={j} style={{ fontFamily:'Syne,sans-serif', fontSize:9, fontWeight:600, letterSpacing:'0.06em', padding:'2px 8px', borderRadius:999, background:'rgba(22,15,8,0.06)', color:'rgba(22,15,8,0.5)' }}>{o.label}</span>
+                          ))
+                        : (sug.options.rows || []).slice(0,2).map((r, j) => (
+                            <span key={`r-${j}`} style={{ fontFamily:'Syne,sans-serif', fontSize:9, fontWeight:600, letterSpacing:'0.06em', padding:'2px 8px', borderRadius:999, background:'rgba(255,69,0,0.06)', color:'var(--coral)' }}>Row: {r.label}</span>
+                          ))
+                      }
+                      {Array.isArray(sug.options) && sug.options.length > 4 && <span style={{ fontFamily:'Syne,sans-serif', fontSize:9, fontWeight:600, color:'rgba(22,15,8,0.3)' }}>+{sug.options.length-4}</span>}
                     </div>
                   )}
                 </div>

@@ -1,5 +1,5 @@
 -- ============================================================
--- NEXORA SURVEY — Complete Multi-Tenant Schema
+-- Axiora SURVEY — Complete Multi-Tenant Schema
 -- Run this in Supabase SQL Editor (in order)
 -- ============================================================
 
