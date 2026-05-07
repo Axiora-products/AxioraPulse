@@ -129,7 +129,8 @@ export default function SurveyList() {
   }
 
   function copy(slug) {
-    navigator.clipboard.writeText(`${window.location.origin}/s/${slug}`);
+    const appOrigin = import.meta.env.VITE_FRONTEND_URL || window.location.origin;
+    navigator.clipboard.writeText(`${appOrigin}/s/${slug}`);
     toast.success('Link copied!'); setMenu(null);
   }
 

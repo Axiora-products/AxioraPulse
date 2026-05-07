@@ -42,8 +42,9 @@ export default function ShareModal({ survey, isOpen, onClose }) {
   const [sending, setSending] = useState(false);
   const inputRef = useRef(null);
 
-  const surveyUrl = `${window.location.origin}/s/${survey?.slug}`;
-  const embedUrl = `${window.location.origin}/embed/${survey?.slug}`;
+  const appOrigin = import.meta.env.VITE_FRONTEND_URL || window.location.origin;
+  const surveyUrl = `${appOrigin}/s/${survey?.slug}`;
+  const embedUrl = `${appOrigin}/embed/${survey?.slug}`;
   const sel = EMBED_SIZES[embedSize];
   const embedCode = `<iframe\n  src="${embedUrl}"\n  width="${sel.w}"\n  height="${sel.h}"\n  frameborder="0"\n  style="border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,0.12)"\n  allow="clipboard-write"\n></iframe>`;
   const shareText = `Check this survey: ${survey?.title}`;
