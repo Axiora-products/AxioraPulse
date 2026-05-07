@@ -44,8 +44,8 @@ Base.metadata.create_all(bind=engine)
 
 # ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(
-    title="Nexora Pulse API",
-    description="FastAPI backend for the Nexora Pulse survey science platform",
+    title="Axiora Pulse API",
+    description="FastAPI backend for the Axiora Pulse survey science platform",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -87,9 +87,9 @@ app.include_router(ai_router)
 # ── Health ────────────────────────────────────────────────────────────────────
 @app.get("/health", tags=["health"])
 def health():
-    return {"status": "ok", "service": "Nexora Pulse API"}
+    return {"status": "ok", "service": "Axiora Pulse API"}
 
 
 @app.get("/", tags=["health"])
 def root():
-    return {"message": "Nexora Pulse API is running. Visit /docs for the interactive API explorer."}
+    return {"message": "Axiora Pulse API is running. Visit /docs for the interactive API explorer."}

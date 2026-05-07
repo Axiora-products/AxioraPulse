@@ -1,7 +1,7 @@
 """
 db/models.py
 ────────────
-SQLAlchemy ORM models for NexoraPulse.
+SQLAlchemy ORM models for AxioraPulse.
 All tables use UUID primary keys and mirror the Supabase schema exactly
 so the frontend data shapes remain unchanged.
 """

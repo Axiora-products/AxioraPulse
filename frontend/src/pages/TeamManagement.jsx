@@ -73,7 +73,11 @@ export default function TeamManagement() {
   const { stopLoading } = useLoading();
   const [members, setMembers] = useState([]);
   const [showModal, setShowModal] = useState(false);
-  const [iE, sIE] = useState(''); const [iR, sIR] = useState('viewer'); const [iN, sIN] = useState('');
+  const [modalMode, setModalMode] = useState('single'); // 'single' | 'bulk'
+  const [iE, sIE] = useState(''); // single email
+  const [bulkEmails, setBulkEmails] = useState(''); // bulk textarea
+  const [iR, sIR] = useState('viewer');
+  const [iN, sIN] = useState('');
   const [busy, setBusy] = useState(false);
   const [deactivateTarget, setDeactivateTarget] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -88,18 +92,39 @@ export default function TeamManagement() {
     } catch (e) { console.error(e); }
     finally { stopLoading(); }
   }
+
   async function invite(e) {
     e.preventDefault();
-    if (!iE) return toast.error('Email required');
     setBusy(true);
     try {
-      await API.post('/users/invite', { email: iE, role: iR, full_name: iN || null });
-      toast.success(`Invited ${iE}`);
-      setShowModal(false); sIE(''); sIN(''); sIR('viewer');
+      if (modalMode === 'single') {
+        if (!iE) return toast.error('Email required');
+        await API.post('/users/invite', { email: iE, role: iR, full_name: iN || null });
+        toast.success(`Invited ${iE}`);
+      } else {
+        const emails = bulkEmails
+          .split(/[\n,]/)
+          .map(e => e.trim())
+          .filter(e => e.includes('@'));
+        
+        if (emails.length === 0) return toast.error('Please enter valid email addresses');
+        
+        const res = await API.post('/users/bulk-invite', { emails, role: iR });
+        const results = res.data.results || [];
+        const successCount = results.filter(r => ['sent', 'resent'].includes(r.status)).length;
+        toast.success(`Invited ${successCount} user${successCount !== 1 ? 's' : ''}`);
+      }
+      
+      setShowModal(false); 
+      sIE(''); sIN(''); sIR('viewer'); setBulkEmails('');
       load();
-    } catch (err) { toast.error(err.response?.data?.detail || 'Failed to send invite'); }
-    finally { setBusy(false); }
+    } catch (err) { 
+      toast.error(err.response?.data?.detail || 'Failed to send invite'); 
+    } finally { 
+      setBusy(false); 
+    }
   }
+
   async function chgRole(uid, newRole) {
     if (uid === profile.id) return toast.error("Can't change your own role");
     const target = members.find(m => m.id === uid);
@@ -273,24 +298,54 @@ export default function TeamManagement() {
       {showModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(22,15,8,0.3)', backdropFilter: 'blur(8px)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
           onClick={() => setShowModal(false)}>
-          <div style={{ background: 'var(--warm-white)', borderRadius: 24, padding: 40, width: '100%', maxWidth: 420, boxShadow: '0 40px 100px rgba(22,15,8,0.2)' }}
+          <div style={{ background: 'var(--warm-white)', borderRadius: 24, padding: '32px 40px 40px', width: '100%', maxWidth: 460, boxShadow: '0 40px 100px rgba(22,15,8,0.2)' }}
             onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
-              <h3 style={{ fontFamily: 'Playfair Display, serif', fontWeight: 900, fontSize: 26, letterSpacing: '-1px', color: 'var(--espresso)', margin: 0 }}>Invite member</h3>
+            
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+              <h3 style={{ fontFamily: 'Playfair Display, serif', fontWeight: 900, fontSize: 26, letterSpacing: '-1px', color: 'var(--espresso)', margin: 0 }}>Invite members</h3>
               <button onClick={() => setShowModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(22,15,8,0.3)', fontSize: 20, lineHeight: 1, transition: 'color 0.2s' }}
                 onMouseEnter={e => e.currentTarget.style.color = 'var(--espresso)'}
                 onMouseLeave={e => e.currentTarget.style.color = 'rgba(22,15,8,0.3)'}>✕</button>
             </div>
-            <form onSubmit={invite} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-              {[{ l: 'Name', v: iN, sv: sIN, t: 'text', ph: 'Jane Smith' }, { l: 'Email *', v: iE, sv: sIE, t: 'email', ph: 'jane@company.com' }].map(f => (
-                <div key={f.l}>
-                  <label style={lbl}>{f.l}</label>
-                  <input type={f.t} value={f.v} onChange={e => f.sv(e.target.value)} placeholder={f.ph} required={f.t === 'email'}
-                    style={inp}
-                    onFocus={e => e.target.style.borderColor = 'var(--coral)'}
-                    onBlur={e => e.target.style.borderColor = 'rgba(22,15,8,0.1)'} />
-                </div>
+
+            {/* Mode Switcher */}
+            <div style={{ display: 'flex', gap: 4, background: 'rgba(22,15,8,0.05)', padding: 4, borderRadius: 12, marginBottom: 28 }}>
+              {['single', 'bulk'].map(m => (
+                <button key={m} onClick={() => setModalMode(m)}
+                  style={{ flex: 1, padding: '8px 0', border: 'none', borderRadius: 9, background: modalMode === m ? 'var(--cream)' : 'transparent', color: modalMode === m ? 'var(--espresso)' : 'rgba(22,15,8,0.4)', fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', transition: 'all 0.2s', boxShadow: modalMode === m ? '0 2px 8px rgba(22,15,8,0.08)' : 'none' }}>
+                  {m}
+                </button>
               ))}
+            </div>
+
+            <form onSubmit={invite} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              {modalMode === 'single' ? (
+                <>
+                  <div>
+                    <label style={lbl}>Full Name</label>
+                    <input type="text" value={iN} onChange={e => sIN(e.target.value)} placeholder="Jane Smith"
+                      style={inp} onFocus={e => e.target.style.borderColor = 'var(--coral)'} onBlur={e => e.target.style.borderColor = 'rgba(22,15,8,0.1)'} />
+                  </div>
+                  <div>
+                    <label style={lbl}>Email Address *</label>
+                    <input type="email" value={iE} onChange={e => sIE(e.target.value)} placeholder="jane@company.com" required
+                      style={inp} onFocus={e => e.target.style.borderColor = 'var(--coral)'} onBlur={e => e.target.style.borderColor = 'rgba(22,15,8,0.1)'} />
+                  </div>
+                </>
+              ) : (
+                <div>
+                  <label style={lbl}>Email Addresses (comma or newline separated) *</label>
+                  <textarea value={bulkEmails} onChange={e => setBulkEmails(e.target.value)} 
+                    placeholder="jane@company.com, mark@company.com..."
+                    style={{ ...inp, height: 120, resize: 'none' }} 
+                    onFocus={e => e.target.style.borderColor = 'var(--coral)'} 
+                    onBlur={e => e.target.style.borderColor = 'rgba(22,15,8,0.1)'} />
+                  <p style={{ fontFamily: 'Fraunces, serif', fontSize: 12, color: 'rgba(22,15,8,0.3)', marginTop: 8 }}>
+                    Each user will receive a personalized invitation email.
+                  </p>
+                </div>
+              )}
+
               <div>
                 <label style={lbl}>Role</label>
                 <select value={iR} onChange={e => sIR(e.target.value)} style={inp}
@@ -299,6 +354,7 @@ export default function TeamManagement() {
                   {['viewer','creator','manager','admin'].map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
                 </select>
               </div>
+
               <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
                 <button type="button" onClick={() => setShowModal(false)}
                   style={{ flex: 1, padding: '13px 20px', borderRadius: 999, border: '1px solid rgba(22,15,8,0.1)', background: 'transparent', fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.5)', cursor: 'pointer' }}>
@@ -308,7 +364,7 @@ export default function TeamManagement() {
                   style={{ flex: 1, padding: '13px 20px', borderRadius: 999, border: 'none', background: busy ? 'rgba(22,15,8,0.3)' : 'var(--espresso)', color: 'var(--cream)', fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: busy ? 'not-allowed' : 'pointer', transition: 'background 0.25s' }}
                   onMouseEnter={e => { if (!busy) e.currentTarget.style.background = 'var(--coral)'; }}
                   onMouseLeave={e => { if (!busy) e.currentTarget.style.background = 'var(--espresso)'; }}>
-                  {busy ? 'Sending…' : 'Send invite'}
+                  {busy ? 'Sending…' : 'Send invitations'}
                 </button>
               </div>
             </form>
