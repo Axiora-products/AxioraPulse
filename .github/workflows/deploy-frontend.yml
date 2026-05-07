@@ -39,10 +39,8 @@ jobs:
         id: build-image
         run: |
           IMAGE_URI=${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}
-          docker build \
+          docker build --platform linux/amd64 \
             --build-arg VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL }} \
-            --build-arg VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }} \
-            --build-arg VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }} \
             -t $IMAGE_URI:latest \
             -t $IMAGE_URI:${{ github.sha }} \
             ./frontend
@@ -59,7 +57,7 @@ jobs:
           image:           ${{ steps.build-image.outputs.image }}
 
       - name: Deploy to ECS
-        uses: aws-actions/amazon-ecs-deploy-task-def@v1
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition:          ${{ steps.task-def.outputs.task-definition }}
           service:                  ${{ env.ECS_SERVICE }}
