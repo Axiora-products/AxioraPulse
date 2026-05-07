@@ -5,8 +5,10 @@ WORKDIR /app
 
 # VITE_ vars must be present at build time (baked into the JS bundle)
 ARG VITE_API_BASE_URL
+ARG VITE_FRONTEND_URL
 
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+ENV VITE_FRONTEND_URL=$VITE_FRONTEND_URL
 
 COPY package*.json ./
 RUN npm ci --ignore-scripts
