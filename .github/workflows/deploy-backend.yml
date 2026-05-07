@@ -1,0 +1,41 @@
+name: Build and Push Backend to ECR
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
+  workflow_dispatch:
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ap-south-1
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Build Docker image
+      run: |
+        cd backend
+        docker build -t pulse-fastapi .
+
+    - name: Tag and push image
+      run: |
+        ECR_URI=217757579310.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-fastapi
+        docker tag pulse-fastapi:latest $ECR_URI:latest
+        docker tag pulse-fastapi:latest $ECR_URI:${{ github.sha }}
+        docker push $ECR_URI:latest
+        docker push $ECR_URI:${{ github.sha }}
