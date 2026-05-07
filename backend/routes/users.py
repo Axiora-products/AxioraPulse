@@ -102,7 +102,7 @@ def invite_user(
             db.commit()
             db.refresh(existing)
 
-            invite_link = f"http://localhost:5173/accept-invite/{existing.invite_token}"
+            invite_link = f"{os.getenv("FRONTEND_URL", "http://localhost:5173")}/accept-invite/{existing.invite_token}"
 
             try:
                 send_email(
@@ -149,7 +149,7 @@ def invite_user(
     db.commit()
     db.refresh(new_user)
 
-    invite_link = f"http://localhost:5173/accept-invite/{new_user.invite_token}"
+    invite_link = f"{os.getenv("FRONTEND_URL", "http://localhost:5173")}/accept-invite/{new_user.invite_token}"
 
     try:
         send_email(
@@ -195,7 +195,7 @@ def bulk_invite(
             db.commit()
             db.refresh(existing)
 
-            invite_link = f"http://localhost:5173/accept-invite/{existing.invite_token}"
+            invite_link = f"{os.getenv("FRONTEND_URL", "http://localhost:5173")}/accept-invite/{existing.invite_token}"
 
             try:
                 send_email(
@@ -236,7 +236,7 @@ def bulk_invite(
         db.commit()
         db.refresh(new_user)
 
-        invite_link = f"http://localhost:5173/accept-invite/{new_user.invite_token}"
+        invite_link = f"{os.getenv("FRONTEND_URL", "http://localhost:5173")}/accept-invite/{new_user.invite_token}"
 
         try:
             send_email(
