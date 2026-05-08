@@ -19,7 +19,7 @@ Project context for Claude Code sessions. Read this fully before starting any wo
 ### Git
 - **Branch naming:** `feature/<name>`, `fix/<name>`, `feature/payment-phase-N-<name>`
 - **Commit style:** `feat: <short message> #<issue-number>` or `fix: <short message> #<issue-number>`
-- **Author:** Always `Roopsai-axiora` — never use Claude as author or co-author
+- **Author:** Always `ur user-id` — never use Claude as author or co-author
 - **No session links** in commit messages
 - **Never push directly to main** unless explicitly told to. Always branch → push → let the user review → merge
 
@@ -27,7 +27,6 @@ Project context for Claude Code sessions. Read this fully before starting any wo
 - One branch per issue/feature
 - User reviews and merges to main themselves
 - Always pull latest main before creating a new branch
-- Always amend commit author to `Roopsai-axiora` before pushing
 
 ---
 
