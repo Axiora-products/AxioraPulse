@@ -180,6 +180,6 @@ git checkout main && git pull origin main
 git checkout -b fix/<name>
 # ... make changes ...
 git add <files>
-git commit --author="Roopsai-axiora <roopsai-axiora@users.noreply.github.com>" -m "feat: <message> #<issue>"
+git commit --author="user-id <user-id@users.noreply.github.com>" -m "feat: <message> #<issue>"
 git push -u origin <branch>
 ```
