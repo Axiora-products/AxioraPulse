@@ -187,7 +187,7 @@ export default function SurveyEdit() {
     }
   }
 
-  function copyLink() { navigator.clipboard.writeText(`${window.location.origin}/s/${sv.slug}`); toast.success('Copied!'); }
+  function copyLink() { const appOrigin = import.meta.env.VITE_FRONTEND_URL || window.location.origin; navigator.clipboard.writeText(`${appOrigin}/s/${sv.slug}`); toast.success('Copied!'); }
 
   function openPreview() { setPreviewStep(-1); setPreviewOpen(true); }
 

@@ -8,6 +8,10 @@ class ResponseCreate(BaseModel):
     survey_id: UUID
     session_token: Optional[str] = None
     respondent_email: Optional[str] = None
+    age_range: Optional[str] = None
+    gender: Optional[str] = None
+    occupation: Optional[str] = None
+    city: Optional[str] = None
     status: str = "in_progress"
 
 class ResponseUpdate(BaseModel):
@@ -41,6 +45,10 @@ class ResponseOut(BaseModel):
     last_saved_at: Optional[datetime] = None
     metadata: Optional[Dict[str, Any]] = Field(None, alias="metadata", validation_alias="response_metadata")
     survey_answers: Optional[List[AnswerOut]] = None
+    age_range: Optional[str] = None
+    gender: Optional[str] = None
+    occupation: Optional[str] = None
+    city: Optional[str] = None
 
     model_config = {"from_attributes": True}
 

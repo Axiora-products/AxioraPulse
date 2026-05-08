@@ -21,7 +21,11 @@ import { useExitDetection }    from '../hooks/useExitDetection';
  * Designed to run inside an <iframe> on any third-party site.
  *
  * Differences from SurveyRespond:
+<<<<<<< HEAD
+ *  • No Nexora branding (iframe hosts often have their own)
+=======
  *  • No Axiora branding (iframe hosts often have their own)
+>>>>>>> fd890e68ca3c9bca4a377f929c0986334677b689
  *  • No welcome-screen mesh blobs (too heavy in small iframes)
  *  • Minimal padding — fits compact embeds
  *  • Posts a "nx:completed" postMessage to the parent when done

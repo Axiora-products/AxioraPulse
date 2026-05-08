@@ -73,6 +73,10 @@ def create_response(request: Request, body: ResponseCreate, db: Session = Depend
         survey_id=body.survey_id,
         session_token=body.session_token,
         respondent_email=body.respondent_email,
+        age_range=body.age_range,
+        gender=body.gender,
+        occupation=body.occupation,
+        city=body.city,
         status=ResponseStatusEnum.in_progress,
         started_at=datetime.now(timezone.utc),
     )
@@ -136,6 +140,15 @@ def update_response(
         r.last_saved_at = body.last_saved_at
     if body.metadata is not None:
         r.response_metadata = body.metadata
+        if body.age_range is not None:
+            r.age_range = body.age_range
+
+        if body.gender is not None:
+            r.gender = body.gender
+
+        if body.occupation is not None:
+            r.occupation = body.occupation
+    r.city = body.city
 
     db.commit()
     db.refresh(r)

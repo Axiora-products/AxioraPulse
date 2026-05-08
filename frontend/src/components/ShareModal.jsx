@@ -42,8 +42,9 @@ export default function ShareModal({ survey, isOpen, onClose }) {
   const [sending, setSending] = useState(false);
   const inputRef = useRef(null);
 
-  const surveyUrl = `${window.location.origin}/s/${survey?.slug}`;
-  const embedUrl = `${window.location.origin}/embed/${survey?.slug}`;
+  const appOrigin = import.meta.env.VITE_FRONTEND_URL || window.location.origin;
+  const surveyUrl = `${appOrigin}/s/${survey?.slug}`;
+  const embedUrl = `${appOrigin}/embed/${survey?.slug}`;
   const sel = EMBED_SIZES[embedSize];
   const embedCode = `<iframe\n  src="${embedUrl}"\n  width="${sel.w}"\n  height="${sel.h}"\n  frameborder="0"\n  style="border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,0.12)"\n  allow="clipboard-write"\n></iframe>`;
   const shareText = `Check this survey: ${survey?.title}`;
@@ -70,36 +71,95 @@ export default function ShareModal({ survey, isOpen, onClose }) {
     toast.success('Embed code copied!');
   }
 
+  // async function sendEmail() {
+  //   if (!emailTo.trim()) {
+  //     return toast.error("Enter an email address");
+  //   }
+
+  //   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTo)) {
+  //     return toast.error("Invalid email");
+  //   }
+
+  //   setSending(true);
+
+  //   try {
+  //     await API.post("/users/share-survey", {
+  //       email: emailTo.trim(),
+  //       survey_link: surveyUrl,
+  //       survey_title: survey?.title
+  //     }); 
+  //     toast.success(`Invite sent to ${emailTo}`);
+  //     setEmailTo("");
+
+  //   } catch (error) {
+  //     console.log(error.response?.data);
+  //     console.log("FULL ERROR:", error); // 🔥 full object
+  //     console.log("RESPONSE DATA:", error.response?.data);
+  //     console.log("STATUS:", error.response?.status);
+  //     const msg =
+  //       error.response?.data?.detail ||
+  //       "Failed to send invite";
+
+  //     toast.error(msg);
+  //   } finally {
+  //     setSending(false);
+  //   }
+  // }
   async function sendEmail() {
     if (!emailTo.trim()) {
-      return toast.error("Enter an email address");
+      return toast.error("Enter email addresses");
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTo)) {
-      return toast.error("Invalid email");
+    // Split emails
+    const emails = emailTo
+      .split(",")
+      .map(e => e.trim())
+      .filter(Boolean);
+
+    // Validate
+    const invalid = emails.find(
+      e => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)
+    );
+
+    if (invalid) {
+      return toast.error(`Invalid email: ${invalid}`);
     }
 
     setSending(true);
 
     try {
-      await API.post("/users/share-survey", {
-        email: emailTo.trim(),
-        survey_link: surveyUrl,
-        survey_title: survey?.title
-      }); 
-      toast.success(`Invite sent to ${emailTo}`);
+
+      // 🔥 Single email
+      if (emails.length === 1) {
+
+        await API.post("/users/share-survey", {
+          email: emails[0],
+          survey_link: surveyUrl,
+          survey_title: survey?.title
+        });
+
+      } else {
+
+        // 🔥 Bulk email
+        await API.post("/users/bulk-share-survey", {
+          emails,
+          survey_link: surveyUrl,
+          survey_title: survey?.title
+        });
+
+      }
+
+      toast.success(`Survey sent successfully`);
       setEmailTo("");
 
     } catch (error) {
-      console.log(error.response?.data);
-      console.log("FULL ERROR:", error); // 🔥 full object
-      console.log("RESPONSE DATA:", error.response?.data);
-      console.log("STATUS:", error.response?.status);
+
       const msg =
         error.response?.data?.detail ||
-        "Failed to send invite";
+        "Failed to send survey";
 
       toast.error(msg);
+
     } finally {
       setSending(false);
     }

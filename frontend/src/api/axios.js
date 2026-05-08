@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const API = axios.create({
-    baseURL: "http://127.0.0.1:8000",
+    baseURL: import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000",
 });
 
 // Attach Bearer token to every request
@@ -18,7 +18,11 @@ API.interceptors.response.use(
     (err) => {
         if (err.response?.status === 401) {
             localStorage.removeItem("token");
-            window.location.href = "/login";
+            // Skip redirect for auth init — initialize() catch handles it gracefully,
+            // preventing expired-token users from being bounced off public routes like /s/:slug
+            if (!err.config?.url?.includes('/auth/me')) {
+                window.location.href = "/login";
+            }
         }
         return Promise.reject(err);
     }

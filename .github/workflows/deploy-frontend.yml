@@ -1,20 +1,20 @@
-name: Deploy Backend to ECS
+name: Deploy Frontend to ECS
 
 on:
   push:
     branches:
       - main
     paths:
-      - 'backend/**'
+      - 'frontend/**'
   workflow_dispatch:
 
 env:
   AWS_REGION:       ap-south-1
   ECR_REGISTRY:     217757579310.dkr.ecr.ap-south-1.amazonaws.com
-  ECR_REPOSITORY:   axiora/pulse-fastapi
+  ECR_REPOSITORY:   axiora/pulse-frontend
   ECS_CLUSTER:      axiora-pulse-cluster
-  ECS_SERVICE:      pulse-backend-service
-  CONTAINER_NAME:   pulse-backend
+  ECS_SERVICE:      pulse-frontend-service
+  CONTAINER_NAME:   pulse-frontend
 
 jobs:
   build-and-deploy:
@@ -35,11 +35,16 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build and push backend image
+      - name: Build and push frontend image
         id: build-image
         run: |
           IMAGE_URI=${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}
-          docker build --platform linux/amd64 -f backend/Dockerfile.prod -t $IMAGE_URI:latest -t $IMAGE_URI:${{ github.sha }} ./backend
+          docker build --platform linux/amd64 \
+            --build-arg VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL }} \
+            --build-arg VITE_FRONTEND_URL=${{ secrets.VITE_FRONTEND_URL }} \
+            -t $IMAGE_URI:latest \
+            -t $IMAGE_URI:${{ github.sha }} \
+            ./frontend
           docker push $IMAGE_URI:latest
           docker push $IMAGE_URI:${{ github.sha }}
           echo "image=$IMAGE_URI:${{ github.sha }}" >> $GITHUB_OUTPUT
@@ -48,7 +53,7 @@ jobs:
         id: task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          task-definition: backend/ecs-task-def.json
+          task-definition: frontend/ecs-task-def.json
           container-name:  ${{ env.CONTAINER_NAME }}
           image:           ${{ steps.build-image.outputs.image }}
 
