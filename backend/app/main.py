@@ -21,7 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from db.database import engine, Base
 from db import models  # noqa: F401 — needed so Base.metadata is populated
-
+from routes.demo import router as demo_router
 from routes.auth      import router as auth_router
 from routes.users     import router as users_router
 from routes.tenants   import router as tenants_router
@@ -34,18 +34,21 @@ from routes.ai        import router as ai_router
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from fastapi.responses import JSONResponse
-
+from sqlalchemy import text
+from db.database import engine
+from routes.demo import router as demo_router
+from core import config
 from core.rate_limiter import limiter
 
 # ── Create tables ─────────────────────────────────────────────────────────────
 # In production, replace this with Alembic migrations.
-Base.metadata.create_all(bind=engine)
+
 
 
 # ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(
-    title="Axiora Pulse API",
-    description="FastAPI backend for the Axiora Pulse survey science platform",
+    title="Nexora Pulse API",
+    description="FastAPI backend for the Nexora Pulse survey science platform",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -60,7 +63,11 @@ app.add_middleware(SlowAPIMiddleware)
 # allow_credentials=True is NOT required.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+  
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000"
+    ],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -82,14 +89,29 @@ app.include_router(feedback_router)
 app.include_router(dashboard_router)
 app.include_router(utils_router)
 app.include_router(ai_router)
+app.include_router(demo_router)
+
 
 
 # ── Health ────────────────────────────────────────────────────────────────────
-@app.get("/health", tags=["health"])
-def health():
-    return {"status": "ok", "service": "Axiora Pulse API"}
+@app.get("/health", tags=["health"]) 
+def health(): 
+    try: 
+        with engine.connect() as connection: 
+            connection.execute( text("SELECT 1") ) 
+        return { 
+            "status": "healthy", 
+            "service": "Nexora Pulse API", 
+            "database": "connected" 
+            } 
+    except Exception as e: 
+        return { 
+            "status": "unhealthy",
+            "database": "disconnected",
+            "error": str(e) 
+            }
 
 
 @app.get("/", tags=["health"])
 def root():
-    return {"message": "Axiora Pulse API is running. Visit /docs for the interactive API explorer."}
+    return {"message": "Nexora Pulse API is running. Visit /docs for the interactive API explorer."}
