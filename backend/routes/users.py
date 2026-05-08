@@ -29,9 +29,9 @@ from schemas import (
 from auth_utils import hash_password
 from dependencies import get_current_user
 
-router = APIRouter(prefix="/users", tags=["users"])
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
 
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+router = APIRouter(prefix="/users", tags=["users"])
 
 # Roles that allow inviting / managing users
 MANAGER_ROLES = {RoleEnum.super_admin, RoleEnum.admin, RoleEnum.manager}
@@ -104,7 +104,7 @@ def invite_user(
             db.commit()
             db.refresh(existing)
 
-            invite_link = f"{FRONTEND_URL}/accept-invite/{existing.invite_token}"
+            invite_link = f"{FRONTEND_URL}/accept-invite?token={existing.invite_token}"
 
             try:
                 send_email(
@@ -151,17 +151,26 @@ def invite_user(
     db.commit()
     db.refresh(new_user)
 
-    invite_link = f"{FRONTEND_URL}/accept-invite/{new_user.invite_token}"
+    invite_link = f"{FRONTEND_URL}/accept-invite?token={new_user.invite_token}"
 
     try:
         send_email(
             to_email=new_user.email,
-            subject="You're invited to Nexora Pulse 🚀",
+            subject="You're invited to Axiora Pulse 🚀",
             body=f"""
-            <h3>Hello {new_user.full_name or 'User'},</h3>
-            <p>You have been invited to join Nexora Pulse.</p>
-            <p>Click below to accept your invite:</p>
-            <a href="{invite_link}">Accept Invite</a>
+            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; borderRadius: 10px;">
+                <h2 style="color: #160F08;">Hello {new_user.full_name or 'there'},</h2>
+                <p style="font-size: 16px; color: #444; line-height: 1.6;">
+                    You have been invited to join <strong>{current_user.tenant.name if current_user.tenant else 'Axiora Pulse'}</strong>.
+                </p>
+                <p style="margin: 30px 0;">
+                    <a href="{invite_link}" style="background-color: #FF4500; color: white; padding: 12px 24px; text-decoration: none; border-radius: 999px; font-weight: bold;">Accept Invitation</a>
+                </p>
+                <p style="font-size: 14px; color: #888;">
+                    If the button above doesn't work, copy and paste this link into your browser: <br>
+                    <a href="{invite_link}" style="color: #FF4500;">{invite_link}</a>
+                </p>
+            </div>
             """
         )
     except Exception as e:
@@ -182,9 +191,9 @@ def bulk_invite(
     _require_manager(current_user)
 
     results = []
+    tenant_name = current_user.tenant.name if current_user.tenant else "Axiora Pulse"
 
     for email in body.emails:
-
         existing = db.query(UserProfile).filter(
             UserProfile.email == email,
             UserProfile.tenant_id == current_user.tenant_id,
@@ -192,28 +201,33 @@ def bulk_invite(
 
         # 🔁 Already invited → resend
         if existing and existing.account_status == "invited":
-
             existing.invite_token = secrets.token_urlsafe(32)
             db.commit()
             db.refresh(existing)
 
-            invite_link = f"{FRONTEND_URL}/accept-invite/{existing.invite_token}"
+            invite_link = f"{FRONTEND_URL}/accept-invite?token={existing.invite_token}"
 
             try:
                 send_email(
                     to_email=email,
-                    subject="You're invited (Reminder) 🚀",
+                    subject="Invitation Reminder: Join Axiora Pulse 🚀",
                     body=f"""
-                    <h3>Hello {existing.full_name or 'User'},</h3>
-                    <p>This is a reminder to join Axiora Pulse.</p>
-                    <a href="{invite_link}">Accept Invite</a>
+                    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; borderRadius: 10px;">
+                        <h2 style="color: #160F08;">Hello again,</h2>
+                        <p style="font-size: 16px; color: #444; line-height: 1.6;">
+                            This is a reminder to join <strong>{tenant_name}</strong> on Axiora Pulse.
+                        </p>
+                        <p style="margin: 30px 0;">
+                            <a href="{invite_link}" style="background-color: #FF4500; color: white; padding: 12px 24px; text-decoration: none; border-radius: 999px; font-weight: bold;">Accept Invitation</a>
+                        </p>
+                    </div>
                     """
                 )
                 results.append({"email": email, "status": "resent"})
             except Exception:
                 results.append({"email": email, "status": "failed"})
 
-            time.sleep(1)
+            time.sleep(0.5)
             continue
 
         # ❌ Already active
@@ -238,23 +252,29 @@ def bulk_invite(
         db.commit()
         db.refresh(new_user)
 
-        invite_link = f"{FRONTEND_URL}/accept-invite/{new_user.invite_token}"
+        invite_link = f"{FRONTEND_URL}/accept-invite?token={new_user.invite_token}"
 
         try:
             send_email(
                 to_email=email,
-                subject="You're invited 🚀",
+                subject="You're invited to Axiora Pulse 🚀",
                 body=f"""
-                <h3>Hello,</h3>
-                <p>You are invited to Axiora Pulse.</p>
-                <a href="{invite_link}">Accept Invite</a>
+                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; borderRadius: 10px;">
+                    <h2 style="color: #160F08;">Hello,</h2>
+                    <p style="font-size: 16px; color: #444; line-height: 1.6;">
+                        You have been invited to join <strong>{tenant_name}</strong> on Axiora Pulse.
+                    </p>
+                    <p style="margin: 30px 0;">
+                        <a href="{invite_link}" style="background-color: #FF4500; color: white; padding: 12px 24px; text-decoration: none; border-radius: 999px; font-weight: bold;">Accept Invitation</a>
+                    </p>
+                </div>
                 """
             )
             results.append({"email": email, "status": "sent"})
         except Exception:
             results.append({"email": email, "status": "failed"})
 
-        time.sleep(1)  # ⚠️ prevent Gmail blocking
+        time.sleep(0.5)
 
     return {"results": results}
 
@@ -385,6 +405,6 @@ def get_invite_info(
     return {
         "email": user.email,
         "full_name": user.full_name,
-        "tenant_name": user.tenant.name if user.tenant else "NexoraPulse",
+        "tenant_name": user.tenant.name if user.tenant else "AxioraPulse",
         "role": user.role.value if hasattr(user.role, "value") else str(user.role),
     }

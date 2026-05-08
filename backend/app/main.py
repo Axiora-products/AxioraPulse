@@ -21,7 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from db.database import engine, Base
 from db import models  # noqa: F401 — needed so Base.metadata is populated
-from routes.demo import router as demo_router
+
 from routes.auth      import router as auth_router
 from routes.users     import router as users_router
 from routes.tenants   import router as tenants_router
@@ -31,13 +31,9 @@ from routes.feedback  import router as feedback_router
 from routes.dashboard import router as dashboard_router
 from routes.utils     import router as utils_router
 from routes.ai        import router as ai_router
-from routes.public    import router as public_router
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from fastapi.responses import JSONResponse
-
-from routes.demo import router as demo_router
-
 
 from core.rate_limiter import limiter
 
@@ -48,8 +44,8 @@ Base.metadata.create_all(bind=engine)
 
 # ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(
-    title="Nexora Pulse API",
-    description="FastAPI backend for the Nexora Pulse survey science platform",
+    title="Axiora Pulse API",
+    description="FastAPI backend for the Axiora Pulse survey science platform",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -86,17 +82,14 @@ app.include_router(feedback_router)
 app.include_router(dashboard_router)
 app.include_router(utils_router)
 app.include_router(ai_router)
-app.include_router(demo_router)
-app.include_router(public_router)
-
 
 
 # ── Health ────────────────────────────────────────────────────────────────────
 @app.get("/health", tags=["health"])
 def health():
-    return {"status": "ok", "service": "Nexora Pulse API"}
+    return {"status": "ok", "service": "Axiora Pulse API"}
 
 
 @app.get("/", tags=["health"])
 def root():
-    return {"message": "Nexora Pulse API is running. Visit /docs for the interactive API explorer."}
+    return {"message": "Axiora Pulse API is running. Visit /docs for the interactive API explorer."}

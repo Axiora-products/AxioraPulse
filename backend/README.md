@@ -1,6 +1,6 @@
-# NexoraPulse Backend
+# AxioraPulse Backend
 
-FastAPI + PostgreSQL + SQLAlchemy backend for the NexoraPulse survey platform.
+FastAPI + PostgreSQL + SQLAlchemy backend for the AxioraPulse survey platform.
 
 ## Prerequisites
 - Python 3.11+

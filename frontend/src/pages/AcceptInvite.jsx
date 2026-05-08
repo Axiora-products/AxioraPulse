@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { useLoading } from '../context/LoadingContext';
@@ -20,9 +20,9 @@ export default function AcceptInvite() {
   const { stopLoading: stopNav } = useLoading();
   useEffect(() => { stopNav(); }, [stopNav]);
 
-  // Read invite token from query params (set by admin sharing the link)
   const params = new URLSearchParams(window.location.search);
-  const inviteToken = params.get('token') || '';
+  const { token: pathToken } = useParams();
+  const inviteToken = params.get('token') || pathToken || '';
 
   const [inviteInfo, setInviteInfo] = useState(null);
   const [loadingInfo, setLoadingInfo] = useState(!!inviteToken);
