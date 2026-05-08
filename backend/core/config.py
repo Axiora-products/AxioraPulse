@@ -14,6 +14,8 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
+FRONTEND_URL = os.getenv("FRONTEND_URL", "")  # e.g. https://app.axiorapulse.com
+
 
 if not DATABASE_URL:
     raise Exception("DATABASE_URL is missing")
