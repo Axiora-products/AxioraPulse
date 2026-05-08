@@ -1,7 +1,7 @@
 """
 db/models.py
 ────────────
-SQLAlchemy ORM models for AxioraPulse.
+SQLAlchemy ORM models for NexoraPulse.
 All tables use UUID primary keys and mirror the Supabase schema exactly
 so the frontend data shapes remain unchanged.
 """
@@ -15,6 +15,7 @@ from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from db.database import Base
+from datetime import datetime
 
 import enum
 
@@ -76,7 +77,7 @@ class Tenant(Base):
 
     id              = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name            = Column(String(255), nullable=False)
-    slug            = Column(String(100), unique=True, nullable=False)
+    slug            = Column(String(100), unique=True,index=True,nullable=False)
     plan            = Column(String(50), default="free")
     primary_color   = Column(String(20), default="#FF4500")
     approved_domains = Column(ARRAY(Text), default=[])
@@ -95,11 +96,11 @@ class UserProfile(Base):
     __tablename__ = "user_profiles"
 
     id                 = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    email              = Column(String(255), unique=True, nullable=False)
+    email              = Column(String(255), unique=True,index=True, nullable=False)
     full_name          = Column(String(255), nullable=True)
     password_hash      = Column(String(255), nullable=True)   # nullable for invited-but-not-yet-setup users
     role               = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.viewer)
-    tenant_id          = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=True)
+    tenant_id          = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"),index=True, nullable=True)
     is_active          = Column(Boolean, default=True)
     account_status     = Column(String(50), default="active")  # 'active' | 'invited'
     invite_token       = Column(String(100), unique=True, nullable=True)
@@ -175,7 +176,7 @@ class SurveyResponse(Base):
     __tablename__ = "survey_responses"
 
     id                = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    survey_id         = Column(UUID(as_uuid=True), ForeignKey("surveys.id", ondelete="CASCADE"), nullable=False)
+    survey_id         = Column(UUID(as_uuid=True), ForeignKey("surveys.id", ondelete="CASCADE"),index=True, nullable=False)
     session_token     = Column(String(100), nullable=True)
     respondent_email  = Column(String(255), nullable=True)
     status            = Column(SAEnum(ResponseStatusEnum), default=ResponseStatusEnum.in_progress)
@@ -183,6 +184,12 @@ class SurveyResponse(Base):
     completed_at      = Column(DateTime(timezone=True), nullable=True)
     last_saved_at     = Column(DateTime(timezone=True), nullable=True)
     response_metadata = Column("metadata", JSONB, nullable=True)
+
+    # demographics
+    age_range = Column(String(50), nullable=True)
+    gender = Column(String(50), nullable=True)
+    occupation = Column(String(100), nullable=True)
+    city = Column(String(100), nullable=True)
 
     __table_args__ = (
         UniqueConstraint("session_token", name="uq_survey_response_session_token"),
@@ -202,7 +209,7 @@ class SurveyAnswer(Base):
     __tablename__ = "survey_answers"
 
     id           = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    response_id  = Column(UUID(as_uuid=True), ForeignKey("survey_responses.id", ondelete="CASCADE"), nullable=False)
+    response_id  = Column(UUID(as_uuid=True), ForeignKey("survey_responses.id", ondelete="CASCADE"),index=True, nullable=False)
     question_id  = Column(UUID(as_uuid=True), ForeignKey("survey_questions.id", ondelete="CASCADE"), nullable=False)
     answer_value = Column(Text, nullable=True)
     answer_json  = Column(JSONB, nullable=True)
@@ -249,3 +256,23 @@ class SurveyShare(Base):
     # relationships
     survey = relationship("Survey", back_populates="shares")
     user   = relationship("UserProfile")
+
+class DemoSchedule(Base):
+    __tablename__ = "demo_schedules"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+
+    name = Column(String, nullable=False)
+    email = Column(String, nullable=False)
+
+    # demo booking details
+    demo_date = Column(String, nullable=False)
+    time_slot = Column(String, nullable=False)
+
+    # assigned meet link
+    meeting_link = Column(String, nullable=False)
+
+    # booking status
+    status = Column(String, default="scheduled")
+
+    created_at = Column(DateTime, default=datetime.utcnow)
