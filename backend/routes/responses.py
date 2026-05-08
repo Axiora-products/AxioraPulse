@@ -112,6 +112,7 @@ def get_response_by_session(request: Request, token: str, db: Session = Depends(
 # ── Get by id ─────────────────────────────────────────────────────────────────
 
 @router.get("/{response_id}", response_model=ResponseOut)
+@limiter.limit("20/minute")
 def get_response(request: Request, response_id: uuid.UUID, db: Session = Depends(get_db)):
     return ResponseOut.model_validate(_load_response(response_id, db))
 
@@ -119,7 +120,9 @@ def get_response(request: Request, response_id: uuid.UUID, db: Session = Depends
 # ── Update metadata ───────────────────────────────────────────────────────────
 
 @router.patch("/{response_id}", response_model=ResponseOut)
+@limiter.limit("20/minute")
 def update_response(
+    request: Request,
     response_id: uuid.UUID,
     body: ResponseUpdate,
     db: Session = Depends(get_db),
@@ -140,15 +143,15 @@ def update_response(
         r.last_saved_at = body.last_saved_at
     if body.metadata is not None:
         r.response_metadata = body.metadata
-        if body.age_range is not None:
-            r.age_range = body.age_range
+    if body.age_range is not None:
+        r.age_range = body.age_range
 
-        if body.gender is not None:
-            r.gender = body.gender
+    if body.gender is not None:
+        r.gender = body.gender
 
-        if body.occupation is not None:
-            r.occupation = body.occupation
-    r.city = body.city
+    if body.occupation is not None:
+        r.occupation = body.occupation
+        r.city = body.city
 
     db.commit()
     db.refresh(r)
