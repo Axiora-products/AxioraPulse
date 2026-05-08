@@ -10,8 +10,6 @@ replacing init_db.py + update_db_schema.py.
 
 from typing import Sequence, Union
 from alembic import op
-import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 revision: str = "e7da82edf568"
 down_revision: Union[str, None] = None
@@ -20,7 +18,6 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # ── Enums ────────────────────────────────────────────────────────────────
     op.execute("""
         DO $$ BEGIN
             CREATE TYPE roleenum AS ENUM (
@@ -28,16 +25,14 @@ def upgrade() -> None:
             );
         EXCEPTION WHEN duplicate_object THEN NULL;
         END $$;
-    """)
-    op.execute("""
+
         DO $$ BEGIN
             CREATE TYPE surveystatusenum AS ENUM (
                 'draft', 'active', 'paused', 'expired', 'closed'
             );
         EXCEPTION WHEN duplicate_object THEN NULL;
         END $$;
-    """)
-    op.execute("""
+
         DO $$ BEGIN
             CREATE TYPE questiontypeenum AS ENUM (
                 'short_text', 'long_text', 'single_choice', 'multiple_choice',
@@ -46,173 +41,118 @@ def upgrade() -> None:
             );
         EXCEPTION WHEN duplicate_object THEN NULL;
         END $$;
-    """)
-    op.execute("""
+
         DO $$ BEGIN
             CREATE TYPE responsestatusenum AS ENUM (
                 'in_progress', 'completed', 'abandoned'
             );
         EXCEPTION WHEN duplicate_object THEN NULL;
         END $$;
-    """)
-    op.execute("""
+
         DO $$ BEGIN
             CREATE TYPE sharepermissionenum AS ENUM (
                 'viewer', 'editor'
             );
         EXCEPTION WHEN duplicate_object THEN NULL;
         END $$;
+
+        CREATE TABLE IF NOT EXISTS tenants (
+            id          UUID PRIMARY KEY,
+            name        VARCHAR(255) NOT NULL,
+            slug        VARCHAR(100) NOT NULL,
+            plan        VARCHAR(50) DEFAULT 'free',
+            primary_color VARCHAR(20) DEFAULT '#FF4500',
+            approved_domains TEXT[] DEFAULT '{}',
+            created_at  TIMESTAMPTZ DEFAULT now(),
+            CONSTRAINT uq_tenants_slug UNIQUE (slug)
+        );
+
+        CREATE TABLE IF NOT EXISTS user_profiles (
+            id                  UUID PRIMARY KEY,
+            email               VARCHAR(255) NOT NULL,
+            full_name           VARCHAR(255),
+            password_hash       VARCHAR(255),
+            role                roleenum NOT NULL DEFAULT 'viewer',
+            tenant_id           UUID REFERENCES tenants(id) ON DELETE CASCADE,
+            is_active           BOOLEAN DEFAULT true,
+            account_status      VARCHAR(50) DEFAULT 'active',
+            invite_token        VARCHAR(100),
+            invite_accepted_at  TIMESTAMPTZ,
+            created_at          TIMESTAMPTZ DEFAULT now(),
+            CONSTRAINT uq_user_profiles_email UNIQUE (email),
+            CONSTRAINT uq_user_profiles_invite_token UNIQUE (invite_token)
+        );
+
+        CREATE TABLE IF NOT EXISTS surveys (
+            id                UUID PRIMARY KEY,
+            title             VARCHAR(500) NOT NULL,
+            description       TEXT,
+            welcome_message   TEXT,
+            thank_you_message TEXT,
+            expires_at        TIMESTAMPTZ,
+            allow_anonymous   BOOLEAN DEFAULT true,
+            require_email     BOOLEAN DEFAULT false,
+            show_progress_bar BOOLEAN DEFAULT true,
+            theme_color       VARCHAR(20) DEFAULT '#FF4500',
+            slug              VARCHAR(50) NOT NULL,
+            status            surveystatusenum DEFAULT 'draft',
+            tenant_id         UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+            created_by        UUID REFERENCES user_profiles(id) ON DELETE SET NULL,
+            created_at        TIMESTAMPTZ DEFAULT now(),
+            CONSTRAINT uq_surveys_slug UNIQUE (slug)
+        );
+
+        CREATE TABLE IF NOT EXISTS survey_questions (
+            id              UUID PRIMARY KEY,
+            survey_id       UUID NOT NULL REFERENCES surveys(id) ON DELETE CASCADE,
+            question_text   TEXT NOT NULL,
+            question_type   questiontypeenum NOT NULL,
+            options         JSONB,
+            is_required     BOOLEAN DEFAULT false,
+            description     TEXT,
+            sort_order      INTEGER DEFAULT 0,
+            validation_rules JSONB,
+            created_at      TIMESTAMPTZ DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS survey_responses (
+            id                UUID PRIMARY KEY,
+            survey_id         UUID NOT NULL REFERENCES surveys(id) ON DELETE CASCADE,
+            session_token     VARCHAR(100),
+            respondent_email  VARCHAR(255),
+            status            responsestatusenum DEFAULT 'in_progress',
+            started_at        TIMESTAMPTZ DEFAULT now(),
+            completed_at      TIMESTAMPTZ,
+            last_saved_at     TIMESTAMPTZ,
+            metadata          JSONB,
+            CONSTRAINT uq_survey_response_session_token UNIQUE (session_token)
+        );
+
+        CREATE TABLE IF NOT EXISTS survey_answers (
+            id            UUID PRIMARY KEY,
+            response_id   UUID NOT NULL REFERENCES survey_responses(id) ON DELETE CASCADE,
+            question_id   UUID NOT NULL REFERENCES survey_questions(id) ON DELETE CASCADE,
+            answer_value  TEXT,
+            answer_json   JSONB,
+            CONSTRAINT uq_answer_response_question UNIQUE (response_id, question_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS survey_feedback (
+            id           UUID PRIMARY KEY,
+            survey_id    UUID NOT NULL REFERENCES surveys(id) ON DELETE CASCADE,
+            rating       INTEGER,
+            comment      TEXT,
+            responded_at TIMESTAMPTZ
+        );
+
+        CREATE TABLE IF NOT EXISTS survey_shares (
+            id          UUID PRIMARY KEY,
+            survey_id   UUID NOT NULL REFERENCES surveys(id) ON DELETE CASCADE,
+            shared_with UUID NOT NULL REFERENCES user_profiles(id) ON DELETE CASCADE,
+            permission  sharepermissionenum DEFAULT 'viewer',
+            created_at  TIMESTAMPTZ DEFAULT now()
+        );
     """)
-
-    # ── tenants ───────────────────────────────────────────────────────────────
-    op.create_table(
-        "tenants",
-        sa.Column("id", UUID(as_uuid=True), primary_key=True),
-        sa.Column("name", sa.String(255), nullable=False),
-        sa.Column("slug", sa.String(100), nullable=False),
-        sa.Column("plan", sa.String(50), server_default="free"),
-        sa.Column("primary_color", sa.String(20), server_default="#FF4500"),
-        sa.Column("approved_domains", sa.ARRAY(sa.Text), server_default="{}"),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
-        sa.UniqueConstraint("slug", name="uq_tenants_slug"),
-    )
-
-    # ── user_profiles ─────────────────────────────────────────────────────────
-    op.create_table(
-        "user_profiles",
-        sa.Column("id", UUID(as_uuid=True), primary_key=True),
-        sa.Column("email", sa.String(255), nullable=False),
-        sa.Column("full_name", sa.String(255), nullable=True),
-        sa.Column("password_hash", sa.String(255), nullable=True),
-        sa.Column(
-            "role",
-            sa.Enum("super_admin", "admin", "manager", "creator", "viewer",
-                    name="roleenum", create_type=False),
-            nullable=False,
-            server_default="viewer",
-        ),
-        sa.Column("tenant_id", UUID(as_uuid=True),
-                  sa.ForeignKey("tenants.id", ondelete="CASCADE"), nullable=True),
-        sa.Column("is_active", sa.Boolean, server_default="true"),
-        sa.Column("account_status", sa.String(50), server_default="active"),
-        sa.Column("invite_token", sa.String(100), nullable=True),
-        sa.Column("invite_accepted_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
-        sa.UniqueConstraint("email", name="uq_user_profiles_email"),
-        sa.UniqueConstraint("invite_token", name="uq_user_profiles_invite_token"),
-    )
-
-    # ── surveys ───────────────────────────────────────────────────────────────
-    op.create_table(
-        "surveys",
-        sa.Column("id", UUID(as_uuid=True), primary_key=True),
-        sa.Column("title", sa.String(500), nullable=False),
-        sa.Column("description", sa.Text, nullable=True),
-        sa.Column("welcome_message", sa.Text, nullable=True),
-        sa.Column("thank_you_message", sa.Text, nullable=True),
-        sa.Column("expires_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("allow_anonymous", sa.Boolean, server_default="true"),
-        sa.Column("require_email", sa.Boolean, server_default="false"),
-        sa.Column("show_progress_bar", sa.Boolean, server_default="true"),
-        sa.Column("theme_color", sa.String(20), server_default="#FF4500"),
-        sa.Column("slug", sa.String(50), nullable=False),
-        sa.Column(
-            "status",
-            sa.Enum("draft", "active", "paused", "expired", "closed",
-                    name="surveystatusenum", create_type=False),
-            server_default="draft",
-        ),
-        sa.Column("tenant_id", UUID(as_uuid=True),
-                  sa.ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("created_by", UUID(as_uuid=True),
-                  sa.ForeignKey("user_profiles.id", ondelete="SET NULL"), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
-        sa.UniqueConstraint("slug", name="uq_surveys_slug"),
-    )
-
-    # ── survey_questions ──────────────────────────────────────────────────────
-    op.create_table(
-        "survey_questions",
-        sa.Column("id", UUID(as_uuid=True), primary_key=True),
-        sa.Column("survey_id", UUID(as_uuid=True),
-                  sa.ForeignKey("surveys.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("question_text", sa.Text, nullable=False),
-        sa.Column(
-            "question_type",
-            sa.Enum("short_text", "long_text", "single_choice", "multiple_choice",
-                    "rating", "scale", "yes_no", "dropdown", "number", "email",
-                    "date", "ranking", "slider", "matrix",
-                    name="questiontypeenum", create_type=False),
-            nullable=False,
-        ),
-        sa.Column("options", JSONB, nullable=True),
-        sa.Column("is_required", sa.Boolean, server_default="false"),
-        sa.Column("description", sa.Text, nullable=True),
-        sa.Column("sort_order", sa.Integer, server_default="0"),
-        sa.Column("validation_rules", JSONB, nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
-    )
-
-    # ── survey_responses ──────────────────────────────────────────────────────
-    op.create_table(
-        "survey_responses",
-        sa.Column("id", UUID(as_uuid=True), primary_key=True),
-        sa.Column("survey_id", UUID(as_uuid=True),
-                  sa.ForeignKey("surveys.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("session_token", sa.String(100), nullable=True),
-        sa.Column("respondent_email", sa.String(255), nullable=True),
-        sa.Column(
-            "status",
-            sa.Enum("in_progress", "completed", "abandoned",
-                    name="responsestatusenum", create_type=False),
-            server_default="in_progress",
-        ),
-        sa.Column("started_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
-        sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("last_saved_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("metadata", JSONB, nullable=True),
-        sa.UniqueConstraint("session_token", name="uq_survey_response_session_token"),
-    )
-
-    # ── survey_answers ────────────────────────────────────────────────────────
-    op.create_table(
-        "survey_answers",
-        sa.Column("id", UUID(as_uuid=True), primary_key=True),
-        sa.Column("response_id", UUID(as_uuid=True),
-                  sa.ForeignKey("survey_responses.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("question_id", UUID(as_uuid=True),
-                  sa.ForeignKey("survey_questions.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("answer_value", sa.Text, nullable=True),
-        sa.Column("answer_json", JSONB, nullable=True),
-        sa.UniqueConstraint("response_id", "question_id", name="uq_answer_response_question"),
-    )
-
-    # ── survey_feedback ───────────────────────────────────────────────────────
-    op.create_table(
-        "survey_feedback",
-        sa.Column("id", UUID(as_uuid=True), primary_key=True),
-        sa.Column("survey_id", UUID(as_uuid=True),
-                  sa.ForeignKey("surveys.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("rating", sa.Integer, nullable=True),
-        sa.Column("comment", sa.Text, nullable=True),
-        sa.Column("responded_at", sa.DateTime(timezone=True), nullable=True),
-    )
-
-    # ── survey_shares ─────────────────────────────────────────────────────────
-    op.create_table(
-        "survey_shares",
-        sa.Column("id", UUID(as_uuid=True), primary_key=True),
-        sa.Column("survey_id", UUID(as_uuid=True),
-                  sa.ForeignKey("surveys.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("shared_with", UUID(as_uuid=True),
-                  sa.ForeignKey("user_profiles.id", ondelete="CASCADE"), nullable=False),
-        sa.Column(
-            "permission",
-            sa.Enum("viewer", "editor", name="sharepermissionenum", create_type=False),
-            server_default="viewer",
-        ),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
-    )
 
 
 def downgrade() -> None:
