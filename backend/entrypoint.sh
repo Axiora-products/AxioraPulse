@@ -1,55 +1,33 @@
 #!/bin/bash
+set -e
 
-# Ensure DATABASE_URL is set
-if [ -z "$DATABASE_URL" ]; then
-    echo "ERROR: DATABASE_URL environment variable is not set."
-    exit 1
+# Wait for database with a retry limit (max 30 attempts, 2s apart = 60s)
+if [[ "$DATABASE_URL" == *"localhost"* ]] || [[ "$DATABASE_URL" == *"db:"* ]]; then
+    echo "Waiting for local database..."
+    MAX_RETRIES=30
+    RETRY=0
+    until python -c "
+import psycopg2, os, sys
+try:
+    psycopg2.connect(os.environ['DATABASE_URL']).close()
+    sys.exit(0)
+except:
+    sys.exit(1)
+" ; do
+        RETRY=$((RETRY + 1))
+        if [ "$RETRY" -ge "$MAX_RETRIES" ]; then
+            echo "ERROR: Database not reachable after $MAX_RETRIES attempts. Exiting."
+            exit 1
+        fi
+        echo "Waiting for database... ($RETRY/$MAX_RETRIES)"
+        sleep 2
+    done
+    echo "Local database is ready!"
 fi
 
-echo "Waiting for database to be ready..."
-
-# Wait loop for database connectivity
-# Handles local, Supabase (historical), and Aurora RDS.
-# We strip SQLAlchemy driver prefixes (like +psycopg2) for the psycopg2 check.
-python -c "
-import time
-import psycopg2
-import os
-import sys
-
-db_url = os.environ.get('DATABASE_URL')
-if db_url and '://' in db_url:
-    protocol, rest = db_url.split('://', 1)
-    if '+' in protocol:
-        protocol = protocol.split('+')[0]
-    db_url = f'{protocol}://{rest}'
-
-attempts = 0
-max_attempts = 30
-while attempts < max_attempts:
-    try:
-        conn = psycopg2.connect(db_url, connect_timeout=5)
-        conn.close()
-        print('Database is ready!')
-        sys.exit(0)
-    except Exception as e:
-        attempts += 1
-        # Only print the error every few attempts to keep logs clean
-        if attempts % 5 == 1:
-            print(f'Waiting for database... ({attempts}/{max_attempts})')
-        time.sleep(2)
-sys.exit(1)
-"
-
-if [ $? -ne 0 ]; then
-    echo "ERROR: Database did not become ready in time."
-    exit 1
-fi
-
-# Run Alembic migrations
+# Apply all pending Alembic migrations
 echo "Running database migrations..."
 alembic upgrade head
-
 echo "Database setup complete!"
 
 # Start the application
