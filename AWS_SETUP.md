@@ -48,8 +48,9 @@ The ALB is locked down to accept traffic **only from CloudFront** after Step 19.
 [ ] 21. ECR — Push initial images (CLI)
 [ ] 22. ECS — pulse-backend-service
 [ ] 23. ECS — pulse-frontend-service
-[ ] 24. DNS — Records for axiorapulse.com and api.axiorapulse.com
-[ ] 25. GitHub — Repository secrets
+[ ] 24. Route 53 — Create hosted zone + delegate from GoDaddy
+[ ] 25. DNS — Records for axiorapulse.com and api.axiorapulse.com
+[ ] 26. GitHub — Repository secrets
 ```
 
 ---
@@ -524,37 +525,69 @@ docker push 217757579310.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-frontend:
 
 ---
 
-## Step 24 — DNS: Records for axiorapulse.com
+## Step 24 — Route 53: Hosted Zone + GoDaddy Nameserver Delegation
 
-Point your domain to the two CloudFront distributions. Use the CloudFront domain names you noted in Steps 17 and 18.
+`axiorapulse.com` is registered at GoDaddy. You will keep it there but delegate DNS management entirely to Route 53. GoDaddy becomes registration-only — all records live in AWS.
 
-### If using Route 53 (recommended — supports ALIAS for root domain)
+> **Why:** GoDaddy does not support CNAME flattening or ALIAS records. Without ALIAS support you cannot point the root apex domain (`axiorapulse.com`) to CloudFront — standard DNS forbids a CNAME on the apex. Route 53 ALIAS records solve this natively and cost ~$0.50/month for the hosted zone.
 
-Go to **Route 53 → Hosted zones → axiorapulse.com → Create record**
+### 24a — Create the Route 53 Hosted Zone
 
-| Record name | Type | Value |
-|---|---|---|
-| `axiorapulse.com` (root/apex) | **A — Alias → CloudFront** | frontend distribution (Step 17) |
-| `www` | **A — Alias → CloudFront** | frontend distribution (Step 17) |
-| `api` | **CNAME** | API CloudFront domain (Step 18) e.g. `d9xyz8abc7de6f.cloudfront.net` |
+1. **Route 53 → Hosted zones → Create hosted zone**
+2. Domain name: `axiorapulse.com`
+3. Type: **Public hosted zone**
+4. **Create hosted zone**
+5. Open the new hosted zone — note the **4 NS record values**, e.g.:
+   ```
+   ns-123.awsdns-45.com
+   ns-678.awsdns-90.net
+   ns-111.awsdns-22.org
+   ns-999.awsdns-88.co.uk
+   ```
 
-> Route 53 Alias records have no extra cost and work for the root apex domain where CNAME is not allowed.
+Route 53 auto-creates an NS record and an SOA record. Do not delete them.
 
-### If using another DNS provider (Cloudflare, Namecheap, etc.)
+### 24b — Update Nameservers in GoDaddy
 
-| Name | Type | Value |
-|---|---|---|
-| `@` (root) | **CNAME** (or ANAME/ALIAS if supported) | frontend CloudFront domain (Step 17) |
-| `www` | **CNAME** | frontend CloudFront domain (Step 17) |
-| `api` | **CNAME** | API CloudFront domain (Step 18) |
+1. Log in to **GoDaddy → My Products → Domains → `axiorapulse.com` → DNS**
+2. Click **Nameservers → Change Nameservers**
+3. Select **I'll use my own nameservers**
+4. Replace all existing nameservers with the **4 Route 53 NS values** from Step 24a
+5. **Save** — GoDaddy shows a warning about losing existing DNS records; confirm it
+6. Propagation takes **a few minutes to a few hours** (typically under 30 min)
 
-> Most providers that don't support root CNAME offer a workaround (Cloudflare CNAME flattening, Namecheap ALIAS). Use whichever your provider supports.
+> After this point all DNS for `axiorapulse.com` is controlled from Route 53. Any records previously in GoDaddy (MX for email, etc.) are gone — recreate them in Route 53 if needed.
 
-DNS changes propagate within a few minutes for Route 53, up to 24 hours for other providers.
+### 24c — Verify Delegation
+
+Once propagation is complete, confirm Route 53 is answering:
+
+```bash
+dig NS axiorapulse.com +short
+# Should return the 4 awsdns-* nameservers from Step 24a
+```
 
 ---
 
-## Step 25 — GitHub: Repository Secrets
+## Step 25 — DNS: Records in Route 53
+
+With the hosted zone active, add three records. Use the CloudFront domain names you noted in Steps 17 and 18.
+
+Go to **Route 53 → Hosted zones → axiorapulse.com → Create record**
+
+| Record name | Type | Routing | Value |
+|---|---|---|---|
+| `axiorapulse.com` (root/apex) | **A** | **Alias → CloudFront distribution** | frontend distribution (Step 17) |
+| `www` | **A** | **Alias → CloudFront distribution** | frontend distribution (Step 17) |
+| `api` | **CNAME** | Simple | API CloudFront domain e.g. `d9xyz8abc7de6f.cloudfront.net` |
+
+For the Alias records: when you choose **Alias → CloudFront distribution**, Route 53 shows a dropdown — select the frontend distribution. No TTL needed for Alias records.
+
+DNS changes in Route 53 propagate within seconds to a few minutes globally.
+
+---
+
+## Step 26 — GitHub: Repository Secrets
 
 Go to your GitHub repo → **Settings → Secrets and variables → Actions → New repository secret**
 
