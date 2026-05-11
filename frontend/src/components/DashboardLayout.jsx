@@ -220,6 +220,15 @@ export default function DashboardLayout() {
                       </span>
                     </div>
 
+                    {/* Billing */}
+                    <Link to="/billing" onClick={() => setUserMenu(false)}
+                      style={menuItemStyle(false)}
+                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(253,245,232,0.08)'; e.currentTarget.style.color = 'var(--cream)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(253,245,232,0.45)'; }}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 8, verticalAlign: 'middle' }}><rect x="1" y="4" width="22" height="16" rx="2" /><line x1="1" y1="10" x2="23" y2="10" /></svg>
+                      Billing
+                    </Link>
+
                     {/* Issue #1: Settings in avatar menu */}
                     <Link to="/settings" onClick={() => setUserMenu(false)}
                       style={menuItemStyle(false)}
