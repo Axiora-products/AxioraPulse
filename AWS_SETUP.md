@@ -1,7 +1,24 @@
 # AWS ECS Deployment Setup — AxioraPulse
 
-Complete one-time AWS setup for deploying frontend and backend to ECS Fargate.  
-**Region:** `ap-south-1` (Mumbai) | **Account:** `217757579310`
+Complete one-time AWS setup for deploying frontend and backend to ECS Fargate behind CloudFront.  
+**Region:** `ap-south-1` (Mumbai) | **Account:** `217757579310` | **Domain:** `axiorapulse.com`
+
+---
+
+## Architecture
+
+```
+Browser
+  │
+  ├─ axiorapulse.com / www.axiorapulse.com
+  │     └─→ CloudFront (frontend distro) ──→ ALB ──→ pulse-frontend-tg ──→ Nginx ECS
+  │
+  └─ api.axiorapulse.com
+        └─→ CloudFront (API distro) ──→ ALB ──→ pulse-backend-tg ──→ FastAPI ECS
+```
+
+CloudFront provides HTTPS termination, global CDN, and AWS Shield Standard (DDoS protection).  
+The ALB is locked down to accept traffic **only from CloudFront** after Step 19.
 
 ---
 
@@ -14,21 +31,26 @@ Complete one-time AWS setup for deploying frontend and backend to ECS Fargate.
 [ ] 4.  ECR — axiora/pulse-frontend repository
 [ ] 5.  CloudWatch — /ecs/pulse-backend log group
 [ ] 6.  CloudWatch — /ecs/pulse-frontend log group
-[ ] 7.  VPC — pulse-alb-sg security group
+[ ] 7.  VPC — pulse-alb-sg security group (open internet initially)
 [ ] 8.  VPC — pulse-backend-sg security group
 [ ] 9.  VPC — pulse-frontend-sg security group
 [ ] 10. ECS — axiora-pulse-cluster
 [ ] 11. ALB — pulse-backend-tg target group
 [ ] 12. ALB — pulse-frontend-tg target group
 [ ] 13. ALB — axiora-pulse-alb load balancer
-[ ] 14. ACM — SSL certificate for app.* and api.*
+[ ] 14. ACM (ap-south-1) — SSL certificate for ALB
 [ ] 15. ALB — HTTPS listener + backend host-based rule
-[ ] 16. ECS — Register task definitions (CLI)
-[ ] 17. ECR — Push initial images (CLI)
-[ ] 18. ECS — pulse-backend-service
-[ ] 19. ECS — pulse-frontend-service
-[ ] 20. DNS — CNAME records to ALB
-[ ] 21. GitHub — Repository secrets
+[ ] 16. ACM (us-east-1) — SSL certificate for CloudFront   ← must be N. Virginia
+[ ] 17. CloudFront — frontend distribution (axiorapulse.com + www)
+[ ] 18. CloudFront — API distribution (api.axiorapulse.com)
+[ ] 19. VPC — Lock ALB to CloudFront-only traffic
+[ ] 20. ECS — Register task definitions (CLI)
+[ ] 21. ECR — Push initial images (CLI)
+[ ] 22. ECS — pulse-backend-service
+[ ] 23. ECS — pulse-frontend-service
+[ ] 24. Route 53 — Create hosted zone + delegate from GoDaddy
+[ ] 25. DNS — Records for axiorapulse.com and api.axiorapulse.com
+[ ] 26. GitHub — Repository secrets
 ```
 
 ---
@@ -72,12 +94,12 @@ For every parameter below:
 | Parameter Name | Value |
 |---|---|
 | `/axiorapulse/production/SECRET_KEY` | Long random JWT signing key |
-| `/axiorapulse/production/DATABASE_URL` | `postgresql+psycopg2://postgres:[password]@[supabase-host]:5432/postgres` |
+| `/axiorapulse/production/DATABASE_URL` | `postgresql+psycopg2://postgres:[password]@[host]:5432/postgres` |
 | `/axiorapulse/production/OPENAI_API_KEY` | `sk-...` |
 | `/axiorapulse/production/GOOGLE_API_KEY` | Google Gemini API key |
 | `/axiorapulse/production/RESEND_API_KEY` | From resend.com |
-| `/axiorapulse/production/EMAIL_FROM` | `Axiora Pulse <noreply@yourdomain.com>` |
-| `/axiorapulse/production/FRONTEND_URL` | `https://app.yourdomain.com` |
+| `/axiorapulse/production/EMAIL_FROM` | `Axiora Pulse <noreply@axiorapulse.com>` |
+| `/axiorapulse/production/FRONTEND_URL` | `https://axiorapulse.com` |
 | `/axiorapulse/production/EMAIL_USER` | SMTP email address |
 | `/axiorapulse/production/EMAIL_PASS` | SMTP app password |
 
@@ -117,18 +139,18 @@ Create both:
 
 ## Step 7 — Security Group: ALB
 
+> You will restrict this to CloudFront-only in Step 19. For now, open it to the internet so you can test the ALB directly before CloudFront is in front.
+
 1. **VPC → Security Groups → Create security group**
 2. Name: `pulse-alb-sg`
-3. Description: `Allow HTTP and HTTPS from internet`
+3. Description: `Allow HTTP and HTTPS from internet (restricted to CloudFront in Step 19)`
 4. VPC: **default VPC**
 5. Inbound rules:
 
 | Type | Port | Source |
 |---|---|---|
 | HTTP | 80 | `0.0.0.0/0` |
-| HTTP | 80 | `::/0` |
 | HTTPS | 443 | `0.0.0.0/0` |
-| HTTPS | 443 | `::/0` |
 
 6. Outbound: leave default (all traffic)
 7. **Create security group** — note the SG ID (e.g. `sg-aaaa1111`)
@@ -236,20 +258,23 @@ Create both:
 ```
 axiora-pulse-alb-123456789.ap-south-1.elb.amazonaws.com
 ```
-You will need this for DNS records.
+You will set this as the CloudFront origin in Steps 17 and 18.
 
 ---
 
-## Step 14 — ACM: SSL Certificate
+## Step 14 — ACM (ap-south-1): SSL Certificate for ALB
 
-1. **ACM → Request certificate**
+> This certificate is attached to the ALB. CloudFront connects to the ALB over HTTPS and validates this cert.
+
+1. **ACM → Request certificate** (make sure region is **ap-south-1**)
 2. Certificate type: **Public**
-3. Domain names: add both
-   - `app.yourdomain.com`
-   - `api.yourdomain.com`
+3. Domain names — add all three:
+   - `axiorapulse.com`
+   - `www.axiorapulse.com`
+   - `api.axiorapulse.com`
 4. Validation method: **DNS validation**
 5. **Request**
-6. Click the pending certificate → **Create records in Route 53**
+6. Click the pending certificate → **Create records in Route 53**  
    (or copy the CNAME records and add them in your DNS provider manually)
 7. Wait for status: **Issued** (~5 minutes)
 
@@ -268,7 +293,7 @@ You will need this for DNS records.
 
 1. **HTTPS : 443 → Manage rules → Add rule**
 2. Name: `backend-host-rule`
-3. Condition: **Host header** → `api.yourdomain.com`
+3. Condition: **Host header** → `api.axiorapulse.com`
 4. Action: **Forward to** `pulse-backend-tg`
 5. Priority: **1**
 6. **Save**
@@ -278,7 +303,129 @@ You will need this for DNS records.
 
 ---
 
-## Step 16 — ECS: Register Task Definitions (CLI)
+## Step 16 — ACM (us-east-1): SSL Certificate for CloudFront
+
+> CloudFront **requires** its SSL certificate to be in **N. Virginia (us-east-1)**, even though all other resources are in ap-south-1. This is an AWS requirement.
+
+1. Switch your AWS Console region to **US East (N. Virginia) — us-east-1**
+2. Go to **ACM → Request certificate**
+3. Certificate type: **Public**
+4. Domain names — add all three:
+   - `axiorapulse.com`
+   - `www.axiorapulse.com`
+   - `api.axiorapulse.com`
+5. Validation method: **DNS validation**
+6. **Request**
+7. Click the pending certificate → **Create records in Route 53**  
+   (skip if you already added the same CNAME records in Step 14 — same records validate both certs)
+8. Wait for status: **Issued** (~5 minutes)
+9. **Switch your region back to ap-south-1** for all subsequent steps.
+
+---
+
+## Step 17 — CloudFront: Frontend Distribution
+
+This distribution serves `axiorapulse.com` and `www.axiorapulse.com`.
+
+1. **CloudFront → Distributions → Create distribution**
+
+### Origin
+
+| Field | Value |
+|---|---|
+| Origin domain | Your ALB DNS name (e.g. `axiora-pulse-alb-xxxx.ap-south-1.elb.amazonaws.com`) |
+| Protocol | **HTTPS only** |
+| HTTPS port | 443 |
+| Minimum origin SSL protocol | **TLSv1.2** |
+| Origin path | *(leave blank)* |
+| Name | `axiorapulse-alb-frontend` |
+
+### Default cache behavior
+
+| Field | Value |
+|---|---|
+| Viewer protocol policy | **Redirect HTTP to HTTPS** |
+| Allowed HTTP methods | **GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE** |
+| Cache policy | **CachingDisabled** (safe default; tune later for static assets) |
+| Origin request policy | **AllViewer** (forward all headers, cookies, query strings to origin) |
+
+### Settings
+
+| Field | Value |
+|---|---|
+| Alternate domain names (CNAMEs) | `axiorapulse.com` and `www.axiorapulse.com` (add both) |
+| Custom SSL certificate | Select the **us-east-1** cert from Step 16 |
+| Default root object | *(leave blank — Nginx serves index.html)* |
+| IPv6 | Enabled |
+
+2. **Create distribution**
+3. **Note the CloudFront domain name** — e.g. `d1abc2def3gh4i.cloudfront.net`  
+   Wait for the distribution status to change from **Deploying** to **Enabled** (~5–10 min).
+
+---
+
+## Step 18 — CloudFront: API Distribution
+
+This distribution serves `api.axiorapulse.com`. API responses must **not** be cached.
+
+1. **CloudFront → Distributions → Create distribution**
+
+### Origin
+
+| Field | Value |
+|---|---|
+| Origin domain | Same ALB DNS name as Step 17 |
+| Protocol | **HTTPS only** |
+| HTTPS port | 443 |
+| Minimum origin SSL protocol | **TLSv1.2** |
+| Name | `axiorapulse-alb-api` |
+
+### Default cache behavior
+
+| Field | Value |
+|---|---|
+| Viewer protocol policy | **Redirect HTTP to HTTPS** |
+| Allowed HTTP methods | **GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE** |
+| Cache policy | **CachingDisabled** |
+| Origin request policy | **AllViewer** |
+
+> **Important:** With `AllViewer`, the `Host` header forwarded to the ALB will be `api.axiorapulse.com`, which matches the host-based routing rule added in Step 15 and the ALB SSL certificate from Step 14.
+
+### Settings
+
+| Field | Value |
+|---|---|
+| Alternate domain names (CNAMEs) | `api.axiorapulse.com` |
+| Custom SSL certificate | Select the **us-east-1** cert from Step 16 |
+
+2. **Create distribution**
+3. **Note the CloudFront domain name** — e.g. `d9xyz8abc7de6f.cloudfront.net`  
+   Wait for the distribution to reach **Enabled** status.
+
+---
+
+## Step 19 — VPC: Lock ALB to CloudFront-Only Traffic
+
+Once both CloudFront distributions are **Enabled**, restrict the ALB to accept traffic only from CloudFront. This prevents anyone from bypassing CloudFront and hitting the ALB directly.
+
+1. **VPC → Security Groups → `pulse-alb-sg` → Edit inbound rules**
+2. **Delete** the existing `0.0.0.0/0` rules for HTTP and HTTPS
+3. **Add** two new inbound rules using the AWS-managed CloudFront prefix list:
+
+| Type | Port | Source |
+|---|---|---|
+| HTTPS | 443 | `pl-f6a16f9f` *(search "cloudfront" in the prefix list dropdown — choose `com.amazonaws.global.cloudfront.origin-facing`)* |
+| HTTP | 80 | `pl-f6a16f9f` *(same prefix list)* |
+
+> The prefix list ID `pl-f6a16f9f` is the global CloudFront origin-facing prefix list. AWS maintains it automatically — you never need to update IP ranges manually.
+
+4. **Save rules**
+
+Verify: try accessing `https://axiora-pulse-alb-xxxx.ap-south-1.elb.amazonaws.com` directly in a browser — it should time out. Accessing via `https://axiorapulse.com` through CloudFront should still work.
+
+---
+
+## Step 20 — ECS: Register Task Definitions (CLI)
 
 Run from the repository root with AWS CLI configured for `ap-south-1`:
 
@@ -300,7 +447,7 @@ Verify in **ECS → Task definitions** — you should see:
 
 ---
 
-## Step 17 — ECR: Push Initial Images (CLI)
+## Step 21 — ECR: Push Initial Images (CLI)
 
 ECS services need at least one image in ECR before they can start.  
 Run from the repository root:
@@ -319,11 +466,8 @@ docker build -f backend/Dockerfile.prod \
 docker push 217757579310.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-fastapi:latest
 
 # ── Frontend ─────────────────────────────────────────────────────────────────
-# Replace the values below with your actual production values
 docker build \
-  --build-arg VITE_API_BASE_URL=https://api.yourdomain.com \
-  --build-arg VITE_SUPABASE_URL=https://xxxx.supabase.co \
-  --build-arg VITE_SUPABASE_ANON_KEY=eyJ... \
+  --build-arg VITE_API_BASE_URL=https://api.axiorapulse.com \
   -t 217757579310.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-frontend:latest \
   ./frontend
 
@@ -332,7 +476,7 @@ docker push 217757579310.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-frontend:
 
 ---
 
-## Step 18 — ECS: Backend Service
+## Step 22 — ECS: Backend Service
 
 **ECS → Clusters → axiora-pulse-cluster → Services → Create**
 
@@ -355,7 +499,7 @@ docker push 217757579310.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-frontend:
 
 ---
 
-## Step 19 — ECS: Frontend Service
+## Step 23 — ECS: Frontend Service
 
 **ECS → Clusters → axiora-pulse-cluster → Services → Create**
 
@@ -381,22 +525,69 @@ docker push 217757579310.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-frontend:
 
 ---
 
-## Step 20 — DNS: CNAME Records
+## Step 24 — Route 53: Hosted Zone + GoDaddy Nameserver Delegation
 
-Add these two records in your DNS provider (Route 53 or other):
+`axiorapulse.com` is registered at GoDaddy. You will keep it there but delegate DNS management entirely to Route 53. GoDaddy becomes registration-only — all records live in AWS.
 
-| Name | Type | Value |
-|---|---|---|
-| `app.yourdomain.com` | CNAME | `axiora-pulse-alb-xxxx.ap-south-1.elb.amazonaws.com` |
-| `api.yourdomain.com` | CNAME | `axiora-pulse-alb-xxxx.ap-south-1.elb.amazonaws.com` |
+> **Why:** GoDaddy does not support CNAME flattening or ALIAS records. Without ALIAS support you cannot point the root apex domain (`axiorapulse.com`) to CloudFront — standard DNS forbids a CNAME on the apex. Route 53 ALIAS records solve this natively and cost ~$0.50/month for the hosted zone.
 
-Both point to the **same ALB** — the host-based routing rules handle the split.
+### 24a — Create the Route 53 Hosted Zone
 
-> If using Route 53 with a root/apex domain, use **A record → Alias → ALB** instead of CNAME.
+1. **Route 53 → Hosted zones → Create hosted zone**
+2. Domain name: `axiorapulse.com`
+3. Type: **Public hosted zone**
+4. **Create hosted zone**
+5. Open the new hosted zone — note the **4 NS record values**, e.g.:
+   ```
+   ns-123.awsdns-45.com
+   ns-678.awsdns-90.net
+   ns-111.awsdns-22.org
+   ns-999.awsdns-88.co.uk
+   ```
+
+Route 53 auto-creates an NS record and an SOA record. Do not delete them.
+
+### 24b — Update Nameservers in GoDaddy
+
+1. Log in to **GoDaddy → My Products → Domains → `axiorapulse.com` → DNS**
+2. Click **Nameservers → Change Nameservers**
+3. Select **I'll use my own nameservers**
+4. Replace all existing nameservers with the **4 Route 53 NS values** from Step 24a
+5. **Save** — GoDaddy shows a warning about losing existing DNS records; confirm it
+6. Propagation takes **a few minutes to a few hours** (typically under 30 min)
+
+> After this point all DNS for `axiorapulse.com` is controlled from Route 53. Any records previously in GoDaddy (MX for email, etc.) are gone — recreate them in Route 53 if needed.
+
+### 24c — Verify Delegation
+
+Once propagation is complete, confirm Route 53 is answering:
+
+```bash
+dig NS axiorapulse.com +short
+# Should return the 4 awsdns-* nameservers from Step 24a
+```
 
 ---
 
-## Step 21 — GitHub: Repository Secrets
+## Step 25 — DNS: Records in Route 53
+
+With the hosted zone active, add three records. Use the CloudFront domain names you noted in Steps 17 and 18.
+
+Go to **Route 53 → Hosted zones → axiorapulse.com → Create record**
+
+| Record name | Type | Routing | Value |
+|---|---|---|---|
+| `axiorapulse.com` (root/apex) | **A** | **Alias → CloudFront distribution** | frontend distribution (Step 17) |
+| `www` | **A** | **Alias → CloudFront distribution** | frontend distribution (Step 17) |
+| `api` | **CNAME** | Simple | API CloudFront domain e.g. `d9xyz8abc7de6f.cloudfront.net` |
+
+For the Alias records: when you choose **Alias → CloudFront distribution**, Route 53 shows a dropdown — select the frontend distribution. No TTL needed for Alias records.
+
+DNS changes in Route 53 propagate within seconds to a few minutes globally.
+
+---
+
+## Step 26 — GitHub: Repository Secrets
 
 Go to your GitHub repo → **Settings → Secrets and variables → Actions → New repository secret**
 
@@ -404,24 +595,32 @@ Go to your GitHub repo → **Settings → Secrets and variables → Actions → 
 |---|---|
 | `AWS_ACCESS_KEY_ID` | ✅ already set |
 | `AWS_SECRET_ACCESS_KEY` | ✅ already set |
-| `VITE_API_BASE_URL` | `https://api.yourdomain.com` |
-| `VITE_SUPABASE_URL` | `https://xxxx.supabase.co` |
-| `VITE_SUPABASE_ANON_KEY` | Supabase anon/public key (never the service role key) |
+| `VITE_API_BASE_URL` | `https://api.axiorapulse.com` |
+
+> `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` have been removed — Supabase is no longer used.
 
 ---
 
 ## Verification
 
-Once all steps are complete, run:
+Once all steps are complete:
 
 ```bash
-# Backend health check
-curl https://api.yourdomain.com/health
+# Backend health check (through CloudFront)
+curl https://api.axiorapulse.com/health
 # Expected: {"status":"ok","service":"Nexora Pulse API"}
 
-# Frontend
-curl -I https://app.yourdomain.com
+# Frontend (through CloudFront)
+curl -I https://axiorapulse.com
 # Expected: HTTP/2 200
+
+# Confirm www redirect works
+curl -I https://www.axiorapulse.com
+# Expected: HTTP/2 200 (or 301 redirect to root, depending on Nginx config)
+
+# Confirm direct ALB access is blocked (should time out after Step 19)
+curl --max-time 5 https://axiora-pulse-alb-xxxx.ap-south-1.elb.amazonaws.com
+# Expected: curl: (28) Operation timed out
 ```
 
 In **ECS → Clusters → axiora-pulse-cluster → Services**:
@@ -432,6 +631,10 @@ In **EC2 → Target Groups**:
 - `pulse-backend-tg` → target status: **healthy**
 - `pulse-frontend-tg` → target status: **healthy**
 
+In **CloudFront → Distributions**:
+- Frontend distribution → Status: **Enabled**, Domain: `axiorapulse.com`
+- API distribution → Status: **Enabled**, Domain: `api.axiorapulse.com`
+
 ---
 
 ## After Setup: CI/CD is Automatic
@@ -441,6 +644,7 @@ Every `git push` to `main` triggers:
 | Changed path | Workflow | What happens |
 |---|---|---|
 | `backend/**` | `deploy-backend.yml` | Builds with `Dockerfile.prod` → pushes to ECR → deploys to `pulse-backend-service` |
-| `frontend/**` | `deploy-frontend.yml` | Builds with VITE_ args → pushes to ECR → deploys to `pulse-frontend-service` |
+| `frontend/**` | `deploy-frontend.yml` | Builds with `VITE_API_BASE_URL=https://api.axiorapulse.com` → pushes to ECR → deploys to `pulse-frontend-service` |
 
-Zero-downtime rolling updates are handled automatically by ECS.
+Zero-downtime rolling updates are handled automatically by ECS.  
+CloudFront automatically picks up new ECS responses — no cache invalidation needed (CachingDisabled policy).
