@@ -21,6 +21,7 @@ from db.database import get_db
 from db.models import UserProfile, Survey, SurveyQuestion, SurveyResponse, SurveyAnswer, ResponseStatusEnum
 from schemas import AIInsightsRequest, AIInsightsResponse, AISuggestionsRequest, AISuggestionsResponse, AIGenerateRequest, AIGenerateResponse
 from dependencies import get_current_user
+from services.feature_gate import require_feature
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
@@ -132,9 +133,10 @@ async def generate_survey_insights(
 @router.post("/insights")
 @limiter.limit("3/minute")
 async def generate_insights(
-    request: Request,   # ✅ ADD
+    request: Request,
     body: AIInsightsRequest,
-    current_user: UserProfile = Depends(get_current_user)
+    current_user: UserProfile = Depends(get_current_user),
+    _gate: None = Depends(require_feature("ai_insights")),
 ):
     print(f"[AI] Received Gemini request for survey: {body.surveyTitle}")
     
