@@ -74,10 +74,11 @@ def create_order(
         raise HTTPException(status_code=400, detail="Free plan does not require a payment order")
 
     client = _razorpay_client()
+    receipt = f"t_{str(current_user.tenant_id).replace('-', '')[:32]}"
     order_data = {
         "amount": plan.price_paise,
         "currency": plan.currency,
-        "receipt": f"tenant_{current_user.tenant_id}",
+        "receipt": receipt,
         "notes": {
             "tenant_id": str(current_user.tenant_id),
             "plan_code": plan.code,
