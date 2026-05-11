@@ -21,10 +21,9 @@ else
     sleep 2  # Give Supabase connection time to establish
 fi
 
-# Run database initialization (Alembic migrations)
+# Run Alembic migrations
 echo "Running database migrations..."
-python init_db.py
-python update_db_schema.py
+alembic upgrade head
 
 echo "Database setup complete!"
 
