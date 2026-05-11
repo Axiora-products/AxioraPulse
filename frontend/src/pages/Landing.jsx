@@ -598,6 +598,7 @@ const CSS = `
 export default function Landing() {
   const navigate = useNavigate();
   const onEnterApp = () => navigate('/login');
+  const onSignUp   = () => navigate('/register');
   const bodyRef = useRef(null);
   const { stopLoading } = useLoading();
   useEffect(() => { stopLoading(); }, [stopLoading]);
@@ -735,7 +736,8 @@ export default function Landing() {
           <li><a href="#lp-builder">Builder</a></li>
           <li><a href="#lp-analytics">Analytics</a></li>
           <li><a href="#lp-pricing">Pricing</a></li>
-          <li><button className="lp-nav-btn" onClick={onEnterApp}>Sign In</button></li>
+          <li><a href="#" onClick={e => { e.preventDefault(); onEnterApp(); }} style={{ opacity: .55 }}>Sign In</a></li>
+          <li><button className="lp-nav-btn" onClick={onSignUp}>Get Started</button></li>
         </ul>
       </nav>
 
@@ -759,17 +761,17 @@ export default function Landing() {
             </h1>
             <p className="lp-h-sub">Axiora Pulse is engineered on Likert-scale rigour, cognitive load reduction, and response-bias elimination — so every data point you collect is one you can defend in a boardroom.</p>
             <div className="lp-h-ctas">
-              <button className="lp-btn-fire" onClick={onEnterApp}>
-                <span>Design Your First Study</span>
+              <button className="lp-btn-fire" onClick={onSignUp}>
+                <span>Get Started Free</span>
                 <div className="lp-btn-fire-arr">
                   <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 8L8 2M8 2H4M8 2V6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                 </div>
               </button>
-              <button className="lp-btn-outline">
+              <button className="lp-btn-outline" onClick={onEnterApp}>
                 <div className="lp-play-ring">
                   <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M3.5 2.5L10 6.5L3.5 10.5V2.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" /></svg>
                 </div>
-                See Methodology
+                Sign In
               </button>
             </div>
           </div>
@@ -928,7 +930,7 @@ export default function Landing() {
                 </div>
               ))}
             </div>
-            <button className="lp-btn-fire" onClick={onEnterApp}>
+            <button className="lp-btn-fire" onClick={onSignUp}>
               <span>Build a Study</span>
               <div className="lp-btn-fire-arr">
                 <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 8L8 2M8 2H4M8 2V6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -1097,7 +1099,7 @@ export default function Landing() {
                   </li>
                 ))}
               </ul>
-              <button className="lp-pcard-btn" onClick={onEnterApp}>{p.btn}</button>
+              <button className="lp-pcard-btn" onClick={onSignUp}>{p.btn}</button>
             </div>
           ))}
         </div>
