@@ -26,6 +26,9 @@ import Settings from './pages/Settings';
 import ResetPassword from './pages/ResetPassword';
 import UpdatePassword from './pages/UpdatePassword';
 import AcceptInvite from './pages/AcceptInvite';
+import Pricing from './pages/Pricing';
+import Billing from './pages/Billing';
+import PaymentWall from './components/PaymentWall';
 
 import useAuthStore from './hooks/useAuth';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -61,6 +64,7 @@ function AppRoutes() {
   return (
     <>
       <GlobalSpinner />
+      <PaymentWall />
 
       <Toaster
         position="bottom-right"
@@ -119,6 +123,7 @@ function AppRoutes() {
         {/* ── Public survey response (no auth needed) ── */}
         <Route path="/s/:slug" element={<SurveyRespond />} />
         <Route path="/embed/:slug" element={<EmbedView />} />
+        <Route path="/pricing" element={<Pricing />} />
 
         {/* ── Protected app (all children require auth) ── */}
         <Route element={<ProtectedRoute />}>
@@ -130,6 +135,7 @@ function AppRoutes() {
             <Route path="/surveys/:id/analytics" element={<SurveyAnalytics />} />
             <Route path="/team" element={<TeamManagement />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/billing" element={<Billing />} />
           </Route>
         </Route>
 

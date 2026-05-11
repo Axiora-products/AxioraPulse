@@ -24,6 +24,14 @@ API.interceptors.response.use(
                 window.location.href = "/login";
             }
         }
+        if (err.response?.status === 403) {
+            const detail = err.response?.data?.detail || '';
+            if (detail.toLowerCase().includes('upgrade') || detail.toLowerCase().includes('limit reached')) {
+                import('../hooks/usePaymentWall').then(({ default: usePaymentWall }) => {
+                    usePaymentWall.getState().show(detail);
+                });
+            }
+        }
         return Promise.reject(err);
     }
 );
