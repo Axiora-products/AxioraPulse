@@ -41,6 +41,7 @@ from schemas import (
     ResponseOut, AnswerOut, FeedbackOut,
 )
 from dependencies import get_current_user
+from services.feature_gate import require_feature
 
 
 router = APIRouter(prefix="/surveys", tags=["surveys"])
@@ -169,10 +170,11 @@ def get_survey_by_slug( request: Request, slug: str, db: Session = Depends(get_d
 @router.post("/", response_model=SurveyOut, status_code=status.HTTP_201_CREATED)
 @limiter.limit("5/minute")
 def create_survey(
-    request: Request,  
+    request: Request,
     body: SurveyCreate,
     current_user: UserProfile = Depends(get_current_user),
     db: Session = Depends(get_db),
+    _gate: None = Depends(require_feature("create_survey")),
 ):
     _require_creator(current_user)
 
