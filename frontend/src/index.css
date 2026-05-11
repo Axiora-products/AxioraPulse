@@ -758,9 +758,16 @@ body {
 }
 
 @media (max-width: 768px) {
-  main, footer { 
-    padding-left: 20px !important; 
-    padding-right: 20px !important; 
+  main {
+    padding-left: 20px !important;
+    padding-right: 20px !important;
+    padding-top: 28px !important;
+  }
+  footer {
+    padding-left: 20px !important;
+    padding-right: 20px !important;
+    padding-top: 16px !important;
+    padding-bottom: 24px !important;
   }
   header { padding: 0 20px !important; }
 }

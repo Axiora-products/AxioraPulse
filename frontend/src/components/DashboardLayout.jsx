@@ -197,7 +197,7 @@ export default function DashboardLayout() {
 
           <div style={{ position: 'relative' }} ref={avatarRef}>
             <button onClick={() => setUserMenu(v => !v)}
-              style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--espresso)', color: 'var(--cream)', border: 'none', cursor: 'none', fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.2s' }}
+              style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--espresso)', color: 'var(--cream)', border: 'none', fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.2s' }}
               onMouseEnter={e => e.currentTarget.style.background = 'var(--coral)'}
               onMouseLeave={e => e.currentTarget.style.background = 'var(--espresso)'}>
               {initials}
@@ -262,7 +262,7 @@ export default function DashboardLayout() {
           </div>
 
           <button onClick={() => setMobileOpen(v => !v)} className="np-mobile-nav"
-            style={{ background: 'none', border: 'none', cursor: 'none', padding: 6, color: 'var(--espresso)', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            style={{ background: 'none', border: 'none', padding: 6, color: 'var(--espresso)', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {mobileOpen ? <IcoClose size={22} color="var(--espresso)" /> : <IcoMenu size={22} color="var(--espresso)" />}
           </button>
         </div>
