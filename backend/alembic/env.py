@@ -14,6 +14,9 @@ load_dotenv()
 from db.database import Base
 from db.models import (  # noqa: F401 — imported so Alembic detects all tables
     DemoSchedule,
+    Payment,
+    Plan,
+    Subscription,
     Survey,
     SurveyAnswer,
     SurveyFeedback,

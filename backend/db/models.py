@@ -86,6 +86,8 @@ class Tenant(Base):
     # relationships
     users    = relationship("UserProfile", back_populates="tenant", cascade="all, delete-orphan")
     surveys  = relationship("Survey", back_populates="tenant", cascade="all, delete-orphan")
+    subscriptions = relationship("Subscription", back_populates="tenant", cascade="all, delete-orphan")
+    payments = relationship("Payment", back_populates="tenant", cascade="all, delete-orphan")
 
 
 class UserProfile(Base):
@@ -102,6 +104,7 @@ class UserProfile(Base):
     role               = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.viewer)
     tenant_id          = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"),index=True, nullable=True)
     is_active          = Column(Boolean, default=True)
+    is_internal        = Column(Boolean, nullable=False, default=False)  # Axiora team members bypass payment gates
     account_status     = Column(String(50), default="active")  # 'active' | 'invited'
     invite_token       = Column(String(100), unique=True, nullable=True)
     invite_accepted_at = Column(DateTime(timezone=True), nullable=True)
@@ -256,6 +259,82 @@ class SurveyShare(Base):
     # relationships
     survey = relationship("Survey", back_populates="shares")
     user   = relationship("UserProfile")
+
+class Plan(Base):
+    """
+    Product plan definition used for feature limits and Razorpay checkout.
+    Limits are stored in DB so feature gating does not hardcode plan rules.
+    """
+    __tablename__ = "plans"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    code = Column(String(50), unique=True, index=True, nullable=False)  # free | pro | enterprise
+    name = Column(String(100), nullable=False)
+    description = Column(Text, nullable=True)
+    price_paise = Column(Integer, nullable=False, default=0)
+    currency = Column(String(3), nullable=False, default="INR")
+    billing_period = Column(String(20), nullable=False, default="monthly")
+    max_surveys = Column(Integer, nullable=True)
+    max_responses = Column(Integer, nullable=True)
+    max_team_members = Column(Integer, nullable=True)
+    ai_insights_enabled = Column(Boolean, nullable=False, default=False)
+    razorpay_plan_id = Column(String(100), unique=True, nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    subscriptions = relationship("Subscription", back_populates="plan")
+    payments = relationship("Payment", back_populates="plan")
+
+
+class Subscription(Base):
+    """
+    Tenant's current subscription and provider mapping.
+    One tenant should have one current subscription row.
+    """
+    __tablename__ = "subscriptions"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), unique=True, index=True, nullable=False)
+    plan_id = Column(UUID(as_uuid=True), ForeignKey("plans.id", ondelete="RESTRICT"), index=True, nullable=False)
+    status = Column(String(50), nullable=False, default="active")
+    razorpay_subscription_id = Column(String(100), unique=True, nullable=True)
+    current_period_start = Column(DateTime(timezone=True), nullable=True)
+    current_period_end = Column(DateTime(timezone=True), nullable=True)
+    cancel_at_period_end = Column(Boolean, nullable=False, default=False)
+    cancelled_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    tenant = relationship("Tenant", back_populates="subscriptions")
+    plan = relationship("Plan", back_populates="subscriptions")
+    payments = relationship("Payment", back_populates="subscription")
+
+
+class Payment(Base):
+    """Payment transaction history for Razorpay orders/payments."""
+    __tablename__ = "payments"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), index=True, nullable=False)
+    subscription_id = Column(UUID(as_uuid=True), ForeignKey("subscriptions.id", ondelete="SET NULL"), index=True, nullable=True)
+    plan_id = Column(UUID(as_uuid=True), ForeignKey("plans.id", ondelete="SET NULL"), index=True, nullable=True)
+    razorpay_order_id = Column(String(100), unique=True, nullable=True)
+    razorpay_payment_id = Column(String(100), unique=True, nullable=True)
+    razorpay_invoice_id = Column(String(100), unique=True, nullable=True)
+    amount_paise = Column(Integer, nullable=False)
+    currency = Column(String(3), nullable=False, default="INR")
+    status = Column(String(50), nullable=False, default="created")
+    method = Column(String(50), nullable=True)
+    paid_at = Column(DateTime(timezone=True), nullable=True)
+    failure_reason = Column(Text, nullable=True)
+    provider_payload = Column(JSONB, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    tenant = relationship("Tenant", back_populates="payments")
+    subscription = relationship("Subscription", back_populates="payments")
+    plan = relationship("Plan", back_populates="payments")
 
 class DemoSchedule(Base):
     __tablename__ = "demo_schedules"
