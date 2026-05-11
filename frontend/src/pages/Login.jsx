@@ -174,10 +174,10 @@ export default function Login() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: '1fr 480px' }}>
+    <div className="auth-grid" style={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: '1fr 480px' }}>
 
       {/* ── LEFT: dark editorial panel ── */}
-      <div style={{ background: 'var(--espresso)', position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '80px 72px', overflow: 'hidden' }}>
+      <div className="auth-left" style={{ background: 'var(--espresso)', position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '80px 72px', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
           <div style={{ position: 'absolute', width: 600, height: 600, borderRadius: '50%', filter: 'blur(80px)', background: 'radial-gradient(circle,rgba(255,69,0,0.35),transparent 70%)', top: -150, right: -150 }} />
           <div style={{ position: 'absolute', width: 400, height: 400, borderRadius: '50%', filter: 'blur(80px)', background: 'radial-gradient(circle,rgba(255,184,0,0.2),transparent 70%)', bottom: -100, left: -100 }} />
@@ -266,11 +266,9 @@ export default function Login() {
       </AnimatePresence>
 
       <style>{`
-        @media (max-width: 900px) {
-          div[style*="gridTemplateColumns: '1fr 480px'"] {
-            grid-template-columns: 1fr !important;
-          }
-          div[style*="padding: '80px 72px'"] { display: none !important; }
+        @media (max-width: 768px) {
+          .auth-grid { grid-template-columns: 1fr !important; }
+          .auth-left { display: none !important; }
         }
       `}</style>
     </div>
