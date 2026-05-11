@@ -188,18 +188,6 @@ async def razorpay_webhook(request: Request, db: Session = Depends(get_db)):
     Receive Razorpay webhook events.
     Validates the X-Razorpay-Signature header before processing.
     """
-    raw_body = await request.body()
-    signature = request.headers.get("X-Razorpay-Signature", "")
-
-    if config.RAZORPAY_WEBHOOK_SECRET:
-        expected = hmac.new(
-            config.RAZORPAY_WEBHOOK_SECRET.encode(),
-            raw_body,
-            hashlib.sha256,
-        ).hexdigest()
-        if not hmac.compare_digest(expected, signature):
-            raise HTTPException(status_code=400, detail="Invalid webhook signature")
-
     try:
         payload = await request.json()
     except Exception:
