@@ -25,6 +25,9 @@
   <div id="np-cur-ring" aria-hidden="true" style="position:fixed;pointer-events:none;z-index:99998;width:30px;height:30px;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 0 1px rgba(22,15,8,.2),0 0 0 2px rgba(255,255,255,.4);transition:width .32s,height .32s,opacity .32s;opacity:.5;will-change:left,top;top:-100px;left:-100px;"></div>
   <script>
     (function () {
+      // No pointer device — leave native cursor alone and skip the RAF loop
+      if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+
       var dot  = document.getElementById('np-cur-dot');
       var ring = document.getElementById('np-cur-ring');
       var mx = 0, my = 0, rx = 0, ry = 0;
