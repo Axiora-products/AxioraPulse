@@ -9,6 +9,7 @@ replacing init_db.py + update_db_schema.py.
 """
 
 from typing import Sequence, Union
+
 from alembic import op
 
 revision: str = "e7da82edf568"
@@ -125,6 +126,10 @@ def upgrade() -> None:
             completed_at      TIMESTAMPTZ,
             last_saved_at     TIMESTAMPTZ,
             metadata          JSONB,
+            age_range         VARCHAR(50),
+            gender            VARCHAR(50),
+            occupation        VARCHAR(100),
+            city              VARCHAR(100),
             CONSTRAINT uq_survey_response_session_token UNIQUE (session_token)
         );
 
@@ -152,10 +157,33 @@ def upgrade() -> None:
             permission  sharepermissionenum DEFAULT 'viewer',
             created_at  TIMESTAMPTZ DEFAULT now()
         );
+
+        CREATE TABLE IF NOT EXISTS demo_schedules (
+            id           VARCHAR PRIMARY KEY,
+            name         VARCHAR NOT NULL,
+            email        VARCHAR NOT NULL,
+            demo_date    VARCHAR NOT NULL,
+            time_slot    VARCHAR NOT NULL,
+            meeting_link VARCHAR NOT NULL,
+            status       VARCHAR DEFAULT 'scheduled',
+            created_at   TIMESTAMP
+        );
+
+        ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS age_range VARCHAR(50);
+        ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS gender VARCHAR(50);
+        ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS occupation VARCHAR(100);
+        ALTER TABLE survey_responses ADD COLUMN IF NOT EXISTS city VARCHAR(100);
+
+        CREATE INDEX IF NOT EXISTS ix_tenants_slug ON tenants (slug);
+        CREATE INDEX IF NOT EXISTS ix_user_profiles_email ON user_profiles (email);
+        CREATE INDEX IF NOT EXISTS ix_user_profiles_tenant_id ON user_profiles (tenant_id);
+        CREATE INDEX IF NOT EXISTS ix_survey_responses_survey_id ON survey_responses (survey_id);
+        CREATE INDEX IF NOT EXISTS ix_survey_answers_response_id ON survey_answers (response_id);
     """)
 
 
 def downgrade() -> None:
+    op.drop_table("demo_schedules")
     op.drop_table("survey_shares")
     op.drop_table("survey_feedback")
     op.drop_table("survey_answers")
