@@ -770,6 +770,7 @@ body {
     padding-bottom: 24px !important;
   }
   header { padding: 0 20px !important; }
+  input, textarea, select { font-size: 16px !important; }
 }
 
 .np-stats-grid {
