@@ -143,6 +143,7 @@ export default function NotificationFeed() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.97 }}
             transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+            className="np-notif-dropdown"
             style={{ position: 'absolute', right: 0, top: 48, zIndex: 500, width: 340, background: 'var(--warm-white)', borderRadius: 20, boxShadow: '0 32px 80px rgba(22,15,8,0.2), 0 2px 8px rgba(22,15,8,0.06)', border: '1px solid rgba(22,15,8,0.07)', overflow: 'hidden' }}
           >
             {/* Header */}

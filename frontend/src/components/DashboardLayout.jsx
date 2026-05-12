@@ -183,7 +183,7 @@ export default function DashboardLayout() {
 
           {/* ⌘K trigger */}
           <button onClick={() => setCmdOpen(true)}
-            className="np-desktop-nav"
+            className="np-desktop-nav np-icon-btn"
             title="Command palette (⌘K)"
             style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 999, border: '1px solid rgba(22,15,8,0.08)', background: 'var(--cream)', cursor: 'pointer', transition: 'border-color 0.2s' }}
             onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(22,15,8,0.2)'}
@@ -196,7 +196,7 @@ export default function DashboardLayout() {
           <NotificationFeed />
 
           <div style={{ position: 'relative' }} ref={avatarRef}>
-            <button onClick={() => setUserMenu(v => !v)}
+            <button onClick={() => setUserMenu(v => !v)} className="np-icon-btn"
               style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--espresso)', color: 'var(--cream)', border: 'none', fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.2s' }}
               onMouseEnter={e => e.currentTarget.style.background = 'var(--coral)'}
               onMouseLeave={e => e.currentTarget.style.background = 'var(--espresso)'}>
@@ -209,6 +209,7 @@ export default function DashboardLayout() {
                   <motion.div
                     initial={{ opacity: 0, scale: 0.95, y: -6 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: -6 }}
                     transition={{ duration: 0.15 }}
+                    className="np-avatar-dropdown"
                     style={{ position: 'absolute', right: 0, top: 42, zIndex: 20, width: 240, background: 'var(--espresso)', borderRadius: 18, padding: 14, boxShadow: '0 24px 80px rgba(22,15,8,0.3)' }}>
 
                     {/* User info */}
@@ -261,7 +262,7 @@ export default function DashboardLayout() {
             </AnimatePresence>
           </div>
 
-          <button onClick={() => setMobileOpen(v => !v)} className="np-mobile-nav"
+          <button onClick={() => setMobileOpen(v => !v)} className="np-mobile-nav np-icon-btn"
             style={{ background: 'none', border: 'none', padding: 6, color: 'var(--espresso)', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {mobileOpen ? <IcoClose size={22} color="var(--espresso)" /> : <IcoMenu size={22} color="var(--espresso)" />}
           </button>
