@@ -197,9 +197,9 @@ export default function SurveyList() {
         </div>
 
         {/* Status filters */}
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }} className="np-survey-filters">
           {STATUS_FILTERS.map(f => (
-            <button key={f} onClick={() => setFilter(f)}
+            <button key={f} onClick={() => setFilter(f)} className="filter-chip"
               style={{ padding: '10px 16px', borderRadius: 999, border: `1px solid ${filter === f ? 'transparent' : 'rgba(22,15,8,0.08)'}`, cursor: 'pointer', fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', transition: 'all 0.2s', background: filter === f ? 'var(--espresso)' : 'var(--warm-white)', color: filter === f ? 'var(--cream)' : 'rgba(22,15,8,0.5)' }}>
               {f === 'all' ? 'All' : SURVEY_STATUS[f]?.label || f}
             </button>
