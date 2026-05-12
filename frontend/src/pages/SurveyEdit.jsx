@@ -259,14 +259,14 @@ export default function SurveyEdit() {
               </div>
               <div style={{ display:'flex',gap:2 }}>
                 {[[-1,'↑'],[1,'↓']].map(([d,sym]) => (
-                  <button key={d} onClick={()=>moveQ(q._id,d)} disabled={(d===-1&&i===0)||(d===1&&i===qs.length-1)}
+                  <button key={d} onClick={()=>moveQ(q._id,d)} disabled={(d===-1&&i===0)||(d===1&&i===qs.length-1)} className="np-icon-btn"
                     style={{ width:30,height:30,borderRadius:9,border:'none',background:'none',cursor:'pointer',color:'rgba(22,15,8,0.25)',fontSize:13,display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.15s',opacity:(d===-1&&i===0)||(d===1&&i===qs.length-1)?0.18:1 }}
                     onMouseEnter={e=>{e.currentTarget.style.background='var(--cream-deep)';e.currentTarget.style.color='var(--espresso)';}}
                     onMouseLeave={e=>{e.currentTarget.style.background='none';e.currentTarget.style.color='rgba(22,15,8,0.25)';}}>
                     {sym}
                   </button>
                 ))}
-                <button onClick={()=>delQ(q._id)} style={{ width:30,height:30,borderRadius:9,border:'none',background:'none',cursor:'pointer',color:'rgba(22,15,8,0.2)',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.15s' }}
+                <button onClick={()=>delQ(q._id)} className="np-icon-btn" style={{ width:30,height:30,borderRadius:9,border:'none',background:'none',cursor:'pointer',color:'rgba(22,15,8,0.2)',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.15s' }}
                   onMouseEnter={e=>{e.currentTarget.style.background='rgba(214,59,31,0.08)';e.currentTarget.style.color='var(--terracotta)';}}
                   onMouseLeave={e=>{e.currentTarget.style.background='none';e.currentTarget.style.color='rgba(22,15,8,0.2)';}}>✕</button>
               </div>

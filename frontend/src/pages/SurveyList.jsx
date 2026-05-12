@@ -260,6 +260,7 @@ export default function SurveyList() {
                   {/* Kebab menu */}
                   <div style={{ position: 'relative' }} ref={el => menuRef.current[sv.id] = el}>
                     <button onClick={() => setMenu(menu === sv.id ? null : sv.id)}
+                      className="np-icon-btn"
                       aria-label="Survey options"
                       style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: 8, color: 'rgba(22,15,8,0.3)', transition: 'all 0.2s', fontSize: 18, lineHeight: 1 }}
                       onMouseEnter={e => { e.currentTarget.style.background = 'var(--cream-deep)'; e.currentTarget.style.color = 'var(--espresso)'; }}

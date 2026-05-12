@@ -777,6 +777,12 @@ body {
   .np-feedback-grid { grid-template-columns: 1fr !important; gap: 20px !important; }
   .np-survey-filters { width: 100%; }
   .filter-chip { flex: 1 1 auto; text-align: center; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+  .np-icon-btn { min-width: 44px !important; min-height: 44px !important; }
+}
+
+@media (max-width: 480px) {
+  .np-avatar-dropdown { position: fixed !important; right: 12px !important; top: 60px !important; width: min(240px, calc(100vw - 24px)) !important; }
+  .np-notif-dropdown { position: fixed !important; right: 12px !important; top: 60px !important; width: calc(100vw - 24px) !important; }
 }
 
 .np-stats-grid {
