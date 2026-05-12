@@ -46,7 +46,7 @@ function QCardCreate({ q, i, tc, qs, sQ, delQ, moveQ, addOpt, sOpt, delOpt }) {
         <div style={{ padding: '24px 28px 22px 32px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div onPointerDown={e => { e.preventDefault(); dragControls.start(e); }} title="Drag to reorder"
+              <div className="drag-handle" onPointerDown={e => { e.preventDefault(); dragControls.start(e); }} title="Drag to reorder"
                 style={{ cursor: 'grab', padding: '4px 6px', borderRadius: 8, color: 'rgba(22,15,8,0.2)', display: 'flex', alignItems: 'center', transition: 'all 0.15s', touchAction: 'none' }}
                 onMouseEnter={e => { e.currentTarget.style.background = 'var(--cream-deep)'; e.currentTarget.style.color = 'rgba(22,15,8,0.5)'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'rgba(22,15,8,0.2)'; }}>
@@ -142,7 +142,7 @@ function QCardCreate({ q, i, tc, qs, sQ, delQ, moveQ, addOpt, sOpt, delOpt }) {
             const delRow = ri => setMx({ ...mxData, rows: (mxData.rows || []).filter((_, j) => j !== ri) });
             const delCol = ci => setMx({ ...mxData, columns: (mxData.columns || []).filter((_, j) => j !== ci) });
             return (
-              <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
+              <div className="mx-grid" style={{ marginTop: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
                 {[['Rows', mxData.rows || [], addRow, updRow, delRow], ['Columns', mxData.columns || [], addCol, updCol, delCol]].map(([lbl, items, add, upd, del]) => (
                   <div key={lbl}>
                     <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.38)', marginBottom: 10 }}>{lbl}</div>
@@ -377,6 +377,14 @@ export default function SurveyCreate() {
         .sc-tab-btn::after { content:''; position:absolute; bottom:-1px; left:0; right:0; height:2px; border-radius:1px; background:var(--coral); transform:scaleX(0); transition:transform 0.3s cubic-bezier(0.16,1,0.3,1); transform-origin:left; }
         .sc-tab-btn.active::after { transform:scaleX(1); }
         @media (max-width: 1040px) { .sc-grid { grid-template-columns: 1fr !important; } .sc-sidebar { display:none !important; } }
+        @media (max-width: 768px) {
+          .sc-sidebar { display: flex !important; }
+          .q-card > div { padding: 14px 14px 14px 18px !important; }
+          .drag-handle { display: none !important; }
+          .opt-input { font-size: 16px !important; }
+          .mx-grid { grid-template-columns: 1fr !important; }
+          .sc-2col { grid-template-columns: 1fr !important; }
+        }
       `}</style>
 
       {/* ── OVERWRITE CONFIRMATION MODAL ── */}
@@ -657,12 +665,12 @@ export default function SurveyCreate() {
                 <input value={f.title} onChange={e=>s('title',e.target.value)} placeholder="e.g. Q3 Customer Satisfaction Study"
                   style={{...INP,fontSize:20,fontWeight:500,padding:'18px 22px',letterSpacing:'-0.4px',borderRadius:18,background:'var(--warm-white)'}} onFocus={fi} onBlur={fo}/>
               </div>
-              <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:22 }}>
+              <div className="sc-2col" style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:22 }}>
                 <div><label style={LBL}>Description</label><textarea value={f.description} onChange={e=>s('description',e.target.value)} placeholder="What's this research about?" rows={4} style={{...INP,borderRadius:16}} onFocus={fi} onBlur={fo}/></div>
                 <div><label style={LBL}>Welcome Message</label><textarea value={f.welcome_message} onChange={e=>s('welcome_message',e.target.value)} placeholder="Shown on the landing screen before Q1" rows={4} style={{...INP,borderRadius:16}} onFocus={fi} onBlur={fo}/></div>
               </div>
               <div><label style={LBL}>Thank You Message</label><textarea value={f.thank_you_message} onChange={e=>s('thank_you_message',e.target.value)} placeholder="Shown after submission" rows={2} style={{...INP,borderRadius:16}} onFocus={fi} onBlur={fo}/></div>
-              <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:22 }}>
+              <div className="sc-2col" style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:22 }}>
                 <div><label style={LBL}>Expires</label><input type="datetime-local" value={f.expires_at} onChange={e=>s('expires_at',e.target.value)} style={{...INP,borderRadius:16}} onFocus={fi} onBlur={fo}/></div>
                 <div>
                   <label style={LBL}>Theme Colour</label>
