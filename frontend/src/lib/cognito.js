@@ -22,6 +22,7 @@ export function cognitoSignIn(email, password) {
     const pool = getUserPool();
     const authDetails = new AuthenticationDetails({ Username: email, Password: password });
     const cognitoUser = new CognitoUser({ Username: email, Pool: pool });
+    cognitoUser.setAuthenticationFlowType('USER_PASSWORD_AUTH');
     cognitoUser.authenticateUser(authDetails, {
       onSuccess: resolve,
       onFailure: reject,
