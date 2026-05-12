@@ -100,7 +100,8 @@ class UserProfile(Base):
     id                 = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     email              = Column(String(255), unique=True,index=True, nullable=False)
     full_name          = Column(String(255), nullable=True)
-    password_hash      = Column(String(255), nullable=True)   # nullable for invited-but-not-yet-setup users
+    password_hash      = Column(String(255), nullable=True)
+    cognito_sub        = Column(String(255), unique=True, index=True, nullable=True)
     role               = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.viewer)
     tenant_id          = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"),index=True, nullable=True)
     is_active          = Column(Boolean, default=True)

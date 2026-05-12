@@ -1,120 +1,43 @@
+import os
+import re
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
-import uuid, os, re
 
 from core.rate_limiter import limiter
 from db.database import get_db
 from db.models import Tenant, UserProfile, RoleEnum
 from schemas import (
-    RegisterRequest, LoginRequest, AuthResponse, MeResponse,
-    UserProfileOut, TenantOut, UserProfileUpdate, PasswordUpdate,
-    MessageResponse
+    MeResponse, UserProfileOut, TenantOut, UserProfileUpdate, SyncRequest, SyncResponse, MigrateCheckRequest
 )
-from auth_utils import (
-    hash_password, verify_password,
-    create_access_token, create_refresh_token
-)
+from cognito_utils import verify_cognito_token
+from auth_utils import verify_password
 from dependencies import get_current_user
-from jose import jwt, JWTError
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-security = HTTPBearer()
 
-SECRET_KEY = os.getenv("SECRET_KEY")
-ALGORITHM = os.getenv("ALGORITHM", "HS256")
+MIGRATION_LAMBDA_SECRET = os.getenv("MIGRATION_LAMBDA_SECRET", "")
 
 
-# ---------------- HELPERS ----------------
-
-def _slugify(text: str):
+def _slugify(text: str) -> str:
     text = text.lower().strip()
     text = re.sub(r"[^\w\s-]", "", text)
     text = re.sub(r"[\s_-]+", "-", text)
     return text.strip("-") or "org"
 
 
-def _build_auth_response(user: UserProfile, db: Session):
-    tenant = db.query(Tenant).filter(Tenant.id == user.tenant_id).first()
-    profile = UserProfileOut.model_validate(user)
-
-    return {
-        "access_token": create_access_token({"sub": str(user.id)}),
-        "refresh_token": create_refresh_token({"sub": str(user.id), "type": "refresh"}),
-        "token_type": "bearer",
-        "user": profile,
-        "profile": profile,
-        "tenant": TenantOut.model_validate(tenant) if tenant else None,
-    }
-
-
-# ---------------- ROUTES ----------------
-
-@router.post("/register", response_model=AuthResponse)
-@limiter.limit("3/minute")
-def register(request: Request, body: RegisterRequest, db: Session = Depends(get_db)):
-    if db.query(UserProfile).filter(UserProfile.email == body.email).first():
-        raise HTTPException(400, "Email already exists")
-
-    tenant = Tenant(
-        id=uuid.uuid4(),
-        name=body.tenant_name,
-        slug=_slugify(body.tenant_name),
-    )
-    db.add(tenant)
-    db.flush()
-
-    user = UserProfile(
-        id=uuid.uuid4(),
-        email=body.email,
-        full_name=body.full_name,
-        password_hash=hash_password(body.password),
-        role=RoleEnum.super_admin,
-        tenant_id=tenant.id,
-        is_active=True,
-        account_status="active",
-    )
-
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-
-    return _build_auth_response(user, db)
-
-
-@router.post("/login", response_model=AuthResponse)
-@limiter.limit("5/minute")
-def login(request: Request, body: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(UserProfile).filter(UserProfile.email == body.email).first()
-
-    if not user or not verify_password(body.password, user.password_hash):
-        raise HTTPException(401, "Invalid credentials")
-
-    return _build_auth_response(user, db)
-
-
-@router.post("/refresh")
-@limiter.limit("10/minute")
-def refresh(request: Request, credentials: HTTPAuthorizationCredentials = Depends(security)):
-    try:
-        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
-
-        if payload.get("type") != "refresh":
-            raise HTTPException(401, "Invalid token")
-
-        return {"access_token": create_access_token({"sub": payload["sub"]})}
-
-    except JWTError:
-        raise HTTPException(401, "Invalid token")
-
+# ── /auth/me ─────────────────────────────────────────────────────────────────
 
 @router.get("/me", response_model=MeResponse)
 @limiter.limit("30/minute")
-def me(request: Request, current_user: UserProfile = Depends(get_current_user), db: Session = Depends(get_db)):
+def me(
+    request: Request,
+    current_user: UserProfile = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     tenant = db.query(Tenant).filter(Tenant.id == current_user.tenant_id).first()
     profile = UserProfileOut.model_validate(current_user)
-
     return {
         "user": profile,
         "profile": profile,
@@ -122,18 +45,121 @@ def me(request: Request, current_user: UserProfile = Depends(get_current_user), 
     }
 
 
+# ── /auth/me/profile ──────────────────────────────────────────────────────────
+
 @router.patch("/me/profile")
 @limiter.limit("20/minute")
-def update_profile(request: Request, body: UserProfileUpdate, current_user: UserProfile = Depends(get_current_user), db: Session = Depends(get_db)):
+def update_profile(
+    request: Request,
+    body: UserProfileUpdate,
+    current_user: UserProfile = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     current_user.full_name = body.full_name
     db.commit()
     db.refresh(current_user)
     return UserProfileOut.model_validate(current_user)
 
 
-@router.patch("/me/password")
-@limiter.limit("5/minute")
-def change_password(request: Request, body: PasswordUpdate, current_user: UserProfile = Depends(get_current_user), db: Session = Depends(get_db)):
-    current_user.password_hash = hash_password(body.new_password)
+# ── /auth/sync ────────────────────────────────────────────────────────────────
+
+@router.post("/sync", response_model=SyncResponse)
+@limiter.limit("10/minute")
+def sync(
+    request: Request,
+    body: SyncRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Called by the frontend after every Cognito sign-in/sign-up.
+    - New user: creates Tenant + UserProfile, returns profile.
+    - Existing Supabase-migrated user (matched by email): links cognito_sub, returns profile.
+    - Already synced user: no-op, returns existing profile.
+    """
+    payload = verify_cognito_token(body.id_token)
+    if not payload:
+        raise HTTPException(401, "Invalid Cognito token")
+
+    cognito_sub: str = payload["sub"]
+    email: str = payload.get("email", "")
+    name: str = payload.get("name", "")
+
+    # Already synced — just return the profile
+    user = db.query(UserProfile).filter(UserProfile.cognito_sub == cognito_sub).first()
+    if user:
+        tenant = db.query(Tenant).filter(Tenant.id == user.tenant_id).first()
+        return SyncResponse(
+            user=UserProfileOut.model_validate(user),
+            tenant=TenantOut.model_validate(tenant) if tenant else None,
+        )
+
+    # Existing user migrated from Supabase — link cognito_sub by email
+    existing = db.query(UserProfile).filter(UserProfile.email == email).first()
+    if existing:
+        existing.cognito_sub = cognito_sub
+        db.commit()
+        db.refresh(existing)
+        tenant = db.query(Tenant).filter(Tenant.id == existing.tenant_id).first()
+        return SyncResponse(
+            user=UserProfileOut.model_validate(existing),
+            tenant=TenantOut.model_validate(tenant) if tenant else None,
+        )
+
+    # Brand new user — create tenant + profile
+    if not body.tenant_name:
+        raise HTTPException(400, "tenant_name is required for new users")
+
+    tenant = Tenant(
+        id=uuid.uuid4(),
+        name=body.tenant_name,
+        slug=_slugify(body.tenant_slug or body.tenant_name),
+    )
+    db.add(tenant)
+    db.flush()
+
+    user = UserProfile(
+        id=uuid.uuid4(),
+        email=email,
+        full_name=name,
+        cognito_sub=cognito_sub,
+        role=RoleEnum.super_admin,
+        tenant_id=tenant.id,
+        is_active=True,
+        account_status="active",
+    )
+    db.add(user)
     db.commit()
-    return {"message": "Password updated"}
+    db.refresh(user)
+
+    return SyncResponse(
+        user=UserProfileOut.model_validate(user),
+        tenant=TenantOut.model_validate(tenant),
+    )
+
+
+# ── /auth/migrate-check ───────────────────────────────────────────────────────
+
+@router.post("/migrate-check")
+def migrate_check(
+    body: MigrateCheckRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Internal endpoint for the Cognito User Migration Lambda only.
+    Validates a user's existing password_hash so Lambda can migrate them to Cognito.
+    Protected by a shared secret — never expose publicly.
+    """
+    if not MIGRATION_LAMBDA_SECRET or body.secret != MIGRATION_LAMBDA_SECRET:
+        raise HTTPException(403, "Forbidden")
+
+    user = db.query(UserProfile).filter(UserProfile.email == body.email).first()
+    if not user or not user.password_hash:
+        raise HTTPException(404, "User not found")
+
+    if not verify_password(body.password, user.password_hash):
+        raise HTTPException(401, "Invalid credentials")
+
+    return {
+        "email": user.email,
+        "name": user.full_name or "",
+    }

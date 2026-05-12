@@ -3,8 +3,9 @@ import { Link, useNavigate, Navigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { useLoading } from '../context/LoadingContext';
-import { registerUser } from "../api/authApi";
 import useAuthStore from "../hooks/useAuth";
+import { cognitoSignUp, cognitoConfirmSignUp, cognitoSignIn } from '../lib/cognito';
+import API from '../api/axios';
 const Logo = ({ dark }) => (
   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 0, lineHeight: 1 }}>
     <span style={{ fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: dark ? 'rgba(253,245,232,0.35)' : 'rgba(22,15,8,0.35)', marginRight: 8, position: 'relative', top: -2 }}>Axiora</span>
@@ -17,74 +18,70 @@ const Logo = ({ dark }) => (
 
 export default function Register() {
   const [f, sf] = useState({ fullName: '', email: '', password: '', tenantName: '', tenantSlug: '' });
+  const [verifyCode, setVerifyCode] = useState('');
+  const [step, setStep] = useState('form'); // 'form' | 'verify'
   const [busy, setBusy] = useState(false);
   const { user, initialized, initialize } = useAuthStore();
   const { stopLoading } = useLoading();
   const nav = useNavigate();
   useEffect(() => { stopLoading(); }, [stopLoading]);
 
-  // BUG FIX: Redirect already-authenticated users away from the register page.
   if (initialized && user) {
     return <Navigate to="/dashboard" replace />;
   }
-  const s = (k, v) => sf(p => { const n = { ...p, [k]: v }; if (k === 'tenantName') n.tenantSlug = v.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); return n; });
 
-  // const go = async e => {
-  //   e.preventDefault();
-  //   if (!f.fullName || !f.email || !f.password || !f.tenantName) return toast.error('Fill all fields');
-  //   if (f.password.length < 6) return toast.error('Password needs 6+ characters');
-  //   setBusy(true);
-  //   try {
-  //     const r = await signUp(f.email, f.password, f.tenantName, f.tenantSlug, f.fullName);
-  //     if (r.existing) { toast.success(r.message); r.session ? nav('/dashboard') : nav('/login'); }
-  //     else if (r.needsConfirmation) { toast.success('Check your email to confirm!', { duration: 8000 }); nav('/login'); }
-  //     else { toast.success('Welcome to Axiora Pulse!'); nav('/dashboard'); }
-  //   } catch (e) { toast.error(e.message); } finally { setBusy(false); }
-  // };
+  const s = (k, v) => sf(p => {
+    const n = { ...p, [k]: v };
+    if (k === 'tenantName') n.tenantSlug = v.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    return n;
+  });
 
+  // Step 1: sign up with Cognito → sends verification email
   const go = async (e) => {
     e.preventDefault();
-
-    if (!f.fullName || !f.email || !f.password || !f.tenantName) {
-      return toast.error("Fill all fields");
-    }
-
-    if (f.password.length < 8) {
-      return toast.error("Password needs 6+ characters");
-    }
-
+    if (!f.fullName || !f.email || !f.password || !f.tenantName) return toast.error('Fill all fields');
+    if (f.password.length < 8) return toast.error('Password needs 8+ characters');
     setBusy(true);
-
     try {
-      const res = await registerUser({
-        full_name: f.fullName,
-        email: f.email,
-        password: f.password,
+      await cognitoSignUp(f.email, f.password, f.fullName);
+      setStep('verify');
+      toast.success('Verification code sent to your email');
+    } catch (err) {
+      if (err.code === 'UsernameExistsException') {
+        toast.error('An account with this email already exists');
+      } else {
+        toast.error(err.message || 'Registration failed');
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Step 2: confirm verification code → sign in → sync with backend
+  const confirm = async (e) => {
+    e.preventDefault();
+    if (!verifyCode) return toast.error('Enter the verification code');
+    setBusy(true);
+    try {
+      await cognitoConfirmSignUp(f.email, verifyCode);
+      const session = await cognitoSignIn(f.email, f.password);
+      const idToken = session.getIdToken().getJwtToken();
+      localStorage.setItem('token', idToken);
+
+      await API.post('/auth/sync', {
+        id_token: idToken,
         tenant_name: f.tenantName,
-        tenant_slug: f.tenantSlug,
+        tenant_slug: f.tenantSlug || f.tenantName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
       });
 
-      // 👇 depends on your backend response
-      if (res.access_token) {
-        localStorage.setItem("token", res.access_token);
-        // Hydrate store
-        await initialize(true);
-        toast.success("Account created successfully!");
-        nav("/dashboard");
-      } else {
-        toast.success("Registered! Please login.");
-        nav("/login");
-      }
-
+      await initialize(true);
+      toast.success('Welcome to Axiora Pulse!');
+      nav('/dashboard');
     } catch (err) {
-      console.log("FULL ERROR:", err.response?.data);
-
-      const errors = err.response?.data?.detail;
-
-      if (Array.isArray(errors)) {
-        toast.error(errors.map(e => e.msg).join(", "));
+      if (err.code === 'CodeMismatchException') {
+        toast.error('Incorrect code — please try again');
       } else {
-        toast.error("Registration failed");
+        toast.error(err.message || 'Verification failed');
       }
     } finally {
       setBusy(false);
@@ -134,6 +131,38 @@ export default function Register() {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} style={{ width: '100%', maxWidth: 340 }}>
           <Link to="/" style={{ textDecoration: 'none', display: 'block', marginBottom: 40 }}><Logo dark={false} /></Link>
 
+          {step === 'verify' ? (
+            <>
+              <h2 style={{ fontFamily: 'Playfair Display, serif', fontWeight: 900, fontSize: 30, letterSpacing: '-1px', color: 'var(--espresso)', marginBottom: 6 }}>Check your email</h2>
+              <p style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 15, color: 'rgba(22,15,8,0.45)', marginBottom: 36 }}>
+                We sent a 6-digit code to <strong style={{ color: 'var(--espresso)' }}>{f.email}</strong>
+              </p>
+              <form onSubmit={confirm} style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                <div>
+                  <label style={labelStyle}>Verification code</label>
+                  <input type="text" value={verifyCode} onChange={e => setVerifyCode(e.target.value)} placeholder="123456" autoFocus maxLength={6}
+                    style={{ ...inputStyle, letterSpacing: '0.3em', fontSize: 20 }}
+                    onFocus={e => e.target.style.borderBottomColor = 'var(--coral)'}
+                    onBlur={e => e.target.style.borderBottomColor = 'rgba(22,15,8,0.12)'}
+                  />
+                </div>
+                <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }}
+                  type="submit" disabled={busy}
+                  style={{ marginTop: 4, padding: '16px 28px', background: busy ? 'rgba(22,15,8,0.4)' : 'var(--espresso)', color: 'var(--cream)', border: 'none', borderRadius: 999, fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 12, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: busy ? 'not-allowed' : 'pointer', transition: 'background 0.25s ease' }}
+                  onMouseEnter={e => { if (!busy) e.currentTarget.style.background = 'var(--coral)'; }}
+                  onMouseLeave={e => { if (!busy) e.currentTarget.style.background = 'var(--espresso)'; }}>
+                  {busy ? 'Verifying…' : 'Verify & continue →'}
+                </motion.button>
+              </form>
+              <p style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 13, color: 'rgba(22,15,8,0.4)', marginTop: 24, textAlign: 'center' }}>
+                Wrong email?{' '}
+                <button onClick={() => setStep('form')} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--espresso)', fontFamily: 'Fraunces, serif', fontWeight: 500, fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}>
+                  Go back
+                </button>
+              </p>
+            </>
+          ) : (
+            <>
           <h2 style={{ fontFamily: 'Playfair Display, serif', fontWeight: 900, fontSize: 30, letterSpacing: '-1px', color: 'var(--espresso)', marginBottom: 6 }}>Create workspace</h2>
           <p style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 15, color: 'rgba(22,15,8,0.45)', marginBottom: 36 }}>Set up your team's survey platform</p>
 
@@ -184,6 +213,8 @@ export default function Register() {
               Sign in →
             </Link>
           </p>
+            </>
+          )}
         </motion.div>
       </div>
 
