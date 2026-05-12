@@ -771,6 +771,10 @@ body {
   }
   header { padding: 0 20px !important; }
   input, textarea, select { font-size: 16px !important; }
+  .np-chart-wrap { height: 160px !important; }
+  .np-doughnut-card { flex-direction: column !important; align-items: flex-start !important; gap: 16px !important; }
+  .np-doughnut-wrap { width: 120px !important; height: 120px !important; }
+  .np-feedback-grid { grid-template-columns: 1fr !important; gap: 20px !important; }
 }
 
 .np-stats-grid {

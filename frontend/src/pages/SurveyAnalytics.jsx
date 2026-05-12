@@ -280,7 +280,7 @@ function OverviewTab({ analytics, trendDays, setTrendDays }) {
             ))}
           </div>
           <div style={S.secLabel}>{trendDays}-Day Response Trend</div>
-          <div style={{ height:210 }}><Line options={lineOpts} data={trendData} /></div>
+          <div className="np-chart-wrap" style={{ height:210 }}><Line options={lineOpts} data={trendData} /></div>
         </motion.div>
       ) : (
         <div style={{ ...S.card, position:'relative' }}>
@@ -527,8 +527,8 @@ function QuestionCard({ question:q, data:d, index:i }) {
 
       ) : d.type === 'doughnut' ? (
         // Single choice / Dropdown / Yes-No
-        <div style={{ display:'flex', gap:32, alignItems:'center' }}>
-          <div style={{ width:140, height:140, flexShrink:0 }}>
+        <div className="np-doughnut-card" style={{ display:'flex', gap:32, alignItems:'center' }}>
+          <div className="np-doughnut-wrap" style={{ width:140, height:140, flexShrink:0 }}>
             <Doughnut options={donutOpts} data={{ labels:d.labels, datasets:[{ data:d.values, backgroundColor:COLS.slice(0,d.values.length), borderWidth:0 }] }} />
           </div>
           <div style={{ flex:1, display:'flex', flexDirection:'column', gap:9 }}>
@@ -571,7 +571,7 @@ function QuestionCard({ question:q, data:d, index:i }) {
               ))}
             </div>
           )}
-          <div style={{ height:170 }}>
+          <div className="np-chart-wrap" style={{ height:170 }}>
             <Bar options={barOpts} data={{ labels:d.labels, datasets:[{ data:d.values, backgroundColor:d.labels.map((_,j)=>COLS[j%COLS.length]), borderRadius:6, barThickness:26 }] }} />
           </div>
         </div>
@@ -580,7 +580,7 @@ function QuestionCard({ question:q, data:d, index:i }) {
         // Ranking — horizontal bar (lower avg rank = better)
         <div>
           <div style={{ fontFamily:'Syne,sans-serif', fontSize:11, fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase', color:'rgba(22,15,8,0.3)', marginBottom:16 }}>Avg rank — lower = ranked first by respondents</div>
-          <div style={{ height:Math.max(140, d.labels.length*38) }}>
+          <div className="np-chart-wrap" style={{ height:Math.max(140, d.labels.length*38) }}>
             <Bar options={hBarOpts} data={{ labels:d.labels, datasets:[{ data:d.values, backgroundColor:d.labels.map((_,j)=>COLS[j%COLS.length]), borderRadius:6, barThickness:22 }] }} />
           </div>
         </div>
@@ -836,7 +836,7 @@ function FeedbackTab({ feedback }) {
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:28 }}>
       {/* Average + distribution */}
-      <motion.div initial={{ opacity:0, y:12 }} animate={{ opacity:1, y:0 }} style={{ ...S.card, display:'grid', gridTemplateColumns:'auto 1fr', gap:32, alignItems:'center' }}>
+      <motion.div initial={{ opacity:0, y:12 }} animate={{ opacity:1, y:0 }} className="np-feedback-grid" style={{ ...S.card, display:'grid', gridTemplateColumns:'auto 1fr', gap:32, alignItems:'center' }}>
         <div style={{ textAlign:'center' }}>
           <div style={S.statNum}>{avg}</div>
           <div style={{ display:'flex', justifyContent:'center', gap:2, marginTop:4 }}>
@@ -898,29 +898,25 @@ export default function SurveyAnalytics() {
 
   async function load() {
     try {
-      const { data: s } = await API.get(`/surveys/${id}`);
-      setSv(s);
-      
-      const { data: q } = await API.get(`/surveys/${id}/questions`);
-      sQs(q || []);
-      
-      const { data: r } = await API.get(`/surveys/${id}/responses`);
-      sRs(r || []);
-      
-      // Map global answers from the nested survey_answers in responses
+      const [surveyRes, questionsRes, responsesRes, feedbackRes] = await Promise.all([
+        API.get(`/surveys/${id}`),
+        API.get(`/surveys/${id}/questions`),
+        API.get(`/surveys/${id}/responses`),
+        API.get(`/surveys/${id}/feedback`),
+      ]);
+
+      setSv(surveyRes.data);
+      sQs(questionsRes.data || []);
+
+      const r = responsesRes.data || [];
+      sRs(r);
       const allAnswers = [];
-      r.forEach(resp => {
-        if (resp.survey_answers) {
-          allAnswers.push(...resp.survey_answers);
-        }
-      });
+      r.forEach(resp => { if (resp.survey_answers) allAnswers.push(...resp.survey_answers); });
       sAns(allAnswers);
-      
-      const { data: fb } = await API.get(`/surveys/${id}/feedback`);
-      setFeedback(fb || []);
-    } catch(e) { 
-      console.error(e); 
-      // toast.error('Failed to load analytics data');
+
+      setFeedback(feedbackRes.data || []);
+    } catch(e) {
+      console.error(e);
     }
     finally { stopLoading(); }
   }
