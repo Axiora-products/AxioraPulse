@@ -2,8 +2,8 @@
 dependencies.py
 ───────────────
 Reusable FastAPI dependencies:
-  - get_db       → yields SQLAlchemy session
-  - get_current_user → extracts and validates the JWT from Authorization header
+  - get_db           → yields SQLAlchemy session
+  - get_current_user → verifies Cognito ID token, loads UserProfile from DB
 """
 
 from fastapi import Depends, HTTPException, status
@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from db.database import get_db
 from db.models import UserProfile
-from auth_utils import decode_access_token
+from cognito_utils import verify_cognito_token
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -22,8 +22,8 @@ def get_current_user(
     db: Session = Depends(get_db),
 ) -> UserProfile:
     """
-    Extracts Bearer token → decodes JWT → loads UserProfile from DB.
-    Raises 401 if token is missing, expired, or the user no longer exists.
+    Extracts Bearer token → verifies Cognito ID token → loads UserProfile by cognito_sub.
+    Raises 401 if token is missing, invalid, or the user has not synced yet.
     """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -34,15 +34,15 @@ def get_current_user(
     if not credentials:
         raise credentials_exception
 
-    payload = decode_access_token(credentials.credentials)
+    payload = verify_cognito_token(credentials.credentials)
     if payload is None:
         raise credentials_exception
 
-    user_id: str = payload.get("sub")
-    if user_id is None:
+    cognito_sub: str = payload.get("sub")
+    if not cognito_sub:
         raise credentials_exception
 
-    user = db.query(UserProfile).filter(UserProfile.id == user_id).first()
+    user = db.query(UserProfile).filter(UserProfile.cognito_sub == cognito_sub).first()
     if user is None or not user.is_active:
         raise credentials_exception
 
@@ -59,10 +59,10 @@ def get_optional_user(
     """
     if not credentials:
         return None
-    payload = decode_access_token(credentials.credentials)
+    payload = verify_cognito_token(credentials.credentials)
     if payload is None:
         return None
-    user_id = payload.get("sub")
-    if not user_id:
+    cognito_sub = payload.get("sub")
+    if not cognito_sub:
         return None
-    return db.query(UserProfile).filter(UserProfile.id == user_id).first()
+    return db.query(UserProfile).filter(UserProfile.cognito_sub == cognito_sub).first()

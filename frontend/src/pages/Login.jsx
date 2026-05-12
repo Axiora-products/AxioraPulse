@@ -3,8 +3,9 @@ import { Link, useNavigate, Navigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLoading } from '../context/LoadingContext';
-import { loginUser, requestResetPassword } from "../api/authApi";
 import useAuthStore from "../hooks/useAuth";
+import { cognitoSignIn, cognitoForgotPassword, cognitoConfirmPassword } from '../lib/cognito';
+import API from '../api/axios';
 
 const Logo = ({ dark }) => (
   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 0, lineHeight: 1 }}>
@@ -31,33 +32,33 @@ function friendlyAuthError(msg = '') {
 
 function ForgotPasswordModal({ onClose }) {
   const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
+  const [newPw, setNewPw] = useState('');
   const [busy, setBusy] = useState(false);
-  const [sent, setSent] = useState(false);
+  const [step, setStep] = useState('email'); // 'email' | 'reset' | 'done'
 
-  // const send = async e => {
-  //   e.preventDefault();
-  //   if (!email) return toast.error('Enter your email address');
-  //   setBusy(true);
-  //   try {
-  //     const { error } = await localStorage.auth.resetPasswordForEmail(email, {
-  //       redirectTo: `${window.location.origin}/update-password`,
-  //     });
-  //     if (error) throw error;
-  //     setSent(true);
-  //   } catch (err) {
-  //     toast.error(friendlyAuthError(err.message));
-  //   } finally { setBusy(false); }
-  // };
-  //simple function for the forgot password button since the backend functionality isn't implemented yet
   const send = async (e) => {
     e.preventDefault();
     if (!email) return toast.error('Enter your email address');
     setBusy(true);
     try {
-      await requestResetPassword(email);
-      setSent(true);
+      await cognitoForgotPassword(email);
+      setStep('reset');
     } catch (err) {
-      toast.error(friendlyAuthError(err.response?.data?.detail || err.message));
+      toast.error(friendlyAuthError(err.message));
+    } finally { setBusy(false); }
+  };
+
+  const reset = async (e) => {
+    e.preventDefault();
+    if (!code || !newPw) return toast.error('Fill in all fields');
+    if (newPw.length < 8) return toast.error('Password needs 8+ characters');
+    setBusy(true);
+    try {
+      await cognitoConfirmPassword(email, code, newPw);
+      setStep('done');
+    } catch (err) {
+      toast.error(friendlyAuthError(err.message));
     } finally { setBusy(false); }
   };
 
@@ -78,12 +79,12 @@ function ForgotPasswordModal({ onClose }) {
           onMouseEnter={e => e.currentTarget.style.background = 'rgba(22,15,8,0.12)'}
           onMouseLeave={e => e.currentTarget.style.background = 'rgba(22,15,8,0.07)'}>✕</button>
 
-        {sent ? (
+        {step === 'done' ? (
           <div style={{ textAlign: 'center' }}>
-            <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'rgba(255,69,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: 22 }}>✉</div>
-            <h3 style={{ fontFamily: 'Playfair Display, serif', fontWeight: 900, fontSize: 24, letterSpacing: '-0.5px', color: 'var(--espresso)', marginBottom: 10 }}>Check your inbox</h3>
+            <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'rgba(255,69,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: 22 }}>✓</div>
+            <h3 style={{ fontFamily: 'Playfair Display, serif', fontWeight: 900, fontSize: 24, letterSpacing: '-0.5px', color: 'var(--espresso)', marginBottom: 10 }}>Password updated</h3>
             <p style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 15, lineHeight: 1.7, color: 'rgba(22,15,8,0.5)', marginBottom: 28 }}>
-              We sent a reset link to <strong style={{ color: 'var(--espresso)', fontWeight: 500 }}>{email}</strong>. Links expire in 1 hour.
+              You can now sign in with your new password.
             </p>
             <button onClick={onClose}
               style={{ padding: '13px 28px', borderRadius: 999, background: 'var(--espresso)', color: 'var(--cream)', border: 'none', fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', transition: 'background 0.25s' }}
@@ -92,11 +93,39 @@ function ForgotPasswordModal({ onClose }) {
               Back to sign in
             </button>
           </div>
+        ) : step === 'reset' ? (
+          <>
+            <h3 style={{ fontFamily: 'Playfair Display, serif', fontWeight: 900, fontSize: 26, letterSpacing: '-0.5px', color: 'var(--espresso)', marginBottom: 6 }}>Set new password</h3>
+            <p style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 15, color: 'rgba(22,15,8,0.45)', marginBottom: 32, lineHeight: 1.6 }}>
+              Enter the code sent to <strong style={{ color: 'var(--espresso)' }}>{email}</strong> and choose a new password.
+            </p>
+            <form onSubmit={reset} style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+              {[
+                { label: 'Verification code', val: code, set: setCode, type: 'text', ph: '123456' },
+                { label: 'New password', val: newPw, set: setNewPw, type: 'password', ph: 'Min 8 characters' },
+              ].map(f => (
+                <div key={f.label}>
+                  <label style={{ fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.4)', display: 'block', marginBottom: 10 }}>{f.label}</label>
+                  <input type={f.type} value={f.val} onChange={e => f.set(e.target.value)} placeholder={f.ph}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '0 0 12px', background: 'transparent', border: 'none', borderBottom: '2px solid rgba(22,15,8,0.12)', fontFamily: 'Fraunces, serif', fontSize: 16, color: 'var(--espresso)', outline: 'none', transition: 'border-color 0.2s' }}
+                    onFocus={e => e.target.style.borderBottomColor = 'var(--coral)'}
+                    onBlur={e => e.target.style.borderBottomColor = 'rgba(22,15,8,0.12)'} />
+                </div>
+              ))}
+              <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }}
+                type="submit" disabled={busy}
+                style={{ padding: '15px 28px', background: busy ? 'rgba(22,15,8,0.35)' : 'var(--espresso)', color: 'var(--cream)', border: 'none', borderRadius: 999, fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: busy ? 'not-allowed' : 'pointer', transition: 'background 0.25s' }}
+                onMouseEnter={e => { if (!busy) e.currentTarget.style.background = 'var(--coral)'; }}
+                onMouseLeave={e => { if (!busy) e.currentTarget.style.background = 'var(--espresso)'; }}>
+                {busy ? 'Updating…' : 'Update password →'}
+              </motion.button>
+            </form>
+          </>
         ) : (
           <>
             <h3 style={{ fontFamily: 'Playfair Display, serif', fontWeight: 900, fontSize: 26, letterSpacing: '-0.5px', color: 'var(--espresso)', marginBottom: 6 }}>Reset password</h3>
             <p style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 15, color: 'rgba(22,15,8,0.45)', marginBottom: 32, lineHeight: 1.6 }}>
-              Enter your email and we'll send you a secure link to set a new password.
+              Enter your email and we'll send you a verification code.
             </p>
             <form onSubmit={send} style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
               <div>
@@ -111,7 +140,7 @@ function ForgotPasswordModal({ onClose }) {
                 style={{ padding: '15px 28px', background: busy ? 'rgba(22,15,8,0.35)' : 'var(--espresso)', color: 'var(--cream)', border: 'none', borderRadius: 999, fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: busy ? 'not-allowed' : 'pointer', transition: 'background 0.25s' }}
                 onMouseEnter={e => { if (!busy) e.currentTarget.style.background = 'var(--coral)'; }}
                 onMouseLeave={e => { if (!busy) e.currentTarget.style.background = 'var(--espresso)'; }}>
-                {busy ? 'Sending…' : 'Send reset link →'}
+                {busy ? 'Sending…' : 'Send code →'}
               </motion.button>
             </form>
           </>
@@ -134,40 +163,23 @@ export default function Login() {
   if (initialized && user) {
     return <Navigate to="/dashboard" replace />;
   }
-  // const go = async e => {
-  //   e.preventDefault();
-  //   if (!email || !pw) return toast.error('Fill in all fields');
-  //   setBusy(true);
-  //   try { await signIn(email, pw); toast.success('Welcome back!'); nav('/dashboard'); }
-  //   catch (e) { toast.error(friendlyAuthError(e.message)); }
-  //   finally { setBusy(false); }
-  // };
-
   const go = async (e) => {
     e.preventDefault();
-
-    if (!email || !pw) {
-      return toast.error("Fill in all fields");
-    }
-
+    if (!email || !pw) return toast.error('Fill in all fields');
     setBusy(true);
-
     try {
-      const res = await loginUser({
-        email: email,
-        password: pw,
-      });
+      const session = await cognitoSignIn(email, pw);
+      const idToken = session.getIdToken().getJwtToken();
+      localStorage.setItem('token', idToken);
 
-      // store token
-      localStorage.setItem("token", res.access_token);
+      // Sync profile with backend (links cognito_sub for migrated users)
+      await API.post('/auth/sync', { id_token: idToken });
 
-      // Hydrate store immediately
       await initialize(true);
-
-      toast.success("Welcome back!");
-      nav("/dashboard");
+      toast.success('Welcome back!');
+      nav('/dashboard');
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Login failed");
+      toast.error(friendlyAuthError(err.message || 'Login failed'));
     } finally {
       setBusy(false);
     }
