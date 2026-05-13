@@ -364,3 +364,21 @@ class WaitlistEntry(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     email = Column(String, nullable=False, unique=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class UploadedFile(Base):
+    """
+    Stores uploaded file metadata and extracted text content.
+    Used for providing additional context to AI survey generation.
+    """
+    __tablename__ = "uploaded_files"
+
+    id           = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    filename     = Column(String(500), nullable=False)
+    content_type = Column(String(100), nullable=False)
+    file_size    = Column(Integer, nullable=True)
+    extracted_text = Column(Text, nullable=True)
+    upload_type  = Column(String(20), default="file")  # 'file' | 'audio'
+    tenant_id    = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
+    created_by   = Column(UUID(as_uuid=True), ForeignKey("user_profiles.id", ondelete="SET NULL"), nullable=True)
+    created_at   = Column(DateTime(timezone=True), server_default=func.now())
