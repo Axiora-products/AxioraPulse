@@ -18,6 +18,9 @@ const useAuthStore = create((set, get) => ({
       const idToken = session.getIdToken().getJwtToken();
       localStorage.setItem('token', idToken);
 
+      // Link cognito_sub in DB for existing users whose sub isn't set yet
+      await API.post('/auth/sync', { id_token: idToken });
+
       const res = await API.get('/auth/me');
       const { user, profile, tenant } = res.data;
       set({ user, profile, tenant, loading: false, initialized: true });
@@ -34,6 +37,9 @@ const useAuthStore = create((set, get) => ({
       const session = await cognitoGetCurrentSession();
       const idToken = session.getIdToken().getJwtToken();
       localStorage.setItem('token', idToken);
+
+      // Link cognito_sub in DB for existing users whose sub isn't set yet
+      await API.post('/auth/sync', { id_token: idToken });
 
       const res = await API.get('/auth/me');
       const { user, profile, tenant } = res.data;
