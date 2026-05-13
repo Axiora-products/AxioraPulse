@@ -10,9 +10,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+ANTHROPIC_KEY = os.getenv("ANTHROPIC_KEY")
 
 FRONTEND_URL = os.getenv("FRONTEND_URL", "")  # e.g. https://app.axiorapulse.com
 

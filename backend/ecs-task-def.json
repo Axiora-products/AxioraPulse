@@ -31,12 +31,8 @@
           "valueFrom": "arn:aws:ssm:ap-south-1:217757579310:parameter/axiorapulse/production/DATABASE_URL"
         },
         {
-          "name": "OPENAI_API_KEY",
-          "valueFrom": "arn:aws:ssm:ap-south-1:217757579310:parameter/axiorapulse/production/OPENAI_API_KEY"
-        },
-        {
-          "name": "GOOGLE_API_KEY",
-          "valueFrom": "arn:aws:ssm:ap-south-1:217757579310:parameter/axiorapulse/production/GOOGLE_API_KEY"
+          "name": "ANTHROPIC_KEY",
+          "valueFrom": "arn:aws:ssm:ap-south-1:217757579310:parameter/axiorapulse/production/ANTHROPIC_KEY"
         },
         {
           "name": "RESEND_API_KEY",
