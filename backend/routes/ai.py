@@ -1,16 +1,14 @@
 """
 routes/ai.py
 ────────────
-AI-powered survey insights using OpenAI.
+AI-powered survey insights using Anthropic Claude.
 """
 
 import os
 import json
-from typing import List
-from fastapi import Request
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import Request, APIRouter, Depends, HTTPException
 
-import google.generativeai as genai
+import anthropic
 
 from pydantic import ValidationError
 from starlette.concurrency import run_in_threadpool
@@ -24,6 +22,26 @@ from dependencies import get_current_user
 from services.feature_gate import require_feature
 
 router = APIRouter(prefix="/ai", tags=["ai"])
+
+MODEL = "claude-sonnet-4-6"
+
+
+def _get_client() -> anthropic.Anthropic:
+    api_key = os.getenv("ANTHROPIC_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="Anthropic API key not configured on server")
+    return anthropic.Anthropic(api_key=api_key)
+
+
+def _call_claude(client: anthropic.Anthropic, prompt: str, max_tokens: int = 2048) -> str:
+    response = client.messages.create(
+        model=MODEL,
+        max_tokens=max_tokens,
+        system="You are a helpful AI assistant. Always respond with valid JSON only — no markdown, no explanation.",
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return response.content[0].text
+
 
 @router.get("/ping")
 @limiter.limit("30/minute")
@@ -52,47 +70,45 @@ def _build_survey_context(survey_id: str, db: Session) -> dict:
     completion_rate = round((completed / total) * 100) if total > 0 else 0
     abandon_rate = round((abandoned / total) * 100) if total > 0 else 0
 
-    # Calculate average time for completed responses
     durations = [
-        (r.completed_at - r.started_at).total_seconds() 
-        for r in responses 
+        (r.completed_at - r.started_at).total_seconds()
+        for r in responses
         if r.completed_at and r.started_at and r.status == ResponseStatusEnum.completed
     ]
     avg_time = round(sum(durations) / len(durations) / 60, 1) if durations else 0
 
-    # Basic NPS calculation (assuming 0-10 rating question exists)
     nps_scores = []
     for r in responses:
         for a in r.survey_answers:
             if a.answer_value and a.answer_value.isdigit():
                 val = int(a.answer_value)
-                if val >= 0 and val <= 10:
+                if 0 <= val <= 10:
                     nps_scores.append(val)
-    
+
     nps_val = None
     if nps_scores:
         promoters = len([s for s in nps_scores if s >= 9])
         detractors = len([s for s in nps_scores if s <= 6])
         nps_val = round(((promoters - detractors) / len(nps_scores)) * 100)
 
-    # Aggregate question data
     question_summaries = []
     for q in survey.questions:
         q_answers = []
         for r in responses:
             ans = next((a for a in r.survey_answers if a.question_id == q.id), None)
             if ans:
-                if ans.answer_value: q_answers.append(ans.answer_value)
-                elif ans.answer_json: q_answers.append(ans.answer_json)
-        
-        summary = {
+                if ans.answer_value:
+                    q_answers.append(ans.answer_value)
+                elif ans.answer_json:
+                    q_answers.append(ans.answer_json)
+
+        question_summaries.append({
             "id": str(q.id),
             "text": q.question_text,
             "type": q.question_type.value,
             "responseCount": len(q_answers),
-            "responses": q_answers[:50] 
-        }
-        question_summaries.append(summary)
+            "responses": q_answers[:50],
+        })
 
     return {
         "title": survey.title,
@@ -102,22 +118,22 @@ def _build_survey_context(survey_id: str, db: Session) -> dict:
             "completionRate": completion_rate,
             "abandonRate": abandon_rate,
             "avgTimeMin": avg_time,
-            "nps": nps_val
+            "nps": nps_val,
         },
-        "questionSummaries": question_summaries
+        "questionSummaries": question_summaries,
     }
+
+
+# ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.get("/surveys/{survey_id}/insights")
 @limiter.limit("3/minute")
 async def generate_survey_insights(
-    request: Request,   # ✅ ADD
+    request: Request,
     survey_id: str,
     db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(get_current_user)
+    current_user: UserProfile = Depends(get_current_user),
 ):
-    """
-    Generate Deep AI insights for a survey by fetching all data from the database.
-    """
     context = _build_survey_context(survey_id, db)
     if not context:
         raise HTTPException(status_code=404, detail="Survey not found")
@@ -125,7 +141,7 @@ async def generate_survey_insights(
     body = AIInsightsRequest(
         surveyTitle=context["title"],
         responses=context["stats"],
-        questionSummaries=context["questionSummaries"]
+        questionSummaries=context["questionSummaries"],
     )
     return await generate_insights(request, body, current_user)
 
@@ -138,70 +154,48 @@ async def generate_insights(
     current_user: UserProfile = Depends(get_current_user),
     _gate: None = Depends(require_feature("ai_insights")),
 ):
-    print(f"[AI] Received Gemini request for survey: {body.surveyTitle}")
-    
-    api_key = os.getenv("GOOGLE_API_KEY")
-    if not api_key:
-        raise HTTPException(
-            status_code=500, 
-            detail="Google API key not configured on server. Please set GOOGLE_API_KEY in .env"
-        )
+    client = _get_client()
+
+    prompt = f"""Analyze the following survey data and provide structured insights.
+
+Survey Title: {body.surveyTitle}
+
+Overall Stats:
+- Total Responses: {body.responses.get('total')}
+- Completion Rate: {body.responses.get('completionRate')}%
+- Abandon Rate: {body.responses.get('abandonRate')}%
+- Avg Time: {body.responses.get('avgTimeMin')} minutes
+- NPS: {json.dumps(body.responses.get('nps'))}
+
+Question Summaries:
+{json.dumps(body.questionSummaries, indent=2)}
+
+Return a JSON object with this exact structure:
+{{
+  "executiveSummary": "string",
+  "npsAnalysis": "string or null",
+  "insights": [
+    {{ "type": "positive|warning|info|action", "title": "string", "detail": "string", "metric": "string or null" }}
+  ],
+  "topStrengths": ["string"],
+  "improvementAreas": ["string"],
+  "recommendedActions": [
+    {{ "priority": "high|medium|low", "action": "string", "impact": "string" }}
+  ]
+}}"""
 
     try:
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-flash-latest")
-
-        # Construct the prompt
-        prompt = f"""
-        Analyze the following survey data and provide structured insights.
-        
-        Survey Title: {body.surveyTitle}
-        
-        Overall Stats:
-        - Total Responses: {body.responses.get('total')}
-        - Completion Rate: {body.responses.get('completionRate')}%
-        - Abandon Rate: {body.responses.get('abandonRate')}%
-        - Avg Time: {body.responses.get('avgTimeMin')} minutes
-        - NPS: {json.dumps(body.responses.get('nps'))}
-        
-        Question Summaries:
-        {json.dumps(body.questionSummaries, indent=2)}
-        
-        Return a JSON object with this structure:
-        {{
-          "executiveSummary": "string",
-          "npsAnalysis": "string (optional)",
-          "insights": [
-            {{ "type": "positive|warning|info|action", "title": "string", "detail": "string", "metric": "string (optional)" }}
-          ],
-          "topStrengths": ["string"],
-          "improvementAreas": ["string"],
-          "recommendedActions": [
-            {{ "priority": "high|medium|low", "action": "string", "impact": "string" }}
-          ]
-        }}
-        """
-
-        response = await run_in_threadpool(
-            model.generate_content,
-            prompt,
-            generation_config=genai.GenerationConfig(
-                response_mime_type="application/json",
-            )
-        )
-
-        result_json = json.loads(response.text)
+        text = await run_in_threadpool(_call_claude, client, prompt, 2048)
+        result_json = json.loads(text)
         return AIInsightsResponse(**result_json)
-
     except ValidationError as ve:
-        print(f"[AI] Gemini Validation Error: {ve}")
-        raise HTTPException(status_code=500, detail="Gemini returned an invalid data structure")
+        print(f"[AI] Insights validation error: {ve}")
+        raise HTTPException(status_code=500, detail="Claude returned an invalid data structure")
     except Exception as e:
-        print(f"[AI] Gemini Error: {e}")
-        # Check for quota errors in string
-        if "quota" in str(e).lower() or "429" in str(e):
-             raise HTTPException(status_code=429, detail="Google API quota exceeded or rate limited.")
-        raise HTTPException(status_code=500, detail=f"Failed to generate Gemini insights: {str(e)}")
+        print(f"[AI] Insights error: {e}")
+        if "rate" in str(e).lower() or "429" in str(e):
+            raise HTTPException(status_code=429, detail="API rate limit reached, please try again shortly")
+        raise HTTPException(status_code=500, detail=f"Failed to generate insights: {str(e)}")
 
 
 @router.post("/generate")
@@ -209,121 +203,88 @@ async def generate_insights(
 async def generate_survey(
     request: Request,
     body: AIGenerateRequest,
-    current_user: UserProfile = Depends(get_current_user)
+    current_user: UserProfile = Depends(get_current_user),
 ):
-    api_key = os.getenv("GOOGLE_API_KEY")
-    if not api_key:
-        raise HTTPException(status_code=500, detail="Google API key not configured on server")
+    client = _get_client()
+
+    prompt = f"""You are a survey design expert. Generate a complete survey based on the following description.
+
+Description: {body.aiContext}
+
+Return a JSON object with this exact structure:
+{{
+  "title": "string",
+  "description": "string",
+  "welcome_message": "string",
+  "questions": [
+    {{
+      "text": "The question text",
+      "type": "short_text|long_text|single_choice|multiple_choice|rating|scale|yes_no",
+      "options": [{{"label": "string", "value": "string"}}]
+    }}
+  ]
+}}
+
+Rules:
+- Generate 5-10 relevant questions
+- Only include "options" for single_choice and multiple_choice types
+- For rating/scale/short_text/long_text/yes_no types, omit "options" entirely
+- Make questions clear and unbiased"""
 
     try:
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-flash-latest")
-
-        prompt = f"""
-        You are a survey design expert. Generate a complete survey based on the following description.
-
-        Description: {body.aiContext}
-
-        Return a JSON object with this exact structure:
-        {{
-          "title": "string",
-          "description": "string",
-          "welcome_message": "string",
-          "questions": [
-            {{
-              "text": "The question text",
-              "type": "short_text|long_text|single_choice|multiple_choice|rating|scale|yes_no",
-              "options": [{{"label": "string", "value": "string"}}]
-            }}
-          ]
-        }}
-
-        Rules:
-        - Generate 5-10 relevant questions
-        - Only include "options" for single_choice and multiple_choice types
-        - For rating/scale types, omit "options"
-        - Make questions clear and unbiased
-        """
-
-        response = await run_in_threadpool(
-            model.generate_content,
-            prompt,
-            generation_config=genai.GenerationConfig(
-                response_mime_type="application/json",
-            )
-        )
-
-        result_json = json.loads(response.text)
+        text = await run_in_threadpool(_call_claude, client, prompt, 2048)
+        result_json = json.loads(text)
         return AIGenerateResponse(**result_json)
-
     except ValidationError as ve:
-        print(f"[AI] Generate Validation Error: {ve}")
-        raise HTTPException(status_code=500, detail="Gemini returned an invalid survey structure")
+        print(f"[AI] Generate validation error: {ve}")
+        raise HTTPException(status_code=500, detail="Claude returned an invalid survey structure")
     except Exception as e:
-        print(f"[AI] Generate Error: {e}")
-        if "quota" in str(e).lower() or "429" in str(e):
-            raise HTTPException(status_code=429, detail="Google API quota exceeded or rate limited.")
+        print(f"[AI] Generate error: {e}")
+        if "rate" in str(e).lower() or "429" in str(e):
+            raise HTTPException(status_code=429, detail="API rate limit reached, please try again shortly")
         raise HTTPException(status_code=500, detail=f"Failed to generate survey: {str(e)}")
 
 
 @router.post("/suggestions")
 @limiter.limit("5/minute")
 async def generate_suggestions(
-    request: Request,   # ✅ ADD
+    request: Request,
     body: AISuggestionsRequest,
-    current_user: UserProfile = Depends(get_current_user)
+    current_user: UserProfile = Depends(get_current_user),
 ):
-    print(f"[AI] Received Gemini suggestions request for survey: {body.surveyTitle}")
-    
-    api_key = os.getenv("GOOGLE_API_KEY")
-    if not api_key:
-        raise HTTPException(
-            status_code=500, 
-            detail="Google API key not configured on server"
-        )
+    client = _get_client()
+
+    prompt = f"""Based on the following survey title and existing questions, suggest 3-5 relevant follow-up questions.
+
+Survey Title: {body.surveyTitle}
+Survey Description: {body.surveyDescription}
+
+Existing Questions:
+{json.dumps(body.existingQuestions, indent=2)}
+
+Return a JSON object with this exact structure:
+{{
+  "suggestions": [
+    {{
+      "text": "The question text",
+      "type": "short_text|long_text|single_choice|multiple_choice|rating|scale|yes_no",
+      "options": [{{"label": "string", "value": "string"}}],
+      "rationale": "Briefly why this question is useful"
+    }}
+  ]
+}}
+
+Only include "options" for single_choice and multiple_choice types."""
 
     try:
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-flash-latest")
-
-        prompt = f"""
-        Based on the following survey title and existing questions, suggest 3-5 relevant follow-up questions.
-        
-        Survey Title: {body.surveyTitle}
-        Survey Description: {body.surveyDescription}
-        
-        Existing Questions:
-        {json.dumps(body.existingQuestions, indent=2)}
-        
-        Return a JSON object with this structure:
-        {{
-          "suggestions": [
-            {{ 
-              "text": "The question text", 
-              "type": "short_text|long_text|single_choice|multiple_choice|rating|scale|yes_no", 
-              "options": [{{ "label": "string", "value": "string" }}] (only for choice types),
-              "rationale": "Briefly why this question is useful"
-            }}
-          ]
-        }}
-        """
-
-        response = await run_in_threadpool(
-            model.generate_content,
-            prompt,
-            generation_config=genai.GenerationConfig(
-                response_mime_type="application/json",
-            )
-        )
-
-        result_json = json.loads(response.text)
+        text = await run_in_threadpool(_call_claude, client, prompt, 1024)
+        result_json = json.loads(text)
         return AISuggestionsResponse(**result_json)
-
     except ValidationError as ve:
-        print(f"[AI] Gemini Validation Error: {ve}")
-        raise HTTPException(status_code=500, detail="Gemini returned invalid suggestion structure")
+        print(f"[AI] Suggestions validation error: {ve}")
+        raise HTTPException(status_code=500, detail="Claude returned an invalid suggestion structure")
     except Exception as e:
-        print(f"[AI] Gemini Error: {e}")
-        if "quota" in str(e).lower() or "429" in str(e):
-             raise HTTPException(status_code=429, detail="Google API quota exceeded or rate limited.")
-        raise HTTPException(status_code=500, detail=f"Failed to generate Gemini suggestions: {str(e)}")
+        print(f"[AI] Suggestions error: {e}")
+        if "rate" in str(e).lower() or "429" in str(e):
+            raise HTTPException(status_code=429, detail="API rate limit reached, please try again shortly")
+        raise HTTPException(status_code=500, detail=f"Failed to generate suggestions: {str(e)}")
