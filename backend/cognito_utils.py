@@ -2,7 +2,9 @@
 cognito_utils.py
 ────────────────
 Verifies Cognito ID tokens using the User Pool's JWKS endpoint.
-JWKS is cached for the process lifetime — Cognito rotates keys rarely.
+Manually matches the token's kid header against the JWKS keys —
+python-jose does not do this lookup automatically.
+JWKS is cached for the process lifetime; Cognito rotates keys rarely.
 """
 
 import os
@@ -16,14 +18,14 @@ COGNITO_APP_CLIENT_ID = os.getenv("COGNITO_APP_CLIENT_ID")
 
 
 @lru_cache(maxsize=1)
-def _get_jwks() -> dict:
+def _get_jwks() -> list:
     url = (
         f"https://cognito-idp.{COGNITO_REGION}.amazonaws.com"
         f"/{COGNITO_USER_POOL_ID}/.well-known/jwks.json"
     )
     resp = requests.get(url, timeout=5)
     resp.raise_for_status()
-    return resp.json()
+    return resp.json()["keys"]
 
 
 def verify_cognito_token(token: str) -> dict | None:
@@ -32,16 +34,25 @@ def verify_cognito_token(token: str) -> dict | None:
     Returns the payload dict or None on any failure.
     """
     try:
-        jwks = _get_jwks()
+        # Find the matching public key by kid
+        headers = jwt.get_unverified_headers(token)
+        kid = headers.get("kid")
+
+        keys = _get_jwks()
+        key = next((k for k in keys if k["kid"] == kid), None)
+        if key is None:
+            return None
+
         payload = jwt.decode(
             token,
-            jwks,
+            key,
             algorithms=["RS256"],
             audience=COGNITO_APP_CLIENT_ID,
         )
-        # Reject if not an ID token
+
         if payload.get("token_use") != "id":
             return None
+
         return payload
     except (JWTError, Exception):
         return None
