@@ -213,9 +213,63 @@ async def generate_survey(
 ):
     client = _get_client()
 
-    prompt = f"""You are a survey design expert. Generate a complete survey based on the following description.
+    # ── Mode-specific system instructions ─────────────────────────────────
+    MODE_PROMPTS = {
+        "conversational": (
+            "You are a survey design expert who writes in a warm, conversational tone. "
+            "Questions should feel like a friendly chat — approachable, natural, and engaging. "
+            "Use casual language and follow-up style phrasing."
+        ),
+        "emotionally_triggering": (
+            "You are a survey design expert specializing in emotionally engaging surveys. "
+            "Questions should evoke genuine feelings, use evocative language, and probe "
+            "deeper emotions. Focus on personal experiences, feelings, and motivations. "
+            "Make the respondent feel heard and valued."
+        ),
+        "deep_analysis": (
+            "You are a survey design expert focused on deep analytical research. "
+            "Questions should be thorough, multi-layered, and designed to uncover "
+            "nuanced insights. Include follow-up questions, matrix-style comparisons, "
+            "and scale-based measurements. Prioritize data quality and statistical value."
+        ),
+        "professional": (
+            "You are a survey design expert creating formal, corporate-grade surveys. "
+            "Questions should be precise, unbiased, and professionally worded. "
+            "Use industry-standard question formats. Maintain a neutral, authoritative tone."
+        ),
+        "employee_feedback": (
+            "You are an HR survey specialist designing employee feedback surveys. "
+            "Questions should cover engagement, satisfaction, management effectiveness, "
+            "work-life balance, growth opportunities, and workplace culture. "
+            "Use empathetic and confidential framing to encourage honest responses."
+        ),
+        "business_feedback": (
+            "You are a business strategist designing customer and stakeholder feedback surveys. "
+            "Questions should focus on product/service quality, customer experience, NPS, "
+            "competitive positioning, and actionable business improvements. "
+            "Use clear, ROI-oriented language."
+        ),
+        "custom": (
+            "You are a versatile survey design expert. Adapt your style, tone, and question "
+            "structure to precisely match the user's description. Be flexible and creative."
+        ),
+    }
 
-Description: {body.aiContext}
+    mode = (body.mode or "conversational").lower().replace(" ", "_")
+    system_instruction = MODE_PROMPTS.get(mode, MODE_PROMPTS["conversational"])
+
+    # ── Build the user prompt ─────────────────────────────────────────────
+    extra_context = ""
+    if body.fileContext:
+        extra_context += f"\n\nAdditional context from uploaded documents:\n{body.fileContext[:4000]}"
+    if body.audioContext:
+        extra_context += f"\n\nAdditional context from audio transcript:\n{body.audioContext[:4000]}"
+
+    prompt = f"""{system_instruction}
+
+Generate a complete survey based on the following description.
+
+Description: {body.aiContext}{extra_context}
 
 Return a JSON object with this exact structure:
 {{
@@ -235,7 +289,8 @@ Rules:
 - Generate 5-10 relevant questions
 - Only include "options" for single_choice and multiple_choice types
 - For rating/scale/short_text/long_text/yes_no types, omit "options" entirely
-- Make questions clear and unbiased"""
+- Make questions clear and unbiased
+- Adapt tone and depth based on the survey style described above"""
 
     try:
         text = await run_in_threadpool(_call_claude, client, prompt, 2048)

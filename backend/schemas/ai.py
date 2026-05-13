@@ -48,6 +48,9 @@ class AIGeneratedQuestionItem(BaseModel):
 
 class AIGenerateRequest(BaseModel):
     aiContext: str
+    mode: Optional[str] = "conversational"
+    fileContext: Optional[str] = None
+    audioContext: Optional[str] = None
 
 class AIGenerateResponse(BaseModel):
     title: str

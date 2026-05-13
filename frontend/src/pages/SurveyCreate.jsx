@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import API from '../api/axios';
 import AISurveySuggestions from '../components/AISurveySuggestions';
+import SurveyPromptScreen from '../components/SurveyPromptScreen';
 import useAuthStore from '../hooks/useAuth';
 import { QUESTION_TYPES, isExpired } from '../lib/constants';
 import { Reorder, useDragControls, motion } from 'framer-motion';
@@ -170,6 +171,7 @@ export default function SurveyCreate() {
   const nav = useNavigate();
   useEffect(() => { stopLoading(); }, [stopLoading]);
 
+  const [phase, setPhase] = useState('prompt'); // 'prompt' | 'builder'
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState('details');
   const [f, sf] = useState({ 
@@ -292,6 +294,28 @@ export default function SurveyCreate() {
     }
   };
 
+  // ── Prompt Screen Handlers ──
+  const handlePromptGenerate = async (contextWithMode, rawPrompt) => {
+    s('ai_context', contextWithMode);
+    setAiGenerating(true);
+    try {
+      const { data } = await API.post('/ai/generate', { aiContext: contextWithMode });
+      applyAIGeneration(data);
+      setPhase('builder');
+      setTab('questions');
+    } catch (e) {
+      toast.error('Failed to generate survey');
+      console.error(e);
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
+  const handlePromptTemplate = (tmpl) => {
+    loadTemplate(tmpl);
+    setPhase('builder');
+  };
+
   async function save(status = 'draft') {
     if (!f.title.trim()) return toast.error('Title is required');
     if (qs.some(q => !q.question_text.trim())) return toast.error('All questions need text');
@@ -361,6 +385,20 @@ export default function SurveyCreate() {
   const ARC_CIRC = 2 * Math.PI * ARC_R;
   const arcOffset = ARC_CIRC - (health / 100) * ARC_CIRC;
 
+  // ── Prompt Phase ──
+  if (phase === 'prompt') {
+    return (
+      <SurveyPromptScreen
+        onGenerate={handlePromptGenerate}
+        onSkip={() => setPhase('builder')}
+        onLoadTemplate={handlePromptTemplate}
+        galleryTemplates={GALLERY_TEMPLATES}
+        aiGenerating={aiGenerating}
+      />
+    );
+  }
+
+  // ── Builder Phase ──
   return (
     <div>
       <style>{`
