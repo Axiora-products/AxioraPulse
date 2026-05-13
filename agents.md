@@ -1,40 +1,40 @@
-# agents.md — Jules Instructions for AxioraPulse
+# agents.md — Instructions for AxioraPulse
 
 ## Project Overview
 AxioraPulse is a SaaS survey platform.
 - **Backend:** FastAPI + SQLAlchemy + PostgreSQL (`/backend`)
-- **Frontend:** React + Vite + TailwindCSS (`/frontend`)
+- **Frontend:** React + Vite + Zustand + TailwindCSS (`/frontend`)
+- **Infrastructure:** AWS ECS Fargate, ECR, SSM Parameter Store
 
-## Setup
-- Frontend dependencies: `cd /app/frontend && npm install`
-- Backend dependencies: `cd /app/backend && pip install -r requirements.txt`
-- No database will be available in the Jules environment — do not attempt to start or connect to PostgreSQL.
-
-## What You May Work On
-Only work on tasks explicitly described in the Jules task prompt. Do not self-assign or proactively fix things not mentioned.
+## Conventions & Setup
+- **Frontend:** `cd frontend && npm install`
+- **Backend:** `cd backend && pip install -r requirements.txt`
+- **Database:** Local dev uses Docker Compose. Production uses RDS.
+- **Migrations:** Use Alembic. `alembic upgrade head` is run on startup via `entrypoint.sh`.
 
 ## What NOT to Touch
-- `backend/alembic/` — never edit migration files; create new ones only if explicitly asked
-- `backend/ecs-task-def.json` and `frontend/ecs-task-def.json` — production infra, do not modify
-- `docker-compose.yml` and `docker-compose.prod.yml` — do not modify
-- `.github/workflows/` — CI/CD pipelines, do not modify
-- `frontend/nginx.conf` — do not modify
-- Any file containing secrets or API keys
+- `backend/alembic/versions/` — never edit existing migration files; create new ones only.
+- `backend/ecs-task-def.json` and `frontend/ecs-task-def.json` — production infrastructure.
+- `docker-compose.yml` and `docker-compose.prod.yml`.
+- `.github/workflows/` — CI/CD pipelines.
+- `frontend/nginx.conf` — SPA routing configuration.
+- Any file containing secrets or API keys.
 
-## Branch & Commit Rules
-- Never push directly to `main`
-- Use branch naming: `feature/<name>` or `fix/<name>`
-- Commit style: `feat: <message>` or `fix: <message>`
+## Git & Commit Rules
+- **Branch naming:** `feature/<name>` or `fix/<name>`
+- **Commit style:** `feat: <message> #<issue>` or `fix: <message> #<issue>`
+- **Author:** Always `roopsai-axiora <roopsai.s@axioraglobalsolutions.com>`
+- **Direct Pushes:** Only allowed for `GEMINI.md` or `agents.md` updates when explicitly requested.
 
 ## Architecture Notes
-- All API routes are in `backend/routes/`
-- Frontend API calls go through `frontend/src/api/axios.js`
-- Auth is handled via `backend/dependencies.py` (`get_current_user`)
-- Public survey routes (`/s/:slug`, `/embed/:slug`) must remain outside `ProtectedRoute`
-- Schema changes must use Alembic migrations — never edit models directly without a migration
+- **API Routes:** Located in `backend/routes/`.
+- **Frontend API:** Uses `frontend/src/api/axios.js` (note the 401 interceptor for public routes).
+- **Auth:** FastAPI dependency `get_current_user` in `backend/dependencies.py`.
+- **Public Routes:** `/s/:slug` and `/embed/:slug` must stay outside `ProtectedRoute`.
+- **No Supabase:** The project has moved to a custom FastAPI + PostgreSQL backend.
 
 ## Design System
-Use existing CSS variables only:
-- `--coral: #FF4500`, `--saffron: #FFB800`, `--terracotta: #D63B1F`
-- `--cream: #FDF5E8`, `--espresso: #160F08`, `--warm-white: #FFFBF4`
-- Fonts: `Playfair Display` (headings), `Syne` (UI/buttons), `Fraunces` (body)
+Use existing CSS variables and fonts:
+- Colors: `--coral`, `--saffron`, `--terracotta`, `--cream`, `--espresso`, `--warm-white`.
+- Fonts: `Playfair Display` (headings), `Syne` (UI/labels), `Fraunces` (body text).
+- Theme: `np-theme` (light/dark) in `localStorage`.
