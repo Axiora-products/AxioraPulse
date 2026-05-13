@@ -1,15 +1,16 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
+import API from '../api/axios';
 
 const SURVEY_MODES = [
-  { id: 'general', label: 'General Survey', icon: '📋', desc: 'Open-ended research on any topic' },
-  { id: 'nps', label: 'NPS Survey', icon: '📊', desc: 'Measure customer loyalty & satisfaction' },
-  { id: 'product', label: 'Product Feedback', icon: '🛠️', desc: 'Gather actionable product insights' },
-  { id: 'employee', label: 'Employee Pulse', icon: '👥', desc: 'Check team morale & engagement' },
-  { id: 'event', label: 'Event Feedback', icon: '🎤', desc: 'Capture attendee experience' },
-  { id: 'market', label: 'Market Research', icon: '🔍', desc: 'Understand your target audience' },
-  { id: 'exit', label: 'Exit Interview', icon: '🚪', desc: 'Learn why people are leaving' },
+  { id: 'conversational', label: 'Conversational', icon: '💬', desc: 'Warm, friendly, natural dialogue style' },
+  { id: 'emotionally_triggering', label: 'Emotionally Triggering', icon: '💗', desc: 'Evocative language that probes deeper feelings' },
+  { id: 'deep_analysis', label: 'Deep Analysis', icon: '🔬', desc: 'Thorough, multi-layered research questions' },
+  { id: 'professional', label: 'Professional', icon: '💼', desc: 'Formal, corporate-grade survey tone' },
+  { id: 'employee_feedback', label: 'Employee Feedback', icon: '👥', desc: 'HR engagement & satisfaction surveys' },
+  { id: 'business_feedback', label: 'Business Feedback', icon: '📊', desc: 'Customer/stakeholder ROI-focused' },
+  { id: 'custom', label: 'Custom', icon: '✨', desc: 'Flexible, adapts to your description' },
 ];
 
 const QUICK_TEMPLATES = [
@@ -25,9 +26,19 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
   const [prompt, setPrompt] = useState('');
   const [selectedMode, setSelectedMode] = useState(SURVEY_MODES[0]);
   const [modeOpen, setModeOpen] = useState(false);
+  const [attachedFiles, setAttachedFiles] = useState([]);
+  const [attachedAudio, setAttachedAudio] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const [draftId, setDraftId] = useState(null);
+  const [draftSaved, setDraftSaved] = useState(false);
+
   const modeRef = useRef(null);
   const textareaRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const audioInputRef = useRef(null);
+  const autoSaveTimer = useRef(null);
 
+  // Close mode dropdown on outside click
   useEffect(() => {
     if (!modeOpen) return;
     const handler = e => { if (modeRef.current && !modeRef.current.contains(e.target)) setModeOpen(false); };
@@ -43,10 +54,92 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
     ta.style.height = Math.min(ta.scrollHeight, 280) + 'px';
   }, [prompt]);
 
+  // ── Auto-save with 3-second debounce ──
+  const doAutoSave = useCallback(async () => {
+    if (!prompt.trim()) return;
+    try {
+      const { data } = await API.patch('/surveys/draft/auto-save', {
+        draft_id: draftId,
+        prompt: prompt,
+        mode: selectedMode.id,
+        attachments: [...attachedFiles, ...attachedAudio].map(f => f.filename),
+      });
+      if (data.id && !draftId) setDraftId(data.id);
+      setDraftSaved(true);
+      setTimeout(() => setDraftSaved(false), 2000);
+    } catch {
+      // Silent fail for auto-save
+    }
+  }, [prompt, selectedMode, attachedFiles, attachedAudio, draftId]);
+
+  useEffect(() => {
+    clearTimeout(autoSaveTimer.current);
+    if (prompt.trim()) {
+      autoSaveTimer.current = setTimeout(doAutoSave, 3000);
+    }
+    return () => clearTimeout(autoSaveTimer.current);
+  }, [prompt, selectedMode, attachedFiles, attachedAudio, doAutoSave]);
+
+  // ── File Upload Handler ──
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const { data } = await API.post('/uploads/file', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setAttachedFiles(prev => [...prev, {
+        id: data.id,
+        filename: data.filename,
+        extractedText: data.extracted_text || '',
+        type: 'file',
+      }]);
+      toast.success(`"${data.filename}" attached`);
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Upload failed');
+    }
+    setUploading(false);
+    e.target.value = '';
+  };
+
+  // ── Audio Upload Handler ──
+  const handleAudioUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const { data } = await API.post('/uploads/audio', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setAttachedAudio(prev => [...prev, {
+        id: data.id,
+        filename: data.filename,
+        extractedText: data.extracted_text || '',
+        type: 'audio',
+      }]);
+      toast.success(`"${data.filename}" attached`);
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Audio upload failed');
+    }
+    setUploading(false);
+    e.target.value = '';
+  };
+
+  const removeAttachment = (id, type) => {
+    if (type === 'file') setAttachedFiles(prev => prev.filter(f => f.id !== id));
+    else setAttachedAudio(prev => prev.filter(f => f.id !== id));
+  };
+
   const handleSubmit = () => {
     if (!prompt.trim()) return toast.error('Describe what you want to research');
-    const modeContext = selectedMode.id !== 'general' ? ` (Survey type: ${selectedMode.label})` : '';
-    onGenerate(prompt + modeContext, prompt);
+    const fileContext = attachedFiles.map(f => f.extractedText).filter(Boolean).join('\n\n');
+    const audioContext = attachedAudio.map(f => f.extractedText).filter(Boolean).join('\n\n');
+    onGenerate(prompt, prompt, selectedMode.id, fileContext, audioContext);
   };
 
   const handleKeyDown = (e) => {
@@ -61,8 +154,14 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
     if (tmpl) onLoadTemplate(tmpl);
   };
 
+  const hasAttachments = attachedFiles.length > 0 || attachedAudio.length > 0;
+
   return (
     <div className="cp-center">
+      {/* Hidden file inputs */}
+      <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.txt,image/*" style={{ display: 'none' }} onChange={handleFileUpload} />
+      <input ref={audioInputRef} type="file" accept="audio/*" style={{ display: 'none' }} onChange={handleAudioUpload} />
+
       {/* Decorative blobs */}
       <div className="cp-blob cp-blob-1" />
       <div className="cp-blob cp-blob-2" />
@@ -88,25 +187,68 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
             disabled={aiGenerating}
           />
 
+          {/* Attached Files Chips */}
+          {hasAttachments && (
+            <div style={{ padding: '4px 16px 8px', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {attachedFiles.map(f => (
+                <div key={f.id} style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '5px 10px 5px 8px', borderRadius: 10,
+                  background: 'rgba(255,69,0,0.06)', border: '1px solid rgba(255,69,0,0.15)',
+                  fontFamily: "'Syne', sans-serif", fontSize: 9, fontWeight: 700,
+                  letterSpacing: '0.04em', color: 'var(--coral)',
+                }}>
+                  📄 {f.filename}
+                  <button onClick={() => removeAttachment(f.id, 'file')} style={{
+                    background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(22,15,8,0.3)',
+                    fontSize: 11, lineHeight: 1, padding: 0, marginLeft: 2,
+                  }}>✕</button>
+                </div>
+              ))}
+              {attachedAudio.map(f => (
+                <div key={f.id} style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '5px 10px 5px 8px', borderRadius: 10,
+                  background: 'rgba(0,71,255,0.06)', border: '1px solid rgba(0,71,255,0.15)',
+                  fontFamily: "'Syne', sans-serif", fontSize: 9, fontWeight: 700,
+                  letterSpacing: '0.04em', color: 'var(--cobalt)',
+                }}>
+                  🎙️ {f.filename}
+                  <button onClick={() => removeAttachment(f.id, 'audio')} style={{
+                    background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(22,15,8,0.3)',
+                    fontSize: 11, lineHeight: 1, padding: 0, marginLeft: 2,
+                  }}>✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Toolbar */}
           <div className="cp-toolbar">
             {/* Upload Files */}
             <button
               type="button"
               className="cp-tool-btn"
-              onClick={() => toast('File upload coming soon!', { icon: '📎' })}
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-              </svg>
+              {uploading ? (
+                <motion.span animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                  style={{ display: 'inline-block', width: 12, height: 12, border: '1.5px solid rgba(22,15,8,0.15)', borderTopColor: 'var(--coral)', borderRadius: '50%' }} />
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                </svg>
+              )}
               <span className="cp-tool-label">Upload Files</span>
             </button>
 
-            {/* Record Audio */}
+            {/* Record/Upload Audio */}
             <button
               type="button"
               className="cp-tool-btn"
-              onClick={() => toast('Audio recording coming soon!', { icon: '🎙️' })}
+              onClick={() => audioInputRef.current?.click()}
+              disabled={uploading}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
@@ -114,7 +256,7 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
                 <line x1="12" y1="19" x2="12" y2="23" />
                 <line x1="8" y1="23" x2="16" y2="23" />
               </svg>
-              <span className="cp-tool-label">Record Audio</span>
+              <span className="cp-tool-label">Upload Audio</span>
             </button>
 
             {/* Survey Mode Selector */}
@@ -156,6 +298,18 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
             </div>
 
             <div className="cp-toolbar-spacer" />
+
+            {/* Draft saved indicator */}
+            {draftSaved && (
+              <span style={{
+                fontFamily: "'Syne', sans-serif", fontSize: 9, fontWeight: 700,
+                letterSpacing: '0.1em', textTransform: 'uppercase',
+                color: 'var(--sage)', opacity: 0.7,
+                animation: 'cpFadeIn 0.3s ease',
+              }}>
+                ✓ Draft saved
+              </span>
+            )}
 
             {/* Submit */}
             <button
