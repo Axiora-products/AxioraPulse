@@ -40,7 +40,13 @@ def _call_claude(client: anthropic.Anthropic, prompt: str, max_tokens: int = 204
         system="You are a helpful AI assistant. Always respond with valid JSON only — no markdown, no explanation.",
         messages=[{"role": "user", "content": prompt}],
     )
-    return response.content[0].text
+    text = response.content[0].text.strip()
+    # Strip markdown code fences if Claude wraps the JSON despite instructions
+    if text.startswith("```"):
+        text = text.split("\n", 1)[-1]
+        if text.endswith("```"):
+            text = text[: text.rfind("```")]
+    return text.strip()
 
 
 @router.get("/ping")
