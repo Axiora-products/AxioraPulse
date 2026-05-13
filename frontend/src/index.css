@@ -824,6 +824,495 @@ body {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
+   WORKSPACE SIDEBAR LAYOUT
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Layout Shell ── */
+.ws-layout {
+  display: flex;
+  min-height: 100vh;
+  background: var(--cream);
+}
+
+/* ── Sidebar ── */
+.ws-sidebar {
+  width: 280px;
+  min-width: 280px;
+  background: var(--espresso);
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow: hidden;
+  z-index: 300;
+  flex-shrink: 0;
+  border-right: 1px solid rgba(253,245,232,0.06);
+}
+.ws-sidebar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(165deg, rgba(255,69,0,0.05) 0%, transparent 45%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Sidebar Header ── */
+.ws-sidebar-header {
+  padding: 22px 20px 16px;
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+}
+.ws-sidebar-logo {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  text-decoration: none;
+  margin-bottom: 20px;
+}
+.ws-sidebar-logo-pre {
+  font-family: 'Syne', sans-serif;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(253,245,232,0.28);
+  margin-right: 6px;
+  position: relative;
+  top: -1px;
+}
+.ws-sidebar-logo-main {
+  font-family: 'Playfair Display', serif;
+  font-weight: 900;
+  font-size: 20px;
+  letter-spacing: -0.8px;
+  color: var(--cream);
+  line-height: 1;
+}
+.ws-sidebar-logo-dot {
+  width: 7px;
+  height: 7px;
+  background: var(--coral);
+  border-radius: 50%;
+  box-shadow: 0 0 8px rgba(255,69,0,0.5);
+  align-self: flex-start;
+  margin-top: 4px;
+  margin-left: 6px;
+  flex-shrink: 0;
+  position: relative;
+}
+
+/* ── New Survey Button ── */
+.ws-new-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 13px 18px;
+  border-radius: 14px;
+  border: none;
+  background: var(--coral);
+  color: #fff;
+  font-family: 'Syne', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.16,1,0.3,1);
+  box-shadow: 0 4px 20px rgba(255,69,0,0.3);
+  text-decoration: none;
+  position: relative;
+  overflow: hidden;
+}
+.ws-new-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, var(--saffron), var(--coral-bright));
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.ws-new-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 28px rgba(255,69,0,0.45);
+}
+.ws-new-btn:hover::before { opacity: 1; }
+.ws-new-btn span, .ws-new-btn svg { position: relative; z-index: 1; }
+
+/* ── Sidebar Scrollable Body ── */
+.ws-sidebar-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 12px 12px;
+  position: relative;
+  z-index: 1;
+}
+.ws-sidebar-body::-webkit-scrollbar { width: 2px; }
+.ws-sidebar-body::-webkit-scrollbar-track { background: transparent; }
+.ws-sidebar-body::-webkit-scrollbar-thumb {
+  background: rgba(253,245,232,0.15);
+  border-radius: 10px;
+}
+
+/* ── Sidebar Section ── */
+.ws-sidebar-section {
+  margin-bottom: 8px;
+}
+.ws-sidebar-section-label {
+  font-family: 'Syne', sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(253,245,232,0.25);
+  padding: 14px 10px 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ws-sidebar-section-label::before {
+  content: '';
+  width: 12px;
+  height: 1px;
+  background: rgba(253,245,232,0.12);
+}
+
+/* ── Sidebar Item ── */
+.ws-sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: none;
+  background: transparent;
+  color: rgba(253,245,232,0.55);
+  font-family: 'Syne', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  position: relative;
+  overflow: hidden;
+  text-transform: none;
+}
+.ws-sidebar-item:hover {
+  background: rgba(253,245,232,0.06);
+  color: rgba(253,245,232,0.85);
+}
+.ws-sidebar-item.active {
+  background: rgba(255,69,0,0.12);
+  color: var(--cream);
+  border: 1px solid rgba(255,69,0,0.2);
+}
+.ws-sidebar-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 20%;
+  bottom: 20%;
+  width: 2px;
+  background: var(--coral);
+  border-radius: 0 2px 2px 0;
+}
+.ws-sidebar-item-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: rgba(253,245,232,0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  flex-shrink: 0;
+  transition: background 0.2s;
+}
+.ws-sidebar-item:hover .ws-sidebar-item-icon {
+  background: rgba(253,245,232,0.10);
+}
+.ws-sidebar-item.active .ws-sidebar-item-icon {
+  background: rgba(255,69,0,0.2);
+}
+.ws-sidebar-item-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.3;
+}
+.ws-sidebar-item-title {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ws-sidebar-item-meta {
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: rgba(253,245,232,0.25);
+  display: block;
+  margin-top: 1px;
+}
+
+/* ── Sidebar Item Hover Actions ── */
+.ws-sidebar-item-actions {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+.ws-sidebar-item:hover .ws-sidebar-item-actions {
+  opacity: 1;
+}
+.ws-sidebar-item-action {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: rgba(253,245,232,0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.ws-sidebar-item-action:hover {
+  background: rgba(253,245,232,0.1);
+  color: rgba(253,245,232,0.8);
+}
+.ws-sidebar-item-action.danger:hover {
+  background: rgba(214,59,31,0.2);
+  color: var(--terracotta);
+}
+
+/* ── Sidebar Status Badges ── */
+.ws-badge {
+  font-family: 'Syne', sans-serif;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+.ws-badge-active  { background: rgba(30,122,74,0.2);  color: #4ade80; }
+.ws-badge-draft   { background: rgba(253,245,232,0.08); color: rgba(253,245,232,0.35); }
+.ws-badge-closed  { background: rgba(214,59,31,0.15); color: #fca5a5; }
+.ws-badge-paused  { background: rgba(255,184,0,0.15); color: var(--saffron); }
+
+/* ── Sidebar User Section ── */
+.ws-sidebar-user {
+  padding: 14px 16px;
+  border-top: 1px solid rgba(253,245,232,0.08);
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ws-sidebar-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--coral);
+  color: #fff;
+  font-family: 'Syne', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.2s;
+  cursor: pointer;
+}
+.ws-sidebar-avatar:hover {
+  background: var(--saffron);
+}
+.ws-sidebar-user-info {
+  flex: 1;
+  overflow: hidden;
+}
+.ws-sidebar-user-name {
+  font-family: 'Playfair Display', serif;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--cream);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ws-sidebar-user-role {
+  font-family: 'Syne', sans-serif;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(253,245,232,0.3);
+}
+
+/* ── Sidebar User Menu ── */
+.ws-user-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 12px;
+  right: 12px;
+  background: var(--espresso-mid);
+  border: 1px solid rgba(253,245,232,0.1);
+  border-radius: 16px;
+  padding: 10px;
+  box-shadow: 0 -16px 48px rgba(0,0,0,0.4);
+  z-index: 10;
+}
+.ws-user-menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  font-family: 'Syne', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(253,245,232,0.45);
+  cursor: pointer;
+  transition: all 0.15s;
+  text-decoration: none;
+  text-align: left;
+}
+.ws-user-menu-item:hover {
+  background: rgba(253,245,232,0.08);
+  color: var(--cream);
+}
+.ws-user-menu-item.danger {
+  color: rgba(214,59,31,0.7);
+}
+.ws-user-menu-item.danger:hover {
+  background: rgba(214,59,31,0.15);
+  color: var(--terracotta);
+}
+
+/* ── Content Area ── */
+.ws-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+.ws-content-main {
+  flex: 1;
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 48px 48px 40px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* ── Mobile Top Bar ── */
+.ws-mobile-topbar {
+  display: none;
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  background: rgba(253,245,232,0.92);
+  backdrop-filter: blur(24px);
+  border-bottom: 1px solid rgba(22,15,8,0.07);
+  height: 56px;
+  padding: 0 20px;
+  align-items: center;
+  justify-content: space-between;
+}
+.ws-mobile-hamburger {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: none;
+  background: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--espresso);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.ws-mobile-hamburger:hover {
+  background: rgba(22,15,8,0.06);
+}
+
+/* ── Sidebar Overlay (mobile) ── */
+.ws-sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(22,15,8,0.6);
+  backdrop-filter: blur(4px);
+  z-index: 299;
+}
+
+/* ── Sidebar Empty State ── */
+.ws-empty {
+  padding: 20px 12px;
+  text-align: center;
+}
+.ws-empty-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1.5px dashed rgba(253,245,232,0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 10px;
+  color: rgba(253,245,232,0.15);
+}
+.ws-empty-text {
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  font-size: 12px;
+  color: rgba(253,245,232,0.2);
+  line-height: 1.5;
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .ws-sidebar {
+    position: fixed;
+    left: -280px;
+    transition: left 0.3s cubic-bezier(0.16,1,0.3,1);
+  }
+  .ws-sidebar.mobile-open {
+    left: 0;
+  }
+  .ws-mobile-topbar {
+    display: flex;
+  }
+  .ws-sidebar-overlay.visible {
+    display: block;
+  }
+  .ws-content-main {
+    padding: 32px 20px 40px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
    CLAUDE-STYLE CENTER PROMPT INTERFACE
    ═══════════════════════════════════════════════════════════════════ */
 

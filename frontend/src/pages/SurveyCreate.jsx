@@ -295,11 +295,16 @@ export default function SurveyCreate() {
   };
 
   // ── Prompt Screen Handlers ──
-  const handlePromptGenerate = async (contextWithMode, rawPrompt) => {
-    s('ai_context', contextWithMode);
+  const handlePromptGenerate = async (promptText, rawPrompt, mode, fileContext, audioContext) => {
+    s('ai_context', promptText);
     setAiGenerating(true);
     try {
-      const { data } = await API.post('/ai/generate', { aiContext: contextWithMode });
+      const { data } = await API.post('/ai/generate', {
+        aiContext: promptText,
+        mode: mode || 'conversational',
+        fileContext: fileContext || null,
+        audioContext: audioContext || null,
+      });
       applyAIGeneration(data);
       setPhase('builder');
       setTab('questions');
