@@ -23,7 +23,7 @@ AxioraPulse is a SaaS survey platform.
 ## Git & Commit Rules
 - **Branch naming:** `feature/<name>` or `fix/<name>`
 - **Commit style:** `feat: <message> #<issue>` or `fix: <message> #<issue>`
-- **Author:** Always `roopsai-axiora <roopsai.s@axioraglobalsolutions.com>`
+- **Author:** Always `your user-id`
 - **Direct Pushes:** Only allowed for `GEMINI.md` or `agents.md` updates when explicitly requested.
 
 ## Architecture Notes
