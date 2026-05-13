@@ -18,9 +18,10 @@ API.interceptors.response.use(
     (err) => {
         if (err.response?.status === 401) {
             localStorage.removeItem("token");
-            // Skip redirect for auth init — initialize() catch handles it gracefully,
+            // Skip redirect for auth init paths — initialize() catch handles them gracefully,
             // preventing expired-token users from being bounced off public routes like /s/:slug
-            if (!err.config?.url?.includes('/auth/me')) {
+            const url = err.config?.url || '';
+            if (!url.includes('/auth/me') && !url.includes('/auth/sync')) {
                 window.location.href = "/login";
             }
         }
