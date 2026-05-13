@@ -19,7 +19,7 @@ Project context for Gemini CLI sessions.
 ### Git
 - **Branch naming:** `feature/<name>`, `fix/<name>`, `feature/payment-phase-N-<name>`
 - **Commit style:** `feat: <short message> #<issue-number>` or `fix: <short message> #<issue-number>`
-- **Author:** Always `roopsai-axiora <roopsai.s@axioraglobalsolutions.com>` — never use Gemini as author or co-author
+- **Author:** Always `your user-id` — never use Gemini as author or co-author
 - **Never push directly to main** unless explicitly told to. (Note: This rule is overridden by the current directive to push to main and develop).
 
 ### Workflow
