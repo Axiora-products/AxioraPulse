@@ -1,48 +1,85 @@
-# Environment files
+# --- Environment & Secrets ---
 .env
+.env.local
 .env.*
+.env.*.local
+*.env
+*.pem
+*.key
+*.crt
+*.pub
+*.cert
+credentials
+secrets.json
 
-# Node.js artifacts
+# --- Node.js ---
 node_modules/
 dist/
 build/
 .vite/
-package-lock.json
+.next/
+.nuxt/
+.cache/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+lerna-debug.log*
+.npm
+.eslintcache
 
-# Python artifacts
+# --- Python ---
 __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
-*.py[cod]
-*.env
 .venv/
 venv/
 ENV/
-
-# Test / coverage
+env/
+instance/
+.pytest_cache/
 .coverage
 .coverage.*
-.pytest_cache/
 htmlcov/
-.nox/
-.pyre/
 .mypy_cache/
+.pyre/
+.pytype/
+pip-log.txt
+pip-delete-this-directory.txt
 
-# IDE / editor
+# --- Databases ---
+*.sqlite3
+*.db
+*.sql.gz
+*.sql.tar.gz
+
+# --- IDEs & Editors ---
 .vscode/
 .idea/
 *.swp
+*.swo
 *~
-
-# Logs
-npm-debug.log*
-yarn-debug.log*
-pnpm-debug.log*
-*.log
-
-# Misc
 .DS_Store
-coverage/
-*.sqlite3
-*.db
+Thumbs.db
+.project
+.settings/
+.classpath
+
+# --- OS / Misc ---
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Icon?
+*.log
+tmp/
+temp/
+
+# --- Local Scripts & Dev State ---
+scripts/
+.backend.pid
+.backend.log
+.frontend.pid
+.frontend.log
