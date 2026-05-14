@@ -2,7 +2,7 @@
   "name": "axiora-pulse",
   "version": "1.0.0",
   "private": true,
-  "description": "A beautiful, multi-tenant SaaS survey platform built with React, Supabase, and Tailwind CSS.",
+  "description": "AxioraPulse survey platform frontend",
   "license": "ISC",
   "author": "",
   "type": "module",
@@ -13,7 +13,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.45.0",
     "amazon-cognito-identity-js": "^6.3.16",
     "axios": "^1.15.0",
     "chart.js": "^4.4.4",
