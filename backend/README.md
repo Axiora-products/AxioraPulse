@@ -3,7 +3,7 @@
 FastAPI + PostgreSQL + SQLAlchemy backend for the AxioraPulse survey platform.
 
 ## Prerequisites
-- Python 3.11+
+- Python 3.12+
 - PostgreSQL running locally
 
 ## Quick Start
