@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import API from '../api/axios';
 import AISurveySuggestions from '../components/AISurveySuggestions';
 import SurveyPromptScreen from '../components/SurveyPromptScreen';
@@ -390,6 +390,43 @@ export default function SurveyCreate() {
   const ARC_CIRC = 2 * Math.PI * ARC_R;
   const arcOffset = ARC_CIRC - (health / 100) * ARC_CIRC;
 
+  const [searchParams] = useSearchParams();
+  const resumeDraftId = searchParams.get('draftId');
+  const [initialDraftData, setInitialDraftData] = useState(null);
+
+  useEffect(() => {
+    if (resumeDraftId) {
+      const loadDraft = async () => {
+        try {
+          const { data } = await API.get(`/surveys/${resumeDraftId}`);
+          // welcome_message might contain JSON meta
+          let mode = 'conversational';
+          let attachments = [];
+          if (data.welcome_message && data.welcome_message.startsWith('{')) {
+            try {
+              const meta = JSON.parse(data.welcome_message);
+              mode = meta.mode || 'conversational';
+              attachments = meta.attachments || [];
+            } catch (e) {
+              console.warn('Failed to parse draft meta', e);
+            }
+          }
+          setInitialDraftData({
+            id: data.id,
+            prompt: data.description || '',
+            mode: mode,
+            attachments: attachments
+          });
+          setPhase('prompt');
+        } catch (e) {
+          console.error('Failed to load draft', e);
+          toast.error('Could not resume draft');
+        }
+      };
+      loadDraft();
+    }
+  }, [resumeDraftId]);
+
   // ── Prompt Phase ──
   if (phase === 'prompt') {
     return (
@@ -399,6 +436,7 @@ export default function SurveyCreate() {
         onLoadTemplate={handlePromptTemplate}
         galleryTemplates={GALLERY_TEMPLATES}
         aiGenerating={aiGenerating}
+        initialData={initialDraftData}
       />
     );
   }

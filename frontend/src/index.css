@@ -1338,6 +1338,24 @@ body {
   50%      { transform: translateY(-6px); }
 }
 
+/* ── Sonar Pulse ── */
+@keyframes sonarPulse {
+  0% { transform: scale(1); opacity: 0.5; }
+  100% { transform: scale(3.5); opacity: 0; }
+}
+.sonar-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid var(--coral);
+  opacity: 0;
+  pointer-events: none;
+}
+.sonar-ring:nth-child(1) { animation: sonarPulse 3s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite; }
+.sonar-ring:nth-child(2) { animation: sonarPulse 3s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite 1s; }
+.sonar-ring:nth-child(3) { animation: sonarPulse 3s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite 2s; }
+
+
 /* ── Center Container ── */
 .cp-center {
   display: flex;

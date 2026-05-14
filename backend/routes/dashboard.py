@@ -103,6 +103,10 @@ def recent_surveys(
             .filter(SurveyResponse.survey_id == sv.id)
             .scalar() or 0
         )
+        # Using a join or subquery would be more efficient, but keeping it simple for now
+        from db.models import Question
+        q_count = db.query(func.count(Question.id)).filter(Question.survey_id == sv.id).scalar() or 0
+        
         result.append({
             "id": sv.id,
             "title": sv.title,
@@ -112,6 +116,7 @@ def recent_surveys(
             "creator": {"full_name": sv.creator.full_name} if sv.creator else None,
             "created_at": sv.created_at,
             "response_count": count,
+            "question_count": q_count,
         })
 
     return result
