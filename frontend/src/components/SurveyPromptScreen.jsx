@@ -22,7 +22,7 @@ const QUICK_TEMPLATES = [
   { name: 'Exit Interview', icon: '🚪', category: 'HR' },
 ];
 
-export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate, galleryTemplates, aiGenerating }) {
+export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate, galleryTemplates, aiGenerating, initialData }) {
   const [prompt, setPrompt] = useState('');
   const [selectedMode, setSelectedMode] = useState(SURVEY_MODES[0]);
   const [modeOpen, setModeOpen] = useState(false);
@@ -31,6 +31,31 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
   const [uploading, setUploading] = useState(false);
   const [draftId, setDraftId] = useState(null);
   const [draftSaved, setDraftSaved] = useState(false);
+
+  // Initialize from initialData (Resume Logic)
+  useEffect(() => {
+    if (initialData) {
+      setPrompt(initialData.prompt || '');
+      const mode = SURVEY_MODES.find(m => m.id === initialData.mode) || SURVEY_MODES[0];
+      setSelectedMode(mode);
+      setDraftId(initialData.id);
+      
+      // Load attachments metadata
+      if (initialData.attachments && initialData.attachments.length > 0) {
+        const loadAttachments = async () => {
+          try {
+            const { data: allFiles } = await API.get('/uploads/files');
+            const myFiles = allFiles.filter(f => initialData.attachments.includes(f.id));
+            setAttachedFiles(myFiles.filter(f => f.upload_type === 'file'));
+            setAttachedAudio(myFiles.filter(f => f.upload_type === 'audio'));
+          } catch (e) {
+            console.error('Failed to load attachment metadata', e);
+          }
+        };
+        loadAttachments();
+      }
+    }
+  }, [initialData]);
 
   const modeRef = useRef(null);
   const textareaRef = useRef(null);
@@ -317,8 +342,16 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
               className={`cp-submit-btn${aiGenerating ? ' generating' : ''}`}
               onClick={handleSubmit}
               disabled={aiGenerating || !prompt.trim()}
+              style={{ position: 'relative' }}
               title="Generate survey"
             >
+              {aiGenerating && (
+                <>
+                  <div className="sonar-ring" />
+                  <div className="sonar-ring" />
+                  <div className="sonar-ring" />
+                </>
+              )}
               {aiGenerating ? (
                 <motion.span
                   animate={{ rotate: 360 }}
