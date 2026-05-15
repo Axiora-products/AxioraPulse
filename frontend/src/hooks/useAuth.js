@@ -18,15 +18,18 @@ const useAuthStore = create((set, get) => ({
       const idToken = session.getIdToken().getJwtToken();
       localStorage.setItem('token', idToken);
 
-      // Link cognito_sub in DB for existing users whose sub isn't set yet
+      // Sync cognito_sub to DB once per session on app load only
       await API.post('/auth/sync', { id_token: idToken });
 
       const res = await API.get('/auth/me');
       const { user, profile, tenant } = res.data;
       set({ user, profile, tenant, loading: false, initialized: true });
-    } catch {
-      cognitoSignOut();
-      localStorage.removeItem('token');
+    } catch (err) {
+      const status = err?.response?.status;
+      if (!status || status === 401 || status === 403) {
+        cognitoSignOut();
+        localStorage.removeItem('token');
+      }
       set({ user: null, profile: null, tenant: null, loading: false, initialized: true });
     }
   },
@@ -38,17 +41,17 @@ const useAuthStore = create((set, get) => ({
       const idToken = session.getIdToken().getJwtToken();
       localStorage.setItem('token', idToken);
 
-      // Link cognito_sub in DB for existing users whose sub isn't set yet
-      await API.post('/auth/sync', { id_token: idToken });
-
       const res = await API.get('/auth/me');
       const { user, profile, tenant } = res.data;
       set({ user, profile, tenant, loading: false, initialized: true });
       return true;
-    } catch {
-      cognitoSignOut();
-      localStorage.removeItem('token');
-      set({ user: null, profile: null, tenant: null, loading: false });
+    } catch (err) {
+      const status = err?.response?.status;
+      if (!status || status === 401 || status === 403) {
+        cognitoSignOut();
+        localStorage.removeItem('token');
+        set({ user: null, profile: null, tenant: null, loading: false });
+      }
       return false;
     }
   },
