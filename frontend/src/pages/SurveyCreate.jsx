@@ -4,16 +4,16 @@ import API from '../api/axios';
 import AISurveySuggestions from '../components/AISurveySuggestions';
 import SurveyPromptScreen, { SURVEY_MODES, getSurveyModeLabel } from '../components/SurveyPromptScreen';
 import useAuthStore from '../hooks/useAuth';
-import { QUESTION_TYPES, isExpired } from '../lib/constants';
+import { QUESTION_TYPES, SHORT_SURVEY_RULES, estimateSurveyMinutes, getFormatDiversityScore, getQuestionWordCount, isExpired } from '../lib/constants';
 import { Reorder, useDragControls, motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { useLoading } from '../context/LoadingContext';
 import { TRUST_SCREEN_COPY } from '../config/trustScreen';
 
 const newQ = () => ({ _id: Math.random().toString(36).slice(2), question_text: '', question_type: 'short_text', options: [], is_required: false, description: '' });
-const hasO = t => ['single_choice', 'multiple_choice', 'dropdown', 'ranking'].includes(t);
+const hasO = t => ['single_choice', 'multiple_choice', 'dropdown', 'ranking', 'emoji_reaction', 'swipe_choice', 'visual_choice'].includes(t);
 const isMx = t => t === 'matrix';
-const estTime = qs => `~${Math.max(1, Math.ceil(qs.length * 0.4))} min`;
+const estTime = qs => `~${estimateSurveyMinutes(qs)} min`;
 
 const fi = e => { e.target.style.borderColor = 'var(--coral)'; e.target.style.boxShadow = '0 0 0 3px rgba(255,69,0,0.08)'; };
 const fo = e => { e.target.style.borderColor = 'rgba(22,15,8,0.1)'; e.target.style.boxShadow = 'none'; };
@@ -127,6 +127,9 @@ function QCardCreate({ q, i, tc, qs, sQ, delQ, moveQ, addOpt, sOpt, delOpt }) {
                   </div>
                 ))}
               </div>
+              {q.question_type === 'visual_choice' && (q.options || []).map((o, j) => (
+                <input key={`img-${j}`} value={o.image_url || ''} onChange={e => sOpt(q._id, j, o.label, e.target.value)} placeholder={`Image URL for option ${j + 1}`} style={{ ...INP, marginTop: 8, padding: '9px 13px', fontSize: 12, borderRadius: 12 }} onFocus={fi} onBlur={fo} />
+              ))}
               <button onClick={() => addOpt(q._id)} style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: "'Syne',sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: tc, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', transition: 'opacity 0.15s' }}>
                 <span style={{ width: 18, height: 18, borderRadius: 6, background: `${tc}14`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>+</span>
                 Add option
@@ -261,13 +264,13 @@ export default function SurveyCreate() {
   }, [dirty]);
 
   const s = (k, v) => { sf(p => ({ ...p, [k]: v })); setDirty(true); };
-  const sQ = (id, k, v) => sQs(a => a.map(q => q._id === id ? { ...q, [k]: v } : q));
-  const addQ = () => { sQs(a => [...a, newQ()]); };
+  const sQ = (id, k, v) => { sQs(a => a.map(q => q._id === id ? { ...q, [k]: v } : q)); setDirty(true); };
+  const addQ = () => { sQs(a => [...a, newQ()]); setDirty(true); };
   const delQ = id => { if (qs.length <= 1) return toast.error('Need at least 1 question'); sQs(a => a.filter(q => q._id !== id)); };
-  const moveQ = (id, d) => sQs(a => { const i = a.findIndex(q => q._id === id); if ((d===-1&&i===0)||(d===1&&i===a.length-1)) return a; const b=[...a]; [b[i],b[i+d]]=[b[i+d],b[i]]; return b; });
-  const addOpt = id => sQs(a => a.map(q => q._id===id ? { ...q, options:[...(q.options||[]),{label:'',value:''}] } : q));
-  const sOpt = (id, i, v) => sQs(a => a.map(q => { if (q._id!==id) return q; const o=[...(q.options||[])]; o[i]={label:v,value:v.toLowerCase().replace(/\s+/g,'_')}; return {...q,options:o}; }));
-  const delOpt = (id, i) => sQs(a => a.map(q => q._id!==id ? q : { ...q, options:q.options.filter((_,j)=>j!==i) }));
+  const moveQ = (id, d) => { sQs(a => { const i = a.findIndex(q => q._id === id); if ((d===-1&&i===0)||(d===1&&i===a.length-1)) return a; const b=[...a]; [b[i],b[i+d]]=[b[i+d],b[i]]; return b; }); setDirty(true); };
+  const addOpt = id => { sQs(a => a.map(q => q._id===id ? { ...q, options:[...(q.options||[]),{label:'',value:''}] } : q)); setDirty(true); };
+  const sOpt = (id, i, v, imageUrl) => { sQs(a => a.map(q => { if (q._id!==id) return q; const o=[...(q.options||[])]; o[i]={...o[i],label:v,value:v.toLowerCase().replace(/\s+/g,'_'),...(imageUrl !== undefined ? { image_url:imageUrl } : {})}; return {...q,options:o}; })); setDirty(true); };
+  const delOpt = (id, i) => { sQs(a => a.map(q => q._id!==id ? q : { ...q, options:q.options.filter((_,j)=>j!==i) })); setDirty(true); };
 
   const applyAIGeneration = (data) => {
     sf(p => ({
@@ -391,13 +394,18 @@ export default function SurveyCreate() {
 
   const tc = f.theme_color || '#FF4500';
   const reqCount = qs.filter(q => q.is_required).length;
+  const estimatedMinutes = estimateSurveyMinutes(qs);
+  const conciseQuestionCount = qs.filter(q => getQuestionWordCount(q) <= SHORT_SURVEY_RULES.maxHighSignalWords).length;
+  const hasAdaptiveFormats = getFormatDiversityScore(qs) >= 3;
   const healthChecks = [
     f.title.trim(), 
     f.description.trim(), 
     f.welcome_message.trim(), 
-    qs.length >= 2, 
-    qs.length > 0 && reqCount <= 5, // Only counts if there are questions
-    qs.some(q => q.question_type !== 'short_text'), 
+    qs.length > 0 && qs.length <= SHORT_SURVEY_RULES.defaultQuestionCount, 
+    qs.length > 0 && reqCount <= SHORT_SURVEY_RULES.preferredRequiredQuestionLimit,
+    hasAdaptiveFormats,
+    estimatedMinutes <= SHORT_SURVEY_RULES.targetCompletionMinutes,
+    qs.length > 0 && conciseQuestionCount === qs.length,
     f.expires_at
   ];
   // Filter out checks that shouldn't contribute to 0% state
@@ -879,6 +887,19 @@ export default function SurveyCreate() {
           {/* ── QUESTIONS TAB ── */}
           {tab === 'questions' && (
             <div style={{ display:'flex',flexDirection:'column',gap:16 }}>
+              <div style={{ display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))',gap:10 }}>
+                {[
+                  [`${SHORT_SURVEY_RULES.defaultQuestionCount}`, 'default questions'],
+                  [`${SHORT_SURVEY_RULES.targetCompletionMinutes} min`, 'target time'],
+                  [`${conciseQuestionCount}/${qs.length}`, 'concise'],
+                  [hasAdaptiveFormats ? 'Balanced' : 'Mix formats', 'adaptive flow'],
+                ].map(([value, label]) => (
+                  <div key={label} style={{ background:'var(--warm-white)',border:'1.5px solid rgba(22,15,8,0.07)',borderRadius:18,padding:'14px 16px' }}>
+                    <div style={{ fontFamily:"'Playfair Display',serif",fontWeight:900,fontSize:20,color:tc,lineHeight:1 }}>{value}</div>
+                    <div style={{ fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:8,letterSpacing:'0.12em',textTransform:'uppercase',color:'rgba(22,15,8,0.32)',marginTop:6 }}>{label}</div>
+                  </div>
+                ))}
+              </div>
               <Reorder.Group axis="y" values={qs} onReorder={sQs} style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
                 {qs.map((q, i) => (
                   <QCardCreate key={q._id} q={q} i={i} tc={tc} qs={qs}
@@ -899,7 +920,7 @@ export default function SurveyCreate() {
               </button>
 
               <AISurveySuggestions survey={f} questions={qs} tc={tc} aiContext={f.ai_context}
-                onAdd={q => sQs(a => [...a, { ...newQ(), ...q, _id:'new_'+Math.random().toString(36).slice(2) }])} />
+                onAdd={q => { sQs(a => [...a, { ...newQ(), ...q, _id:'new_'+Math.random().toString(36).slice(2) }]); setDirty(true); }} />
             </div>
           )}
 
@@ -985,7 +1006,10 @@ export default function SurveyCreate() {
                   [f.title.trim(),'Add a title'],
                   [f.description.trim(),'Add a description'],
                   [f.welcome_message.trim(),'Welcome message'],
-                  [qs.length >= 2,'At least 2 questions'],
+                  [qs.length > 0 && qs.length <= SHORT_SURVEY_RULES.defaultQuestionCount,`${SHORT_SURVEY_RULES.defaultQuestionCount}-question target`],
+                  [estimatedMinutes <= SHORT_SURVEY_RULES.targetCompletionMinutes,`${SHORT_SURVEY_RULES.targetCompletionMinutes} min target`],
+                  [conciseQuestionCount === qs.length,'Concise wording'],
+                  [hasAdaptiveFormats,'Adaptive formats'],
                   [f.expires_at,'Set expiry date'],
                 ].map(([done,tip]) => (
                   <div key={tip} style={{ display:'flex',alignItems:'center',gap:7 }}>

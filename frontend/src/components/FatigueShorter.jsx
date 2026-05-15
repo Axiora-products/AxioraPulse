@@ -37,6 +37,7 @@ const TYPE_BASE = {
   short_text: 20, long_text: 45, email: 8, number: 8, date: 10,
   yes_no: 5, single_choice: 7, multiple_choice: 10, dropdown: 7,
   rating: 5, scale: 6, ranking: 18, slider: 9, matrix: 25,
+  emoji_reaction: 5, swipe_choice: 10, visual_choice: 12,
 };
 
 export default function FatigueShorter({

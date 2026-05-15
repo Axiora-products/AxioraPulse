@@ -53,6 +53,9 @@ class QuestionTypeEnum(str, enum.Enum):
     ranking         = "ranking"
     slider          = "slider"
     matrix          = "matrix"
+    emoji_reaction  = "emoji_reaction"
+    swipe_choice    = "swipe_choice"
+    visual_choice   = "visual_choice"
 
 
 class ResponseStatusEnum(str, enum.Enum):

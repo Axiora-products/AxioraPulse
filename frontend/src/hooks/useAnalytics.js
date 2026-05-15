@@ -218,7 +218,7 @@ function computeQuestionData(q, ans) {
   if (!qa.length) return null;
 
   // Choice types → doughnut
-  if (['single_choice', 'dropdown', 'yes_no'].includes(q.question_type)) {
+  if (['single_choice', 'dropdown', 'yes_no', 'emoji_reaction', 'swipe_choice', 'visual_choice'].includes(q.question_type)) {
     const c = {};
     qa.forEach(a => { const v = a.answer_value || '—'; c[v] = (c[v] || 0) + 1; });
     const labels = Object.keys(c).map(k => (q.options || []).find(o => o.value === k)?.label || k);
