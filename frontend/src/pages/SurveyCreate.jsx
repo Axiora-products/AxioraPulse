@@ -2,12 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import API from '../api/axios';
 import AISurveySuggestions from '../components/AISurveySuggestions';
-import SurveyPromptScreen from '../components/SurveyPromptScreen';
+import SurveyPromptScreen, { SURVEY_MODES, getSurveyModeLabel } from '../components/SurveyPromptScreen';
 import useAuthStore from '../hooks/useAuth';
 import { QUESTION_TYPES, isExpired } from '../lib/constants';
 import { Reorder, useDragControls, motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { useLoading } from '../context/LoadingContext';
+import { TRUST_SCREEN_COPY } from '../config/trustScreen';
 
 const newQ = () => ({ _id: Math.random().toString(36).slice(2), question_text: '', question_type: 'short_text', options: [], is_required: false, description: '' });
 const hasO = t => ['single_choice', 'multiple_choice', 'dropdown', 'ranking'].includes(t);
@@ -169,8 +170,12 @@ export default function SurveyCreate() {
   const { profile } = useAuthStore();
   const { stopLoading } = useLoading();
   const nav = useNavigate();
+  const [searchParams] = useSearchParams();
+  const resumeDraftId = searchParams.get('draftId');
   useEffect(() => { stopLoading(); }, [stopLoading]);
 
+  const [trustAccepted, setTrustAccepted] = useState(() => Boolean(resumeDraftId));
+  const [trustLeaving, setTrustLeaving] = useState(false);
   const [phase, setPhase] = useState('prompt'); // 'prompt' | 'builder'
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState('details');
@@ -184,12 +189,16 @@ export default function SurveyCreate() {
     allow_anonymous: true, 
     require_email: false, 
     show_progress_bar: true,
-    ai_context: ''
+    ai_context: '',
+    ai_mode: 'conversational',
+    ai_custom_instruction: ''
   });
   const [qs, sQs] = useState([newQ()]);
   const [dirty, setDirty] = useState(false);
   const [aiGenerating, setAiGenerating] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [modeOpen, setModeOpen] = useState(false);
+  const modeRef = useRef(null);
   const [pendingGen, setPendingGen] = useState(null);
   const [showTemplates, setShowTemplates] = useState(false);
   const [tmplTab, setTmplTab] = useState('gallery');
@@ -205,6 +214,14 @@ export default function SurveyCreate() {
   });
 
   const persistCustom = list => { setCustomTemplates(list); localStorage.setItem('np-custom-templates', JSON.stringify(list)); };
+  const selectedAIMode = SURVEY_MODES.find(m => m.id === f.ai_mode) || SURVEY_MODES[0];
+
+  useEffect(() => {
+    if (!modeOpen) return;
+    const handler = e => { if (modeRef.current && !modeRef.current.contains(e.target)) setModeOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [modeOpen]);
 
   function saveAsTemplate() {
     if (!tmplName.trim()) return toast.error('Template name required');
@@ -277,9 +294,14 @@ export default function SurveyCreate() {
 
   const handleAIGenerate = async () => {
     if (!f.ai_context.trim()) return toast.error('Please describe your survey first');
+    if (f.ai_mode === 'custom' && !f.ai_custom_instruction.trim()) return toast.error('Add custom mode instructions first');
     setAiGenerating(true);
     try {
-      const { data } = await API.post('/ai/generate', { aiContext: f.ai_context });
+      const { data } = await API.post('/ai/generate', {
+        aiContext: f.ai_context,
+        mode: f.ai_mode,
+        customInstruction: f.ai_custom_instruction || null,
+      });
       if (f.title || qs.length > 1 || (qs.length === 1 && qs[0].question_text)) {
         setPendingGen(data);
         setShowConfirm(true);
@@ -295,8 +317,10 @@ export default function SurveyCreate() {
   };
 
   // ── Prompt Screen Handlers ──
-  const handlePromptGenerate = async (promptText, rawPrompt, mode, fileContext, audioContext) => {
+  const handlePromptGenerate = async (promptText, rawPrompt, mode, fileContext, audioContext, customInstruction) => {
     s('ai_context', promptText);
+    s('ai_mode', mode || 'conversational');
+    s('ai_custom_instruction', customInstruction || '');
     setAiGenerating(true);
     try {
       const { data } = await API.post('/ai/generate', {
@@ -304,6 +328,7 @@ export default function SurveyCreate() {
         mode: mode || 'conversational',
         fileContext: fileContext || null,
         audioContext: audioContext || null,
+        customInstruction: customInstruction || null,
       });
       applyAIGeneration(data);
       setPhase('builder');
@@ -390,8 +415,6 @@ export default function SurveyCreate() {
   const ARC_CIRC = 2 * Math.PI * ARC_R;
   const arcOffset = ARC_CIRC - (health / 100) * ARC_CIRC;
 
-  const [searchParams] = useSearchParams();
-  const resumeDraftId = searchParams.get('draftId');
   const [initialDraftData, setInitialDraftData] = useState(null);
 
   useEffect(() => {
@@ -401,11 +424,13 @@ export default function SurveyCreate() {
           const { data } = await API.get(`/surveys/${resumeDraftId}`);
           // welcome_message might contain JSON meta
           let mode = 'conversational';
+          let customInstruction = '';
           let attachments = [];
           if (data.welcome_message && data.welcome_message.startsWith('{')) {
             try {
               const meta = JSON.parse(data.welcome_message);
               mode = meta.mode || 'conversational';
+              customInstruction = meta.custom_instruction || meta.customInstruction || '';
               attachments = meta.attachments || [];
             } catch (e) {
               console.warn('Failed to parse draft meta', e);
@@ -415,6 +440,7 @@ export default function SurveyCreate() {
             id: data.id,
             prompt: data.description || '',
             mode: mode,
+            customInstruction: customInstruction,
             attachments: attachments
           });
           setPhase('prompt');
@@ -428,6 +454,39 @@ export default function SurveyCreate() {
   }, [resumeDraftId]);
 
   // ── Prompt Phase ──
+  if (!trustAccepted) {
+    return (
+      <div className="trust-screen-shell">
+        <motion.div
+          className="trust-screen-panel"
+          initial={{ opacity: 0, y: 18, scale: 0.985 }}
+          animate={trustLeaving ? { opacity: 0, y: -10, scale: 0.985 } : { opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.36, ease: [0.16, 1, 0.3, 1] }}
+        >
+          <div className="trust-screen-kicker">Idea Protection</div>
+          <h1>{TRUST_SCREEN_COPY.title}</h1>
+          <p>
+            {TRUST_SCREEN_COPY.subheading.split('\n').map((line, index) => (
+              <React.Fragment key={line}>
+                {index > 0 && <br />}
+                {line}
+              </React.Fragment>
+            ))}
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setTrustLeaving(true);
+              window.setTimeout(() => setTrustAccepted(true), 220);
+            }}
+          >
+            {TRUST_SCREEN_COPY.continueLabel}
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
+
   if (phase === 'prompt') {
     return (
       <SurveyPromptScreen
@@ -444,6 +503,8 @@ export default function SurveyCreate() {
   // ── Builder Phase ──
   return (
     <div>
+      <div className="idea-protection-badge">Confidentiality Protected by Axiora Pulse</div>
+
       <style>{`
         @keyframes qCardIn { from { opacity:0; transform:translateY(16px) scale(0.985); } to { opacity:1; transform:translateY(0) scale(1); } }
         @keyframes pulseRing { 0%,100%{transform:translate(-50%,-50%) scale(1);opacity:0.6} 50%{transform:translate(-50%,-50%) scale(1.8);opacity:0} }
@@ -692,6 +753,45 @@ export default function SurveyCreate() {
                   <h3 style={{ margin: 0, fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 18, color: 'var(--espresso)' }}>AI Survey Generator</h3>
                 </div>
                 <label style={LBL}>Describe your survey</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
+                  <div className="cp-mode-selector" ref={modeRef}>
+                    <button
+                      type="button"
+                      className={`cp-mode-pill${modeOpen ? ' open' : ''}`}
+                      onClick={() => setModeOpen(o => !o)}
+                    >
+                      <span>{selectedAIMode.icon}</span>
+                      <span>{getSurveyModeLabel(selectedAIMode)}</span>
+                      <svg className="cp-chevron" width="8" height="5" viewBox="0 0 8 5" fill="currentColor">
+                        <path d="M0 0l4 5 4-5z" />
+                      </svg>
+                    </button>
+
+                    {modeOpen && (
+                      <div className="cp-mode-dropdown" style={{ bottom: 'auto', top: 'calc(100% + 8px)' }}>
+                        {SURVEY_MODES.map(mode => (
+                          <button
+                            key={mode.id}
+                            type="button"
+                            className={`cp-mode-option${f.ai_mode === mode.id ? ' active' : ''}`}
+                            onClick={() => { s('ai_mode', mode.id); setModeOpen(false); }}
+                          >
+                            <div className="cp-mode-icon">{mode.icon}</div>
+                            <div className="cp-mode-option-text">
+                              <div>{getSurveyModeLabel(mode)}</div>
+                              <div className="cp-mode-option-desc">{mode.desc}</div>
+                            </div>
+                            {f.ai_mode === mode.id && (
+                              <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="var(--coral)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M2 6l3 3 5-5" />
+                              </svg>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
                 <textarea 
                   value={f.ai_context} 
                   onChange={e => s('ai_context', e.target.value)} 
@@ -701,6 +801,17 @@ export default function SurveyCreate() {
                   onFocus={fi} 
                   onBlur={fo}
                 />
+                {f.ai_mode === 'custom' && (
+                  <textarea
+                    value={f.ai_custom_instruction}
+                    onChange={e => s('ai_custom_instruction', e.target.value)}
+                    placeholder="Custom survey mode instructions: tone, depth, question style, engagement level, structure..."
+                    rows={2}
+                    style={{...INP, borderRadius: 16, marginBottom: 16, background: 'var(--warm-white)'}}
+                    onFocus={fi}
+                    onBlur={fo}
+                  />
+                )}
                 <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                   <button 
                     onClick={handleAIGenerate} 
