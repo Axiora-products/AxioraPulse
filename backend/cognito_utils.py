@@ -34,7 +34,8 @@ def admin_get_user_status(email: str) -> str | None:
         return resp.get("UserStatus")
     except client.exceptions.UserNotFoundException:
         return None
-    except Exception:
+    except Exception as e:
+        print(f"COGNITO ERROR (get_status): {str(e)}")
         return None
 
 
@@ -47,7 +48,8 @@ def admin_delete_user(email: str) -> bool:
             Username=email
         )
         return True
-    except Exception:
+    except Exception as e:
+        print(f"COGNITO ERROR (delete_user): {str(e)}")
         return False
 
 
