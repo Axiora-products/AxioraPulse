@@ -134,7 +134,7 @@ def schedule_demo(
     send_email(
         to_email=body.email,
 
-        subject="Your NexoraPulse Demo Call",
+        subject="Your AxioraPulse Demo Call",
 
 body=f"""
 Hi {body.name},
