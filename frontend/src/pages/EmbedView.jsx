@@ -14,6 +14,20 @@ import { useConditionalLogic } from '../hooks/useConditionalLogic';
 import { useResponseTracking } from '../hooks/useResponseTracking';
 import { useExitDetection }    from '../hooks/useExitDetection';
 
+function optionList(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
 /**
  * EmbedView
  * ─────────────────────────────────────────────────────────────────
@@ -21,11 +35,8 @@ import { useExitDetection }    from '../hooks/useExitDetection';
  * Designed to run inside an <iframe> on any third-party site.
  *
  * Differences from SurveyRespond:
-<<<<<<< HEAD
  *  • No Nexora branding (iframe hosts often have their own)
-=======
  *  • No Axiora branding (iframe hosts often have their own)
->>>>>>> fd890e68ca3c9bca4a377f929c0986334677b689
  *  • No welcome-screen mesh blobs (too heavy in small iframes)
  *  • Minimal padding — fits compact embeds
  *  • Posts a "nx:completed" postMessage to the parent when done
@@ -249,7 +260,7 @@ export default function EmbedView() {
 
   // ── Main embed layout (compact) ───────────────────────────────────────────
   return (
-    <div style={{ height:'100vh', display:'flex', flexDirection:'column', overflow:'hidden', background: onWelcome ? 'var(--espresso,#160F08)' : '#fff', fontFamily:'Fraunces,serif' }}>
+    <div className="np-embed-shell" style={{ height:'100vh', display:'flex', flexDirection:'column', overflow:'hidden', background: onWelcome ? 'var(--espresso,#160F08)' : '#fff', fontFamily:'Fraunces,serif' }}>
 
       {/* Thin top bar: progress + time estimate */}
       <div style={{ flexShrink:0, zIndex:10 }}>
@@ -313,10 +324,10 @@ export default function EmbedView() {
 
           {/* Question */}
           {step >= 0 && step < total && q && (
-            <motion.div key={q.id} custom={dir} variants={slide} initial="enter" animate="center" exit="exit"
+            <motion.div className="np-embed-question-stage" key={q.id} custom={dir} variants={slide} initial="enter" animate="center" exit="exit"
               transition={{ duration:0.4, ease:[0.16,1,0.3,1] }}
               style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px 24px', overflowY:'auto' }}>
-              <div style={{ width:'100%', maxWidth:560 }}>
+              <div className="np-embed-question-panel" style={{ width:'100%', maxWidth:560 }}>
                 <div style={{ marginBottom:14 }}>
                   {q.is_required
                     ? <span style={{ fontFamily:'Syne,sans-serif', fontSize:8, fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase', color:'rgba(214,59,31,0.7)' }}>Required</span>
@@ -383,6 +394,29 @@ export default function EmbedView() {
         .yn-btn:hover{border-color:rgba(22,15,8,0.2);transform:translateY(-3px);}
         .yn-btn.active{border-color:transparent;color:#fff;}
         .yn-emoji{font-size:28px;display:block;margin-bottom:8px;}
+        .q-choice,.yn-btn,.scale-btn,.star-btn,button{-webkit-tap-highlight-color:transparent;}
+        @media (max-width:520px){
+          .np-embed-shell{height:100dvh!important;}
+          .np-embed-question-stage{align-items:flex-start!important;padding:16px 16px 14px!important;}
+          .np-embed-question-panel{max-width:100%!important;}
+          .np-embed-question-panel h2{font-size:clamp(21px,7vw,28px)!important;line-height:1.14!important;}
+          .q-choice{min-height:52px!important;padding:12px 14px!important;border-radius:14px!important;}
+          .q-choice:hover{transform:none!important;}
+          .scale-btn{height:42px!important;min-width:34px!important;}
+          .yn-btn{min-height:80px!important;padding:16px 0!important;}
+          .q-text-input{font-size:20px!important;}
+        }
+        @media (hover:none){
+          .q-choice:hover,.scale-btn:hover,.yn-btn:hover{transform:none!important;}
+        }
+        @media (prefers-reduced-motion:reduce){
+          .np-embed-shell *, .np-embed-shell *::before, .np-embed-shell *::after{
+            animation-duration:0.001ms!important;
+            animation-iteration-count:1!important;
+            transition-duration:0.001ms!important;
+            scroll-behavior:auto!important;
+          }
+        }
       `}</style>
     </div>
   );
@@ -475,6 +509,72 @@ function QInput({ q, val, set, tc }) {
     case 'ranking': return <RankingInput q={q} val={val||[]} set={set} tc={tc}/>;
     case 'slider':  return <SliderInput  q={q} val={val}     set={set} tc={tc}/>;
     case 'matrix':  return <MatrixInput  q={q} val={val||{}} set={set} tc={tc}/>;
+    case 'emoji_reaction': return <EmojiReactionInput opts={optionList(q.options)} val={val} set={set} tc={tc}/>;
+    case 'swipe_choice':   return <SwipeChoiceInput opts={optionList(q.options)} val={val} set={set} tc={tc}/>;
+    case 'visual_choice':  return <VisualChoiceInput opts={optionList(q.options)} val={val} set={set} tc={tc}/>;
     default: return <input type="text" value={val} onChange={e=>set(e.target.value)} className="q-text-input" placeholder="Your answer…" style={cssVars}/>;
   }
+}
+
+function EmojiReactionInput({ opts, val, set, tc }) {
+  const choices = opts.length ? opts : [
+    { label:'😞', value:'negative' },
+    { label:'😐', value:'neutral' },
+    { label:'🙂', value:'positive' },
+    { label:'😍', value:'delighted' },
+  ];
+  return (
+    <div style={{ display:'flex', flexWrap:'wrap', gap:10, maxWidth:420 }}>
+      {choices.map((o,i)=>{
+        const active = val === o.value;
+        return (
+          <motion.button key={o.value||i} whileTap={{ scale:0.92 }} onClick={()=>set(o.value)}
+            style={{ minWidth:70, minHeight:70, borderRadius:18, border:`1.5px solid ${active?tc:'rgba(22,15,8,0.08)'}`, background:active?tc+'12':'#fff', cursor:'pointer', fontSize:30, boxShadow:active?`0 8px 24px ${tc}22`:'none' }}>
+            {o.label}
+          </motion.button>
+        );
+      })}
+    </div>
+  );
+}
+
+function SwipeChoiceInput({ opts, val, set, tc }) {
+  if (!opts.length) return <div style={{ fontFamily:'Fraunces,serif', color:'rgba(22,15,8,0.35)' }}>No swipe options configured.</div>;
+  const current = opts.find(o=>o.value===val) || opts[0];
+  const idx = Math.max(0, opts.findIndex(o=>o.value===current.value));
+  const choose = d => {
+    const next = opts[Math.max(0, Math.min(opts.length - 1, idx + d))];
+    if (next) set(next.value);
+  };
+  return (
+    <div style={{ maxWidth:360 }}>
+      <motion.div key={current.value} drag="x" dragConstraints={{ left:0, right:0 }} dragElastic={0.35}
+        onDragEnd={(_,info)=>{ if(info.offset.x>60) choose(-1); if(info.offset.x<-60) choose(1); }}
+        style={{ minHeight:150, borderRadius:22, border:`1.5px solid ${tc}35`, background:`linear-gradient(135deg,#fff,${tc}10)`, display:'flex', alignItems:'center', justifyContent:'center', padding:22, textAlign:'center', cursor:'grab', touchAction:'pan-y' }}>
+        <div style={{ fontFamily:'Playfair Display,serif', fontWeight:900, fontSize:24, color:'#160F08' }}>{current.label}</div>
+      </motion.div>
+      <div style={{ display:'flex', justifyContent:'space-between', marginTop:12 }}>
+        <button onClick={()=>choose(-1)} disabled={idx===0} style={{ border:'none', background:'none', color:idx===0?'rgba(22,15,8,0.18)':tc, fontFamily:'Syne,sans-serif', fontWeight:700, fontSize:9, textTransform:'uppercase' }}>Prev</button>
+        <button onClick={()=>choose(1)} disabled={idx===opts.length-1} style={{ border:'none', background:'none', color:idx===opts.length-1?'rgba(22,15,8,0.18)':tc, fontFamily:'Syne,sans-serif', fontWeight:700, fontSize:9, textTransform:'uppercase' }}>Next</button>
+      </div>
+    </div>
+  );
+}
+
+function VisualChoiceInput({ opts, val, set, tc }) {
+  if (!opts.length) return <div style={{ fontFamily:'Fraunces,serif', color:'rgba(22,15,8,0.35)' }}>No visual options configured.</div>;
+  return (
+    <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(120px,1fr))', gap:10, maxWidth:480 }}>
+      {opts.map((o,i)=>{
+        const active = val === o.value;
+        return (
+          <motion.button key={o.value||i} whileTap={{ scale:0.97 }} onClick={()=>set(o.value)}
+            style={{ border:`1.5px solid ${active?tc:'rgba(22,15,8,0.08)'}`, background:active?tc+'10':'#fff', borderRadius:16, padding:7, cursor:'pointer', textAlign:'left', overflow:'hidden' }}>
+            {o.image_url ? <img src={o.image_url} alt="" style={{ width:'100%', aspectRatio:'4/3', objectFit:'cover', borderRadius:11, display:'block', marginBottom:8 }}/> : <div style={{ width:'100%', aspectRatio:'4/3', borderRadius:11, background:tc+'14', marginBottom:8 }}/>}
+            <span style={{ fontFamily:'Fraunces,serif', fontSize:13, color:'#160F08', padding:'0 3px 3px', display:'block' }}>{o.label}</span>
+          </motion.button>
+        );
+      })}
+    </div>
+  );
 }
