@@ -45,8 +45,20 @@ const S = {
   header: {},
   tag: { fontFamily: "'Syne', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--coral)', marginBottom: 12 },
   h1: { fontFamily: "'Playfair Display', serif", fontWeight: 900, fontSize: 'clamp(34px,4vw,52px)', letterSpacing: '-2px', color: 'var(--espresso)', lineHeight: 1.05, margin: 0 },
-  statsGrid: { display: 'grid', gap: 20, marginBottom: 64, position: 'relative', zIndex: 1, gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' },
-  statCard: (accent) => ({ background: 'var(--warm-white)', borderRadius: 20, padding: '28px 28px 22px', border: '1px solid rgba(22,15,8,0.07)', borderTop: `3px solid ${accent}`, cursor: 'default' }),
+  statsGrid: {
+  display: 'grid',
+
+  gridTemplateColumns: 'repeat(4, minmax(120px, 1fr))',
+
+  gap: 28,
+
+  marginBottom: 72,
+
+  position: 'relative',
+  zIndex: 1,
+
+  maxWidth: '100%',
+}, statCard: (accent) => ({ background: 'var(--warm-white)', borderRadius: 20, padding: '36px 30px 30px', border: '1px solid rgba(22,15,8,0.07)', borderTop: `3px solid ${accent}`, cursor: 'default' }),
   statNum: { fontFamily: "'Playfair Display', serif", fontWeight: 900, fontSize: 48, letterSpacing: '-3px', color: 'var(--espresso)', lineHeight: 1, marginBottom: 8 },
   statLabel: { fontFamily: "'Syne', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.35)' },
   sectionHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, position: 'relative', zIndex: 1 },
@@ -120,9 +132,7 @@ export default function Dashboard() {
   return (
     <div className="db-layout">
       <div className="db-main">
-        {/* Onboarding */}
-        <OnboardingChecklist surveyCount={stats.surveys} responseCount={stats.responses} teamCount={stats.team} />
-        
+
         {/* Header */}
         <div style={S.header} className="np-page-header">
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}>
@@ -132,7 +142,7 @@ export default function Dashboard() {
             </h1>
           </motion.div>
 
-          {hasPermission(profile?.role, 'create_survey') && (
+          {/* {hasPermission(profile?.role, 'create_survey') && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
               <Link to="/surveys/new" style={S.cta}
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--coral)'}
@@ -140,7 +150,7 @@ export default function Dashboard() {
                 + New Survey
               </Link>
             </motion.div>
-          )}
+          )} */}
         </div>
 
         {/* Stat cards */}
@@ -155,6 +165,8 @@ export default function Dashboard() {
             </motion.div>
           ))}
         </div>
+        {/* Onboarding */}
+        <OnboardingChecklist surveyCount={stats.surveys} responseCount={stats.responses} teamCount={stats.team} />
 
         {/* Recent surveys */}
         <div style={S.sectionHead}>
@@ -184,10 +196,10 @@ export default function Dashboard() {
             {recent.map((sv, i) => {
               const isActive = sv.status === 'active';
               const isPromptDraft = !isActive && sv.question_count === 0;
-              
+
               let targetPath = `/surveys/${sv.id}/edit`;
               let label = 'Edit';
-              
+
               if (isActive) {
                 targetPath = `/surveys/${sv.id}/analytics`;
                 label = 'Analytics';
@@ -232,7 +244,7 @@ export default function Dashboard() {
         .db-layout {
           display: flex;
           min-height: calc(100vh - 100px);
-          margin: -48px -48px -40px;
+          margin: -48px -48px -40px -48px;
         }
         .db-main {
           flex: 1;
@@ -240,11 +252,19 @@ export default function Dashboard() {
           overflow-y: auto;
         }
         .db-right-pane {
-          width: 320px;
-          position: sticky;
-          top: 0;
-          height: calc(100vh - 40px);
-        }
+  width: 240px;
+
+  position: sticky;
+  top: 0;
+
+  min-height: 100vh;
+
+  flex-shrink: 0;
+
+  background: var(--warm-white);
+
+  border-left: 1px solid rgba(22,15,8,0.07);
+}
         .survey-card-link:hover .card-title { color: var(--coral) !important; }
 
         @media (max-width: 1200px) {
