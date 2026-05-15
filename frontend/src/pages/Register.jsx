@@ -56,19 +56,24 @@ export default function Register() {
       toast.success('Verification code sent to your email');
     } catch (err) {
       if (err.code === 'UsernameExistsException') {
+        console.log('UsernameExistsException detected. Attempting cleanup flow...');
         // Option 1: Cleanup flow
-        // Try to delete the unconfirmed user via backend, then retry signup ONCE
         try {
+          console.log('Calling /auth/cleanup-unconfirmed...');
           const cleanupResp = await API.post('/auth/cleanup-unconfirmed', { email: f.email });
+          console.log('Cleanup response:', cleanupResp.data);
+          
           if (cleanupResp.data?.deleted) {
-            // Successfully cleared old unverified account, retry now
+            console.log('User was unconfirmed and deleted. Retrying signup...');
             await cognitoSignUp(f.email, f.password, f.fullName);
             setStep('verify');
             toast.success('Verification code sent to your email');
             return;
+          } else {
+            console.log('Cleanup did not delete user. Status:', cleanupResp.data?.status);
           }
         } catch (cleanupErr) {
-          console.error('Cleanup failed:', cleanupErr);
+          console.error('Cleanup flow failed:', cleanupErr);
         }
 
         toast(
