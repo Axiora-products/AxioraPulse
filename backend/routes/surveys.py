@@ -18,6 +18,7 @@ GET    /surveys/slug/{slug}          — PUBLIC fetch by slug (SurveyRespond)
 
 import uuid
 import re
+import json
 import random
 import string
 import os
@@ -123,6 +124,7 @@ def auto_save_draft(
     draft_id = body.get("draft_id")
     prompt_text = body.get("prompt", "")
     mode = body.get("mode", "conversational")
+    custom_instruction = body.get("custom_instruction", "")
     attachments = body.get("attachments", [])
 
     if draft_id:
@@ -140,7 +142,7 @@ def auto_save_draft(
             survey.description = prompt_text
             # Store mode and attachments in a JSONB-safe way via welcome_message
             import json
-            meta = json.dumps({"mode": mode, "attachments": attachments})
+            meta = json.dumps({"mode": mode, "custom_instruction": custom_instruction, "attachments": attachments})
             survey.welcome_message = meta
             db.commit()
             db.refresh(survey)
@@ -155,6 +157,7 @@ def auto_save_draft(
         id=uuid.uuid4(),
         title="Untitled Draft",
         description=prompt_text,
+        welcome_message=json.dumps({"mode": mode, "custom_instruction": custom_instruction, "attachments": attachments}),
         slug=slug,
         status=SurveyStatusEnum.draft,
         tenant_id=current_user.tenant_id,
