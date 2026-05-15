@@ -1,25 +1,22 @@
 import os
-import smtplib
-from email.mime.text import MIMEText
+import requests
 
-EMAIL_USER = os.getenv("EMAIL_USER")
-EMAIL_PASS = os.getenv("EMAIL_PASS")
+RESEND_API_URL = "https://api.resend.com/emails"
+
 
 def send_email(to_email: str, subject: str, body: str):
-    try:
-        msg = MIMEText(body, "html")
-        msg["Subject"] = subject
-        msg["From"] = EMAIL_USER
-        msg["To"] = to_email
+    resend_key = os.getenv("RESEND_API_KEY")
+    email_from = os.getenv("EMAIL_FROM", "Axiora Pulse <noreply@axiorapulse.com>")
 
-        with smtplib.SMTP("smtp.gmail.com", 587) as server:
-            server.starttls()
-            server.login(EMAIL_USER, EMAIL_PASS)
-            server.send_message(msg)
+    if not resend_key:
+        raise Exception("RESEND_API_KEY is not configured")
 
-        print("STATUS: 200")
-        print("RESPONSE: Email sent successfully")
+    resp = requests.post(
+        RESEND_API_URL,
+        headers={"Authorization": f"Bearer {resend_key}", "Content-Type": "application/json"},
+        json={"from": email_from, "to": [to_email], "subject": subject, "html": body},
+        timeout=10,
+    )
 
-    except Exception as e:
-        print("STATUS: 500")
-        print("RESPONSE:", str(e))
+    if not resp.ok:
+        raise Exception(f"Resend error {resp.status_code}: {resp.json().get('message', 'Email send failed')}")
