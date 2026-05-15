@@ -9,12 +9,46 @@ JWKS is cached for the process lifetime; Cognito rotates keys rarely.
 
 import os
 import requests
+import boto3
 from functools import lru_cache
 from jose import jwt, JWTError
 
 COGNITO_REGION = os.getenv("COGNITO_REGION", "ap-south-1")
 COGNITO_USER_POOL_ID = os.getenv("COGNITO_USER_POOL_ID")
 COGNITO_APP_CLIENT_ID = os.getenv("COGNITO_APP_CLIENT_ID")
+
+
+@lru_cache(maxsize=1)
+def get_cognito_client():
+    return boto3.client("cognito-idp", region_name=COGNITO_REGION)
+
+
+def admin_get_user_status(email: str) -> str | None:
+    """Returns 'UNCONFIRMED', 'CONFIRMED', etc. or None if user doesn't exist."""
+    client = get_cognito_client()
+    try:
+        resp = client.admin_get_user(
+            UserPoolId=COGNITO_USER_POOL_ID,
+            Username=email
+        )
+        return resp.get("UserStatus")
+    except client.exceptions.UserNotFoundException:
+        return None
+    except Exception:
+        return None
+
+
+def admin_delete_user(email: str) -> bool:
+    """Force delete a user. Returns True if successful."""
+    client = get_cognito_client()
+    try:
+        client.admin_delete_user(
+            UserPoolId=COGNITO_USER_POOL_ID,
+            Username=email
+        )
+        return True
+    except Exception:
+        return False
 
 
 @lru_cache(maxsize=1)
