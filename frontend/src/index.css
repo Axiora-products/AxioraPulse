@@ -1563,9 +1563,15 @@ body {
   background: var(--warm-white);
   border: 1.5px solid rgba(22,15,8,0.10);
   border-radius: 24px;
-  box-shadow: 0 8px 40px rgba(22,15,8,0.06), 0 1px 3px rgba(22,15,8,0.04);
-  transition: border-color 0.3s, box-shadow 0.3s;
-  overflow: hidden;
+  box-shadow:
+    0 8px 40px rgba(22,15,8,0.06),
+    0 1px 3px rgba(22,15,8,0.04);
+
+  transition:
+    border-color 0.3s,
+    box-shadow 0.3s;
+
+  overflow: visible; /* IMPORTANT */
 }
 .cp-prompt-box:focus-within {
   border-color: rgba(255,69,0,0.35);
@@ -1697,71 +1703,156 @@ body {
 }
 
 /* ── Mode Dropdown ── */
-.cp-mode-dropdown {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 0;
-  min-width: 260px;
-  background: var(--espresso);
-  border-radius: 18px;
-  padding: 8px;
-  box-shadow: 0 24px 64px rgba(22,15,8,0.35), 0 0 0 1px rgba(255,251,244,0.06);
-  z-index: 100;
-  animation: cpFadeUp 0.2s ease both;
-  max-height: 320px;
-  overflow-y: auto;
+.cp-mode-dropdown{
+  position:absolute;
+  bottom:60px;
+  left:0;
+
+  width:350px;
+  max-height:370px;
+
+  overflow-y:auto;
+
+  background:#F7EFE7;
+
+  backdrop-filter:blur(24px);
+  -webkit-backdrop-filter:blur(24px);
+
+  border:1px solid rgba(255,120,40,0.12);
+
+  border-radius:28px;
+
+  box-shadow:
+    0 20px 60px rgba(255,120,40,0.08),
+    0 8px 30px rgba(0,0,0,0.06);
+
+  padding:9px;
+
+  z-index:9999;
+
+  isolation:isolate;
+
+  animation:cpDropIn .22s ease;
 }
-.cp-mode-option {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 11px 14px;
-  border-radius: 12px;
-  border: none;
-  background: transparent;
-  font-family: 'Syne', sans-serif;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: rgba(253,245,232,0.6);
-  transition: all 0.15s ease;
-  text-align: left;
+
+.cp-mode-dropdown::before{
+  content:"";
+  position:absolute;
+  inset:0;
+
+  background:#F7EFE7;
+
+  border-radius:28px;
+
+  z-index:-1;
 }
-.cp-mode-option:hover {
-  background: rgba(253,245,232,0.08);
-  color: rgba(253,245,232,0.9);
+
+/* ── Custom Scrollbar ── */
+.cp-mode-dropdown::-webkit-scrollbar{
+  width:6px;
 }
-.cp-mode-option.active {
-  color: var(--coral);
+
+.cp-mode-dropdown::-webkit-scrollbar-track{
+  background:transparent;
+  margin:12px 0;
 }
-.cp-mode-icon {
-  width: 30px; height: 30px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  flex-shrink: 0;
-  background: rgba(253,245,232,0.06);
+
+.cp-mode-dropdown::-webkit-scrollbar-thumb{
+  background:rgba(255,120,40,0.35);
+  border-radius:999px;
+  transition:background .2s ease;
+}
+
+.cp-mode-dropdown::-webkit-scrollbar-thumb:hover{
+  background:rgba(255,120,40,0.55);
+}
+
+/* Firefox */
+.cp-mode-dropdown{
+  scrollbar-width:thin;
+  scrollbar-color:rgba(255,120,40,0.35) transparent;
+}
+@keyframes cpDropIn{
+  from{
+    opacity:0;
+    transform:translateY(10px) scale(.96);
+  }
+  to{
+    opacity:1;
+    transform:translateY(0) scale(1);
+  }
+}
+
+.cp-mode-option{
+  width:100%;
+  display:flex;
+  align-items:flex-start;
+  gap:14px;
+
+  padding:14px 16px;
+
+  border:none;
+  background:transparent;
+
+  border-radius:18px;
+
+  cursor:pointer;
+  transition:all .22s ease;
+
+  text-align:left;
+}
+
+.cp-mode-option:hover{
+  background:rgba(255,120,40,0.08);
+  transform:translateY(-1px);
+}
+.cp-mode-option.active{
+  background:linear-gradient(
+    135deg,
+    rgba(255,120,40,0.14),
+    rgba(255,160,80,0.06)
+  );
+
+  border:1px solid rgba(255,120,40,0.14);
+}
+.cp-mode-icon{
+  width:38px;
+  height:38px;
+
+  border-radius:14px;
+
+  background:rgba(255,120,40,0.08);
+
+  display:flex;
+  align-items:center;
+  justify-content:center;
+
+  font-size:18px;
+
+  flex-shrink:0;
 }
 .cp-mode-option.active .cp-mode-icon {
   background: rgba(255,69,0,0.18);
   color: var(--coral);
 }
-.cp-mode-option-text {
-  flex: 1;
+.cp-mode-option-text > div:first-child{
+  font-family:'Syne',sans-serif;
+  font-size:10px;
+  font-weight:700;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+  color:#2B1408;
 }
-.cp-mode-option-desc {
-  font-family: 'Fraunces', serif;
-  font-weight: 300;
-  font-size: 11px;
-  letter-spacing: 0;
-  text-transform: none;
-  color: rgba(253,245,232,0.3);
-  margin-top: 2px;
-  line-height: 1.4;
+
+.cp-mode-option-desc{
+  margin-top:4px;
+
+  font-size:10px;
+  line-height:1.5;
+
+  color:rgba(43,20,8,0.58);
+
+  font-family:'Fraunces',serif;
 }
 
 /* ── Template Chips ── */
