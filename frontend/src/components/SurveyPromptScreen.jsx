@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
+import useDrivePicker from 'react-google-drive-picker';
 import API from '../api/axios';
 
 export const SURVEY_MODES = [
@@ -37,11 +38,76 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
   const [selectedMode, setSelectedMode] = useState(SURVEY_MODES[0]);
   const [customInstruction, setCustomInstruction] = useState('');
   const [modeOpen, setModeOpen] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState([]);
   const [attachedAudio, setAttachedAudio] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [draftId, setDraftId] = useState(null);
   const [draftSaved, setDraftSaved] = useState(false);
+  const [libraryFiles, setLibraryFiles] = useState([]);
+  const [libraryLoading, setLibraryLoading] = useState(false);
+  const [fetchedLibrary, setFetchedLibrary] = useState(false);
+  const [myFolderView, setMyFolderView] = useState(false);
+  const [libraryPage, setLibraryPage] = useState(0);
+
+  const [openPicker, authResponse] = useDrivePicker();
+
+  const handleOpenPicker = () => {
+    setUploadOpen(false);
+    openPicker({
+      clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+      developerKey: import.meta.env.VITE_GOOGLE_API_KEY,
+      viewId: "DOCS",
+      showUploadView: true,
+      showUploadFolders: true,
+      supportDrives: true,
+      multiselect: false,
+      callbackFunction: async (data) => {
+        if (data.action === 'picked') {
+          setUploading(true);
+          try {
+            const file = data.docs[0];
+            const res = await API.post('/uploads/drive', {
+              fileId: file.id,
+              accessToken: authResponse.access_token,
+              filename: file.name,
+              mimeType: file.mimeType
+            });
+            setAttachedFiles(prev => [...prev, {
+              id: res.data.id,
+              filename: res.data.filename,
+              extractedText: res.data.extracted_text || '',
+              type: 'file'
+            }]);
+            toast.success(`"${file.name}" attached from Drive`);
+          } catch (err) {
+            toast.error(err.response?.data?.detail || "Drive import failed");
+            console.error(err);
+          } finally {
+            setUploading(false);
+          }
+        }
+      },
+    });
+  };
+
+  useEffect(() => {
+    if (myFolderView && !fetchedLibrary) {
+      API.get('/uploads/files').then(({ data }) => {
+        setLibraryFiles(data);
+        setFetchedLibrary(true);
+      }).catch(err => console.error('Failed to pre-fetch library files', err));
+    }
+  }, [myFolderView, fetchedLibrary]);
+
+  useEffect(() => {
+    if (!uploadOpen) {
+      setTimeout(() => {
+        setMyFolderView(false);
+        setLibraryPage(0);
+      }, 200);
+    }
+  }, [uploadOpen]);
 
   // Initialize from initialData (Resume Logic)
   useEffect(() => {
@@ -51,15 +117,20 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
       setSelectedMode(mode);
       setCustomInstruction(initialData.customInstruction || '');
       setDraftId(initialData.id);
-      
+
       // Load attachments metadata
       if (initialData.attachments && initialData.attachments.length > 0) {
         const loadAttachments = async () => {
           try {
             const { data: allFiles } = await API.get('/uploads/files');
-            const myFiles = allFiles.filter(f => initialData.attachments.includes(f.id));
-            setAttachedFiles(myFiles.filter(f => f.upload_type === 'file'));
-            setAttachedAudio(myFiles.filter(f => f.upload_type === 'audio'));
+            const myFiles = allFiles.filter(f => initialData.attachments.includes(f.id)).map(f => ({
+              id: f.id,
+              filename: f.filename,
+              extractedText: f.extracted_text || '',
+              type: f.upload_type
+            }));
+            setAttachedFiles(myFiles.filter(f => f.type === 'file'));
+            setAttachedAudio(myFiles.filter(f => f.type === 'audio'));
           } catch (e) {
             console.error('Failed to load attachment metadata', e);
           }
@@ -70,6 +141,7 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
   }, [initialData]);
 
   const modeRef = useRef(null);
+  const uploadRef = useRef(null);
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
   const audioInputRef = useRef(null);
@@ -82,6 +154,14 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [modeOpen]);
+
+  // Close upload dropdown on outside click
+  useEffect(() => {
+    if (!uploadOpen) return;
+    const handler = e => { if (uploadRef.current && !uploadRef.current.contains(e.target)) setUploadOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [uploadOpen]);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -173,12 +253,34 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
     else setAttachedAudio(prev => prev.filter(f => f.id !== id));
   };
 
+  // openLibrary function removed as modal is now replaced by in-place pagination
+
+  const handleLibrarySelect = (file) => {
+    if (file.upload_type === 'audio') {
+      if (!attachedAudio.find(f => f.id === file.id)) {
+        setAttachedAudio(prev => [...prev, { id: file.id, filename: file.filename, extractedText: file.extracted_text || '', type: 'audio' }]);
+        toast.success(`"${file.filename}" attached`);
+      } else {
+        toast.error('File already attached');
+      }
+    } else {
+      if (!attachedFiles.find(f => f.id === file.id)) {
+        setAttachedFiles(prev => [...prev, { id: file.id, filename: file.filename, extractedText: file.extracted_text || '', type: 'file' }]);
+        toast.success(`"${file.filename}" attached`);
+      } else {
+        toast.error('File already attached');
+      }
+    }
+  };
+
   const handleSubmit = () => {
-    if (!prompt.trim()) return toast.error('Describe what you want to research');
+    const hasAttachments = attachedFiles.length > 0 || attachedAudio.length > 0;
+    if (!prompt.trim() && !hasAttachments) return toast.error('Describe what you want to research or attach a file');
     if (selectedMode.id === 'custom' && !customInstruction.trim()) return toast.error('Add custom mode instructions first');
     const fileContext = attachedFiles.map(f => f.extractedText).filter(Boolean).join('\n\n');
     const audioContext = attachedAudio.map(f => f.extractedText).filter(Boolean).join('\n\n');
-    onGenerate(prompt, prompt, selectedMode.id, fileContext, audioContext, customInstruction);
+    const finalPrompt = prompt.trim() || "Please generate a comprehensive survey based on the provided documents.";
+    onGenerate(finalPrompt, finalPrompt, selectedMode.id, fileContext, audioContext, customInstruction);
   };
 
   const handleKeyDown = (e) => {
@@ -267,22 +369,98 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
           {/* Toolbar */}
           <div className="cp-toolbar">
             {/* Upload Files */}
-            <button
-              type="button"
-              className="cp-tool-btn"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-            >
-              {uploading ? (
-                <motion.span animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
-                  style={{ display: 'inline-block', width: 12, height: 12, border: '1.5px solid rgba(22,15,8,0.15)', borderTopColor: 'var(--coral)', borderRadius: '50%' }} />
-              ) : (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-                </svg>
+            <div className="cp-mode-selector" ref={uploadRef}>
+              <button
+                type="button"
+                className={`cp-tool-btn${uploadOpen ? ' open' : ''}`}
+                onClick={() => setUploadOpen(o => !o)}
+                disabled={uploading}
+              >
+                {uploading ? (
+                  <motion.span animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                    style={{ display: 'inline-block', width: 12, height: 12, border: '1.5px solid rgba(22,15,8,0.15)', borderTopColor: 'var(--coral)', borderRadius: '50%' }} />
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                  </svg>
+                )}
+                <span className="cp-tool-label">Upload Files</span>
+              </button>
+
+              {uploadOpen && (
+                <div className="cp-mode-dropdown" style={{ minWidth: '220px', bottom: 'calc(100% + 8px)', left: 0, padding: '8px' }}>
+
+                  {/* My Folder (Expandable) */}
+                  <button
+                    type="button"
+                    className={`cp-mode-option${myFolderView ? ' active' : ''}`}
+                    onClick={(e) => { e.stopPropagation(); setMyFolderView(!myFolderView); }}
+                  >
+                    <div className="cp-mode-icon">📁</div>
+                    <div className="cp-mode-option-text" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                      <div>My folder</div>
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: myFolderView ? 1 : 0.3, transform: myFolderView ? 'rotate(90deg)' : 'none', transition: 'all 0.2s' }}>
+                        <path d="M9 18l6-6-6-6"/>
+                      </svg>
+                    </div>
+                  </button>
+
+                  {/* Expanded My Folder Content */}
+                  <AnimatePresence>
+                    {myFolderView && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        style={{ overflow: 'hidden', paddingLeft: '16px', marginTop: '2px', marginBottom: '6px' }}
+                      >
+                        {libraryFiles.length === 0 && fetchedLibrary ? (
+                          <div style={{ padding: '8px', fontSize: 11, color: 'rgba(22,15,8,0.4)', fontFamily: "'Syne', sans-serif" }}>No files yet.</div>
+                        ) : !fetchedLibrary ? (
+                          <div style={{ padding: '8px', fontSize: 11, color: 'rgba(22,15,8,0.4)', fontFamily: "'Syne', sans-serif" }}>Loading...</div>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            {libraryPage > 0 && (
+                              <button type="button" className="cp-mode-option" onClick={(e) => { e.stopPropagation(); setLibraryPage(p => Math.max(0, p - 1)); }} style={{ padding: '6px 8px', minHeight: 32, borderRadius: '8px', marginBottom: '2px' }}>
+                                <div className="cp-mode-option-text" style={{ width: '100%', textAlign: 'center' }}>
+                                  <div style={{ color: 'var(--coral)', fontSize: 11, fontWeight: 700 }}>...Previous 5 files</div>
+                                </div>
+                              </button>
+                            )}
+                            {libraryFiles.slice(libraryPage * 5, libraryPage * 5 + 5).map(f => (
+                              <button key={f.id} type="button" className="cp-mode-option" onClick={(e) => { e.stopPropagation(); handleLibrarySelect(f); setUploadOpen(false); }} style={{ padding: '6px 8px', minHeight: 32, borderRadius: '8px' }}>
+                                <div className="cp-mode-icon" style={{ background: 'none', width: 16, height: 16, fontSize: 13 }}>
+                                  {f.upload_type === 'audio' ? '🎙️' : '📄'}
+                                </div>
+                                <div className="cp-mode-option-text" style={{ flex: 1, overflow: 'hidden' }}>
+                                  <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: 11 }}>{f.filename}</div>
+                                </div>
+                              </button>
+                            ))}
+                            {(libraryPage + 1) * 5 < libraryFiles.length && (
+                              <button type="button" className="cp-mode-option" onClick={(e) => { e.stopPropagation(); setLibraryPage(p => p + 1); }} style={{ padding: '6px 8px', minHeight: 32, borderRadius: '8px', marginTop: '2px' }}>
+                                <div className="cp-mode-option-text" style={{ width: '100%', textAlign: 'center' }}>
+                                  <div style={{ color: 'var(--coral)', fontSize: 11, fontWeight: 700 }}>Next 5 files...</div>
+                                </div>
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  <button type="button" className="cp-mode-option" onClick={handleOpenPicker}>
+                    <div className="cp-mode-icon">☁️</div>
+                    <div className="cp-mode-option-text"><div>From drive</div></div>
+                  </button>
+                  <button type="button" className="cp-mode-option" onClick={() => { setUploadOpen(false); fileInputRef.current?.click(); }}>
+                    <div className="cp-mode-icon">💻</div>
+                    <div className="cp-mode-option-text"><div>Local system</div></div>
+                  </button>
+                </div>
               )}
-              <span className="cp-tool-label">Upload Files</span>
-            </button>
+            </div>
 
             {/* Record/Upload Audio */}
             <button
@@ -357,7 +535,7 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
               type="button"
               className={`cp-submit-btn${aiGenerating ? ' generating' : ''}`}
               onClick={handleSubmit}
-              disabled={aiGenerating || !prompt.trim()}
+              disabled={aiGenerating || (!prompt.trim() && !hasAttachments)}
               style={{ position: 'relative' }}
               title="Generate survey"
             >
@@ -424,6 +602,7 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
           </svg>
         </button>
       </div>
+
     </div>
   );
 }

@@ -83,3 +83,7 @@ scripts/
 .backend.log
 .frontend.pid
 .frontend.log
+
+# --- App Specific ---
+coverage/
+backend/uploaded_files_store/

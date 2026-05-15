@@ -8,8 +8,14 @@ File and audio upload endpoints.
 
 import os
 import uuid
+import io
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
+
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseDownload
 
 from db.database import get_db
 from db.models import UserProfile, UploadedFile
@@ -32,6 +38,13 @@ ALLOWED_AUDIO_TYPES = {
     "audio/mpeg", "audio/wav", "audio/mp4", "audio/ogg",
     "audio/webm", "audio/x-wav", "audio/mp3",
 }
+
+
+class DriveUploadRequest(BaseModel):
+    fileId: str
+    accessToken: str
+    filename: str
+    mimeType: str
 
 
 def _extract_text_from_file(filepath: str, content_type: str) -> str:
@@ -172,6 +185,90 @@ async def upload_audio(
     }
 
 
+@router.post("/drive")
+@limiter.limit("10/minute")
+async def upload_from_drive(
+    request: Request,
+    body: DriveUploadRequest,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(get_current_user),
+):
+    """
+    Downloads a file from Google Drive and processes it like a normal upload.
+    """
+    try:
+        creds = Credentials(token=body.accessToken)
+        service = build("drive", "v3", credentials=creds)
+
+        # Handle Google Docs formats by exporting them as PDF
+        is_google_doc = body.mimeType.startswith("application/vnd.google-apps.")
+        
+        file_id = str(uuid.uuid4())
+        ext = os.path.splitext(body.filename)[1]
+        
+        # If it's a Google Doc (Doc, Sheet, Slide), export as PDF
+        content_type = body.mimeType
+        if is_google_doc:
+            if "spreadsheet" in body.mimeType:
+                export_mime = "application/pdf"
+            elif "presentation" in body.mimeType:
+                export_mime = "application/pdf"
+            else:
+                export_mime = "application/pdf"
+            
+            drive_request = service.files().export_media(fileId=body.fileId, mimeType=export_mime)
+            ext = ".pdf"
+            content_type = "application/pdf"
+        else:
+            drive_request = service.files().get_media(fileId=body.fileId)
+
+        stored_name = f"{file_id}{ext}"
+        filepath = os.path.join(UPLOAD_DIR, stored_name)
+
+        fh = io.BytesIO()
+        downloader = MediaIoBaseDownload(fh, drive_request)
+        done = False
+        while done is False:
+            status, done = downloader.next_chunk()
+        
+        contents = fh.getvalue()
+        if len(contents) > 15 * 1024 * 1024:  # 15 MB limit for Drive
+            raise HTTPException(status_code=400, detail="File too large (max 15 MB)")
+
+        with open(filepath, "wb") as f:
+            f.write(contents)
+
+        # Extract text using existing logic
+        extracted = _extract_text_from_file(filepath, content_type)
+
+        # Save to DB
+        db_file = UploadedFile(
+            filename=body.filename,
+            content_type=content_type,
+            file_size=len(contents),
+            extracted_text=extracted,
+            upload_type="file",
+            tenant_id=current_user.tenant_id,
+            created_by=current_user.id,
+        )
+        db.add(db_file)
+        db.commit()
+        db.refresh(db_file)
+
+        return {
+            "id": str(db_file.id),
+            "filename": db_file.filename,
+            "content_type": db_file.content_type,
+            "file_size": db_file.file_size,
+            "extracted_text": extracted,
+            "upload_type": "file",
+        }
+
+    except Exception as e:
+        print(f"Drive upload error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Google Drive error: {str(e)}")
+
+
 @router.get("/files")
 @limiter.limit("30/minute")
 async def list_uploaded_files(
@@ -193,6 +290,7 @@ async def list_uploaded_files(
             "content_type": f.content_type,
             "file_size": f.file_size,
             "upload_type": f.upload_type,
+            "extracted_text": f.extracted_text,
             "created_at": f.created_at.isoformat() if f.created_at else None,
         }
         for f in files
