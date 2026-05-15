@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate, Navigate } from 'react-router-dom';
+import { Link, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLoading } from '../context/LoadingContext';
 import useAuthStore from "../hooks/useAuth";
-import { cognitoSignIn, cognitoForgotPassword, cognitoConfirmPassword } from '../lib/cognito';
+import { cognitoSignIn, cognitoForgotPassword, cognitoConfirmPassword, cognitoResendCode } from '../lib/cognito';
 import API from '../api/axios';
 
 const Logo = ({ dark }) => (
@@ -151,7 +151,8 @@ function ForgotPasswordModal({ onClose }) {
 }
 
 export default function Login() {
-  const [email, setEmail] = useState('');
+  const location = useLocation();
+  const [email, setEmail] = useState(location.state?.email || '');
   const [pw, setPw] = useState('');
   const [busy, setBusy] = useState(false);
   const [forgotOpen, setForgot] = useState(false);
@@ -179,7 +180,12 @@ export default function Login() {
       toast.success('Welcome back!');
       nav('/dashboard');
     } catch (err) {
-      toast.error(friendlyAuthError(err.message || 'Login failed'));
+      if (err.code === 'UserNotConfirmedException') {
+        toast.error('Email not verified. Redirecting to verification...');
+        nav('/register', { state: { email, step: 'verify', isUnconfirmed: true } });
+      } else {
+        toast.error(friendlyAuthError(err.message || 'Login failed', err.code || ''));
+      }
     } finally {
       setBusy(false);
     }
