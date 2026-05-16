@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useLoading } from '../context/LoadingContext';
 import useAuthStore from "../hooks/useAuth";
 import { cognitoSignIn, cognitoForgotPassword, cognitoConfirmPassword, cognitoResendCode } from '../lib/cognito';
-import API from '../api/axios';
 
 const Logo = ({ dark }) => (
   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 0, lineHeight: 1 }}>
@@ -172,9 +171,6 @@ export default function Login() {
       const session = await cognitoSignIn(email, pw);
       const idToken = session.getIdToken().getJwtToken();
       localStorage.setItem('token', idToken);
-
-      // Sync profile with backend (links cognito_sub for migrated users)
-      await API.post('/auth/sync', { id_token: idToken });
 
       await initialize(true);
       toast.success('Welcome back!');
