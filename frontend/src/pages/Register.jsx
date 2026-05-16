@@ -126,16 +126,12 @@ export default function Register() {
       }
 
       const session = await cognitoSignIn(f.email, f.password);
-      const idToken = session.getIdToken().getJwtToken();
-      localStorage.setItem('token', idToken);
+      localStorage.setItem('token', session.getIdToken().getJwtToken());
 
-      await API.post('/auth/sync', {
-        id_token: idToken,
+      await initialize(true, {
         tenant_name: f.tenantName,
         tenant_slug: f.tenantSlug || f.tenantName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
       });
-
-      await initialize(true);
       toast.success('Welcome to Axiora Pulse!');
       nav('/dashboard');
     } catch (err) {
