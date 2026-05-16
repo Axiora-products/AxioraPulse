@@ -282,7 +282,7 @@ export default function ComingSoon() {
         {/* Footer */}
         <div style={{ margin: '40px auto 0', width: 40, height: 1, background: 'rgba(253,245,232,0.1)' }} />
         <p style={{ marginTop: 24, fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(253,245,232,0.2)' }}>
-          Axiora &nbsp;·&nbsp; Idea validation, powered by AI
+          Axiora Pulse &nbsp;·&nbsp; Idea validation, powered by AI
         </p>
       </motion.div>
     </div>
