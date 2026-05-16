@@ -1,7 +1,7 @@
 import { useRef, useCallback } from 'react';
 import API from '../api/axios';
 
-export function useResponseTracking(responseIdRef) {
+export function useResponseTracking(responseIdRef, sessionTokenRef) {
   const enterTimes = useRef({});
   const timings    = useRef({});
   const edits      = useRef({});
@@ -104,14 +104,18 @@ export function useResponseTracking(responseIdRef) {
 
     const url = `${API.defaults.baseURL}/responses/${id}/abandon`;
     const body = JSON.stringify({ metadata });
-    const headers = { 'Content-Type': 'application/json' };
+    const sessionToken = sessionTokenRef?.current;
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(sessionToken ? { 'X-Session-Token': sessionToken } : {}),
+    };
 
     try {
       // fetch with keepalive works on page unload (like sendBeacon)
       fetch(url, { method: 'POST', headers, body, keepalive: true });
     } catch (_) {
       // Last-ditch fallback
-      API.post(`/responses/${id}/abandon`, { metadata });
+      API.post(`/responses/${id}/abandon`, { metadata }, sessionToken ? { headers: { 'X-Session-Token': sessionToken } } : {});
     }
   }, [responseIdRef, device]);
 
