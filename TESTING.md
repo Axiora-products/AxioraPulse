@@ -116,12 +116,12 @@ schemathesis run http://localhost:8000/openapi.json --checks all
 
 | Scenario | Expected |
 |---|---|
-| Valid invite sent | Resend API receives correct `to`, `subject`, `html` |
-| Missing `RESEND_API_KEY` | `send_email` raises exception; route returns 500 with detail |
-| Resend API 422 error | Exception message contains Resend's error text |
+| Valid invite sent | SES `send_email` called with correct `to`, `subject`, `html` |
+| SES sandbox restriction | Email to unverified address raises `ClientError`; route handles gracefully |
+| SES `ClientError` | Exception message surfaces SES error detail, not a raw 500 |
 | Waitlist email | Confirmation email lands in inbox with correct content |
 
-Use `pytest-mock` to stub `requests.post` in `email_service.py` — no real emails needed in CI.
+Use `pytest-mock` to stub `boto3` SES client in `email_service.py` — no real emails or AWS credentials needed in CI.
 
 ---
 
