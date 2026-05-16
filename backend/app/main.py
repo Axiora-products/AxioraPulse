@@ -12,6 +12,7 @@ Startup sequence:
 
 import sys
 import os
+import logging
 
 # Ensure the backend root is on the path so `db`, `routes`, etc. resolve
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -38,9 +39,21 @@ from slowapi.middleware import SlowAPIMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from db.database import engine
-from routes.demo import router as demo_router
 from core import config
 from core.rate_limiter import limiter
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
+logger = logging.getLogger(__name__)
+
+# ── Startup validation ────────────────────────────────────────────────────────
+_REQUIRED_ENV = ["DATABASE_URL", "COGNITO_USER_POOL_ID", "COGNITO_APP_CLIENT_ID", "FRONTEND_URL"]
+_missing = [v for v in _REQUIRED_ENV if not os.getenv(v)]
+if _missing:
+    logger.error("Missing required environment variables: %s", ", ".join(_missing))
+    sys.exit(1)
 
 # ── Create tables ─────────────────────────────────────────────────────────────
 # In production, replace this with Alembic migrations.
@@ -74,8 +87,8 @@ app.add_middleware(
         "http://127.0.0.1:3000",
     ],
     allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Session-Token"],
 )
 @app.exception_handler(RateLimitExceeded)
 def rate_limit_handler(request, exc):
@@ -111,12 +124,9 @@ def health():
             "service": "Nexora Pulse API", 
             "database": "connected" 
             } 
-    except Exception as e: 
-        return { 
-            "status": "unhealthy",
-            "database": "disconnected",
-            "error": str(e) 
-            }
+    except Exception as e:
+        logger.error("Health check DB error: %s", e)
+        return {"status": "unhealthy", "database": "disconnected"}
 
 
 @app.get("/", tags=["health"])

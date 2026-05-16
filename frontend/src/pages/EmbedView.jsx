@@ -167,7 +167,7 @@ export default function EmbedView() {
       
       setDone(true);
       localStorage.removeItem(`nx_embed_${slug}`);
-      window.parent?.postMessage({ type: 'nx:completed', slug, surveyTitle: sv?.title }, '*');
+      window.parent?.postMessage({ type: 'nx:completed', slug, surveyTitle: sv?.title }, document.referrer || '*');
     } catch(e) { 
       console.error(e);
       toast.error('Submission failed — please try again.'); 

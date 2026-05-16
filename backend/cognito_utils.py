@@ -8,6 +8,7 @@ JWKS is cached for the process lifetime; Cognito rotates keys rarely.
 """
 
 import os
+import time
 import requests
 import boto3
 from functools import lru_cache
@@ -53,15 +54,21 @@ def admin_delete_user(email: str) -> bool:
         return False
 
 
-@lru_cache(maxsize=1)
+_jwks_cache: dict = {"keys": None, "fetched_at": 0.0}
+_JWKS_TTL = 1800  # refresh every 30 minutes
+
 def _get_jwks() -> list:
+    if _jwks_cache["keys"] and time.time() - _jwks_cache["fetched_at"] < _JWKS_TTL:
+        return _jwks_cache["keys"]
     url = (
         f"https://cognito-idp.{COGNITO_REGION}.amazonaws.com"
         f"/{COGNITO_USER_POOL_ID}/.well-known/jwks.json"
     )
     resp = requests.get(url, timeout=5)
     resp.raise_for_status()
-    return resp.json()["keys"]
+    _jwks_cache["keys"] = resp.json()["keys"]
+    _jwks_cache["fetched_at"] = time.time()
+    return _jwks_cache["keys"]
 
 
 def verify_cognito_token(token: str) -> dict | None:

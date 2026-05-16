@@ -15,9 +15,10 @@ DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:root@localhost:5
 
 engine = create_engine(
     DATABASE_URL,
-    pool_pre_ping=True,          # Detect stale connections before using them
+    pool_pre_ping=True,
     pool_size=10,
     max_overflow=20,
+    pool_recycle=1800,  # Recycle connections every 30 min to avoid stale idle connections
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

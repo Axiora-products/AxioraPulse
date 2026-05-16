@@ -371,9 +371,12 @@ def accept_invite(
     user = db.query(UserProfile).filter(UserProfile.invite_token == token).first()
     if not user:
         raise HTTPException(status_code=404, detail="Invalid or expired invitation token")
-    
+
     if user.account_status != "invited":
         raise HTTPException(status_code=400, detail="User is already active")
+
+    if len(body.password) < 8 or not any(c.isdigit() or not c.isalpha() for c in body.password):
+        raise HTTPException(status_code=422, detail="Password must be at least 8 characters and contain a number or special character")
 
     from datetime import datetime, timezone
     user.full_name = body.full_name.strip()
