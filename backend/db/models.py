@@ -109,6 +109,7 @@ class UserProfile(Base):
     account_status     = Column(String(50), default="active")  # 'active' | 'invited'
     invite_token       = Column(String(100), unique=True, nullable=True)
     invite_accepted_at = Column(DateTime(timezone=True), nullable=True)
+    last_logout_at     = Column(DateTime(timezone=True), nullable=True)
     created_at         = Column(DateTime(timezone=True), server_default=func.now())
 
     # relationships

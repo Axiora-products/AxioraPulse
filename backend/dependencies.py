@@ -6,6 +6,7 @@ Reusable FastAPI dependencies:
   - get_current_user → verifies Cognito ID token, loads UserProfile from DB
 """
 
+from datetime import timezone, datetime
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
@@ -23,7 +24,8 @@ def get_current_user(
 ) -> UserProfile:
     """
     Extracts Bearer token → verifies Cognito ID token → loads UserProfile by cognito_sub.
-    Raises 401 if token is missing, invalid, or the user has not synced yet.
+    Raises 401 if token is missing, invalid, the user has not synced yet, or they have
+    logged out since the token was issued.
     """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -45,6 +47,12 @@ def get_current_user(
     user = db.query(UserProfile).filter(UserProfile.cognito_sub == cognito_sub).first()
     if user is None or not user.is_active:
         raise credentials_exception
+
+    # Reject tokens issued before the user's last logout
+    if user.last_logout_at:
+        token_iat = payload.get("iat")
+        if token_iat and datetime.fromtimestamp(token_iat, tz=timezone.utc) < user.last_logout_at:
+            raise credentials_exception
 
     return user
 

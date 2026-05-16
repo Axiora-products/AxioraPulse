@@ -1,6 +1,7 @@
 import os
 import re
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
@@ -177,3 +178,19 @@ def cleanup_unconfirmed(body: CleanupRequest):
         return {"deleted": success, "email": body.email}
 
     return {"deleted": False, "status": status}
+
+
+@router.post("/logout")
+@limiter.limit("10/minute")
+def logout(
+    request: Request,
+    current_user: UserProfile = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Server-side logout: stamps last_logout_at so any existing JWT issued
+    before this moment is rejected on next use.
+    """
+    current_user.last_logout_at = datetime.now(timezone.utc)
+    db.commit()
+    return {"success": True}

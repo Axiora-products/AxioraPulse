@@ -142,9 +142,15 @@ def verify_payment(
     if not payment:
         raise HTTPException(status_code=404, detail="Payment record not found")
 
+    if payment.status == "paid":
+        raise HTTPException(status_code=409, detail="Payment already verified")
+
     plan = db.query(Plan).filter(Plan.code == body.plan_code, Plan.is_active == True).first()
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
+
+    if plan.price_paise != payment.amount_paise:
+        raise HTTPException(status_code=422, detail="Payment amount does not match plan price")
 
     # 3. Update payment row
     payment.razorpay_payment_id = body.razorpay_payment_id
