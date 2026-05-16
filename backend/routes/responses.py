@@ -17,7 +17,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import List, Optional
 from core.rate_limiter import limiter
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Header
 from sqlalchemy.orm import Session, joinedload
 from fastapi import Request
 from db.database import get_db
@@ -42,6 +42,14 @@ def _load_response(response_id: uuid.UUID, db: Session) -> SurveyResponse:
     if not r:
         raise HTTPException(status_code=404, detail="Response not found")
     return r
+
+
+def _verify_session(r: SurveyResponse, session_token: Optional[str]) -> None:
+    """Reject callers who don't supply the correct session token for this response."""
+    if not r.session_token:
+        return  # Legacy rows without a token — allow through
+    if not session_token or session_token != r.session_token:
+        raise HTTPException(status_code=403, detail="Invalid session token")
 
 
 
@@ -126,11 +134,13 @@ def update_response(
     response_id: uuid.UUID,
     body: ResponseUpdate,
     db: Session = Depends(get_db),
+    x_session_token: Optional[str] = Header(None),
 ):
     """Update email, status, last_saved_at, or metadata."""
     r = db.query(SurveyResponse).filter(SurveyResponse.id == response_id).first()
     if not r:
         raise HTTPException(status_code=404, detail="Response not found")
+    _verify_session(r, x_session_token)
 
     if body.respondent_email is not None:
         r.respondent_email = body.respondent_email
@@ -164,10 +174,11 @@ def update_response(
 @limiter.limit("30/minute")
 
 def upsert_answers(
-    request: Request, 
+    request: Request,
     response_id: uuid.UUID,
     answers: List[AnswerIn],
     db: Session = Depends(get_db),
+    x_session_token: Optional[str] = Header(None),
 ):
     """
     Upsert one or more answers for a response.
@@ -177,6 +188,7 @@ def upsert_answers(
     r = db.query(SurveyResponse).filter(SurveyResponse.id == response_id).first()
     if not r:
         raise HTTPException(status_code=404, detail="Response not found")
+    _verify_session(r, x_session_token)
 
     for ans in answers:
         existing = db.query(SurveyAnswer).filter(
@@ -208,10 +220,11 @@ def upsert_answers(
 @limiter.limit("5/minute")
 
 def submit_response(
-    request: Request, 
+    request: Request,
     response_id: uuid.UUID,
     body: dict = {},
     db: Session = Depends(get_db),
+    x_session_token: Optional[str] = Header(None),
 ):
     """
     Mark a response as completed.
@@ -221,6 +234,7 @@ def submit_response(
     r = db.query(SurveyResponse).filter(SurveyResponse.id == response_id).first()
     if not r:
         raise HTTPException(status_code=404, detail="Response not found")
+    _verify_session(r, x_session_token)
 
     r.status = ResponseStatusEnum.completed
     r.completed_at = datetime.now(timezone.utc)
@@ -239,10 +253,11 @@ def submit_response(
 @limiter.limit("10/minute")
 
 def abandon_response(
-    request: Request, 
+    request: Request,
     response_id: uuid.UUID,
     body: dict = {},
     db: Session = Depends(get_db),
+    x_session_token: Optional[str] = Header(None),
 ):
     """
     Mark a response as abandoned + store drop-off metadata.
@@ -251,6 +266,7 @@ def abandon_response(
     r = db.query(SurveyResponse).filter(SurveyResponse.id == response_id).first()
     if not r:
         raise HTTPException(status_code=404, detail="Response not found")
+    _verify_session(r, x_session_token)
 
     r.status = ResponseStatusEnum.abandoned
     if isinstance(body, dict) and body.get("metadata"):

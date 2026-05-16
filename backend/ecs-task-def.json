@@ -18,9 +18,8 @@
         }
       ],
       "environment": [
-        { "name": "ENVIRONMENT",      "value": "production" },
-        { "name": "COGNITO_REGION",   "value": "ap-south-1" },
-        { "name": "AWS_SES_REGION",   "value": "ap-south-1" }
+        { "name": "ENVIRONMENT", "value": "production" },
+        { "name": "ALGORITHM",   "value": "HS256" }
       ],
       "secrets": [
         {
@@ -32,8 +31,16 @@
           "valueFrom": "arn:aws:ssm:ap-south-1:217757579310:parameter/axiorapulse/production/DATABASE_URL"
         },
         {
-          "name": "ANTHROPIC_KEY",
-          "valueFrom": "arn:aws:ssm:ap-south-1:217757579310:parameter/axiorapulse/production/ANTHROPIC_KEY"
+          "name": "OPENAI_API_KEY",
+          "valueFrom": "arn:aws:ssm:ap-south-1:217757579310:parameter/axiorapulse/production/OPENAI_API_KEY"
+        },
+        {
+          "name": "GOOGLE_API_KEY",
+          "valueFrom": "arn:aws:ssm:ap-south-1:217757579310:parameter/axiorapulse/production/GOOGLE_API_KEY"
+        },
+        {
+          "name": "RESEND_API_KEY",
+          "valueFrom": "arn:aws:ssm:ap-south-1:217757579310:parameter/axiorapulse/production/RESEND_API_KEY"
         },
         {
           "name": "EMAIL_FROM",
@@ -42,26 +49,6 @@
         {
           "name": "FRONTEND_URL",
           "valueFrom": "arn:aws:ssm:ap-south-1:217757579310:parameter/axiorapulse/production/FRONTEND_URL"
-        },
-        {
-          "name": "RAZORPAY_KEY_ID",
-          "valueFrom": "arn:aws:ssm:ap-south-1:217757579310:parameter/axiorapulse/production/RAZORPAY_KEY_ID"
-        },
-        {
-          "name": "RAZORPAY_KEY_SECRET",
-          "valueFrom": "arn:aws:ssm:ap-south-1:217757579310:parameter/axiorapulse/production/RAZORPAY_KEY_SECRET"
-        },
-        {
-          "name": "COGNITO_USER_POOL_ID",
-          "valueFrom": "arn:aws:ssm:ap-south-1:217757579310:parameter/axiorapulse/COGNITO_USER_POOL_ID"
-        },
-        {
-          "name": "COGNITO_APP_CLIENT_ID",
-          "valueFrom": "arn:aws:ssm:ap-south-1:217757579310:parameter/axiorapulse/COGNITO_APP_CLIENT_ID"
-        },
-        {
-          "name": "MIGRATION_LAMBDA_SECRET",
-          "valueFrom": "arn:aws:ssm:ap-south-1:217757579310:parameter/axiorapulse/MIGRATION_LAMBDA_SECRET"
         }
       ],
       "logConfiguration": {
@@ -75,7 +62,7 @@
       "healthCheck": {
         "command": [
           "CMD-SHELL",
-          "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\" || exit 1"
+          "curl -f http://localhost:8000/health || exit 1"
         ],
         "interval": 30,
         "timeout": 10,

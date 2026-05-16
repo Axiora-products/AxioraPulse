@@ -12,6 +12,8 @@ import AIInsightsPanel from '../components/AIInsightsPanel';
 import { useAnalytics } from '../hooks/useAnalytics';
 import { useLoading } from '../context/LoadingContext';
 
+const escHtml = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+
 import {
   Chart as ChartJS,
   CategoryScale, LinearScale, BarElement,
@@ -942,7 +944,7 @@ export default function SurveyAnalytics() {
     const qRows = qs.map((q,i) => {
       const d = analytics.questionAnalytics[i]?.data;
       const respCount = d?.total ?? 0;
-      return `<tr><td>${i+1}</td><td>${q.question_text}</td><td>${q.question_type.replace(/_/g,' ')}</td><td>${respCount}</td></tr>`;
+      return `<tr><td>${i+1}</td><td>${escHtml(q.question_text)}</td><td>${escHtml(q.question_type.replace(/_/g,' '))}</td><td>${respCount}</td></tr>`;
     }).join('');
     const milRows = [
       {pct:'25%', count: milestones.pct25},
@@ -953,10 +955,10 @@ export default function SurveyAnalytics() {
       const barW = total > 0 ? Math.round(m.count/total*100) : 0;
       return `<div class="milestone"><span class="pct-label">${m.pct}</span><div class="bar-bg"><div class="bar-fill" style="width:${barW}%"></div></div><span class="count-label">${m.count} respondents (${barW}%)</span></div>`;
     }).join('');
-    const html = `<!DOCTYPE html><html><head><title>${sv?.title||'Survey'} — Analytics</title>
+    const html = `<!DOCTYPE html><html><head><title>${escHtml(sv?.title||'Survey')} — Analytics</title>
 <style>body{font-family:Georgia,serif;color:#160F08;margin:40px;max-width:800px}h1{font-size:28px;letter-spacing:-1px;margin-bottom:4px}.sub{color:#888;font-size:13px;margin-bottom:32px}.section{margin-bottom:32px}h2{font-family:Arial,sans-serif;font-size:11px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:#999;margin-bottom:12px;border-bottom:1px solid #eee;padding-bottom:8px}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.stat{background:#f7f5f0;border-radius:10px;padding:16px}.stat-num{font-size:32px;font-weight:900;letter-spacing:-2px}.stat-lbl{font-family:Arial;font-size:10px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:#999;margin-top:4px}.milestone{display:flex;align-items:center;gap:12px;margin-bottom:10px}.pct-label{min-width:40px;font-weight:900;font-size:16px}.bar-bg{flex:1;height:6px;background:#eee;border-radius:4px}.bar-fill{height:100%;border-radius:4px;background:#FF4500}.count-label{font-size:13px;color:#555;white-space:nowrap}table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;padding:8px 12px;background:#f7f5f0;font-family:Arial;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#999}td{padding:8px 12px;border-bottom:1px solid #f0ede8}.footer{margin-top:48px;font-family:Arial;font-size:10px;color:#ccc;text-align:center}@media print{body{margin:20px}}</style>
 </head><body>
-<h1>${sv?.title||'Survey'}</h1>
+<h1>${escHtml(sv?.title||'Survey')}</h1>
 <div class="sub">Analytics Report &nbsp;·&nbsp; ${new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})}</div>
 <div class="section"><h2>Overview</h2>
 <div class="stats">

@@ -70,7 +70,7 @@ export default function SurveyRespond() {
   const rId = useRef(null);
   const insertPending = useRef(null);   // guards against concurrent ensureR() calls
 
-  const tracker = useResponseTracking(rId);
+  const tracker = useResponseTracking(rId, token);
   useExitDetection(rId, tracker.onAbandon, done);
   const { visibleQuestions, nextVisible, prevVisible, progressAt } = useConditionalLogic(qs, ans);
 
@@ -150,7 +150,9 @@ export default function SurveyRespond() {
     }
   }
 
-  // ── Auto-save (via Netlify function) ─────────────────────────────────────
+  const _sessionHeaders = () => token.current ? { headers: { 'X-Session-Token': token.current } } : {};
+
+  // ── Auto-save ─────────────────────────────────────────────────────────────
   const autoSave = useCallback(async (a, id) => {
     if (!id) return;
     try {
@@ -162,7 +164,7 @@ export default function SurveyRespond() {
           answer_json: isObj ? v : null,
         };
       });
-      await API.post(`/responses/${id}/answers`, answers);
+      await API.post(`/responses/${id}/answers`, answers, _sessionHeaders());
       setSaved(new Date().toISOString());
     } catch (e) { console.warn('Auto-save silently failed:', e.message); }
   }, []);
@@ -189,9 +191,9 @@ export default function SurveyRespond() {
       await autoSave(ans, id);
       // Update email if collected at end
       if (sv?.require_email && email) {
-        await API.patch(`/responses/${id}`, { respondent_email: email });
+        await API.patch(`/responses/${id}`, { respondent_email: email }, _sessionHeaders());
       }
-      await API.post(`/responses/${id}/submit`, { metadata: { quality_score: quality } });
+      await API.post(`/responses/${id}/submit`, { metadata: { quality_score: quality } }, _sessionHeaders());
       setShowDemographics(true);
       localStorage.removeItem(`nx_${slug}`);
     } catch (e) { toast.error('Submission failed — your answers are saved. Try again.'); }
@@ -603,7 +605,7 @@ export default function SurveyRespond() {
                   gender: demographics.gender,
                   city: demographics.city,
                   occupation: demographics.occupation
-                });
+                }, _sessionHeaders());
               } catch (e) {
                 console.log(e);
               }

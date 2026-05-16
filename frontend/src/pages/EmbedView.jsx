@@ -21,11 +21,7 @@ import { useExitDetection }    from '../hooks/useExitDetection';
  * Designed to run inside an <iframe> on any third-party site.
  *
  * Differences from SurveyRespond:
-<<<<<<< HEAD
- *  • No Nexora branding (iframe hosts often have their own)
-=======
  *  • No Axiora branding (iframe hosts often have their own)
->>>>>>> fd890e68ca3c9bca4a377f929c0986334677b689
  *  • No welcome-screen mesh blobs (too heavy in small iframes)
  *  • Minimal padding — fits compact embeds
  *  • Posts a "nx:completed" postMessage to the parent when done
@@ -66,7 +62,7 @@ export default function EmbedView() {
   const cnt   = useRef(0);
   const rId   = useRef(null);
 
-  const tracker = useResponseTracking(rId);
+  const tracker = useResponseTracking(rId, token);
   useExitDetection(rId, tracker.onAbandon, done);
 
   const { visibleQuestions, nextVisible, prevVisible, progressAt } =
@@ -125,6 +121,8 @@ export default function EmbedView() {
     }
   }
 
+  const _sessionHeaders = () => token.current ? { headers: { 'X-Session-Token': token.current } } : {};
+
   const autoSave = useCallback(async (a, id) => {
     if (!id) return;
     try {
@@ -136,9 +134,9 @@ export default function EmbedView() {
           answer_json: isObj ? v : null
         };
       });
-      
+
       if (answers.length > 0) {
-        await API.post(`/responses/${id}/answers`, answers);
+        await API.post(`/responses/${id}/answers`, answers, _sessionHeaders());
       }
       setSaved(true);
     } catch(e) { console.error(e); }
@@ -163,9 +161,9 @@ export default function EmbedView() {
       await tracker.onSubmit(ans, qs);
       await autoSave(ans, id);
       
-      await API.post(`/responses/${id}/submit`, { 
-        metadata: { completed_at: new Date().toISOString() } 
-      });
+      await API.post(`/responses/${id}/submit`, {
+        metadata: { completed_at: new Date().toISOString() }
+      }, _sessionHeaders());
       
       setDone(true);
       localStorage.removeItem(`nx_embed_${slug}`);
