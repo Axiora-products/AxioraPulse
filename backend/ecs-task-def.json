@@ -18,9 +18,8 @@
         }
       ],
       "environment": [
-        { "name": "ENVIRONMENT",      "value": "production" },
-        { "name": "COGNITO_REGION",   "value": "ap-south-1" },
-        { "name": "AWS_SES_REGION",   "value": "ap-south-1" }
+        { "name": "ENVIRONMENT",    "value": "production" },
+        { "name": "COGNITO_REGION", "value": "ap-south-1" }
       ],
       "secrets": [
         {
@@ -34,6 +33,10 @@
         {
           "name": "ANTHROPIC_KEY",
           "valueFrom": "arn:aws:ssm:ap-south-1:217757579310:parameter/axiorapulse/production/ANTHROPIC_KEY"
+        },
+        {
+          "name": "RESEND_API_KEY",
+          "valueFrom": "arn:aws:ssm:ap-south-1:217757579310:parameter/axiorapulse/production/RESEND_API_KEY"
         },
         {
           "name": "EMAIL_FROM",
