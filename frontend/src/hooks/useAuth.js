@@ -10,7 +10,7 @@ const useAuthStore = create((set, get) => ({
   initialized: false,
 
   // ── Initialize: called once on app load ───────────────────────────────────
-  initialize: async (force = false) => {
+  initialize: async (force = false, syncParams = {}) => {
     if (get().initialized && !force) return;
     set({ loading: true });
     try {
@@ -18,8 +18,7 @@ const useAuthStore = create((set, get) => ({
       const idToken = session.getIdToken().getJwtToken();
       localStorage.setItem('token', idToken);
 
-      // Sync cognito_sub to DB once per session on app load only
-      await API.post('/auth/sync', { id_token: idToken });
+      await API.post('/auth/sync', { id_token: idToken, ...syncParams });
 
       const res = await API.get('/auth/me');
       const { user, profile, tenant } = res.data;
