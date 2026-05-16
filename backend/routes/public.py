@@ -3,18 +3,16 @@ routes/public.py
 ─────────────────
 Unauthenticated endpoints called by public-facing survey pages.
 
-POST /public/send-email  — Send survey share or resume-link email via Resend
+POST /public/send-email  — Send survey share or resume-link email via AWS SES
 """
 
-import os
-import requests
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, EmailStr
 from typing import Literal, Optional
 
-router = APIRouter(prefix="/public", tags=["public"])
+from services.email_service import send_email
 
-RESEND_API_URL = "https://api.resend.com/emails"
+router = APIRouter(prefix="/public", tags=["public"])
 
 
 class SendEmailRequest(BaseModel):
@@ -95,17 +93,6 @@ def _build_email_html(to: str, surveyTitle: str, surveyUrl: str,
 
 @router.post("/send-email")
 def send_survey_email(body: SendEmailRequest):
-    """
-    Send a survey share or resume-link email via Resend.
-    Called from the survey builder (share) and SurveyRespond (resume link).
-    No auth required — the survey URL itself is the access token.
-    """
-    resend_key = os.getenv("RESEND_API_KEY")
-    email_from = os.getenv("EMAIL_FROM", "Axiora Pulse <noreply@axiorapulse.com>")
-
-    if not resend_key:
-        raise HTTPException(status_code=500, detail="Email service not configured")
-
     is_resume = body.type == "resume"
     subject = (
         f"Continue your survey: {body.surveyTitle}"
@@ -120,14 +107,9 @@ def send_survey_email(body: SendEmailRequest):
         respondentName=body.respondentName,
     )
 
-    resp = requests.post(
-        RESEND_API_URL,
-        headers={"Authorization": f"Bearer {resend_key}", "Content-Type": "application/json"},
-        json={"from": email_from, "to": [body.to], "subject": subject, "html": html},
-        timeout=10,
-    )
+    try:
+        send_email(to_email=body.to, subject=subject, body=html)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-    if not resp.ok:
-        raise HTTPException(status_code=resp.status_code, detail=resp.json().get("message", "Email send failed"))
-
-    return {"success": True, "id": resp.json().get("id")}
+    return {"success": True}
