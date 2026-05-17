@@ -3,12 +3,11 @@ import uuid
 from datetime import datetime, timedelta
 
 import requests
-from fastapi import APIRouter, Depends, Request
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Request
 
 from core.rate_limiter import limiter
-from db.database import get_db
 from db.models import DemoSchedule
+from dependencies import DBSession
 from schemas.demo import DemoRequest
 from services.email_service import send_email
 
@@ -22,7 +21,7 @@ CLIENT_SECRET = os.getenv("ZOOM_CLIENT_SECRET")
 
 @router.post("/schedule")
 @limiter.limit("5/minute")
-def schedule_demo(request: Request, body: DemoRequest, db: Session = Depends(get_db)):
+def schedule_demo(request: Request, body: DemoRequest, db: DBSession):
 
     # ---------------------------------------------------
     # STEP 1 → Get Zoom Access Token

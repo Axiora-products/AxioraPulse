@@ -21,13 +21,12 @@ import re
 import string
 import uuid
 from datetime import datetime, timezone
-from typing import List
+from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session, joinedload
 
 from core.rate_limiter import limiter
-from db.database import get_db
 from db.models import (
     QuestionTypeEnum,
     SharePermissionEnum,
@@ -41,7 +40,7 @@ from db.models import (
     Tenant,
     UserProfile,
 )
-from dependencies import get_current_user
+from dependencies import CurrentUser, DBSession
 from schemas import (
     AnswerOut,
     FeedbackOut,
@@ -97,7 +96,7 @@ def _question_type(qt: str) -> QuestionTypeEnum:
     try:
         return QuestionTypeEnum(qt)
     except ValueError:
-        raise HTTPException(status_code=422, detail=f"Unknown question type: {qt}")
+        raise HTTPException(status_code=422, detail=f"Unknown question type: {qt}") from None
 
 
 def _upsert_questions(survey_id: uuid.UUID, questions: List[QuestionIn], db: Session):
@@ -125,11 +124,11 @@ def _upsert_questions(survey_id: uuid.UUID, questions: List[QuestionIn], db: Ses
 @limiter.limit("20/minute")
 def list_surveys(
     request: Request,
-    q: str = None,
-    skip: int = 0,
-    limit: int = Query(10, le=100),
-    current_user: UserProfile = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: CurrentUser,
+    db: DBSession,
+    q: Annotated[Optional[str], Query()] = None,
+    skip: Annotated[int, Query()] = 0,
+    limit: Annotated[int, Query(le=100)] = 10,
 ):
 
     query = (
@@ -152,7 +151,7 @@ def list_surveys(
 
 @router.get("/slug/{slug}", response_model=SurveyOut)
 @limiter.limit("20/minute")
-def get_survey_by_slug(request: Request, slug: str, db: Session = Depends(get_db)):
+def get_survey_by_slug(request: Request, slug: str, db: DBSession):
     survey = (
         db.query(Survey).options(joinedload(Survey.questions)).filter(Survey.slug == slug).first()
     )
@@ -175,8 +174,8 @@ def get_survey_by_slug(request: Request, slug: str, db: Session = Depends(get_db
 def create_survey(
     request: Request,
     body: SurveyCreate,
-    current_user: UserProfile = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: CurrentUser,
+    db: DBSession,
     _gate: None = Depends(require_feature("create_survey")),
 ):
     _require_creator(current_user)
@@ -248,8 +247,8 @@ def create_survey(
 def get_survey(
     request: Request,
     survey_id: uuid.UUID,
-    current_user: UserProfile = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: CurrentUser,
+    db: DBSession,
 ):
     survey = (
         db.query(Survey)
@@ -269,8 +268,8 @@ def get_survey(
 def update_survey(
     survey_id: uuid.UUID,
     body: SurveyUpdate,
-    current_user: UserProfile = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: CurrentUser,
+    db: DBSession,
 ):
     _require_creator(current_user)
     survey = (
@@ -339,8 +338,8 @@ def update_survey(
 def update_survey_status(
     survey_id: uuid.UUID,
     body: SurveyStatusUpdate,
-    current_user: UserProfile = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: CurrentUser,
+    db: DBSession,
 ):
     _require_creator(current_user)
     survey = (
@@ -375,7 +374,7 @@ def update_survey_status(
 
         survey.status = new_status
     except ValueError:
-        raise HTTPException(status_code=422, detail=f"Invalid status: {body.status}")
+        raise HTTPException(status_code=422, detail=f"Invalid status: {body.status}") from None
 
     db.commit()
     db.refresh(survey)
@@ -394,8 +393,8 @@ def update_survey_status(
 @router.delete("/{survey_id}", response_model=MessageResponse)
 def delete_survey(
     survey_id: uuid.UUID,
-    current_user: UserProfile = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: CurrentUser,
+    db: DBSession,
 ):
     _require_creator(current_user)
     survey = (
@@ -417,8 +416,8 @@ def delete_survey(
 @router.get("/{survey_id}/questions", response_model=List[QuestionOut])
 def get_questions(
     survey_id: uuid.UUID,
-    current_user: UserProfile = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: CurrentUser,
+    db: DBSession,
 ):
     survey = (
         db.query(Survey)
@@ -440,8 +439,8 @@ def get_questions(
 def replace_questions(
     survey_id: uuid.UUID,
     questions: List[QuestionIn],
-    current_user: UserProfile = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: CurrentUser,
+    db: DBSession,
 ):
     """Replace ALL questions for a survey (SurveyCreate/SurveyEdit save flow)."""
     _require_creator(current_user)
@@ -473,8 +472,8 @@ def replace_questions(
 )
 def duplicate_survey(
     survey_id: uuid.UUID,
-    current_user: UserProfile = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: CurrentUser,
+    db: DBSession,
 ):
     """Duplicate a survey and all its questions (SurveyList.jsx)."""
     _require_creator(current_user)
@@ -536,8 +535,8 @@ def duplicate_survey(
 @router.get("/{survey_id}/shares", response_model=List[SurveyShareOut])
 def get_survey_shares(
     survey_id: uuid.UUID,
-    current_user: UserProfile = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: CurrentUser,
+    db: DBSession,
 ):
     """List all team members this survey has been shared with."""
     survey = (
@@ -561,8 +560,8 @@ def get_survey_shares(
 def share_survey(
     survey_id: uuid.UUID,
     body: SurveyShareCreate,
-    current_user: UserProfile = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: CurrentUser,
+    db: DBSession,
 ):
     """Share a survey with another team member."""
     _require_creator(current_user)
@@ -616,8 +615,8 @@ def share_survey(
 def revoke_share(
     survey_id: uuid.UUID,
     share_id: uuid.UUID,
-    current_user: UserProfile = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: CurrentUser,
+    db: DBSession,
 ):
     """Remove a team member's access to a survey."""
     _require_creator(current_user)
@@ -642,10 +641,10 @@ def revoke_share(
 def get_survey_responses(
     request: Request,
     survey_id: uuid.UUID,
-    skip: int = 0,
-    limit: int = Query(10, le=100),
-    current_user: UserProfile = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: CurrentUser,
+    db: DBSession,
+    skip: Annotated[int, Query()] = 0,
+    limit: Annotated[int, Query(le=100)] = 10,
 ):
     survey = (
         db.query(Survey)
@@ -676,8 +675,8 @@ def get_survey_responses(
 def get_survey_answers(
     request: Request,
     survey_id: uuid.UUID,
-    current_user: UserProfile = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: CurrentUser,
+    db: DBSession,
 ):
     survey = (
         db.query(Survey)
@@ -704,8 +703,8 @@ def get_survey_answers(
 def get_survey_feedback(
     request: Request,
     survey_id: uuid.UUID,
-    current_user: UserProfile = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: CurrentUser,
+    db: DBSession,
 ):
     survey = (
         db.query(Survey)
@@ -725,7 +724,7 @@ def create_survey_feedback(
     request: Request,
     survey_id: uuid.UUID,
     body: dict,
-    db: Session = Depends(get_db),
+    db: DBSession,
 ):
     """Public endpoint to submit feedback for a survey."""
     fb = SurveyFeedback(
@@ -738,3 +737,4 @@ def create_survey_feedback(
     db.add(fb)
     db.commit()
     return {"message": "Feedback received"}
+

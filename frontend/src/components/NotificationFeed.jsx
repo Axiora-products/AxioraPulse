@@ -21,13 +21,18 @@ function markSeen(ids) {
     // Keep max 200 ids to avoid unbounded growth
     const arr = [...existing].slice(-200);
     localStorage.setItem(SEEN_KEY, JSON.stringify(arr));
-  } catch {}
-}
-function clearAllSeen() {
-  try {
+    } catch (err) {
+    // Ignore storage errors
+    }
+    }
+    function clearAllSeen() {
+    try {
     localStorage.removeItem(SEEN_KEY);
-  } catch {}
-}
+    } catch (err) {
+    // Ignore storage errors
+    }
+    }
+
 
 export default function NotificationFeed() {
   const [open, setOpen] = useState(false);

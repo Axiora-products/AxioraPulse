@@ -11,12 +11,10 @@ Usage in a route:
         ...
 """
 
-from fastapi import Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from fastapi import HTTPException, status
 
-from db.database import get_db
 from db.models import Plan, Subscription, Survey, UserProfile
-from dependencies import get_current_user
+from dependencies import CurrentUser, DBSession
 
 
 class _FeatureChecker:
@@ -25,8 +23,8 @@ class _FeatureChecker:
 
     def __call__(
         self,
-        current_user: UserProfile = Depends(get_current_user),
-        db: Session = Depends(get_db),
+        current_user: CurrentUser,
+        db: DBSession,
     ) -> None:
         if current_user.is_internal:
             return

@@ -8,13 +8,11 @@ GET  /feedback/survey/{id} — Get feedback for a survey (SurveyAnalytics.jsx Fe
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, HTTPException, Request
 
 from core.rate_limiter import limiter
-from db.database import get_db
-from db.models import Survey, SurveyFeedback, UserProfile
-from dependencies import get_current_user
+from db.models import Survey, SurveyFeedback
+from dependencies import CurrentUser, DBSession
 from schemas import FeedbackCreate, FeedbackOut
 
 router = APIRouter(prefix="/feedback", tags=["feedback"])
@@ -25,7 +23,7 @@ router = APIRouter(prefix="/feedback", tags=["feedback"])
 def create_feedback(
     request: Request,  # ✅ ADD THIS
     body: FeedbackCreate,
-    db: Session = Depends(get_db),
+    db: DBSession,
 ):
     """
     Public endpoint — no auth required.
@@ -49,8 +47,8 @@ def create_feedback(
 def get_feedback(
     request: Request,  # ✅ ADD THIS
     survey_id: uuid.UUID,
-    current_user: UserProfile = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: CurrentUser,
+    db: DBSession,
 ):
     """Return all feedback for a survey (analytics Feedback tab)."""
     survey = (

@@ -8,20 +8,18 @@ import json
 import os
 
 import google.generativeai as genai
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import ValidationError
 from sqlalchemy.orm import Session, joinedload
 from starlette.concurrency import run_in_threadpool
 
 from core.rate_limiter import limiter
-from db.database import get_db
 from db.models import (
     ResponseStatusEnum,
     Survey,
     SurveyResponse,
-    UserProfile,
 )
-from dependencies import get_current_user
+from dependencies import CurrentUser, DBSession
 from schemas import (
     AIGenerateRequest,
     AIGenerateResponse,
@@ -134,8 +132,8 @@ def _build_survey_context(survey_id: str, db: Session) -> dict:
 async def generate_survey_insights(
     request: Request,
     survey_id: str,
-    db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(get_current_user),
+    db: DBSession,
+    current_user: CurrentUser,
 ):
     """
     Generate Deep AI insights for a survey by fetching all data from the database.
@@ -165,7 +163,7 @@ async def generate_survey_insights(
 async def generate_insights(
     request: Request,  # ✅ ADD
     body: AIInsightsRequest,
-    current_user: UserProfile = Depends(get_current_user),
+    current_user: CurrentUser,
 ):
     print(f"[AI] Received Gemini request for survey: {body.surveyTitle}")
 
@@ -224,21 +222,25 @@ async def generate_insights(
 
     except ValidationError as ve:
         print(f"[AI] Gemini Validation Error: {ve}")
-        raise HTTPException(status_code=500, detail="Gemini returned an invalid data structure")
+        raise HTTPException(
+            status_code=500, detail="Gemini returned an invalid data structure"
+        ) from ve
     except Exception as e:
         print(f"[AI] Gemini Error: {e}")
         # Check for quota errors in string
         if "quota" in str(e).lower() or "429" in str(e):
             raise HTTPException(
                 status_code=429, detail="Google API quota exceeded or rate limited."
-            )
-        raise HTTPException(status_code=500, detail=f"Failed to generate Gemini insights: {str(e)}")
+            ) from e
+        raise HTTPException(
+            status_code=500, detail=f"Failed to generate Gemini insights: {str(e)}"
+        ) from e
 
 
 @router.post("/generate")
 @limiter.limit("5/minute")
 async def generate_survey(
-    request: Request, body: AIGenerateRequest, current_user: UserProfile = Depends(get_current_user)
+    request: Request, body: AIGenerateRequest, current_user: CurrentUser
 ):
     api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key:
@@ -287,14 +289,18 @@ async def generate_survey(
 
     except ValidationError as ve:
         print(f"[AI] Generate Validation Error: {ve}")
-        raise HTTPException(status_code=500, detail="Gemini returned an invalid survey structure")
+        raise HTTPException(
+            status_code=500, detail="Gemini returned an invalid survey structure"
+        ) from ve
     except Exception as e:
         print(f"[AI] Generate Error: {e}")
         if "quota" in str(e).lower() or "429" in str(e):
             raise HTTPException(
                 status_code=429, detail="Google API quota exceeded or rate limited."
-            )
-        raise HTTPException(status_code=500, detail=f"Failed to generate survey: {str(e)}")
+            ) from e
+        raise HTTPException(
+            status_code=500, detail=f"Failed to generate survey: {str(e)}"
+        ) from e
 
 
 @router.post("/suggestions")
@@ -302,7 +308,7 @@ async def generate_survey(
 async def generate_suggestions(
     request: Request,  # ✅ ADD
     body: AISuggestionsRequest,
-    current_user: UserProfile = Depends(get_current_user),
+    current_user: CurrentUser,
 ):
     print(f"[AI] Received Gemini suggestions request for survey: {body.surveyTitle}")
 
@@ -349,13 +355,15 @@ async def generate_suggestions(
 
     except ValidationError as ve:
         print(f"[AI] Gemini Validation Error: {ve}")
-        raise HTTPException(status_code=500, detail="Gemini returned invalid suggestion structure")
+        raise HTTPException(
+            status_code=500, detail="Gemini returned invalid suggestion structure"
+        ) from ve
     except Exception as e:
         print(f"[AI] Gemini Error: {e}")
         if "quota" in str(e).lower() or "429" in str(e):
             raise HTTPException(
                 status_code=429, detail="Google API quota exceeded or rate limited."
-            )
+            ) from e
         raise HTTPException(
             status_code=500, detail=f"Failed to generate Gemini suggestions: {str(e)}"
-        )
+        ) from e

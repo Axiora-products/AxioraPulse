@@ -12,17 +12,17 @@ GET    /users/{id}      — Get single user profile
 
 import os
 import secrets
+import time
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy.orm import Session, joinedload
+from fastapi import APIRouter, HTTPException, Request, status
+from sqlalchemy.orm import joinedload
 
 from auth_utils import hash_password
 from cognito_utils import COGNITO_USER_POOL_ID, get_cognito_client
 from core.rate_limiter import limiter
-from db.database import get_db
 from db.models import RoleEnum, UserProfile
-from dependencies import get_current_user
+from dependencies import CurrentUser, DBSession
 from schemas import (
     AcceptInviteRequest,
     BulkInviteRequest,
@@ -49,8 +49,8 @@ def _require_manager(current_user: UserProfile):
 
 @router.get("/", response_model=list[UserProfileOut])
 def list_users(
-    current_user: UserProfile = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: CurrentUser,
+    db: DBSession,
 ):
     """Return all users in the caller's tenant (TeamManagement.jsx)."""
     users = (
@@ -65,8 +65,8 @@ def list_users(
 @router.get("/{user_id}", response_model=UserProfileOut)
 def get_user(
     user_id: str,
-    current_user: UserProfile = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: CurrentUser,
+    db: DBSession,
 ):
     user = (
         db.query(UserProfile)
@@ -86,8 +86,8 @@ def get_user(
 def invite_user(
     request: Request,
     body: InviteRequest,
-    current_user: UserProfile = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: CurrentUser,
+    db: DBSession,
 ):
     """
     Invite or re-invite a user.
@@ -144,7 +144,7 @@ def invite_user(
     try:
         role = RoleEnum(body.role)
     except ValueError:
-        raise HTTPException(status_code=400, detail=f"Invalid role: {body.role}")
+        raise HTTPException(status_code=400, detail=f"Invalid role: {body.role}") from None
 
     new_user = UserProfile(
         id=uuid.uuid4(),
@@ -190,16 +190,13 @@ def invite_user(
     return UserProfileOut.model_validate(new_user)
 
 
-import time
-
-
 @router.post("/bulk-invite")
 @limiter.limit("2/minute")
 def bulk_invite(
     request: Request,
     body: BulkInviteRequest,
-    current_user: UserProfile = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: CurrentUser,
+    db: DBSession,
 ):
     _require_manager(current_user)
 
@@ -300,8 +297,8 @@ def bulk_invite(
 def update_role(
     user_id: str,
     body: UserRoleUpdate,
-    current_user: UserProfile = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: CurrentUser,
+    db: DBSession,
 ):
     """Update a user's role (TeamManagement.jsx)."""
     _require_manager(current_user)
@@ -320,7 +317,7 @@ def update_role(
     try:
         user.role = RoleEnum(body.role)
     except ValueError:
-        raise HTTPException(status_code=400, detail=f"Invalid role: {body.role}")
+        raise HTTPException(status_code=400, detail=f"Invalid role: {body.role}") from None
 
     db.commit()
     db.refresh(user)
@@ -331,8 +328,8 @@ def update_role(
 def update_status(
     user_id: str,
     body: UserStatusUpdate,
-    current_user: UserProfile = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: CurrentUser,
+    db: DBSession,
 ):
     """Activate or deactivate a user (TeamManagement.jsx)."""
     _require_manager(current_user)
@@ -357,8 +354,8 @@ def update_status(
 @router.delete("/{user_id}", response_model=MessageResponse)
 def delete_user(
     user_id: str,
-    current_user: UserProfile = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: CurrentUser,
+    db: DBSession,
 ):
     """
     Hard-delete a user.  Only super_admin can delete.
@@ -391,7 +388,7 @@ def delete_user(
 def accept_invite(
     token: str,
     body: AcceptInviteRequest,
-    db: Session = Depends(get_db),
+    db: DBSession,
 ):
     """
     Called from AcceptInvite.jsx after the invited user enters their
@@ -446,7 +443,7 @@ def accept_invite(
 @router.get("/invite-info/{token}")
 def get_invite_info(
     token: str,
-    db: Session = Depends(get_db),
+    db: DBSession,
 ):
     """
     Public endpoint to fetch user/tenant info based on an invite token.

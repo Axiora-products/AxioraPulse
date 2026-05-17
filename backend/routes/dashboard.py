@@ -5,14 +5,19 @@ GET /dashboard/stats   — Summary statistics (Dashboard.jsx)
 GET /dashboard/recent  — Last 6 surveys with response counts
 """
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Request
 from sqlalchemy import func
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import joinedload
 
 from core.rate_limiter import limiter
-from db.database import get_db
-from db.models import ResponseStatusEnum, Survey, SurveyResponse, SurveyStatusEnum, UserProfile
-from dependencies import get_current_user
+from db.models import (
+    ResponseStatusEnum,
+    Survey,
+    SurveyResponse,
+    SurveyStatusEnum,
+    UserProfile,
+)
+from dependencies import CurrentUser, DBSession
 from schemas import DashboardStats
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -22,8 +27,8 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 @limiter.limit("30/minute")
 def dashboard_stats(
     request: Request,  # ✅ ADD THIS
-    current_user: UserProfile = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: CurrentUser,
+    db: DBSession,
 ):
     """
     Aggregated counts for the dashboard header cards.
@@ -69,7 +74,7 @@ def dashboard_stats(
 
     team_members = (
         db.query(func.count(UserProfile.id))
-        .filter(UserProfile.tenant_id == tid, UserProfile.is_active == True)
+        .filter(UserProfile.tenant_id == tid, UserProfile.is_active)
         .scalar()
         or 0
     )
@@ -87,8 +92,8 @@ def dashboard_stats(
 @limiter.limit("30/minute")
 def recent_surveys(
     request: Request,  # ✅ ADD THIS
-    current_user: UserProfile = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: CurrentUser,
+    db: DBSession,
 ):
     """
     Last 6 surveys with their response counts (Dashboard.jsx recent surveys list).
@@ -132,8 +137,8 @@ def recent_surveys(
 @limiter.limit("20/minute")
 def dashboard_feed(
     request: Request,  # ✅ ADD THIS
-    current_user: UserProfile = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: CurrentUser,
+    db: DBSession,
 ):
     """
     Activity feed for the notification center.

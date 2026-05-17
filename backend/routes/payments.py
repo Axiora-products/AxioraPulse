@@ -16,13 +16,12 @@ import logging
 from typing import List
 
 import razorpay
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy.orm import Session, joinedload
+from fastapi import APIRouter, HTTPException, Request, status
+from sqlalchemy.orm import joinedload
 
 from core import config
-from db.database import get_db
-from db.models import Payment, Plan, Subscription, Tenant, UserProfile
-from dependencies import get_current_user
+from db.models import Payment, Plan, Subscription, Tenant
+from dependencies import CurrentUser, DBSession
 from schemas.payment import (
     CreateOrderRequest,
     CreateOrderResponse,
@@ -49,9 +48,9 @@ def _razorpay_client() -> razorpay.Client:
 
 
 @router.get("/plans", response_model=List[PlanOut])
-def list_plans(db: Session = Depends(get_db)):
+def list_plans(db: DBSession):
     """Return all active plans. Used by the pricing page (no auth required)."""
-    plans = db.query(Plan).filter(Plan.is_active == True).order_by(Plan.price_paise).all()
+    plans = db.query(Plan).filter(Plan.is_active).order_by(Plan.price_paise).all()
     return [PlanOut.model_validate(p) for p in plans]
 
 
@@ -61,14 +60,14 @@ def list_plans(db: Session = Depends(get_db)):
 @router.post("/create-order", response_model=CreateOrderResponse)
 def create_order(
     body: CreateOrderRequest,
-    current_user: UserProfile = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: CurrentUser,
+    db: DBSession,
 ):
     """
     Create a Razorpay order for the requested plan.
     Returns the order_id and key_id needed by the frontend Razorpay checkout widget.
     """
-    plan = db.query(Plan).filter(Plan.code == body.plan_code, Plan.is_active == True).first()
+    plan = db.query(Plan).filter(Plan.code == body.plan_code, Plan.is_active).first()
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
 
@@ -116,8 +115,8 @@ def create_order(
 @router.post("/verify")
 def verify_payment(
     body: VerifyPaymentRequest,
-    current_user: UserProfile = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: CurrentUser,
+    db: DBSession,
 ):
     """
     Verify Razorpay payment signature.
@@ -148,7 +147,7 @@ def verify_payment(
     if payment.status == "paid":
         raise HTTPException(status_code=409, detail="Payment already verified")
 
-    plan = db.query(Plan).filter(Plan.code == body.plan_code, Plan.is_active == True).first()
+    plan = db.query(Plan).filter(Plan.code == body.plan_code, Plan.is_active).first()
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
 
@@ -190,7 +189,7 @@ def verify_payment(
 
 
 @router.post("/webhook", status_code=200)
-async def razorpay_webhook(request: Request, db: Session = Depends(get_db)):
+async def razorpay_webhook(request: Request, db: DBSession):
     """
     Receive Razorpay webhook events.
     Validates the X-Razorpay-Signature header before processing.
@@ -198,7 +197,7 @@ async def razorpay_webhook(request: Request, db: Session = Depends(get_db)):
     try:
         payload = await request.json()
     except Exception:
-        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+        raise HTTPException(status_code=400, detail="Invalid JSON payload") from None
 
     event = payload.get("event", "")
     entity = payload.get("payload", {}).get("payment", {}).get("entity", {})
@@ -250,8 +249,8 @@ async def razorpay_webhook(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/subscription", response_model=SubscriptionOut)
 def get_subscription(
-    current_user: UserProfile = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: CurrentUser,
+    db: DBSession,
 ):
     """Return the current tenant's active subscription (or 404 if on free plan)."""
     sub = (

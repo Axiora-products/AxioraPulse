@@ -7,6 +7,7 @@ Reusable FastAPI dependencies:
 """
 
 from datetime import datetime, timezone
+from typing import Annotated, Optional
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -20,8 +21,8 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
-    db: Session = Depends(get_db),
+    credentials: Annotated[Optional[HTTPAuthorizationCredentials], Depends(bearer_scheme)],
+    db: Annotated[Session, Depends(get_db)],
 ) -> UserProfile:
     """
     Extracts Bearer token → verifies Cognito ID token → loads UserProfile by cognito_sub.
@@ -59,8 +60,8 @@ def get_current_user(
 
 
 def get_optional_user(
-    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
-    db: Session = Depends(get_db),
+    credentials: Annotated[Optional[HTTPAuthorizationCredentials], Depends(bearer_scheme)],
+    db: Annotated[Session, Depends(get_db)],
 ):
     """
     Like get_current_user but returns None instead of raising 401.
@@ -75,3 +76,9 @@ def get_optional_user(
     if not cognito_sub:
         return None
     return db.query(UserProfile).filter(UserProfile.cognito_sub == cognito_sub).first()
+
+
+# Centralized Dependency Types
+DBSession = Annotated[Session, Depends(get_db)]
+CurrentUser = Annotated[UserProfile, Depends(get_current_user)]
+OptionalUser = Annotated[Optional[UserProfile], Depends(get_optional_user)]

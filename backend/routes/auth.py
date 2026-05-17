@@ -3,15 +3,13 @@ import re
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, HTTPException, Request
 
 from auth_utils import verify_password
 from cognito_utils import admin_delete_user, admin_get_user_status, verify_cognito_token
 from core.rate_limiter import limiter
-from db.database import get_db
 from db.models import RoleEnum, Tenant, UserProfile
-from dependencies import get_current_user
+from dependencies import CurrentUser, DBSession
 from schemas import (
     CleanupRequest,
     MeResponse,
@@ -42,8 +40,8 @@ def _slugify(text: str) -> str:
 @limiter.limit("30/minute")
 def me(
     request: Request,
-    current_user: UserProfile = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: CurrentUser,
+    db: DBSession,
 ):
     tenant = db.query(Tenant).filter(Tenant.id == current_user.tenant_id).first()
     profile = UserProfileOut.model_validate(current_user)
@@ -62,8 +60,8 @@ def me(
 def update_profile(
     request: Request,
     body: UserProfileUpdate,
-    current_user: UserProfile = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: CurrentUser,
+    db: DBSession,
 ):
     current_user.full_name = body.full_name
     db.commit()
@@ -79,7 +77,7 @@ def update_profile(
 def sync(
     request: Request,
     body: SyncRequest,
-    db: Session = Depends(get_db),
+    db: DBSession,
 ):
     """
     Called by the frontend after every Cognito sign-in/sign-up.
@@ -154,7 +152,7 @@ def sync(
 @router.post("/migrate-check")
 def migrate_check(
     body: MigrateCheckRequest,
-    db: Session = Depends(get_db),
+    db: DBSession,
 ):
     """
     Internal endpoint for the Cognito User Migration Lambda only.
@@ -195,8 +193,8 @@ def cleanup_unconfirmed(body: CleanupRequest):
 @limiter.limit("10/minute")
 def logout(
     request: Request,
-    current_user: UserProfile = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: CurrentUser,
+    db: DBSession,
 ):
     """
     Server-side logout: stamps last_logout_at so any existing JWT issued

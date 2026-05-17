@@ -17,12 +17,12 @@ import uuid
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi import APIRouter, Header, HTTPException, Request, status
 from sqlalchemy.orm import Session, joinedload
 
 from core.rate_limiter import limiter
-from db.database import get_db
 from db.models import ResponseStatusEnum, SurveyAnswer, SurveyResponse
+from dependencies import DBSession
 from schemas import (
     AnswerIn,
     ResponseCreate,
@@ -48,70 +48,27 @@ def _load_response(response_id: uuid.UUID, db: Session) -> SurveyResponse:
     return r
 
 
-def _verify_session(r: SurveyResponse, session_token: Optional[str]) -> None:
-    """Reject callers who don't supply the correct session token for this response."""
-    if not r.session_token:
-        return  # Legacy rows without a token — allow through
-    if not session_token or session_token != r.session_token:
-        raise HTTPException(status_code=403, detail="Invalid session token")
+def _verify_session(response: SurveyResponse, x_session_token: str):
+    if not x_session_token:
+        raise HTTPException(status_code=401, detail="Session token required")
+    if response.session_token != x_session_token:
+        raise HTTPException(status_code=403, detail="Forbidden: Session mismatch")
 
 
-# ── Create ────────────────────────────────────────────────────────────────────
-
-
-@router.post("/", response_model=ResponseOut, status_code=status.HTTP_201_CREATED)
-@limiter.limit("10/minute")
-def create_response(request: Request, body: ResponseCreate, db: Session = Depends(get_db)):
-    """
-    Create a new in-progress response row.
-    Called by SurveyRespond.jsx → ensureR() when the user first interacts.
-    Handles the race-condition guard: if a row already exists for this
-    session_token return it instead of inserting a duplicate.
-    """
-    if body.session_token:
-        existing = (
-            db.query(SurveyResponse)
-            .filter(SurveyResponse.session_token == body.session_token)
-            .first()
-        )
-        if existing:
-            return ResponseOut.model_validate(existing)
-
-    row = SurveyResponse(
-        id=uuid.uuid4(),
-        survey_id=body.survey_id,
-        session_token=body.session_token,
-        respondent_email=body.respondent_email,
-        age_range=body.age_range,
-        gender=body.gender,
-        occupation=body.occupation,
-        city=body.city,
-        status=ResponseStatusEnum.in_progress,
-        started_at=datetime.now(timezone.utc),
-    )
-    db.add(row)
-    db.commit()
-    db.refresh(row)
-    return ResponseOut.model_validate(row)
-
-
-# ── Get by session token ──────────────────────────────────────────────────────
+# ── Fetch ─────────────────────────────────────────────────────────────────────
 
 
 @router.get("/session/{token}", response_model=Optional[ResponseOut])
 @limiter.limit("20/minute")
-def get_response_by_session(request: Request, token: str, db: Session = Depends(get_db)):
+def get_response_by_session(request: Request, token: str, db: DBSession):
     """
     Lookup an existing in-progress response by session_token.
-    Used on SurveyRespond page load to resume a previous session.
+    Used by SurveyRespond.jsx to resume a session.
     """
     r = (
         db.query(SurveyResponse)
         .options(joinedload(SurveyResponse.survey_answers))
-        .filter(
-            SurveyResponse.session_token == token,
-            SurveyResponse.status == ResponseStatusEnum.in_progress,
-        )
+        .filter(SurveyResponse.session_token == token)
         .first()
     )
     if not r:
@@ -119,16 +76,44 @@ def get_response_by_session(request: Request, token: str, db: Session = Depends(
     return ResponseOut.model_validate(r)
 
 
-# ── Get by id ─────────────────────────────────────────────────────────────────
-
-
 @router.get("/{response_id}", response_model=ResponseOut)
 @limiter.limit("20/minute")
-def get_response(request: Request, response_id: uuid.UUID, db: Session = Depends(get_db)):
+def get_response(request: Request, response_id: uuid.UUID, db: DBSession):
     return ResponseOut.model_validate(_load_response(response_id, db))
 
 
-# ── Update metadata ───────────────────────────────────────────────────────────
+# ── Create ────────────────────────────────────────────────────────────────────
+
+
+@router.post("/", response_model=ResponseOut, status_code=status.HTTP_201_CREATED)
+@limiter.limit("10/minute")
+def create_response(request: Request, body: ResponseCreate, db: DBSession):
+    """
+    Create a new in-progress response row.
+    Called by SurveyRespond.jsx → ensureR() when the user first interacts.
+    Handles the race-condition guard: if a row already exists for this
+    session_token return it instead of inserting a duplicate.
+    """
+    existing = (
+        db.query(SurveyResponse).filter(SurveyResponse.session_token == body.session_token).first()
+    )
+    if existing:
+        return ResponseOut.model_validate(existing)
+
+    new_r = SurveyResponse(
+        id=uuid.uuid4(),
+        survey_id=body.survey_id,
+        session_token=body.session_token,
+        status=ResponseStatusEnum.in_progress,
+        metadata_=body.metadata or {},
+    )
+    db.add(new_r)
+    db.commit()
+    db.refresh(new_r)
+    return ResponseOut.model_validate(new_r)
+
+
+# ── Update ────────────────────────────────────────────────────────────────────
 
 
 @router.patch("/{response_id}", response_model=ResponseOut)
@@ -137,7 +122,7 @@ def update_response(
     request: Request,
     response_id: uuid.UUID,
     body: ResponseUpdate,
-    db: Session = Depends(get_db),
+    db: DBSession,
     x_session_token: Optional[str] = Header(None),
 ):
     """Update email, status, last_saved_at, or metadata."""
@@ -146,82 +131,68 @@ def update_response(
         raise HTTPException(status_code=404, detail="Response not found")
     _verify_session(r, x_session_token)
 
-    if body.respondent_email is not None:
-        r.respondent_email = body.respondent_email
-    if body.status is not None:
-        try:
-            r.status = ResponseStatusEnum(body.status)
-        except ValueError:
-            pass
-    if body.last_saved_at is not None:
+    if body.email is not None:
+        r.email = body.email
+    if body.status:
+        r.status = body.status
+    if body.last_saved_at:
         r.last_saved_at = body.last_saved_at
     if body.metadata is not None:
-        r.response_metadata = body.metadata
-    if body.age_range is not None:
-        r.age_range = body.age_range
-
-    if body.gender is not None:
-        r.gender = body.gender
-
-    if body.occupation is not None:
-        r.occupation = body.occupation
-        r.city = body.city
+        r.response_metadata = {**(r.response_metadata or {}), **body.metadata}
 
     db.commit()
     db.refresh(r)
     return ResponseOut.model_validate(r)
 
 
-# ── Upsert answers (auto-save) ────────────────────────────────────────────────
+# ── Answers ───────────────────────────────────────────────────────────────────
 
 
-@router.post("/{response_id}/answers")
+@router.post("/{response_id}/answers", response_model=List[AnswerIn])
 @limiter.limit("30/minute")
 def upsert_answers(
     request: Request,
     response_id: uuid.UUID,
     answers: List[AnswerIn],
-    db: Session = Depends(get_db),
+    db: DBSession,
     x_session_token: Optional[str] = Header(None),
 ):
     """
     Upsert one or more answers for a response.
     On conflict (response_id, question_id) update the existing row.
-    Mirrors the Supabase `.upsert()` with onConflict='response_id,question_id'.
     """
     r = db.query(SurveyResponse).filter(SurveyResponse.id == response_id).first()
     if not r:
         raise HTTPException(status_code=404, detail="Response not found")
     _verify_session(r, x_session_token)
 
-    for ans in answers:
+    for a in answers:
+        # Check if already exists
         existing = (
             db.query(SurveyAnswer)
             .filter(
                 SurveyAnswer.response_id == response_id,
-                SurveyAnswer.question_id == ans.question_id,
+                SurveyAnswer.question_id == a.question_id,
             )
             .first()
         )
 
         if existing:
-            existing.answer_value = ans.answer_value
-            existing.answer_json = ans.answer_json
+            existing.answer_value = a.answer_value
+            existing.metadata_ = a.metadata or {}
         else:
-            db.add(
-                SurveyAnswer(
-                    id=uuid.uuid4(),
-                    response_id=response_id,
-                    question_id=ans.question_id,
-                    answer_value=ans.answer_value,
-                    answer_json=ans.answer_json,
-                )
+            new_a = SurveyAnswer(
+                id=uuid.uuid4(),
+                response_id=response_id,
+                question_id=a.question_id,
+                answer_value=a.answer_value,
+                metadata_=a.metadata or {},
             )
+            db.add(new_a)
 
-    # Update last_saved_at
     r.last_saved_at = datetime.now(timezone.utc)
     db.commit()
-    return {"message": "Answers saved", "count": len(answers)}
+    return answers
 
 
 # ── Submit ────────────────────────────────────────────────────────────────────
@@ -232,8 +203,8 @@ def upsert_answers(
 def submit_response(
     request: Request,
     response_id: uuid.UUID,
-    body: dict = {},
-    db: Session = Depends(get_db),
+    db: DBSession,
+    body: Optional[dict] = None,
     x_session_token: Optional[str] = Header(None),
 ):
     """
@@ -241,6 +212,8 @@ def submit_response(
     Replaces the Netlify `respond` function (action='submit').
     Accepts optional `metadata` dict (quality_score etc.).
     """
+    if body is None:
+        body = {}
     r = db.query(SurveyResponse).filter(SurveyResponse.id == response_id).first()
     if not r:
         raise HTTPException(status_code=404, detail="Response not found")
@@ -250,7 +223,7 @@ def submit_response(
     r.completed_at = datetime.now(timezone.utc)
 
     # Merge any extra metadata (quality_score from useResponseTracking)
-    if isinstance(body, dict) and body.get("metadata"):
+    if body.get("metadata"):
         r.response_metadata = {**(r.response_metadata or {}), **body["metadata"]}
 
     db.commit()
@@ -265,22 +238,24 @@ def submit_response(
 def abandon_response(
     request: Request,
     response_id: uuid.UUID,
-    body: dict = {},
-    db: Session = Depends(get_db),
+    db: DBSession,
+    body: Optional[dict] = None,
     x_session_token: Optional[str] = Header(None),
 ):
     """
     Mark a response as abandoned + store drop-off metadata.
     Called by useExitDetection.js / useResponseTracking.js onAbandon.
     """
+    if body is None:
+        body = {}
     r = db.query(SurveyResponse).filter(SurveyResponse.id == response_id).first()
     if not r:
         raise HTTPException(status_code=404, detail="Response not found")
     _verify_session(r, x_session_token)
 
     r.status = ResponseStatusEnum.abandoned
-    if isinstance(body, dict) and body.get("metadata"):
+    if body.get("metadata"):
         r.response_metadata = {**(r.response_metadata or {}), **body["metadata"]}
 
     db.commit()
-    return {"message": "Response marked as abandoned"}
+    return {"message": "Response marked as abandoned", "response_id": response_id}

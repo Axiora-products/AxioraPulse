@@ -27,4 +27,4 @@ def send_email(to_email: str, subject: str, body: str):
             },
         )
     except ClientError as e:
-        raise Exception(f"SES error: {e.response['Error']['Message']}")
+        raise Exception(f"SES error: {e.response['Error']['Message']}") from e

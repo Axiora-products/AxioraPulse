@@ -70,8 +70,11 @@ const useAuthStore = create((set, get) => ({
   signOut: async () => {
     try {
       await API.post('/auth/logout');
-    } catch (_) {}
+    } catch (_) {
+      // Ignore logout errors, proceed with local sign out
+    }
     cognitoSignOut();
+
     localStorage.removeItem('token');
     set({ user: null, profile: null, tenant: null, initialized: false });
     window.location.href = '/login';

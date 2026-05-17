@@ -5,12 +5,10 @@ GET   /tenants/me   — Get current user's tenant
 PATCH /tenants/me   — Update tenant name / color / approved_domains
 """
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, HTTPException
 
-from db.database import get_db
-from db.models import RoleEnum, Tenant, UserProfile
-from dependencies import get_current_user
+from db.models import RoleEnum, Tenant
+from dependencies import CurrentUser, DBSession
 from schemas import TenantOut, TenantUpdate
 
 router = APIRouter(prefix="/tenants", tags=["tenants"])
@@ -20,8 +18,8 @@ ADMIN_ROLES = {RoleEnum.super_admin, RoleEnum.admin}
 
 @router.get("/me", response_model=TenantOut)
 def get_tenant(
-    current_user: UserProfile = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: CurrentUser,
+    db: DBSession,
 ):
     if not current_user.tenant_id:
         raise HTTPException(status_code=404, detail="No tenant associated with this account")
@@ -34,8 +32,8 @@ def get_tenant(
 @router.patch("/me", response_model=TenantOut)
 def update_tenant(
     body: TenantUpdate,
-    current_user: UserProfile = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: CurrentUser,
+    db: DBSession,
 ):
     """Update org name, theme color, and approved domains (Settings.jsx)."""
     if current_user.role not in ADMIN_ROLES:
