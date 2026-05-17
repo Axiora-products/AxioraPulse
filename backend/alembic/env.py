@@ -12,8 +12,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 load_dotenv()
 
-from db.database import Base
-from db.models import (  # noqa: F401 — imported so Alembic detects all tables
+from db.database import Base  # noqa: E402
+from db.models import (  # noqa: F401, E402 — imported so Alembic detects all tables
     DemoSchedule,
     Payment,
     Plan,
