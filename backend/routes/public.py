@@ -7,10 +7,11 @@ POST /public/send-email  — Send survey share or resume-link email via Resend
 """
 
 import os
+from typing import Literal, Optional
+
 import requests
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, EmailStr
-from typing import Literal, Optional
 
 from core.rate_limiter import limiter
 
@@ -21,7 +22,9 @@ RESEND_API_URL = "https://api.resend.com/emails"
 
 def _allowed_survey_url(url: str) -> bool:
     frontend_url = os.getenv("FRONTEND_URL", "").rstrip("/")
-    allowed_prefixes = [p for p in [frontend_url, "http://localhost:5173", "http://127.0.0.1:5173"] if p]
+    allowed_prefixes = [
+        p for p in [frontend_url, "http://localhost:5173", "http://127.0.0.1:5173"] if p
+    ]
     return any(url.startswith(prefix) for prefix in allowed_prefixes)
 
 
@@ -33,22 +36,23 @@ class SendEmailRequest(BaseModel):
     respondentName: Optional[str] = None
 
 
-def _build_email_html(to: str, surveyTitle: str, surveyUrl: str,
-                      is_resume: bool, respondentName: Optional[str]) -> str:
-    greeting  = f"Hi {respondentName}," if respondentName else "Hi there,"
-    headline  = "Continue where you left off" if is_resume else "You have been invited"
+def _build_email_html(
+    to: str, surveyTitle: str, surveyUrl: str, is_resume: bool, respondentName: Optional[str]
+) -> str:
+    greeting = f"Hi {respondentName}," if respondentName else "Hi there,"
+    headline = "Continue where you left off" if is_resume else "You have been invited"
     body_text = (
         f"You started <strong>{surveyTitle}</strong> but didn't quite finish. "
         "Your progress is saved — pick up exactly where you left off."
-        if is_resume else
-        f"You've been invited to complete <strong>{surveyTitle}</strong>. "
+        if is_resume
+        else f"You've been invited to complete <strong>{surveyTitle}</strong>. "
         "It only takes a few minutes and every answer makes a difference."
     )
-    cta_text    = "Resume Survey →" if is_resume else "Take the Survey →"
+    cta_text = "Resume Survey →" if is_resume else "Take the Survey →"
     footer_note = (
         "You received this because you started this survey. Your answers are saved."
-        if is_resume else
-        "You received this because someone shared this survey with you."
+        if is_resume
+        else "You received this because someone shared this survey with you."
     )
     label = "Resume" if is_resume else "Invitation"
 
@@ -121,8 +125,8 @@ def send_survey_email(request: Request, body: SendEmailRequest):
     is_resume = body.type == "resume"
     subject = (
         f"Continue your survey: {body.surveyTitle}"
-        if is_resume else
-        f"You've been invited to complete: {body.surveyTitle}"
+        if is_resume
+        else f"You've been invited to complete: {body.surveyTitle}"
     )
     html = _build_email_html(
         to=body.to,
@@ -140,6 +144,8 @@ def send_survey_email(request: Request, body: SendEmailRequest):
     )
 
     if not resp.ok:
-        raise HTTPException(status_code=resp.status_code, detail=resp.json().get("message", "Email send failed"))
+        raise HTTPException(
+            status_code=resp.status_code, detail=resp.json().get("message", "Email send failed")
+        )
 
     return {"success": True, "id": resp.json().get("id")}

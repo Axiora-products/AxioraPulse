@@ -60,10 +60,17 @@ const PLANS = [
 
 function Tick({ light }) {
   return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
       stroke={light ? 'rgba(253,245,232,0.55)' : 'var(--coral)'}
-      strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-      style={{ flexShrink: 0, marginTop: 2 }}>
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ flexShrink: 0, marginTop: 2 }}
+    >
       <polyline points="20 6 9 17 4 12" />
     </svg>
   );
@@ -90,7 +97,10 @@ export default function Pricing() {
       navigate(user ? '/dashboard' : '/register');
       return;
     }
-    if (!user) { navigate('/register'); return; }
+    if (!user) {
+      navigate('/register');
+      return;
+    }
     setLoadingPlan(plan.code);
     try {
       const order = await createOrder(plan.code);
@@ -114,14 +124,35 @@ export default function Pricing() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--cream)' }}>
-
       {/* Nav strip */}
-      <div style={{ padding: '20px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div
+        style={{
+          padding: '20px 32px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
         <button
           onClick={() => navigate(user ? '/dashboard' : '/')}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
+          style={{
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+          }}
         >
-          <span style={{ fontFamily: 'Playfair Display, serif', fontWeight: 900, fontSize: 20, color: 'var(--espresso)', letterSpacing: '-0.5px' }}>
+          <span
+            style={{
+              fontFamily: 'Playfair Display, serif',
+              fontWeight: 900,
+              fontSize: 20,
+              color: 'var(--espresso)',
+              letterSpacing: '-0.5px',
+            }}
+          >
             Axiora<span style={{ color: 'var(--coral)' }}>Pulse</span>
           </span>
         </button>
@@ -129,10 +160,16 @@ export default function Pricing() {
           <button
             onClick={() => navigate(-1)}
             style={{
-              background: 'none', border: '1px solid rgba(22,15,8,0.12)',
-              borderRadius: 999, padding: '7px 18px', cursor: 'pointer',
-              fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 10,
-              letterSpacing: '0.12em', textTransform: 'uppercase',
+              background: 'none',
+              border: '1px solid rgba(22,15,8,0.12)',
+              borderRadius: 999,
+              padding: '7px 18px',
+              cursor: 'pointer',
+              fontFamily: 'Syne, sans-serif',
+              fontWeight: 700,
+              fontSize: 10,
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
               color: 'rgba(22,15,8,0.45)',
             }}
           >
@@ -142,44 +179,69 @@ export default function Pricing() {
       </div>
 
       <div style={{ maxWidth: 1080, margin: '0 auto', padding: '56px 24px 100px' }}>
-
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: 72 }}>
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: 8,
-            background: 'rgba(255,69,0,0.08)', borderRadius: 999,
-            padding: '5px 16px', marginBottom: 24,
-          }}>
-            <span style={{
-              fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 10,
-              letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--coral)',
-            }}>
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              background: 'rgba(255,69,0,0.08)',
+              borderRadius: 999,
+              padding: '5px 16px',
+              marginBottom: 24,
+            }}
+          >
+            <span
+              style={{
+                fontFamily: 'Syne, sans-serif',
+                fontWeight: 700,
+                fontSize: 10,
+                letterSpacing: '0.16em',
+                textTransform: 'uppercase',
+                color: 'var(--coral)',
+              }}
+            >
               Plans & Pricing
             </span>
           </div>
-          <h1 style={{
-            fontFamily: 'Playfair Display, serif', fontWeight: 900,
-            fontSize: 'clamp(38px, 6vw, 60px)', letterSpacing: '-2.5px',
-            lineHeight: 1.02, color: 'var(--espresso)', margin: '0 0 20px',
-          }}>
+          <h1
+            style={{
+              fontFamily: 'Playfair Display, serif',
+              fontWeight: 900,
+              fontSize: 'clamp(38px, 6vw, 60px)',
+              letterSpacing: '-2.5px',
+              lineHeight: 1.02,
+              color: 'var(--espresso)',
+              margin: '0 0 20px',
+            }}
+          >
             Simple, honest pricing
           </h1>
-          <p style={{
-            fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 17,
-            color: 'rgba(22,15,8,0.48)', maxWidth: 440, margin: '0 auto', lineHeight: 1.75,
-          }}>
-            Start free. Upgrade when your research demands it.
-            No surprises, no lock-in.
+          <p
+            style={{
+              fontFamily: 'Fraunces, serif',
+              fontWeight: 300,
+              fontSize: 17,
+              color: 'rgba(22,15,8,0.48)',
+              maxWidth: 440,
+              margin: '0 auto',
+              lineHeight: 1.75,
+            }}
+          >
+            Start free. Upgrade when your research demands it. No surprises, no lock-in.
           </p>
         </div>
 
         {/* Cards */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
-          gap: 20,
-          alignItems: 'stretch',
-        }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: 20,
+            alignItems: 'stretch',
+          }}
+        >
           {PLANS.map((plan) => {
             const isPro = plan.code === 'pro';
             const isCurrent = currentPlanCode === plan.code;
@@ -204,88 +266,140 @@ export default function Pricing() {
               >
                 {/* Badge */}
                 {plan.badge && (
-                  <div style={{
-                    position: 'absolute', top: -1, left: '50%', transform: 'translateX(-50%)',
-                    background: 'var(--coral)', color: '#fff',
-                    fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 9,
-                    letterSpacing: '0.15em', textTransform: 'uppercase',
-                    padding: '5px 16px', borderRadius: '0 0 10px 10px',
-                  }}>
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: -1,
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      background: 'var(--coral)',
+                      color: '#fff',
+                      fontFamily: 'Syne, sans-serif',
+                      fontWeight: 700,
+                      fontSize: 9,
+                      letterSpacing: '0.15em',
+                      textTransform: 'uppercase',
+                      padding: '5px 16px',
+                      borderRadius: '0 0 10px 10px',
+                    }}
+                  >
                     {plan.badge}
                   </div>
                 )}
 
                 {/* Current plan indicator */}
                 {isCurrent && (
-                  <div style={{
-                    position: 'absolute', top: 20, right: 20,
-                    background: isPro ? 'rgba(255,255,255,0.1)' : 'rgba(22,15,8,0.06)',
-                    color: isPro ? 'rgba(253,245,232,0.5)' : 'rgba(22,15,8,0.35)',
-                    fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 8,
-                    letterSpacing: '0.14em', textTransform: 'uppercase',
-                    padding: '4px 10px', borderRadius: 999,
-                  }}>
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 20,
+                      right: 20,
+                      background: isPro ? 'rgba(255,255,255,0.1)' : 'rgba(22,15,8,0.06)',
+                      color: isPro ? 'rgba(253,245,232,0.5)' : 'rgba(22,15,8,0.35)',
+                      fontFamily: 'Syne, sans-serif',
+                      fontWeight: 700,
+                      fontSize: 8,
+                      letterSpacing: '0.14em',
+                      textTransform: 'uppercase',
+                      padding: '4px 10px',
+                      borderRadius: 999,
+                    }}
+                  >
                     Current
                   </div>
                 )}
 
                 {/* Plan label */}
-                <div style={{
-                  fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 10,
-                  letterSpacing: '0.2em', textTransform: 'uppercase',
-                  color: isPro ? 'var(--coral)' : 'rgba(22,15,8,0.32)',
-                  marginBottom: 16,
-                  marginTop: plan.badge ? 16 : 0,
-                }}>
+                <div
+                  style={{
+                    fontFamily: 'Syne, sans-serif',
+                    fontWeight: 700,
+                    fontSize: 10,
+                    letterSpacing: '0.2em',
+                    textTransform: 'uppercase',
+                    color: isPro ? 'var(--coral)' : 'rgba(22,15,8,0.32)',
+                    marginBottom: 16,
+                    marginTop: plan.badge ? 16 : 0,
+                  }}
+                >
                   {plan.label}
                 </div>
 
                 {/* Price */}
                 <div style={{ marginBottom: 4, lineHeight: 1 }}>
-                  <span style={{
-                    fontFamily: 'Playfair Display, serif', fontWeight: 900,
-                    fontSize: plan.price === 'Custom' ? 36 : 48,
-                    letterSpacing: '-2px',
-                    color: isPro ? '#fff' : 'var(--espresso)',
-                  }}>
+                  <span
+                    style={{
+                      fontFamily: 'Playfair Display, serif',
+                      fontWeight: 900,
+                      fontSize: plan.price === 'Custom' ? 36 : 48,
+                      letterSpacing: '-2px',
+                      color: isPro ? '#fff' : 'var(--espresso)',
+                    }}
+                  >
                     {plan.price}
                   </span>
                   {plan.period && (
-                    <span style={{
-                      fontFamily: 'Syne, sans-serif', fontSize: 11, fontWeight: 600,
-                      color: isPro ? 'rgba(253,245,232,0.35)' : 'rgba(22,15,8,0.3)',
-                      marginLeft: 6,
-                    }}>
+                    <span
+                      style={{
+                        fontFamily: 'Syne, sans-serif',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: isPro ? 'rgba(253,245,232,0.35)' : 'rgba(22,15,8,0.3)',
+                        marginLeft: 6,
+                      }}
+                    >
                       / {plan.period}
                     </span>
                   )}
                 </div>
 
                 {/* Description */}
-                <p style={{
-                  fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 13.5,
-                  color: isPro ? 'rgba(253,245,232,0.45)' : 'rgba(22,15,8,0.42)',
-                  lineHeight: 1.65, margin: '12px 0 28px',
-                }}>
+                <p
+                  style={{
+                    fontFamily: 'Fraunces, serif',
+                    fontWeight: 300,
+                    fontSize: 13.5,
+                    color: isPro ? 'rgba(253,245,232,0.45)' : 'rgba(22,15,8,0.42)',
+                    lineHeight: 1.65,
+                    margin: '12px 0 28px',
+                  }}
+                >
                   {plan.description}
                 </p>
 
                 {/* Divider */}
-                <div style={{
-                  height: 1,
-                  background: isPro ? 'rgba(255,255,255,0.08)' : 'rgba(22,15,8,0.06)',
-                  marginBottom: 24,
-                }} />
+                <div
+                  style={{
+                    height: 1,
+                    background: isPro ? 'rgba(255,255,255,0.08)' : 'rgba(22,15,8,0.06)',
+                    marginBottom: 24,
+                  }}
+                />
 
                 {/* Features */}
-                <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 32px', display: 'flex', flexDirection: 'column', gap: 12, flex: 1 }}>
+                <ul
+                  style={{
+                    listStyle: 'none',
+                    padding: 0,
+                    margin: '0 0 32px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 12,
+                    flex: 1,
+                  }}
+                >
                   {plan.features.map((f) => (
                     <li key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                       <Tick light={isPro} />
-                      <span style={{
-                        fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 14, lineHeight: 1.5,
-                        color: isPro ? 'rgba(253,245,232,0.65)' : 'rgba(22,15,8,0.58)',
-                      }}>
+                      <span
+                        style={{
+                          fontFamily: 'Fraunces, serif',
+                          fontWeight: 300,
+                          fontSize: 14,
+                          lineHeight: 1.5,
+                          color: isPro ? 'rgba(253,245,232,0.65)' : 'rgba(22,15,8,0.58)',
+                        }}
+                      >
                         {f}
                       </span>
                     </li>
@@ -302,13 +416,22 @@ export default function Pricing() {
                     borderRadius: 999,
                     border: isPro ? 'none' : '1.5px solid rgba(22,15,8,0.18)',
                     background: isPro
-                      ? (isCurrent ? 'rgba(255,255,255,0.08)' : 'var(--coral)')
+                      ? isCurrent
+                        ? 'rgba(255,255,255,0.08)'
+                        : 'var(--coral)'
                       : 'transparent',
                     color: isPro
-                      ? (isCurrent ? 'rgba(253,245,232,0.3)' : '#fff')
-                      : (isCurrent ? 'rgba(22,15,8,0.25)' : 'var(--espresso)'),
-                    fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 10.5,
-                    letterSpacing: '0.13em', textTransform: 'uppercase',
+                      ? isCurrent
+                        ? 'rgba(253,245,232,0.3)'
+                        : '#fff'
+                      : isCurrent
+                        ? 'rgba(22,15,8,0.25)'
+                        : 'var(--espresso)',
+                    fontFamily: 'Syne, sans-serif',
+                    fontWeight: 700,
+                    fontSize: 10.5,
+                    letterSpacing: '0.13em',
+                    textTransform: 'uppercase',
                     cursor: isCurrent ? 'default' : 'pointer',
                     opacity: busy ? 0.6 : 1,
                     transition: 'opacity 0.15s, background 0.15s',
@@ -322,11 +445,17 @@ export default function Pricing() {
         </div>
 
         {/* Footer note */}
-        <p style={{
-          textAlign: 'center', marginTop: 48,
-          fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 13,
-          color: 'rgba(22,15,8,0.3)', lineHeight: 1.7,
-        }}>
+        <p
+          style={{
+            textAlign: 'center',
+            marginTop: 48,
+            fontFamily: 'Fraunces, serif',
+            fontWeight: 300,
+            fontSize: 13,
+            color: 'rgba(22,15,8,0.3)',
+            lineHeight: 1.7,
+          }}
+        >
           All plans include SSL, 99% uptime, and GDPR-compliant data handling.
           <br />
           Pro trial requires no credit card.

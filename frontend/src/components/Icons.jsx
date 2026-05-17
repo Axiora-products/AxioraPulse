@@ -230,7 +230,11 @@ export const IcoStar = ({ filled = false, ...p }) => (
 export const IcoSparkle = (p) => (
   <Icon {...p}>
     <path d="M12 2l2.4 7.4L22 12l-7.6 2.6L12 22l-2.4-7.4L2 12l7.6-2.6L12 2z" />
-    <path d="M5 5l1.5 1.5M17.5 5L19 6.5M5 19l1.5-1.5M17.5 19l1.5 1.5" strokeWidth="1" opacity="0.5" />
+    <path
+      d="M5 5l1.5 1.5M17.5 5L19 6.5M5 19l1.5-1.5M17.5 19l1.5 1.5"
+      strokeWidth="1"
+      opacity="0.5"
+    />
   </Icon>
 );
 

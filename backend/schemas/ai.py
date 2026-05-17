@@ -1,22 +1,28 @@
 from __future__ import annotations
+
 from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel
 
+
 class AIInsightItem(BaseModel):
-    type: str # positive, warning, info, action
+    type: str  # positive, warning, info, action
     title: str
     detail: str
     metric: Optional[str] = None
 
+
 class AIActionItem(BaseModel):
-    priority: str # high, medium, low
+    priority: str  # high, medium, low
     action: str
     impact: str
+
 
 class AIInsightsRequest(BaseModel):
     surveyTitle: str
     responses: Dict[str, Any]
     questionSummaries: List[Dict[str, Any]]
+
 
 class AIInsightsResponse(BaseModel):
     executiveSummary: str
@@ -26,11 +32,13 @@ class AIInsightsResponse(BaseModel):
     improvementAreas: List[str]
     recommendedActions: List[AIActionItem]
 
+
 class AISuggestionItem(BaseModel):
     text: str
-    type: str # question_type
+    type: str  # question_type
     options: Optional[List[Dict[str, Any]]] = None
     rationale: Optional[str] = None
+
 
 class AISuggestionsRequest(BaseModel):
     surveyTitle: str
@@ -38,16 +46,20 @@ class AISuggestionsRequest(BaseModel):
     existingQuestions: List[Dict[str, Any]]
     aiContext: Optional[str] = ""
 
+
 class AISuggestionsResponse(BaseModel):
     suggestions: List[AISuggestionItem]
+
 
 class AIGeneratedQuestionItem(BaseModel):
     text: str
     type: str
     options: Optional[List[Dict[str, Any]]] = None
 
+
 class AIGenerateRequest(BaseModel):
     aiContext: str
+
 
 class AIGenerateResponse(BaseModel):
     title: str

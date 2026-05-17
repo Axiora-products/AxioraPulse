@@ -7,21 +7,21 @@ import { motion, AnimatePresence } from 'framer-motion';
  * Supports mouse, touch, and pen input via Pointer Events API.
  */
 export default function SliderInput({ q, val, set, tc }) {
-  const rules    = q.validation_rules || {};
-  const min      = Number(rules.min  ?? 0);
-  const max      = Number(rules.max  ?? 100);
-  const step     = Number(rules.step ?? 1);
+  const rules = q.validation_rules || {};
+  const min = Number(rules.min ?? 0);
+  const max = Number(rules.max ?? 100);
+  const step = Number(rules.step ?? 1);
   const minLabel = rules.min_label || String(min);
   const maxLabel = rules.max_label || String(max);
 
-  const hasVal   = val !== '' && val != null;
-  const current  = hasVal ? Number(val) : null;
-  const pct      = current != null ? ((current - min) / (max - min)) * 100 : 0;
+  const hasVal = val !== '' && val != null;
+  const current = hasVal ? Number(val) : null;
+  const pct = current != null ? ((current - min) / (max - min)) * 100 : 0;
 
-  const trackRef  = useRef(null);
-  const dragging  = useRef(false);
+  const trackRef = useRef(null);
+  const dragging = useRef(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [hovered,    setHovered]    = useState(false);
+  const [hovered, setHovered] = useState(false);
 
   function snap(raw) {
     const stepped = Math.round(raw / step) * step;
@@ -68,7 +68,6 @@ export default function SliderInput({ q, val, set, tc }) {
 
   return (
     <div style={{ maxWidth: 540, userSelect: 'none' }}>
-
       {/* Large value display */}
       <div style={{ textAlign: 'center', marginBottom: 52 }}>
         <AnimatePresence mode="wait">
@@ -80,26 +79,32 @@ export default function SliderInput({ q, val, set, tc }) {
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.25 }}
             >
-              <span style={{
-                fontFamily: 'Playfair Display, serif',
-                fontWeight: 900,
-                fontSize: 'clamp(64px,10vw,96px)',
-                letterSpacing: '-4px',
-                color: tc,
-                lineHeight: 1,
-                display: 'block',
-                transition: 'color 0.2s',
-              }}>
+              <span
+                style={{
+                  fontFamily: 'Playfair Display, serif',
+                  fontWeight: 900,
+                  fontSize: 'clamp(64px,10vw,96px)',
+                  letterSpacing: '-4px',
+                  color: tc,
+                  lineHeight: 1,
+                  display: 'block',
+                  transition: 'color 0.2s',
+                }}
+              >
                 {current}
               </span>
-              <span style={{
-                fontFamily: 'Syne, sans-serif',
-                fontSize: 9,
-                fontWeight: 700,
-                letterSpacing: '0.2em',
-                textTransform: 'uppercase',
-                color: 'rgba(22,15,8,0.25)',
-              }}>selected</span>
+              <span
+                style={{
+                  fontFamily: 'Syne, sans-serif',
+                  fontSize: 9,
+                  fontWeight: 700,
+                  letterSpacing: '0.2em',
+                  textTransform: 'uppercase',
+                  color: 'rgba(22,15,8,0.25)',
+                }}
+              >
+                selected
+              </span>
             </motion.div>
           ) : (
             <motion.div
@@ -108,23 +113,31 @@ export default function SliderInput({ q, val, set, tc }) {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
             >
-              <span style={{
-                fontFamily: 'Playfair Display, serif',
-                fontWeight: 900,
-                fontSize: 'clamp(64px,10vw,96px)',
-                letterSpacing: '-4px',
-                color: 'rgba(22,15,8,0.08)',
-                lineHeight: 1,
-                display: 'block',
-              }}>—</span>
-              <span style={{
-                fontFamily: 'Syne, sans-serif',
-                fontSize: 9,
-                fontWeight: 700,
-                letterSpacing: '0.18em',
-                textTransform: 'uppercase',
-                color: 'rgba(22,15,8,0.2)',
-              }}>drag to select</span>
+              <span
+                style={{
+                  fontFamily: 'Playfair Display, serif',
+                  fontWeight: 900,
+                  fontSize: 'clamp(64px,10vw,96px)',
+                  letterSpacing: '-4px',
+                  color: 'rgba(22,15,8,0.08)',
+                  lineHeight: 1,
+                  display: 'block',
+                }}
+              >
+                —
+              </span>
+              <span
+                style={{
+                  fontFamily: 'Syne, sans-serif',
+                  fontSize: 9,
+                  fontWeight: 700,
+                  letterSpacing: '0.18em',
+                  textTransform: 'uppercase',
+                  color: 'rgba(22,15,8,0.2)',
+                }}
+              >
+                drag to select
+              </span>
             </motion.div>
           )}
         </AnimatePresence>
@@ -155,37 +168,49 @@ export default function SliderInput({ q, val, set, tc }) {
         }}
       >
         {/* Track background */}
-        <div style={{
-          position: 'absolute',
-          top: '50%', left: 0, right: 0,
-          height: 3,
-          transform: 'translateY(-50%)',
-          background: 'rgba(22,15,8,0.09)',
-          borderRadius: 999,
-          overflow: 'hidden',
-        }}>
-          {/* Fill */}
-          <div style={{
-            position: 'absolute', left: 0, top: 0, bottom: 0,
-            width: `${current != null ? pct : 0}%`,
-            background: `linear-gradient(90deg, ${tc}90, ${tc})`,
+        <div
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: 0,
+            right: 0,
+            height: 3,
+            transform: 'translateY(-50%)',
+            background: 'rgba(22,15,8,0.09)',
             borderRadius: 999,
-            transition: isDragging ? 'none' : 'width 0.12s ease',
-          }} />
+            overflow: 'hidden',
+          }}
+        >
+          {/* Fill */}
+          <div
+            style={{
+              position: 'absolute',
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: `${current != null ? pct : 0}%`,
+              background: `linear-gradient(90deg, ${tc}90, ${tc})`,
+              borderRadius: 999,
+              transition: isDragging ? 'none' : 'width 0.12s ease',
+            }}
+          />
         </div>
 
         {/* Tick marks */}
-        {[0, 25, 50, 75, 100].map(p => (
-          <div key={p} style={{
-            position: 'absolute',
-            top: '50%',
-            left: `${p}%`,
-            transform: 'translate(-50%, calc(-50% + 16px))',
-            width: 1,
-            height: 6,
-            background: 'rgba(22,15,8,0.12)',
-            borderRadius: 1,
-          }} />
+        {[0, 25, 50, 75, 100].map((p) => (
+          <div
+            key={p}
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: `${p}%`,
+              transform: 'translate(-50%, calc(-50% + 16px))',
+              width: 1,
+              height: 6,
+              background: 'rgba(22,15,8,0.12)',
+              borderRadius: 1,
+            }}
+          />
         ))}
 
         {/* Thumb */}
@@ -217,14 +242,38 @@ export default function SliderInput({ q, val, set, tc }) {
       </div>
 
       {/* Min / Max labels */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        marginTop: 12,
-        paddingTop: 8,
-      }}>
-        <span style={{ fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.3)' }}>{minLabel}</span>
-        <span style={{ fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.3)' }}>{maxLabel}</span>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          marginTop: 12,
+          paddingTop: 8,
+        }}
+      >
+        <span
+          style={{
+            fontFamily: 'Syne, sans-serif',
+            fontSize: 9,
+            fontWeight: 700,
+            letterSpacing: '0.14em',
+            textTransform: 'uppercase',
+            color: 'rgba(22,15,8,0.3)',
+          }}
+        >
+          {minLabel}
+        </span>
+        <span
+          style={{
+            fontFamily: 'Syne, sans-serif',
+            fontSize: 9,
+            fontWeight: 700,
+            letterSpacing: '0.14em',
+            textTransform: 'uppercase',
+            color: 'rgba(22,15,8,0.3)',
+          }}
+        >
+          {maxLabel}
+        </span>
       </div>
     </div>
   );

@@ -7,11 +7,11 @@ PATCH /tenants/me   — Update tenant name / color / approved_domains
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from fastapi import Request
+
 from db.database import get_db
-from db.models import Tenant, UserProfile, RoleEnum
-from schemas import TenantOut, TenantUpdate
+from db.models import RoleEnum, Tenant, UserProfile
 from dependencies import get_current_user
+from schemas import TenantOut, TenantUpdate
 
 router = APIRouter(prefix="/tenants", tags=["tenants"])
 

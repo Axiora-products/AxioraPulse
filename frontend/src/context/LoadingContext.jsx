@@ -24,7 +24,7 @@ export function LoadingProvider({ children }) {
 
   const stopLoading = useCallback(() => {
     const key = location.key;
-    setDoneKeys(prev => {
+    setDoneKeys((prev) => {
       if (prev.has(key)) return prev;
       const next = new Set(prev);
       next.add(key);
@@ -45,9 +45,7 @@ export function LoadingProvider({ children }) {
   }, [location.key]);
 
   return (
-    <LoadingContext.Provider value={{ isLoading, stopLoading }}>
-      {children}
-    </LoadingContext.Provider>
+    <LoadingContext.Provider value={{ isLoading, stopLoading }}>{children}</LoadingContext.Provider>
   );
 }
 

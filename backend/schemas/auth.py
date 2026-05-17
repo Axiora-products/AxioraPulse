@@ -1,8 +1,11 @@
 from __future__ import annotations
+
 from typing import Optional
+
 from pydantic import BaseModel, EmailStr
-from .user import UserProfileOut
+
 from .tenant import TenantOut
+from .user import UserProfileOut
 
 
 class MeResponse(BaseModel):

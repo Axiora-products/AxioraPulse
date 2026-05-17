@@ -17,8 +17,53 @@ env:
   CONTAINER_NAME:   pulse-backend
 
 jobs:
-  build-and-deploy:
+  verify:
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+
+      - name: Run Ruff (Linting)
+        run: |
+          cd backend
+          ruff check .
+
+      - name: Run Bandit (Security Scan)
+        run: |
+          cd backend
+          bandit -r app core db routes schemas services -ll
+
+      - name: Run Pip-Audit (Vulnerability Scan)
+        run: |
+          cd backend
+          pip-audit
+
+      - name: Run Tests
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+          SECRET_KEY: ci-test-key-32-chars-minimum-length
+          COGNITO_USER_POOL_ID: dummy
+          COGNITO_APP_CLIENT_ID: dummy
+          FRONTEND_URL: http://localhost:3000
+        run: |
+          cd backend
+          pytest
+
+  build-and-deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
       - name: Checkout code

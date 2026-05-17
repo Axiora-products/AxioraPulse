@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useLoading } from "../context/LoadingContext";
+import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useLoading } from '../context/LoadingContext';
 
 /* ─────────────────────────────────────────────────────────────────
    LANDING PAGE — Axiora Pulse
@@ -598,24 +598,27 @@ const CSS = `
 export default function Landing() {
   const navigate = useNavigate();
   const onEnterApp = () => navigate('/coming-soon');
-  const onSignUp   = () => navigate('/coming-soon');
+  const onSignUp = () => navigate('/coming-soon');
   const bodyRef = useRef(null);
   const { stopLoading } = useLoading();
-  useEffect(() => { stopLoading(); }, [stopLoading]);
+  useEffect(() => {
+    stopLoading();
+  }, [stopLoading]);
 
   // Inject CSS once
   useEffect(() => {
-    if (!document.getElementById("lp-gfonts")) {
-      const link = document.createElement("link");
-      link.id = "lp-gfonts";
-      link.rel = "stylesheet";
-      link.href = "https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700;1,900&family=Syne:wght@400;500;600;700;800&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&display=swap";
+    if (!document.getElementById('lp-gfonts')) {
+      const link = document.createElement('link');
+      link.id = 'lp-gfonts';
+      link.rel = 'stylesheet';
+      link.href =
+        'https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700;1,900&family=Syne:wght@400;500;600;700;800&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&display=swap';
       document.head.appendChild(link);
     }
     // Keep style tag alive across remounts to avoid animation flicker
-    if (!document.getElementById("lp-styles")) {
-      const el = document.createElement("style");
-      el.id = "lp-styles";
+    if (!document.getElementById('lp-styles')) {
+      const el = document.createElement('style');
+      el.id = 'lp-styles';
       el.textContent = CSS;
       document.head.appendChild(el);
     }
@@ -624,13 +627,13 @@ export default function Landing() {
   // Force hero CSS animations to replay on every mount
   useEffect(() => {
     const heroAnims = document.querySelectorAll(
-      ".lp-h-tag, .lp-h-word, .lp-h-sub, .lp-h-ctas, .lp-hero-cards, .lp-scroll-cue"
+      '.lp-h-tag, .lp-h-word, .lp-h-sub, .lp-h-ctas, .lp-hero-cards, .lp-scroll-cue'
     );
-    heroAnims.forEach(el => {
-      el.style.animation = "none";
+    heroAnims.forEach((el) => {
+      el.style.animation = 'none';
       // Trigger reflow
       void el.offsetWidth;
-      el.style.animation = "";
+      el.style.animation = '';
     });
   }, []);
 
@@ -638,28 +641,33 @@ export default function Landing() {
   const [stuck, setStuck] = useState(false);
   useEffect(() => {
     const fn = () => setStuck(window.scrollY > 60);
-    window.addEventListener("scroll", fn, { passive: true });
-    return () => window.removeEventListener("scroll", fn);
+    window.addEventListener('scroll', fn, { passive: true });
+    return () => window.removeEventListener('scroll', fn);
   }, []);
 
   // Scroll reveal
   useEffect(() => {
     let obs;
     const t = setTimeout(() => {
-      const elements = document.querySelectorAll(".lp-sr");
+      const elements = document.querySelectorAll('.lp-sr');
 
       // Any element already scrolled past or in view should be visible immediately
-      elements.forEach(el => {
+      elements.forEach((el) => {
         const rect = el.getBoundingClientRect();
-        if (rect.top < window.innerHeight) el.classList.add("vis");
+        if (rect.top < window.innerHeight) el.classList.add('vis');
       });
 
       // Observer handles the rest as user scrolls down
-      obs = new IntersectionObserver(entries => {
-        entries.forEach(e => { if (e.isIntersecting) e.target.classList.add("vis"); });
-      }, { threshold: 0.12 });
+      obs = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((e) => {
+            if (e.isIntersecting) e.target.classList.add('vis');
+          });
+        },
+        { threshold: 0.12 }
+      );
 
-      elements.forEach(el => obs.observe(el));
+      elements.forEach((el) => obs.observe(el));
     }, 80);
 
     return () => {
@@ -668,12 +676,11 @@ export default function Landing() {
     };
   }, []);
 
-
   // Counter animation (matching HTML animCount)
   useEffect(() => {
     const animCount = (el, end, dur, suffix = '') => {
       let start = null;
-      const step = ts => {
+      const step = (ts) => {
         if (!start) start = ts;
         const p = Math.min((ts - start) / dur, 1);
         const ease = 1 - Math.pow(1 - p, 4);
@@ -684,68 +691,114 @@ export default function Landing() {
     };
 
     // Reset to zero so they re-count on remount
-    document.querySelectorAll("[data-counter]").forEach(el => { el.textContent = "0"; });
+    document.querySelectorAll('[data-counter]').forEach((el) => {
+      el.textContent = '0';
+    });
 
-    const ctrObs = new IntersectionObserver(entries => {
-      entries.forEach(e => {
-        if (e.isIntersecting) {
-          const el = e.target;
-          if (el.dataset.counter === "ctr1") animCount(el, 84, 2000, '%');
-          if (el.dataset.counter === "kpi1") animCount(el, 4821, 2500);
-          ctrObs.unobserve(el);
-        }
-      });
-    }, { threshold: 0.5 });
+    const ctrObs = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) {
+            const el = e.target;
+            if (el.dataset.counter === 'ctr1') animCount(el, 84, 2000, '%');
+            if (el.dataset.counter === 'kpi1') animCount(el, 4821, 2500);
+            ctrObs.unobserve(el);
+          }
+        });
+      },
+      { threshold: 0.5 }
+    );
     const t = setTimeout(() => {
-      document.querySelectorAll("[data-counter]").forEach(el => ctrObs.observe(el));
+      document.querySelectorAll('[data-counter]').forEach((el) => ctrObs.observe(el));
     }, 100);
-    return () => { clearTimeout(t); ctrObs.disconnect(); };
+    return () => {
+      clearTimeout(t);
+      ctrObs.disconnect();
+    };
   }, []);
 
   // Parallax blobs on hero
   const meshRef = useRef(null);
   useEffect(() => {
-    const fn = e => {
+    const fn = (e) => {
       if (!meshRef.current) return;
       const x = (e.clientX / window.innerWidth - 0.5) * 30;
       const y = (e.clientY / window.innerHeight - 0.5) * 30;
-      meshRef.current.querySelectorAll(".lp-mb").forEach((b, i) => {
+      meshRef.current.querySelectorAll('.lp-mb').forEach((b, i) => {
         const f = (i + 1) * 0.55;
         b.style.transform = `translate(${x * f}px,${y * f}px)`;
       });
     };
-    document.addEventListener("mousemove", fn);
-    return () => document.removeEventListener("mousemove", fn);
+    document.addEventListener('mousemove', fn);
+    return () => document.removeEventListener('mousemove', fn);
   }, []);
 
-  const TICKER = ["Unilever", "HDFC Bank", "Reliance Industries", "Asian Paints", "Titan Company", "Marico", "ITC Limited", "Bajaj Finserv", "Myntra", "Tata Consumer"];
+  const TICKER = [
+    'Unilever',
+    'HDFC Bank',
+    'Reliance Industries',
+    'Asian Paints',
+    'Titan Company',
+    'Marico',
+    'ITC Limited',
+    'Bajaj Finserv',
+    'Myntra',
+    'Tata Consumer',
+  ];
 
   return (
     <div className="lp">
       {/* ── NAV ── */}
-      <nav className={`lp-nav${stuck ? " stuck" : ""}`}>
+      <nav className={`lp-nav${stuck ? ' stuck' : ''}`}>
         <a href="#" className="lp-logo">
           <span className="lp-logo-parent">Axiora</span>
           <span className="lp-logo-product">Pulse</span>
           <div className="lp-logo-dot">
-            <div className="sonar-ring" /><div className="sonar-ring" /><div className="sonar-ring" />
+            <div className="sonar-ring" />
+            <div className="sonar-ring" />
+            <div className="sonar-ring" />
           </div>
         </a>
         <ul className="lp-nav-links">
-          <li><a href="#lp-how">Research</a></li>
-          <li><a href="#lp-builder">Builder</a></li>
-          <li><a href="#lp-analytics">Analytics</a></li>
-          <li><a href="#lp-pricing">Pricing</a></li>
-          <li><a href="#" onClick={e => { e.preventDefault(); onEnterApp(); }} style={{ opacity: .55 }}>Sign In</a></li>
-          <li><button className="lp-nav-btn" onClick={onSignUp}>Get Started</button></li>
+          <li>
+            <a href="#lp-how">Research</a>
+          </li>
+          <li>
+            <a href="#lp-builder">Builder</a>
+          </li>
+          <li>
+            <a href="#lp-analytics">Analytics</a>
+          </li>
+          <li>
+            <a href="#lp-pricing">Pricing</a>
+          </li>
+          <li>
+            <a
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                onEnterApp();
+              }}
+              style={{ opacity: 0.55 }}
+            >
+              Sign In
+            </a>
+          </li>
+          <li>
+            <button className="lp-nav-btn" onClick={onSignUp}>
+              Get Started
+            </button>
+          </li>
         </ul>
       </nav>
 
       {/* ── HERO ── */}
       <section id="lp-hero">
         <div className="lp-mesh" ref={meshRef}>
-          <div className="lp-mb lp-mb1" /><div className="lp-mb lp-mb2" />
-          <div className="lp-mb lp-mb3" /><div className="lp-mb lp-mb4" />
+          <div className="lp-mb lp-mb1" />
+          <div className="lp-mb lp-mb2" />
+          <div className="lp-mb lp-mb3" />
+          <div className="lp-mb lp-mb4" />
         </div>
         <div className="lp-grain" />
         <div className="lp-ghost lp-ghost-h">Pulse</div>
@@ -753,23 +806,56 @@ export default function Landing() {
         <div className="lp-hero-wrap">
           {/* Left */}
           <div>
-            <div className="lp-h-tag"><span className="lp-h-tag-line" />Behavioural Survey Intelligence</div>
+            <div className="lp-h-tag">
+              <span className="lp-h-tag-line" />
+              Behavioural Survey Intelligence
+            </div>
             <h1 className="lp-h-head">
-              <span className="lp-hline"><span className="lp-h-word lp-hw1">Opinion&nbsp;</span><span className="lp-h-word lp-hw2">is&nbsp;</span></span>
-              <span className="lp-hline"><span className="lp-h-word lp-hw3"><em>evidence.</em>&nbsp;</span></span>
-              <span className="lp-hline"><span className="lp-h-word lp-hw4">Treat&nbsp;</span><span className="lp-h-word lp-hw5">it&nbsp;</span><span className="lp-h-word lp-hw6">that way.</span></span>
+              <span className="lp-hline">
+                <span className="lp-h-word lp-hw1">Opinion&nbsp;</span>
+                <span className="lp-h-word lp-hw2">is&nbsp;</span>
+              </span>
+              <span className="lp-hline">
+                <span className="lp-h-word lp-hw3">
+                  <em>evidence.</em>&nbsp;
+                </span>
+              </span>
+              <span className="lp-hline">
+                <span className="lp-h-word lp-hw4">Treat&nbsp;</span>
+                <span className="lp-h-word lp-hw5">it&nbsp;</span>
+                <span className="lp-h-word lp-hw6">that way.</span>
+              </span>
             </h1>
-            <p className="lp-h-sub">Axiora Pulse is engineered on Likert-scale rigour, cognitive load reduction, and response-bias elimination — so every data point you collect is one you can defend in a boardroom.</p>
+            <p className="lp-h-sub">
+              Axiora Pulse is engineered on Likert-scale rigour, cognitive load reduction, and
+              response-bias elimination — so every data point you collect is one you can defend in a
+              boardroom.
+            </p>
             <div className="lp-h-ctas">
               <button className="lp-btn-fire" onClick={onSignUp}>
                 <span>Get Started Free</span>
                 <div className="lp-btn-fire-arr">
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 8L8 2M8 2H4M8 2V6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                    <path
+                      d="M2 8L8 2M8 2H4M8 2V6"
+                      stroke="white"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
                 </div>
               </button>
               <button className="lp-btn-outline" onClick={onEnterApp}>
                 <div className="lp-play-ring">
-                  <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M3.5 2.5L10 6.5L3.5 10.5V2.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" /></svg>
+                  <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+                    <path
+                      d="M3.5 2.5L10 6.5L3.5 10.5V2.5Z"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
                 </div>
                 Sign In
               </button>
@@ -780,34 +866,46 @@ export default function Landing() {
           <div className="lp-hero-cards">
             <div className="lp-hcard">
               <div className="lp-hc-label">Median Completion Rate</div>
-              <div className="lp-hc-big" data-counter="ctr1">84%</div>
+              <div className="lp-hc-big" data-counter="ctr1">
+                84%
+              </div>
               <div className="lp-hc-sub">Across double-blind field studies</div>
-              <div className="lp-gbar"><div className="lp-gbar-fill" /></div>
+              <div className="lp-gbar">
+                <div className="lp-gbar-fill" />
+              </div>
             </div>
             <div className="lp-hcard">
               <div className="lp-hc-label">Affective State Mapping</div>
               <div className="lp-edots">
-                {["Delighted", "Curious", "Satisfied", "Neutral", "Concerned"].map(l => (
+                {['Delighted', 'Curious', 'Satisfied', 'Neutral', 'Concerned'].map((l) => (
                   <div className="lp-edot" key={l}>
                     <div className="lp-edot-pip" />
-                    <div className="lp-edot-bar-track"><div className="lp-edot-bar-fill" /></div>
+                    <div className="lp-edot-bar-track">
+                      <div className="lp-edot-bar-fill" />
+                    </div>
                     <span className="lp-edot-lbl">{l}</span>
                   </div>
                 ))}
               </div>
-              <div className="lp-hc-sub" style={{ marginTop: 10 }}>Russell's Circumplex · Validated scale</div>
+              <div className="lp-hc-sub" style={{ marginTop: 10 }}>
+                Russell&apos;s Circumplex · Validated scale
+              </div>
             </div>
             <div className="lp-hcard">
               <div className="lp-hc-label">Coded Responses</div>
               <div className="lp-hc-big">2.4k</div>
               <div className="lp-hc-sub">Thematic + sentiment coded</div>
               <div className="lp-sparkline">
-                {[0, 1, 2, 3, 4, 5, 6, 7].map(i => <div className="lp-sp" key={i} />)}
+                {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+                  <div className="lp-sp" key={i} />
+                ))}
               </div>
             </div>
             <div className="lp-hcard">
               <div className="lp-hc-label">Net Promoter Score</div>
-              <div className="lp-hc-big" style={{ fontSize: 32, color: "var(--sage)" }}>+72</div>
+              <div className="lp-hc-big" style={{ fontSize: 32, color: 'var(--sage)' }}>
+                +72
+              </div>
               <div className="lp-trend">↑ 8pt lift · stat. significant</div>
             </div>
           </div>
@@ -823,7 +921,9 @@ export default function Landing() {
           <div className="lp-ticker-overflow">
             <div className="lp-ticker-track">
               {[...TICKER, ...TICKER].map((name, i) => (
-                <span className="lp-ticker-item" key={i}>{name}</span>
+                <span className="lp-ticker-item" key={i}>
+                  {name}
+                </span>
               ))}
             </div>
           </div>
@@ -831,33 +931,103 @@ export default function Landing() {
       </section>
 
       {/* Diagonal cut */}
-      <div style={{ height: 70, background: "linear-gradient(to bottom right,var(--cream-deep) 49.9%,#fff 50%)" }} />
+      <div
+        style={{
+          height: 70,
+          background: 'linear-gradient(to bottom right,var(--cream-deep) 49.9%,#fff 50%)',
+        }}
+      />
 
       {/* ── HOW IT WORKS ── */}
       <section id="lp-how">
-        <div className="lp-ghost" style={{ fontSize: "clamp(120px,14vw,220px)", WebkitTextStroke: "1px rgba(255,69,0,.04)", top: -40, right: -30, zIndex: 0, letterSpacing: -3 }}>Process</div>
+        <div
+          className="lp-ghost"
+          style={{
+            fontSize: 'clamp(120px,14vw,220px)',
+            WebkitTextStroke: '1px rgba(255,69,0,.04)',
+            top: -40,
+            right: -30,
+            zIndex: 0,
+            letterSpacing: -3,
+          }}
+        >
+          Process
+        </div>
         <div className="lp-sec-head lp-sr">
           <div>
             <div className="lp-sec-tag">Survey Science</div>
-            <h2 className="lp-sec-title">Built on three <em>principles</em> of good research</h2>
+            <h2 className="lp-sec-title">
+              Built on three <em>principles</em> of good research
+            </h2>
           </div>
-          <p className="lp-sec-aside">Rooted in psychometric theory, field-tested with 2.4 million respondents across India. Every feature has a methodological reason to exist.</p>
+          <p className="lp-sec-aside">
+            Rooted in psychometric theory, field-tested with 2.4 million respondents across India.
+            Every feature has a methodological reason to exist.
+          </p>
         </div>
         <div className="lp-steps">
           {[
-            { n: "01 — Design", title: "Instrument Design", desc: "Construct questionnaires that eliminate acquiescence bias, social desirability effects, and primacy order artefacts. Our builder enforces best-practice sequencing — funnelling from broad to specific, never leading, never double-barrelling.", stats: [["Validated scales", "24+"], ["Avg instrument build", "11 min"]], icon: <><rect x="3" y="3" width="18" height="18" rx="3" /><path d="M8 12h8M12 8v8" /></> },
-            { n: "02 — Distribute", title: "Sampling & Field", desc: "Quota-controlled sampling across demographic, psychographic, and behavioural strata. Real-time speedster detection, straight-lining alerts, and open-text gibberish filtering protect data quality before it costs you.", stats: [["Sampling strata", "18"], ["Median field time", "38 hrs"]], icon: <><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="M8.59 13.51L15.42 17.49M15.41 6.51L8.59 10.49" /></> },
-            { n: "03 — Understand", title: "Analysis & Inference", desc: "Cross-tabulation, regression weighting, MaxDiff scoring, and driver analysis run automatically. Statistical significance is flagged at every comparison. You see what is real — not what is merely frequent.", stats: [["Analysis methods", "17"], ["Sig. threshold", "p < .05"]], icon: <><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" /></> },
+            {
+              n: '01 — Design',
+              title: 'Instrument Design',
+              desc: 'Construct questionnaires that eliminate acquiescence bias, social desirability effects, and primacy order artefacts. Our builder enforces best-practice sequencing — funnelling from broad to specific, never leading, never double-barrelling.',
+              stats: [
+                ['Validated scales', '24+'],
+                ['Avg instrument build', '11 min'],
+              ],
+              icon: (
+                <>
+                  <rect x="3" y="3" width="18" height="18" rx="3" />
+                  <path d="M8 12h8M12 8v8" />
+                </>
+              ),
+            },
+            {
+              n: '02 — Distribute',
+              title: 'Sampling & Field',
+              desc: 'Quota-controlled sampling across demographic, psychographic, and behavioural strata. Real-time speedster detection, straight-lining alerts, and open-text gibberish filtering protect data quality before it costs you.',
+              stats: [
+                ['Sampling strata', '18'],
+                ['Median field time', '38 hrs'],
+              ],
+              icon: (
+                <>
+                  <circle cx="18" cy="5" r="3" />
+                  <circle cx="6" cy="12" r="3" />
+                  <circle cx="18" cy="19" r="3" />
+                  <path d="M8.59 13.51L15.42 17.49M15.41 6.51L8.59 10.49" />
+                </>
+              ),
+            },
+            {
+              n: '03 — Understand',
+              title: 'Analysis & Inference',
+              desc: 'Cross-tabulation, regression weighting, MaxDiff scoring, and driver analysis run automatically. Statistical significance is flagged at every comparison. You see what is real — not what is merely frequent.',
+              stats: [
+                ['Analysis methods', '17'],
+                ['Sig. threshold', 'p < .05'],
+              ],
+              icon: (
+                <>
+                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+                </>
+              ),
+            },
           ].map((step, i) => (
             <div className={`lp-step lp-sr lp-sr-d${i + 1}`} key={i}>
               <div className="lp-step-flood" />
               <div className="lp-step-n">{step.n}</div>
-              <div className="lp-step-ico"><svg viewBox="0 0 24 24">{step.icon}</svg></div>
+              <div className="lp-step-ico">
+                <svg viewBox="0 0 24 24">{step.icon}</svg>
+              </div>
               <h3 className="lp-step-ttl">{step.title}</h3>
               <p className="lp-step-dsc">{step.desc}</p>
               <div className="lp-step-stats">
                 {step.stats.map(([l, v]) => (
-                  <div key={l}><div className="lp-step-stat-l">{l}</div><div className="lp-step-stat-v">{v}</div></div>
+                  <div key={l}>
+                    <div className="lp-step-stat-l">{l}</div>
+                    <div className="lp-step-stat-v">{v}</div>
+                  </div>
                 ))}
               </div>
             </div>
@@ -865,45 +1035,99 @@ export default function Landing() {
         </div>
       </section>
 
-
       {/* ── BUILDER ── */}
       <section id="lp-builder">
-        <div className="lp-ghost" style={{ fontSize: "clamp(100px,12vw,200px)", WebkitTextStroke: "1px rgba(255,69,0,.04)", bottom: -30, left: -20, zIndex: 0 }}>Builder</div>
+        <div
+          className="lp-ghost"
+          style={{
+            fontSize: 'clamp(100px,12vw,200px)',
+            WebkitTextStroke: '1px rgba(255,69,0,.04)',
+            bottom: -30,
+            left: -20,
+            zIndex: 0,
+          }}
+        >
+          Builder
+        </div>
         <div className="lp-builder-inner">
           <div className="lp-builder-canvas lp-sr lp-sr-d1">
             <div className="lp-canvas-topbar">
-              <div className="lp-tbar-dots"><div className="lp-tbar-dot" /><div className="lp-tbar-dot" /><div className="lp-tbar-dot" /></div>
+              <div className="lp-tbar-dots">
+                <div className="lp-tbar-dot" />
+                <div className="lp-tbar-dot" />
+                <div className="lp-tbar-dot" />
+              </div>
               <div className="lp-tbar-title">Product Feedback — Q1 2025</div>
             </div>
             <div className="lp-canvas-body">
               <div className="lp-q-card active">
                 <div className="lp-q-type">Forced Choice — Single Select</div>
-                <div className="lp-q-text">Which one factor most influenced your decision to purchase?</div>
+                <div className="lp-q-text">
+                  Which one factor most influenced your decision to purchase?
+                </div>
                 <div className="lp-q-options">
-                  {["Price point", "Brand trust", "Peer referral", "Availability"].map(o => <span className="lp-q-opt" key={o}>{o}</span>)}
+                  {['Price point', 'Brand trust', 'Peer referral', 'Availability'].map((o) => (
+                    <span className="lp-q-opt" key={o}>
+                      {o}
+                    </span>
+                  ))}
                 </div>
               </div>
               <div className="lp-q-card">
                 <div className="lp-q-type">11-point NPS Scale</div>
-                <div className="lp-q-text">How likely are you to recommend this brand to a colleague or peer?</div>
-                <div style={{ padding: "8px 0 4px" }}>
-                  <div className="lp-q-slider-track"><div className="lp-q-slider-fill" /><div className="lp-q-slider-thumb" /></div>
+                <div className="lp-q-text">
+                  How likely are you to recommend this brand to a colleague or peer?
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
-                  <span style={{ fontFamily: "Syne,sans-serif", fontSize: 10, color: "var(--espresso)", opacity: .4 }}>0 · Not at all likely</span>
-                  <span style={{ fontFamily: "Syne,sans-serif", fontSize: 10, color: "var(--espresso)", opacity: .4 }}>10 · Extremely likely</span>
+                <div style={{ padding: '8px 0 4px' }}>
+                  <div className="lp-q-slider-track">
+                    <div className="lp-q-slider-fill" />
+                    <div className="lp-q-slider-thumb" />
+                  </div>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
+                  <span
+                    style={{
+                      fontFamily: 'Syne,sans-serif',
+                      fontSize: 10,
+                      color: 'var(--espresso)',
+                      opacity: 0.4,
+                    }}
+                  >
+                    0 · Not at all likely
+                  </span>
+                  <span
+                    style={{
+                      fontFamily: 'Syne,sans-serif',
+                      fontSize: 10,
+                      color: 'var(--espresso)',
+                      opacity: 0.4,
+                    }}
+                  >
+                    10 · Extremely likely
+                  </span>
                 </div>
               </div>
               <div className="lp-q-card">
                 <div className="lp-q-type">Semantic Differential</div>
                 <div className="lp-q-text">Rate your perception of the brand on each dimension</div>
                 <div className="lp-q-stars">
-                  <span className="lp-star">⭐</span><span className="lp-star">⭐</span><span className="lp-star">⭐</span><span className="lp-star">⭐</span><span>☆</span>
+                  <span className="lp-star">⭐</span>
+                  <span className="lp-star">⭐</span>
+                  <span className="lp-star">⭐</span>
+                  <span className="lp-star">⭐</span>
+                  <span>☆</span>
                 </div>
               </div>
               <div className="lp-canvas-add-btn">
                 <div className="lp-plus-ico">
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M5 1v8M1 5h8" stroke="var(--coral)" strokeWidth="1.5" strokeLinecap="round" /></svg>
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                    <path
+                      d="M5 1v8M1 5h8"
+                      stroke="var(--coral)"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                    />
+                  </svg>
                 </div>
                 Add Question
               </div>
@@ -911,20 +1135,98 @@ export default function Landing() {
           </div>
           <div className="lp-builder-txt lp-sr lp-sr-d2">
             <div className="lp-sec-tag">Instrument Builder</div>
-            <h2 className="lp-sec-title">Every question is a <em>decision</em></h2>
-            <p className="lp-sec-aside">Closed-ended or open? Forced-choice or ranked preference? The builder flags when your wording risks anchoring, framing, or double-barrelling a response — before a single respondent sees it.</p>
+            <h2 className="lp-sec-title">
+              Every question is a <em>decision</em>
+            </h2>
+            <p className="lp-sec-aside">
+              Closed-ended or open? Forced-choice or ranked preference? The builder flags when your
+              wording risks anchoring, framing, or double-barrelling a response — before a single
+              respondent sees it.
+            </p>
             <div className="lp-q-types-grid">
               {[
-                { label: "Likert Scale", bg: "rgba(255,69,0,.08)", stroke: "var(--coral)", icon: <><path d="M7 2v10M2 7h10" strokeLinecap="round" /></> },
-                { label: "MaxDiff Ranking", bg: "rgba(255,184,0,.1)", stroke: "#B8870A", icon: <><rect x="1.5" y="2.5" width="11" height="9" rx="2" /><circle cx="4.5" cy="5.5" r="1" /><path d="M1.5 10l3-3 2.5 2.5 2-2L12 10" /></> },
-                { label: "Open Verbatim", bg: "rgba(30,122,74,.1)", stroke: "var(--sage)", icon: <><path d="M2 4h10M2 7h7M2 10h5" strokeLinecap="round" /></> },
-                { label: "Conjoint Grid", bg: "rgba(0,71,255,.08)", stroke: "var(--cobalt)", icon: <><rect x="1.5" y="8" width="2.5" height="4" rx="1" /><rect x="5.75" y="5" width="2.5" height="7" rx="1" /><rect x="10" y="2" width="2.5" height="10" rx="1" /></> },
-                { label: "Semantic Diff", bg: "rgba(255,69,0,.08)", stroke: "var(--coral)", icon: <><path d="M7 1.5l1.5 3.2 3.5.5-2.5 2.5.6 3.5L7 9.5l-3.1 1.7.6-3.5-2.5-2.5 3.5-.5z" strokeLinejoin="round" /></> },
-                { label: "Net Promoter", bg: "rgba(22,15,8,.06)", stroke: "var(--espresso)", icon: <><circle cx="7" cy="7" r="5.5" /><path d="M4.5 7h5M7 4.5v5" strokeLinecap="round" /></> },
-              ].map(qt => (
+                {
+                  label: 'Likert Scale',
+                  bg: 'rgba(255,69,0,.08)',
+                  stroke: 'var(--coral)',
+                  icon: (
+                    <>
+                      <path d="M7 2v10M2 7h10" strokeLinecap="round" />
+                    </>
+                  ),
+                },
+                {
+                  label: 'MaxDiff Ranking',
+                  bg: 'rgba(255,184,0,.1)',
+                  stroke: '#B8870A',
+                  icon: (
+                    <>
+                      <rect x="1.5" y="2.5" width="11" height="9" rx="2" />
+                      <circle cx="4.5" cy="5.5" r="1" />
+                      <path d="M1.5 10l3-3 2.5 2.5 2-2L12 10" />
+                    </>
+                  ),
+                },
+                {
+                  label: 'Open Verbatim',
+                  bg: 'rgba(30,122,74,.1)',
+                  stroke: 'var(--sage)',
+                  icon: (
+                    <>
+                      <path d="M2 4h10M2 7h7M2 10h5" strokeLinecap="round" />
+                    </>
+                  ),
+                },
+                {
+                  label: 'Conjoint Grid',
+                  bg: 'rgba(0,71,255,.08)',
+                  stroke: 'var(--cobalt)',
+                  icon: (
+                    <>
+                      <rect x="1.5" y="8" width="2.5" height="4" rx="1" />
+                      <rect x="5.75" y="5" width="2.5" height="7" rx="1" />
+                      <rect x="10" y="2" width="2.5" height="10" rx="1" />
+                    </>
+                  ),
+                },
+                {
+                  label: 'Semantic Diff',
+                  bg: 'rgba(255,69,0,.08)',
+                  stroke: 'var(--coral)',
+                  icon: (
+                    <>
+                      <path
+                        d="M7 1.5l1.5 3.2 3.5.5-2.5 2.5.6 3.5L7 9.5l-3.1 1.7.6-3.5-2.5-2.5 3.5-.5z"
+                        strokeLinejoin="round"
+                      />
+                    </>
+                  ),
+                },
+                {
+                  label: 'Net Promoter',
+                  bg: 'rgba(22,15,8,.06)',
+                  stroke: 'var(--espresso)',
+                  icon: (
+                    <>
+                      <circle cx="7" cy="7" r="5.5" />
+                      <path d="M4.5 7h5M7 4.5v5" strokeLinecap="round" />
+                    </>
+                  ),
+                },
+              ].map((qt) => (
                 <div className="lp-qt-chip" key={qt.label}>
                   <div className="lp-qt-ico" style={{ background: qt.bg }}>
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke={qt.stroke} strokeWidth="1.5" strokeLinecap="round">{qt.icon}</svg>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 14 14"
+                      fill="none"
+                      stroke={qt.stroke}
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                    >
+                      {qt.icon}
+                    </svg>
                   </div>
                   {qt.label}
                 </div>
@@ -933,43 +1235,85 @@ export default function Landing() {
             <button className="lp-btn-fire" onClick={onSignUp}>
               <span>Build a Study</span>
               <div className="lp-btn-fire-arr">
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 8L8 2M8 2H4M8 2V6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                  <path
+                    d="M2 8L8 2M8 2H4M8 2V6"
+                    stroke="white"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
               </div>
             </button>
           </div>
         </div>
       </section>
 
-      <div style={{ height: 70, background: "linear-gradient(to bottom left,var(--espresso) 49.9%,var(--cream-deep) 50%)" }} />
+      <div
+        style={{
+          height: 70,
+          background: 'linear-gradient(to bottom left,var(--espresso) 49.9%,var(--cream-deep) 50%)',
+        }}
+      />
 
       {/* ── ANALYTICS ── */}
       <section id="lp-analytics">
         <div className="lp-analytics-glow" />
-        <div className="lp-ghost" style={{ WebkitTextStroke: "1px rgba(253,245,232,.04)", fontSize: "clamp(100px,13vw,210px)", bottom: -50, right: -30, zIndex: 0 }}>Data</div>
+        <div
+          className="lp-ghost"
+          style={{
+            WebkitTextStroke: '1px rgba(253,245,232,.04)',
+            fontSize: 'clamp(100px,13vw,210px)',
+            bottom: -50,
+            right: -30,
+            zIndex: 0,
+          }}
+        >
+          Data
+        </div>
         <div className="lp-analytics-head lp-sr">
           <div>
             <div className="lp-sec-tag">Analysis Engine</div>
-            <h2 className="lp-sec-title">Significance, not just <em>frequency</em></h2>
+            <h2 className="lp-sec-title">
+              Significance, not just <em>frequency</em>
+            </h2>
           </div>
-          <p className="lp-sec-aside">Most tools tell you what respondents said. Pulse tells you what they meant — tested against statistical thresholds, weighted for sample representativeness, flagged for significance at every cut.</p>
+          <p className="lp-sec-aside">
+            Most tools tell you what respondents said. Pulse tells you what they meant — tested
+            against statistical thresholds, weighted for sample representativeness, flagged for
+            significance at every cut.
+          </p>
         </div>
         <div className="lp-dash-wrap lp-sr lp-sr-d1">
           <div className="lp-dash-topbar">
             <div>
               <div className="lp-dash-ttl">Brand Equity Tracker — Wave 3</div>
-              <div className="lp-dash-sub">Quant study · n=4,821 · Urban India · SEC A/B · 22–48 yrs</div>
+              <div className="lp-dash-sub">
+                Quant study · n=4,821 · Urban India · SEC A/B · 22–48 yrs
+              </div>
             </div>
             <div className="lp-dash-badges">
-              <div className="lp-dash-badge"><div className="lp-live-pip" />Live tracking</div>
+              <div className="lp-dash-badge">
+                <div className="lp-live-pip" />
+                Live tracking
+              </div>
               <div className="lp-dash-badge">n = 4,821 · 95% CI</div>
               <div className="lp-dash-badge">MoE ±1.4% · p &lt; .05</div>
             </div>
           </div>
           <div className="lp-kpi-row">
-            {[["Valid Completes", "4,821", "↑ Wave-on-wave +23%", "up"], ["Incidence Rate", "84%", "↑ 8pts vs category norm", "up"], ["Brand Affect Score", "+68", "↑ Sig. above neutral (z=3.2)", "up"], ["Median LOI", "3.2m", "0.4m above target LOI", "dn"]].map(([l, v, ch, cls], idx) => (
+            {[
+              ['Valid Completes', '4,821', '↑ Wave-on-wave +23%', 'up'],
+              ['Incidence Rate', '84%', '↑ 8pts vs category norm', 'up'],
+              ['Brand Affect Score', '+68', '↑ Sig. above neutral (z=3.2)', 'up'],
+              ['Median LOI', '3.2m', '0.4m above target LOI', 'dn'],
+            ].map(([l, v, ch, cls], idx) => (
               <div className={`lp-kpi-box lp-sr lp-sr-d${idx + 1}`} key={l}>
                 <div className="lp-kpi-lbl">{l}</div>
-                <div className="lp-kpi-val" {...(idx === 0 ? { "data-counter": "kpi1" } : {})}>{v}</div>
+                <div className="lp-kpi-val" {...(idx === 0 ? { 'data-counter': 'kpi1' } : {})}>
+                  {v}
+                </div>
                 <div className={`lp-kpi-chg ${cls}`}>{ch}</div>
               </div>
             ))}
@@ -979,36 +1323,183 @@ export default function Landing() {
               <div className="lp-chart-head">
                 <div className="lp-chart-ttl">Field Completion — Daily Completes</div>
                 <div className="lp-chart-leg">
-                  <div className="lp-leg-item"><div className="lp-leg-dot" style={{ background: "var(--coral)" }} />Wave 3 (current)</div>
-                  <div className="lp-leg-item"><div className="lp-leg-dot" style={{ background: "rgba(253,245,232,.2)" }} />Wave 2 (baseline)</div>
+                  <div className="lp-leg-item">
+                    <div className="lp-leg-dot" style={{ background: 'var(--coral)' }} />
+                    Wave 3 (current)
+                  </div>
+                  <div className="lp-leg-item">
+                    <div className="lp-leg-dot" style={{ background: 'rgba(253,245,232,.2)' }} />
+                    Wave 2 (baseline)
+                  </div>
                 </div>
               </div>
-              <svg viewBox="0 0 520 160" fill="none" style={{ width: "100%" }}>
-                <defs><linearGradient id="lpBarGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#FF6B35" /><stop offset="100%" stopColor="#FF4500" stopOpacity=".7" /></linearGradient></defs>
-                {[140, 100, 60, 20].map(y => <line key={y} x1="0" y1={y} x2="520" y2={y} stroke="rgba(253,245,232,.06)" strokeWidth="1" />)}
-                {[[10, 90], [80, 70], [150, 80], [220, 50], [290, 60], [360, 75], [430, 40]].map(([x, y], i) => <rect key={i} x={x} y={y} width="30" height={140 - y} rx="4" fill="rgba(253,245,232,.08)" />)}
-                {[[44, 60], [114, 30], [184, 50], [254, 20], [324, 35], [394, 45], [464, 10]].map(([x, y], i) => <rect key={i} x={x} y={y} width="30" height={140 - y} rx="4" fill="url(#lpBarGrad)" />)}
-                {["W1", "W2", "W3", "W4", "W5", "W6", "W7"].map((w, i) => <text key={w} x={25 + i * 70} y="158" fill="rgba(253,245,232,.3)" fontFamily="sans-serif" fontSize="10">{w}</text>)}
+              <svg viewBox="0 0 520 160" fill="none" style={{ width: '100%' }}>
+                <defs>
+                  <linearGradient id="lpBarGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#FF6B35" />
+                    <stop offset="100%" stopColor="#FF4500" stopOpacity=".7" />
+                  </linearGradient>
+                </defs>
+                {[140, 100, 60, 20].map((y) => (
+                  <line
+                    key={y}
+                    x1="0"
+                    y1={y}
+                    x2="520"
+                    y2={y}
+                    stroke="rgba(253,245,232,.06)"
+                    strokeWidth="1"
+                  />
+                ))}
+                {[
+                  [10, 90],
+                  [80, 70],
+                  [150, 80],
+                  [220, 50],
+                  [290, 60],
+                  [360, 75],
+                  [430, 40],
+                ].map(([x, y], i) => (
+                  <rect
+                    key={i}
+                    x={x}
+                    y={y}
+                    width="30"
+                    height={140 - y}
+                    rx="4"
+                    fill="rgba(253,245,232,.08)"
+                  />
+                ))}
+                {[
+                  [44, 60],
+                  [114, 30],
+                  [184, 50],
+                  [254, 20],
+                  [324, 35],
+                  [394, 45],
+                  [464, 10],
+                ].map(([x, y], i) => (
+                  <rect
+                    key={i}
+                    x={x}
+                    y={y}
+                    width="30"
+                    height={140 - y}
+                    rx="4"
+                    fill="url(#lpBarGrad)"
+                  />
+                ))}
+                {['W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7'].map((w, i) => (
+                  <text
+                    key={w}
+                    x={25 + i * 70}
+                    y="158"
+                    fill="rgba(253,245,232,.3)"
+                    fontFamily="sans-serif"
+                    fontSize="10"
+                  >
+                    {w}
+                  </text>
+                ))}
               </svg>
               <div style={{ marginTop: 24 }}>
-                <div style={{ fontFamily: "Syne,sans-serif", fontSize: 10, fontWeight: 600, letterSpacing: ".1em", textTransform: "uppercase", color: "rgba(253,245,232,.35)", marginBottom: 10 }}>Sentiment Polarity — Weighted Distribution</div>
+                <div
+                  style={{
+                    fontFamily: 'Syne,sans-serif',
+                    fontSize: 10,
+                    fontWeight: 600,
+                    letterSpacing: '.1em',
+                    textTransform: 'uppercase',
+                    color: 'rgba(253,245,232,.35)',
+                    marginBottom: 10,
+                  }}
+                >
+                  Sentiment Polarity — Weighted Distribution
+                </div>
                 <div className="lp-sentiment-row">
-                  <span style={{ fontFamily: "Syne,sans-serif", fontSize: 10, color: "rgba(253,245,232,.3)" }}>—</span>
-                  <div className="lp-sent-spectrum"><div className="lp-sent-needle" /></div>
-                  <span style={{ fontFamily: "Syne,sans-serif", fontSize: 10, color: "rgba(253,245,232,.3)" }}>+</span>
+                  <span
+                    style={{
+                      fontFamily: 'Syne,sans-serif',
+                      fontSize: 10,
+                      color: 'rgba(253,245,232,.3)',
+                    }}
+                  >
+                    —
+                  </span>
+                  <div className="lp-sent-spectrum">
+                    <div className="lp-sent-needle" />
+                  </div>
+                  <span
+                    style={{
+                      fontFamily: 'Syne,sans-serif',
+                      fontSize: 10,
+                      color: 'rgba(253,245,232,.3)',
+                    }}
+                  >
+                    +
+                  </span>
                 </div>
               </div>
             </div>
             <div className="lp-chart-card lp-sr lp-sr-d2">
-              <div className="lp-chart-head"><div className="lp-chart-ttl">Affective State Distribution</div></div>
+              <div className="lp-chart-head">
+                <div className="lp-chart-ttl">Affective State Distribution</div>
+              </div>
               <div className="lp-donut-wrap">
                 <div className="lp-donut-center">
                   <svg viewBox="0 0 180 180" width="180" height="180">
-                    <circle cx="90" cy="90" r="70" fill="none" stroke="rgba(253,245,232,.05)" strokeWidth="26" />
-                    <circle cx="90" cy="90" r="70" fill="none" stroke="#FF4500" strokeWidth="26" strokeDasharray="175 264" strokeDashoffset="0" strokeLinecap="round" />
-                    <circle cx="90" cy="90" r="70" fill="none" stroke="#FFB800" strokeWidth="26" strokeDasharray="106 333" strokeDashoffset="-175" strokeLinecap="round" />
-                    <circle cx="90" cy="90" r="70" fill="none" stroke="#1E7A4A" strokeWidth="26" strokeDasharray="66 373" strokeDashoffset="-281" strokeLinecap="round" />
-                    <circle cx="90" cy="90" r="70" fill="none" stroke="#0047FF" strokeWidth="26" strokeDasharray="53 386" strokeDashoffset="-347" strokeLinecap="round" />
+                    <circle
+                      cx="90"
+                      cy="90"
+                      r="70"
+                      fill="none"
+                      stroke="rgba(253,245,232,.05)"
+                      strokeWidth="26"
+                    />
+                    <circle
+                      cx="90"
+                      cy="90"
+                      r="70"
+                      fill="none"
+                      stroke="#FF4500"
+                      strokeWidth="26"
+                      strokeDasharray="175 264"
+                      strokeDashoffset="0"
+                      strokeLinecap="round"
+                    />
+                    <circle
+                      cx="90"
+                      cy="90"
+                      r="70"
+                      fill="none"
+                      stroke="#FFB800"
+                      strokeWidth="26"
+                      strokeDasharray="106 333"
+                      strokeDashoffset="-175"
+                      strokeLinecap="round"
+                    />
+                    <circle
+                      cx="90"
+                      cy="90"
+                      r="70"
+                      fill="none"
+                      stroke="#1E7A4A"
+                      strokeWidth="26"
+                      strokeDasharray="66 373"
+                      strokeDashoffset="-281"
+                      strokeLinecap="round"
+                    />
+                    <circle
+                      cx="90"
+                      cy="90"
+                      r="70"
+                      fill="none"
+                      stroke="#0047FF"
+                      strokeWidth="26"
+                      strokeDasharray="53 386"
+                      strokeDashoffset="-347"
+                      strokeLinecap="round"
+                    />
                   </svg>
                   <div className="lp-donut-lbl">
                     <div className="lp-donut-big">68%</div>
@@ -1016,11 +1507,26 @@ export default function Landing() {
                   </div>
                 </div>
                 <div className="lp-donut-legend">
-                  {[["#FF4500", "Delighted", "40%"], ["#FFB800", "Curious", "28%"], ["#1E7A4A", "Satisfied", "20%"], ["#0047FF", "Concerned", "12%"]].map(([c, l, p]) => (
+                  {[
+                    ['#FF4500', 'Delighted', '40%'],
+                    ['#FFB800', 'Curious', '28%'],
+                    ['#1E7A4A', 'Satisfied', '20%'],
+                    ['#0047FF', 'Concerned', '12%'],
+                  ].map(([c, l, p]) => (
                     <div className="lp-dl-row" key={l}>
-                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: c, flexShrink: 0 }} />
+                      <div
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: '50%',
+                          background: c,
+                          flexShrink: 0,
+                        }}
+                      />
                       {l}
-                      <div className="lp-dl-bar-track"><div className="lp-dl-bar-fill" style={{ background: c, '--w': p }} /></div>
+                      <div className="lp-dl-bar-track">
+                        <div className="lp-dl-bar-fill" style={{ background: c, '--w': p }} />
+                      </div>
                       <div className="lp-dl-pct">{p}</div>
                     </div>
                   ))}
@@ -1031,30 +1537,68 @@ export default function Landing() {
         </div>
       </section>
 
-      <div style={{ height: 70, background: "linear-gradient(to bottom right,var(--espresso) 49.9%,var(--cream) 50%)" }} />
+      <div
+        style={{
+          height: 70,
+          background: 'linear-gradient(to bottom right,var(--espresso) 49.9%,var(--cream) 50%)',
+        }}
+      />
 
       {/* ── TESTIMONIALS ── */}
       <section id="lp-testimonials">
-        <div className="lp-ghost" style={{ WebkitTextStroke: "1px rgba(255,69,0,.04)", fontSize: "clamp(120px,16vw,240px)", top: -30, left: -20, zIndex: 0 }}>Love</div>
+        <div
+          className="lp-ghost"
+          style={{
+            WebkitTextStroke: '1px rgba(255,69,0,.04)',
+            fontSize: 'clamp(120px,16vw,240px)',
+            top: -30,
+            left: -20,
+            zIndex: 0,
+          }}
+        >
+          Love
+        </div>
         <div className="lp-testi-head lp-sr">
           <div>
             <div className="lp-sec-tag">Practitioner Voices</div>
-            <h2 className="lp-sec-title">Trusted by researchers who <em>know the difference</em></h2>
+            <h2 className="lp-sec-title">
+              Trusted by researchers who <em>know the difference</em>
+            </h2>
           </div>
           <div className="lp-testi-scroll-hint">3 practitioners</div>
         </div>
         <div className="lp-testi-track">
           {[
-            { q: "The forced-choice architecture and automatic straight-line detection genuinely improved our data quality. We retired three legacy tools once we saw what clean data actually looked like.", name: "Priya Nambiar", role: "Senior Research Manager, Hindustan Unilever", init: "P", grad: "linear-gradient(135deg,var(--coral),var(--terracotta))" },
-            { q: "Conjoint and MaxDiff in the same tool — with weighting built in. That alone saved us two weeks per study. The cross-tab interface is the most intuitive I've seen at this price point.", name: "Rohit Desai", role: "Quantitative Research Lead, Ipsos India", init: "R", grad: "linear-gradient(135deg,var(--saffron),#E6900A)" },
-            { q: "Our panel incidence rate went from 31% to 79% after switching. The cognitive load reduction in question design is real — respondents drop off where instruments are poorly constructed, and Pulse won't let you construct them poorly.", name: "Anusha Krishnamurthy", role: "Head of Consumer Insights, Tata Consumer Products", init: "A", grad: "linear-gradient(135deg,var(--sage),#155C38)" },
+            {
+              q: 'The forced-choice architecture and automatic straight-line detection genuinely improved our data quality. We retired three legacy tools once we saw what clean data actually looked like.',
+              name: 'Priya Nambiar',
+              role: 'Senior Research Manager, Hindustan Unilever',
+              init: 'P',
+              grad: 'linear-gradient(135deg,var(--coral),var(--terracotta))',
+            },
+            {
+              q: "Conjoint and MaxDiff in the same tool — with weighting built in. That alone saved us two weeks per study. The cross-tab interface is the most intuitive I've seen at this price point.",
+              name: 'Rohit Desai',
+              role: 'Quantitative Research Lead, Ipsos India',
+              init: 'R',
+              grad: 'linear-gradient(135deg,var(--saffron),#E6900A)',
+            },
+            {
+              q: 'Our panel incidence rate went from 31% to 79% after switching. The cognitive load reduction in question design is real — respondents drop off where instruments are poorly constructed, and Pulse won&apos;t let you construct them poorly.',
+              name: 'Anusha Krishnamurthy',
+              role: 'Head of Consumer Insights, Tata Consumer Products',
+              init: 'A',
+              grad: 'linear-gradient(135deg,var(--sage),#155C38)',
+            },
           ].map((t, i) => (
             <div className={`lp-tcard lp-sr lp-sr-d${i + 1}`} key={i}>
               <div className="lp-tcard-stars">★★★★★</div>
-              <div className="lp-quote-mark">"</div>
+              <div className="lp-quote-mark">&quot;</div>
               <p className="lp-tcard-quote">{t.q}</p>
               <div className="lp-tcard-author">
-                <div className="lp-author-avatar" style={{ background: t.grad }}>{t.init}</div>
+                <div className="lp-author-avatar" style={{ background: t.grad }}>
+                  {t.init}
+                </div>
                 <div>
                   <div className="lp-author-name">{t.name}</div>
                   <div className="lp-author-role">{t.role}</div>
@@ -1067,39 +1611,131 @@ export default function Landing() {
 
       {/* ── PRICING ── */}
       <section id="lp-pricing">
-        <div className="lp-ghost" style={{ WebkitTextStroke: "1px rgba(255,69,0,.04)", fontSize: "clamp(120px,16vw,240px)", bottom: -40, right: -20, zIndex: 0 }}>Price</div>
+        <div
+          className="lp-ghost"
+          style={{
+            WebkitTextStroke: '1px rgba(255,69,0,.04)',
+            fontSize: 'clamp(120px,16vw,240px)',
+            bottom: -40,
+            right: -20,
+            zIndex: 0,
+          }}
+        >
+          Price
+        </div>
         <div className="lp-pricing-head lp-sr">
           <div className="lp-sec-tag">Pricing</div>
-          <h2 className="lp-sec-title">Priced for <em>every</em> research cadence</h2>
-          <p style={{ fontFamily: "Fraunces,serif", fontSize: 18, fontWeight: 300, lineHeight: 1.7, color: "var(--espresso)", opacity: .6, maxWidth: 480, margin: "0 auto" }}>Ad hoc or continuous tracking. Single study or always-on panel. The plan fits the methodology, not the other way around.</p>
+          <h2 className="lp-sec-title">
+            Priced for <em>every</em> research cadence
+          </h2>
+          <p
+            style={{
+              fontFamily: 'Fraunces,serif',
+              fontSize: 18,
+              fontWeight: 300,
+              lineHeight: 1.7,
+              color: 'var(--espresso)',
+              opacity: 0.6,
+              maxWidth: 480,
+              margin: '0 auto',
+            }}
+          >
+            Ad hoc or continuous tracking. Single study or always-on panel. The plan fits the
+            methodology, not the other way around.
+          </p>
         </div>
         <div className="lp-pricing-grid">
           {[
-            { cls: "std", badge: "Starter", name: "Free", curr: "₹", amt: "0", per: "/ month", desc: "Ad hoc studies, concept testing, and quick pulse checks. Ideal for brand teams conducting research independently.", feats: ["3 active surveys", "100 responses / month", "Basic analytics", "5 question types"], btn: "Start Free Study" },
-            { cls: "pro", badge: "Most Used", name: "Pro", curr: "₹", amt: "2,499", per: "/ month", desc: "For insight teams running continuous trackers, usage & attitude studies, and brand equity waves.", feats: ["Unlimited surveys", "10,000 responses / month", "Full analytics + AI insights", "All 24+ question types", "Custom branding", "Team collaboration (5 seats)"], btn: "Start 14-Day Trial" },
-            { cls: "ent", badge: "Enterprise", name: "Custom", curr: "", amt: "Talk to us", per: "", desc: "For research agencies, FMCG conglomerates, and financial institutions running multi-country, longitudinal, or panel-based programmes.", feats: ["Unlimited everything", "On-premise deployment", "Dedicated research analyst", "99.9% SLA guarantee", "API + Webhooks"], btn: "Contact Sales" },
+            {
+              cls: 'std',
+              badge: 'Starter',
+              name: 'Free',
+              curr: '₹',
+              amt: '0',
+              per: '/ month',
+              desc: 'Ad hoc studies, concept testing, and quick pulse checks. Ideal for brand teams conducting research independently.',
+              feats: [
+                '3 active surveys',
+                '100 responses / month',
+                'Basic analytics',
+                '5 question types',
+              ],
+              btn: 'Start Free Study',
+            },
+            {
+              cls: 'pro',
+              badge: 'Most Used',
+              name: 'Pro',
+              curr: '₹',
+              amt: '2,499',
+              per: '/ month',
+              desc: 'For insight teams running continuous trackers, usage & attitude studies, and brand equity waves.',
+              feats: [
+                'Unlimited surveys',
+                '10,000 responses / month',
+                'Full analytics + AI insights',
+                'All 24+ question types',
+                'Custom branding',
+                'Team collaboration (5 seats)',
+              ],
+              btn: 'Start 14-Day Trial',
+            },
+            {
+              cls: 'ent',
+              badge: 'Enterprise',
+              name: 'Custom',
+              curr: '',
+              amt: 'Talk to us',
+              per: '',
+              desc: 'For research agencies, FMCG conglomerates, and financial institutions running multi-country, longitudinal, or panel-based programmes.',
+              feats: [
+                'Unlimited everything',
+                'On-premise deployment',
+                'Dedicated research analyst',
+                '99.9% SLA guarantee',
+                'API + Webhooks',
+              ],
+              btn: 'Contact Sales',
+            },
           ].map((p, i) => (
             <div className={`lp-pcard ${p.cls} lp-sr lp-sr-d${i + 1}`} key={p.cls}>
               <div className="lp-pcard-badge">{p.badge}</div>
               <div className="lp-pcard-name">{p.name}</div>
               <div className="lp-pcard-price">
                 <span className="lp-p-curr">{p.curr}</span>
-                <span className="lp-p-amt" style={p.cls === "ent" ? { fontSize: 40, letterSpacing: -1 } : {}}>{p.amt}</span>
+                <span
+                  className="lp-p-amt"
+                  style={p.cls === 'ent' ? { fontSize: 40, letterSpacing: -1 } : {}}
+                >
+                  {p.amt}
+                </span>
                 <span className="lp-p-per">{p.per}</span>
               </div>
               <div className="lp-pcard-desc">{p.desc}</div>
               <div className="lp-pcard-divider" />
               <ul className="lp-pcard-features">
-                {p.feats.map(f => (
+                {p.feats.map((f) => (
                   <li key={f}>
                     <div className="lp-feat-check">
-                      <svg width="9" height="9" viewBox="0 0 9 9" fill="none" stroke={p.cls === "pro" ? "var(--cream)" : "var(--coral)"} strokeWidth="2.5" strokeLinecap="round"><polyline points="1.5,4.5 3.5,6.5 7.5,2" /></svg>
+                      <svg
+                        width="9"
+                        height="9"
+                        viewBox="0 0 9 9"
+                        fill="none"
+                        stroke={p.cls === 'pro' ? 'var(--cream)' : 'var(--coral)'}
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                      >
+                        <polyline points="1.5,4.5 3.5,6.5 7.5,2" />
+                      </svg>
                     </div>
                     {f}
                   </li>
                 ))}
               </ul>
-              <button className="lp-pcard-btn" onClick={onSignUp}>{p.btn}</button>
+              <button className="lp-pcard-btn" onClick={onSignUp}>
+                {p.btn}
+              </button>
             </div>
           ))}
         </div>
@@ -1107,39 +1743,90 @@ export default function Landing() {
 
       {/* ── FOOTER ── */}
       <footer id="lp-footer">
-        <div className="lp-ghost" style={{ fontSize: "clamp(100px,15vw,260px)", WebkitTextStroke: "1px rgba(253,245,232,.05)", bottom: -50, left: -10, zIndex: 0, letterSpacing: -6 }}>PULSE</div>
-        <div className="lp-grain" style={{ opacity: .02 }} />
+        <div
+          className="lp-ghost"
+          style={{
+            fontSize: 'clamp(100px,15vw,260px)',
+            WebkitTextStroke: '1px rgba(253,245,232,.05)',
+            bottom: -50,
+            left: -10,
+            zIndex: 0,
+            letterSpacing: -6,
+          }}
+        >
+          PULSE
+        </div>
+        <div className="lp-grain" style={{ opacity: 0.02 }} />
         <div className="lp-footer-inner">
           <div className="lp-footer-top">
             <div>
               <div className="lp-f-brand">
-                <span style={{ fontFamily: "Syne,sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: ".2em", textTransform: "uppercase", opacity: .35, marginRight: 7, position: "relative", top: -3 }}>Axiora</span>
+                <span
+                  style={{
+                    fontFamily: 'Syne,sans-serif',
+                    fontSize: 8,
+                    fontWeight: 700,
+                    letterSpacing: '.2em',
+                    textTransform: 'uppercase',
+                    opacity: 0.35,
+                    marginRight: 7,
+                    position: 'relative',
+                    top: -3,
+                  }}
+                >
+                  Axiora
+                </span>
                 Pulse
                 <div className="lp-f-brand-dot">
-                  <div className="sonar-ring" /><div className="sonar-ring" /><div className="sonar-ring" />
+                  <div className="sonar-ring" />
+                  <div className="sonar-ring" />
+                  <div className="sonar-ring" />
                 </div>
               </div>
-              <p className="lp-f-desc">Market intelligence that feels human. Built for brands who believe understanding people is the greatest competitive advantage.</p>
+              <p className="lp-f-desc">
+                Market intelligence that feels human. Built for brands who believe understanding
+                people is the greatest competitive advantage.
+              </p>
               <div className="lp-f-socials">
-                {["Li", "Tw", "In", "Yt"].map(s => <a href="#" className="lp-f-soc" key={s}>{s}</a>)}
+                {['Li', 'Tw', 'In', 'Yt'].map((s) => (
+                  <a href="#" className="lp-f-soc" key={s}>
+                    {s}
+                  </a>
+                ))}
               </div>
             </div>
             {[
-              { title: "Product", links: ["Survey Builder", "Analytics", "Distribution", "AI Insights", "Reports"] },
-              { title: "Company", links: ["About Us", "Careers", "Press Kit", "Blog", "Contact"] },
-              { title: "Legal", links: ["Privacy Policy", "Terms of Use", "Security", "GDPR", "Cookie Policy"] },
-            ].map(col => (
+              {
+                title: 'Product',
+                links: ['Survey Builder', 'Analytics', 'Distribution', 'AI Insights', 'Reports'],
+              },
+              { title: 'Company', links: ['About Us', 'Careers', 'Press Kit', 'Blog', 'Contact'] },
+              {
+                title: 'Legal',
+                links: ['Privacy Policy', 'Terms of Use', 'Security', 'GDPR', 'Cookie Policy'],
+              },
+            ].map((col) => (
               <div key={col.title}>
                 <div className="lp-f-col-title">{col.title}</div>
                 <ul className="lp-f-links">
-                  {col.links.map(l => <li key={l}><a href="#">{l}</a></li>)}
+                  {col.links.map((l) => (
+                    <li key={l}>
+                      <a href="#">{l}</a>
+                    </li>
+                  ))}
                 </ul>
               </div>
             ))}
           </div>
           <div className="lp-footer-bottom">
-            <div className="lp-f-copy">© 2025 Axiora · Pulse is a product of Axiora Pvt Ltd · Built for researchers, by researchers · Bengaluru</div>
-            <div className="lp-f-award"><span className="lp-award-star">★</span>Paris Design Award Nominee 2025<span className="lp-award-star">★</span></div>
+            <div className="lp-f-copy">
+              © 2025 Axiora · Pulse is a product of Axiora Pvt Ltd · Built for researchers, by
+              researchers · Bengaluru
+            </div>
+            <div className="lp-f-award">
+              <span className="lp-award-star">★</span>Paris Design Award Nominee 2025
+              <span className="lp-award-star">★</span>
+            </div>
           </div>
         </div>
       </footer>

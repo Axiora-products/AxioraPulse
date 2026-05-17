@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState } from 'react';
 
 /**
  * PageLoader — Full-page overlay spinner derived from the Axiora favicon.
@@ -11,7 +11,7 @@ import { useEffect, useState } from "react";
  *   label    {string}  — text below the logo  (default: "Loading…")
  *   fadeOut  {bool}    — adds a fade-out class when unmounting (default: true)
  */
-export default function PageLoader({ label = "Loading…", fadeOut = true }) {
+export default function PageLoader({ label = 'Loading…', fadeOut = true }) {
   const [leaving, setLeaving] = useState(false);
 
   // If the parent removes the component, trigger fade-out first
@@ -112,7 +112,7 @@ export default function PageLoader({ label = "Loading…", fadeOut = true }) {
         @keyframes pl-fade-out { from { opacity: 1 } to { opacity: 0 } }
       `}</style>
 
-      <div className={`pl-overlay${leaving ? " pl-leaving" : ""}`}>
+      <div className={`pl-overlay${leaving ? ' pl-leaving' : ''}`}>
         {/* Ambient radial glow */}
         <div className="pl-glow" />
 
@@ -127,19 +127,19 @@ export default function PageLoader({ label = "Loading…", fadeOut = true }) {
           >
             <defs>
               <linearGradient id="pl-bg" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%"   stopColor="#1E120A" />
+                <stop offset="0%" stopColor="#1E120A" />
                 <stop offset="100%" stopColor="#160F08" />
               </linearGradient>
 
               <radialGradient id="pl-dot-glow" cx="50%" cy="50%" r="50%">
-                <stop offset="0%"   stopColor="#FF6B35" />
-                <stop offset="60%"  stopColor="#FF4500" />
+                <stop offset="0%" stopColor="#FF6B35" />
+                <stop offset="60%" stopColor="#FF4500" />
                 <stop offset="100%" stopColor="#D63B1F" />
               </radialGradient>
 
               <radialGradient id="pl-halo" cx="50%" cy="50%" r="50%">
-                <stop offset="0%"   stopColor="#FF4500" stopOpacity="0.28" />
-                <stop offset="100%" stopColor="#FF4500" stopOpacity="0"    />
+                <stop offset="0%" stopColor="#FF4500" stopOpacity="0.28" />
+                <stop offset="100%" stopColor="#FF4500" stopOpacity="0" />
               </radialGradient>
 
               <clipPath id="pl-rr">
@@ -152,14 +152,15 @@ export default function PageLoader({ label = "Loading…", fadeOut = true }) {
               <rect width="80" height="80" fill="url(#pl-bg)" />
 
               {/* Warm mesh */}
-              <ellipse cx="55" cy="25" rx="40" ry="35"
-                fill="#FF4500" fillOpacity="0.06" />
+              <ellipse cx="55" cy="25" rx="40" ry="35" fill="#FF4500" fillOpacity="0.06" />
 
               {/* ── Sonar rings (animated) ── */}
               {/* Ring 3 — outermost */}
               <circle
                 className="pl-ring pl-ring-3"
-                cx="40" cy="40" r="27"
+                cx="40"
+                cy="40"
+                r="27"
                 fill="none"
                 stroke="#FF4500"
                 strokeWidth="1.4"
@@ -168,7 +169,9 @@ export default function PageLoader({ label = "Loading…", fadeOut = true }) {
               {/* Ring 2 */}
               <circle
                 className="pl-ring pl-ring-2"
-                cx="40" cy="40" r="20"
+                cx="40"
+                cy="40"
+                r="20"
                 fill="none"
                 stroke="#FF4500"
                 strokeWidth="1.6"
@@ -177,7 +180,9 @@ export default function PageLoader({ label = "Loading…", fadeOut = true }) {
               {/* Ring 1 — closest */}
               <circle
                 className="pl-ring pl-ring-1"
-                cx="40" cy="40" r="13.5"
+                cx="40"
+                cy="40"
+                r="13.5"
                 fill="none"
                 stroke="#FF4500"
                 strokeWidth="2"
@@ -191,8 +196,7 @@ export default function PageLoader({ label = "Loading…", fadeOut = true }) {
                 {/* Core */}
                 <circle cx="40" cy="40" r="8" fill="url(#pl-dot-glow)" />
                 {/* Specular highlight */}
-                <circle cx="37.5" cy="37" r="2.2"
-                  fill="white" fillOpacity="0.35" />
+                <circle cx="37.5" cy="37" r="2.2" fill="white" fillOpacity="0.35" />
               </g>
             </g>
           </svg>

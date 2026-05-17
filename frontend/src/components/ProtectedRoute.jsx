@@ -7,7 +7,7 @@ export default function ProtectedRoute() {
   const { user, profile, loading } = useAuthStore();
 
   if (loading) return <PageLoader />;
-  if (!user)   return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/login" replace />;
 
   // Block disabled users.
   if (profile?.is_active === false || profile?.account_status === 'disabled') {

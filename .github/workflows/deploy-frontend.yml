@@ -17,8 +17,43 @@ env:
   CONTAINER_NAME:   pulse-frontend
 
 jobs:
-  build-and-deploy:
+  verify:
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Run ESLint
+        run: |
+          cd frontend
+          npm run lint
+
+      - name: Check Formatting (Prettier)
+        run: |
+          cd frontend
+          npx prettier --check "src/**/*.{js,jsx,css,md}"
+
+      - name: Build Verification
+        run: |
+          cd frontend
+          npm run build
+
+  build-and-deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
       - name: Checkout code

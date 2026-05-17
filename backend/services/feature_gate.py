@@ -15,7 +15,7 @@ from fastapi import Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from db.database import get_db
-from db.models import UserProfile, Subscription, Plan, Survey, UserProfile
+from db.models import Plan, Subscription, Survey, UserProfile
 from dependencies import get_current_user
 
 
@@ -51,11 +51,7 @@ class _FeatureChecker:
 
         elif self.feature == "create_survey":
             if plan and plan.max_surveys is not None:
-                count = (
-                    db.query(Survey)
-                    .filter(Survey.tenant_id == current_user.tenant_id)
-                    .count()
-                )
+                count = db.query(Survey).filter(Survey.tenant_id == current_user.tenant_id).count()
                 if count >= plan.max_surveys:
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,

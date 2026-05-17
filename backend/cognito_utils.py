@@ -9,10 +9,11 @@ JWKS is cached for the process lifetime; Cognito rotates keys rarely.
 
 import os
 import time
-import requests
-import boto3
 from functools import lru_cache
-from jose import jwt, JWTError
+
+import boto3
+import requests
+from jose import JWTError, jwt
 
 COGNITO_REGION = os.getenv("COGNITO_REGION", "ap-south-1")
 COGNITO_USER_POOL_ID = os.getenv("COGNITO_USER_POOL_ID")
@@ -28,10 +29,7 @@ def admin_get_user_status(email: str) -> str | None:
     """Returns 'UNCONFIRMED', 'CONFIRMED', etc. or None if user doesn't exist."""
     client = get_cognito_client()
     try:
-        resp = client.admin_get_user(
-            UserPoolId=COGNITO_USER_POOL_ID,
-            Username=email
-        )
+        resp = client.admin_get_user(UserPoolId=COGNITO_USER_POOL_ID, Username=email)
         return resp.get("UserStatus")
     except client.exceptions.UserNotFoundException:
         return None
@@ -44,10 +42,7 @@ def admin_delete_user(email: str) -> bool:
     """Force delete a user. Returns True if successful."""
     client = get_cognito_client()
     try:
-        client.admin_delete_user(
-            UserPoolId=COGNITO_USER_POOL_ID,
-            Username=email
-        )
+        client.admin_delete_user(UserPoolId=COGNITO_USER_POOL_ID, Username=email)
         return True
     except Exception as e:
         print(f"COGNITO ERROR (delete_user): {str(e)}")
@@ -56,6 +51,7 @@ def admin_delete_user(email: str) -> bool:
 
 _jwks_cache: dict = {"keys": None, "fetched_at": 0.0}
 _JWKS_TTL = 1800  # refresh every 30 minutes
+
 
 def _get_jwks() -> list:
     if _jwks_cache["keys"] and time.time() - _jwks_cache["fetched_at"] < _JWKS_TTL:

@@ -21,13 +21,15 @@ import { motion, AnimatePresence } from 'framer-motion';
  *   <ConfirmModal ... alert onConfirm={() => {}} confirmLabel="OK" />
  */
 export default function ConfirmModal({
-  open, onClose,
-  title, body,
+  open,
+  onClose,
+  title,
+  body,
   confirmLabel = 'Confirm',
-  cancelLabel  = 'Cancel',
-  danger       = false,
-  alert        = false,   // info-only, no cancel button
-  prompt       = null,    // { label, defaultValue, type }
+  cancelLabel = 'Cancel',
+  danger = false,
+  alert = false, // info-only, no cancel button
+  prompt = null, // { label, defaultValue, type }
   onConfirm,
 }) {
   const [inputVal, setInputVal] = useState(prompt?.defaultValue ?? '');
@@ -66,13 +68,19 @@ export default function ConfirmModal({
           transition={{ duration: 0.18 }}
           onKeyDown={handleKey}
           style={{
-            position: 'fixed', inset: 0, zIndex: 9000,
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9000,
             background: 'rgba(22,15,8,0.55)',
             backdropFilter: 'blur(4px)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             padding: 24,
           }}
-          onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) onClose();
+          }}
         >
           <motion.div
             key="modal-card"
@@ -91,35 +99,48 @@ export default function ConfirmModal({
             }}
           >
             {/* Icon */}
-            <div style={{
-              width: 48, height: 48, borderRadius: 14,
-              background: danger ? 'rgba(214,59,31,0.1)' : 'rgba(22,15,8,0.06)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 22, marginBottom: 20,
-            }}>
+            <div
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: 14,
+                background: danger ? 'rgba(214,59,31,0.1)' : 'rgba(22,15,8,0.06)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 22,
+                marginBottom: 20,
+              }}
+            >
               {danger ? '⚠️' : alert ? 'ℹ️' : '❓'}
             </div>
 
             {/* Title */}
-            <h2 style={{
-              fontFamily: 'Playfair Display, serif',
-              fontWeight: 700, fontSize: 22,
-              letterSpacing: '-0.5px',
-              color: 'var(--espresso)',
-              margin: '0 0 10px',
-            }}>
+            <h2
+              style={{
+                fontFamily: 'Playfair Display, serif',
+                fontWeight: 700,
+                fontSize: 22,
+                letterSpacing: '-0.5px',
+                color: 'var(--espresso)',
+                margin: '0 0 10px',
+              }}
+            >
               {title}
             </h2>
 
             {/* Body */}
             {body && (
-              <p style={{
-                fontFamily: 'Fraunces, serif',
-                fontWeight: 300, fontSize: 15,
-                color: 'rgba(22,15,8,0.55)',
-                lineHeight: 1.65,
-                margin: '0 0 20px',
-              }}>
+              <p
+                style={{
+                  fontFamily: 'Fraunces, serif',
+                  fontWeight: 300,
+                  fontSize: 15,
+                  color: 'rgba(22,15,8,0.55)',
+                  lineHeight: 1.65,
+                  margin: '0 0 20px',
+                }}
+              >
                 {body}
               </p>
             )}
@@ -127,37 +148,42 @@ export default function ConfirmModal({
             {/* Optional prompt input */}
             {prompt && (
               <div style={{ marginBottom: 24 }}>
-                <label style={{
-                  display: 'block',
-                  fontFamily: 'Syne, sans-serif',
-                  fontSize: 9, fontWeight: 700,
-                  letterSpacing: '0.18em',
-                  textTransform: 'uppercase',
-                  color: 'rgba(22,15,8,0.45)',
-                  marginBottom: 8,
-                }}>
+                <label
+                  style={{
+                    display: 'block',
+                    fontFamily: 'Syne, sans-serif',
+                    fontSize: 9,
+                    fontWeight: 700,
+                    letterSpacing: '0.18em',
+                    textTransform: 'uppercase',
+                    color: 'rgba(22,15,8,0.45)',
+                    marginBottom: 8,
+                  }}
+                >
                   {prompt.label}
                 </label>
                 <input
                   ref={inputRef}
                   type={prompt.type || 'text'}
                   value={inputVal}
-                  onChange={e => setInputVal(e.target.value)}
+                  onChange={(e) => setInputVal(e.target.value)}
                   min={prompt.min}
                   max={prompt.max}
                   style={{
-                    width: '100%', boxSizing: 'border-box',
+                    width: '100%',
+                    boxSizing: 'border-box',
                     padding: '12px 16px',
                     background: 'var(--cream)',
                     border: '1.5px solid rgba(22,15,8,0.12)',
                     borderRadius: 12,
                     fontFamily: 'Fraunces, serif',
-                    fontSize: 15, color: 'var(--espresso)',
+                    fontSize: 15,
+                    color: 'var(--espresso)',
                     outline: 'none',
                     transition: 'border-color 0.2s',
                   }}
-                  onFocus={e => e.target.style.borderColor = 'var(--coral)'}
-                  onBlur={e => e.target.style.borderColor = 'rgba(22,15,8,0.12)'}
+                  onFocus={(e) => (e.target.style.borderColor = 'var(--coral)')}
+                  onBlur={(e) => (e.target.style.borderColor = 'rgba(22,15,8,0.12)')}
                 />
               </div>
             )}
@@ -174,14 +200,15 @@ export default function ConfirmModal({
                     background: 'var(--cream-deep)',
                     color: 'rgba(22,15,8,0.55)',
                     fontFamily: 'Syne, sans-serif',
-                    fontWeight: 700, fontSize: 11,
+                    fontWeight: 700,
+                    fontSize: 11,
                     letterSpacing: '0.1em',
                     textTransform: 'uppercase',
                     cursor: 'pointer',
                     transition: 'background 0.2s',
                   }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(22,15,8,0.1)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'var(--cream-deep)'}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(22,15,8,0.1)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--cream-deep)')}
                 >
                   {cancelLabel}
                 </button>
@@ -195,14 +222,15 @@ export default function ConfirmModal({
                   background: confirmBg,
                   color: '#fff',
                   fontFamily: 'Syne, sans-serif',
-                  fontWeight: 700, fontSize: 11,
+                  fontWeight: 700,
+                  fontSize: 11,
                   letterSpacing: '0.1em',
                   textTransform: 'uppercase',
                   cursor: 'pointer',
                   transition: 'background 0.2s',
                 }}
-                onMouseEnter={e => e.currentTarget.style.background = confirmHover}
-                onMouseLeave={e => e.currentTarget.style.background = confirmBg}
+                onMouseEnter={(e) => (e.currentTarget.style.background = confirmHover)}
+                onMouseLeave={(e) => (e.currentTarget.style.background = confirmBg)}
               >
                 {confirmLabel}
               </button>

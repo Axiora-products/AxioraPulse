@@ -10,25 +10,29 @@ PATCH  /users/{id}/accept-invite — Set password + activate invited user
 GET    /users/{id}      — Get single user profile
 """
 
-import uuid
-import secrets
 import os
-from schemas import BulkInviteRequest
-from fastapi import APIRouter, Depends, HTTPException, status
+import secrets
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session, joinedload
-from services.email_service import send_email
-from slowapi.util import get_remote_address
-from fastapi import Request
+
+from auth_utils import hash_password
+from cognito_utils import COGNITO_USER_POOL_ID, get_cognito_client
 from core.rate_limiter import limiter
 from db.database import get_db
-from db.models import UserProfile, RoleEnum
-from schemas import (
-    UserProfileOut, InviteRequest, UserRoleUpdate,
-    UserStatusUpdate, AcceptInviteRequest, MessageResponse,
-)
-from auth_utils import hash_password
+from db.models import RoleEnum, UserProfile
 from dependencies import get_current_user
-from cognito_utils import get_cognito_client, COGNITO_USER_POOL_ID
+from schemas import (
+    AcceptInviteRequest,
+    BulkInviteRequest,
+    InviteRequest,
+    MessageResponse,
+    UserProfileOut,
+    UserRoleUpdate,
+    UserStatusUpdate,
+)
+from services.email_service import send_email
 
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
 
@@ -64,13 +68,18 @@ def get_user(
     current_user: UserProfile = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    user = db.query(UserProfile).filter(
-        UserProfile.id == user_id,
-        UserProfile.tenant_id == current_user.tenant_id,
-    ).first()
+    user = (
+        db.query(UserProfile)
+        .filter(
+            UserProfile.id == user_id,
+            UserProfile.tenant_id == current_user.tenant_id,
+        )
+        .first()
+    )
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return UserProfileOut.model_validate(user)
+
 
 @router.post("/invite", response_model=UserProfileOut, status_code=status.HTTP_200_OK)
 @limiter.limit("3/minute")
@@ -90,10 +99,14 @@ def invite_user(
     _require_manager(current_user)
 
     # 🔍 Check if user already exists
-    existing = db.query(UserProfile).filter(
-        UserProfile.email == body.email,
-        UserProfile.tenant_id == current_user.tenant_id,
-    ).first()
+    existing = (
+        db.query(UserProfile)
+        .filter(
+            UserProfile.email == body.email,
+            UserProfile.tenant_id == current_user.tenant_id,
+        )
+        .first()
+    )
 
     # 🟡 CASE 1: Already exists
     if existing:
@@ -112,11 +125,11 @@ def invite_user(
                     to_email=existing.email,
                     subject="You're invited to Axiora Pulse 🚀 (Reminder)",
                     body=f"""
-                    <h3>Hello {existing.full_name or 'User'},</h3>
+                    <h3>Hello {existing.full_name or "User"},</h3>
                     <p>This is a reminder to join Axiora Pulse.</p>
                     <p>Click below to accept your invite:</p>
                     <a href="{invite_link}">Accept Invite</a>
-                    """
+                    """,
                 )
             except Exception as e:
                 print("Email failed:", str(e))
@@ -125,10 +138,7 @@ def invite_user(
 
         else:
             # 🔴 Already active user
-            raise HTTPException(
-                status_code=400,
-                detail="User already exists in your team"
-            )
+            raise HTTPException(status_code=400, detail="User already exists in your team")
 
     # 🟢 CASE 2: New user → create
     try:
@@ -160,9 +170,9 @@ def invite_user(
             subject="You're invited to Axiora Pulse 🚀",
             body=f"""
             <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; borderRadius: 10px;">
-                <h2 style="color: #160F08;">Hello {new_user.full_name or 'there'},</h2>
+                <h2 style="color: #160F08;">Hello {new_user.full_name or "there"},</h2>
                 <p style="font-size: 16px; color: #444; line-height: 1.6;">
-                    You have been invited to join <strong>{current_user.tenant.name if current_user.tenant else 'Axiora Pulse'}</strong>.
+                    You have been invited to join <strong>{current_user.tenant.name if current_user.tenant else "Axiora Pulse"}</strong>.
                 </p>
                 <p style="margin: 30px 0;">
                     <a href="{invite_link}" style="background-color: #FF4500; color: white; padding: 12px 24px; text-decoration: none; border-radius: 999px; font-weight: bold;">Accept Invitation</a>
@@ -172,14 +182,16 @@ def invite_user(
                     <a href="{invite_link}" style="color: #FF4500;">{invite_link}</a>
                 </p>
             </div>
-            """
+            """,
         )
     except Exception as e:
         print("Email failed:", str(e))
 
     return UserProfileOut.model_validate(new_user)
 
+
 import time
+
 
 @router.post("/bulk-invite")
 @limiter.limit("2/minute")
@@ -195,10 +207,14 @@ def bulk_invite(
     tenant_name = current_user.tenant.name if current_user.tenant else "Axiora Pulse"
 
     for email in body.emails:
-        existing = db.query(UserProfile).filter(
-            UserProfile.email == email,
-            UserProfile.tenant_id == current_user.tenant_id,
-        ).first()
+        existing = (
+            db.query(UserProfile)
+            .filter(
+                UserProfile.email == email,
+                UserProfile.tenant_id == current_user.tenant_id,
+            )
+            .first()
+        )
 
         # 🔁 Already invited → resend
         if existing and existing.account_status == "invited":
@@ -222,7 +238,7 @@ def bulk_invite(
                             <a href="{invite_link}" style="background-color: #FF4500; color: white; padding: 12px 24px; text-decoration: none; border-radius: 999px; font-weight: bold;">Accept Invitation</a>
                         </p>
                     </div>
-                    """
+                    """,
                 )
                 results.append({"email": email, "status": "resent"})
             except Exception:
@@ -269,7 +285,7 @@ def bulk_invite(
                         <a href="{invite_link}" style="background-color: #FF4500; color: white; padding: 12px 24px; text-decoration: none; border-radius: 999px; font-weight: bold;">Accept Invitation</a>
                     </p>
                 </div>
-                """
+                """,
             )
             results.append({"email": email, "status": "sent"})
         except Exception:
@@ -278,6 +294,7 @@ def bulk_invite(
         time.sleep(0.5)
 
     return {"results": results}
+
 
 @router.patch("/{user_id}/role", response_model=UserProfileOut)
 def update_role(
@@ -289,10 +306,14 @@ def update_role(
     """Update a user's role (TeamManagement.jsx)."""
     _require_manager(current_user)
 
-    user = db.query(UserProfile).filter(
-        UserProfile.id == user_id,
-        UserProfile.tenant_id == current_user.tenant_id,
-    ).first()
+    user = (
+        db.query(UserProfile)
+        .filter(
+            UserProfile.id == user_id,
+            UserProfile.tenant_id == current_user.tenant_id,
+        )
+        .first()
+    )
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -316,10 +337,14 @@ def update_status(
     """Activate or deactivate a user (TeamManagement.jsx)."""
     _require_manager(current_user)
 
-    user = db.query(UserProfile).filter(
-        UserProfile.id == user_id,
-        UserProfile.tenant_id == current_user.tenant_id,
-    ).first()
+    user = (
+        db.query(UserProfile)
+        .filter(
+            UserProfile.id == user_id,
+            UserProfile.tenant_id == current_user.tenant_id,
+        )
+        .first()
+    )
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -342,10 +367,14 @@ def delete_user(
     if current_user.role != RoleEnum.super_admin:
         raise HTTPException(status_code=403, detail="Only super_admin can delete users")
 
-    user = db.query(UserProfile).filter(
-        UserProfile.id == user_id,
-        UserProfile.tenant_id == current_user.tenant_id,
-    ).first()
+    user = (
+        db.query(UserProfile)
+        .filter(
+            UserProfile.id == user_id,
+            UserProfile.tenant_id == current_user.tenant_id,
+        )
+        .first()
+    )
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -376,9 +405,13 @@ def accept_invite(
         raise HTTPException(status_code=400, detail="User is already active")
 
     if len(body.password) < 8 or not any(c.isdigit() or not c.isalpha() for c in body.password):
-        raise HTTPException(status_code=422, detail="Password must be at least 8 characters and contain a number or special character")
+        raise HTTPException(
+            status_code=422,
+            detail="Password must be at least 8 characters and contain a number or special character",
+        )
 
     from datetime import datetime, timezone
+
     user.full_name = body.full_name.strip()
     user.password_hash = hash_password(body.password)
     user.account_status = "active"
@@ -394,7 +427,7 @@ def accept_invite(
                 client.admin_create_user(
                     UserPoolId=COGNITO_USER_POOL_ID,
                     Username=user.email,
-                    MessageAction='SUPPRESS',
+                    MessageAction="SUPPRESS",
                 )
             except client.exceptions.UsernameExistsException:
                 pass

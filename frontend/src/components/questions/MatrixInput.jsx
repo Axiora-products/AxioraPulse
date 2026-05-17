@@ -20,18 +20,23 @@ export default function MatrixInput({ q, val = {}, set, tc }) {
     if (!opts) return { rows: [], cols: [] };
     try {
       if (typeof opts === 'string') opts = JSON.parse(opts);
-    } catch { return { rows: [], cols: [] }; }
+    } catch {
+      return { rows: [], cols: [] };
+    }
 
     if (Array.isArray(opts)) {
       // Legacy flat array → treat as columns
       const fallbackRows = Array.isArray(q.matrix_rows)
         ? q.matrix_rows
-        : [{ label: 'Item 1', value: 'row_1' }, { label: 'Item 2', value: 'row_2' }];
+        : [
+            { label: 'Item 1', value: 'row_1' },
+            { label: 'Item 2', value: 'row_2' },
+          ];
       return { rows: fallbackRows, cols: opts };
     }
 
     return {
-      rows: Array.isArray(opts.rows)    ? opts.rows    : [],
+      rows: Array.isArray(opts.rows) ? opts.rows : [],
       cols: Array.isArray(opts.columns) ? opts.columns : [],
     };
   };
@@ -47,11 +52,18 @@ export default function MatrixInput({ q, val = {}, set, tc }) {
   }
 
   const answered = Object.keys(val).length;
-  const pct      = rows.length ? Math.round((answered / rows.length) * 100) : 0;
+  const pct = rows.length ? Math.round((answered / rows.length) * 100) : 0;
 
   if (rows.length === 0 || cols.length === 0) {
     return (
-      <div style={{ padding: '24px 0', color: 'rgba(22,15,8,0.3)', fontFamily: 'Fraunces, serif', fontSize: 15 }}>
+      <div
+        style={{
+          padding: '24px 0',
+          color: 'rgba(22,15,8,0.3)',
+          fontFamily: 'Fraunces, serif',
+          fontSize: 15,
+        }}
+      >
         No rows or columns configured for this matrix question.
       </div>
     );
@@ -59,49 +71,69 @@ export default function MatrixInput({ q, val = {}, set, tc }) {
 
   return (
     <div style={{ width: '100%' }}>
-
       {/* Progress bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
-        <div style={{ flex: 1, height: 2, borderRadius: 999, background: 'rgba(22,15,8,0.07)', overflow: 'hidden' }}>
+        <div
+          style={{
+            flex: 1,
+            height: 2,
+            borderRadius: 999,
+            background: 'rgba(22,15,8,0.07)',
+            overflow: 'hidden',
+          }}
+        >
           <motion.div
             animate={{ width: `${pct}%` }}
             transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
             style={{ height: '100%', background: tc, borderRadius: 999 }}
           />
         </div>
-        <span style={{
-          fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700,
-          letterSpacing: '0.14em', textTransform: 'uppercase',
-          color: 'rgba(22,15,8,0.3)', flexShrink: 0,
-        }}>
+        <span
+          style={{
+            fontFamily: 'Syne, sans-serif',
+            fontSize: 9,
+            fontWeight: 700,
+            letterSpacing: '0.14em',
+            textTransform: 'uppercase',
+            color: 'rgba(22,15,8,0.3)',
+            flexShrink: 0,
+          }}
+        >
           {answered} / {rows.length}
         </span>
       </div>
 
       {/* Scrollable grid */}
       <div style={{ overflowX: 'auto', marginLeft: -4, marginRight: -4, paddingBottom: 4 }}>
-        <table style={{
-          borderCollapse: 'separate',
-          borderSpacing: '0',
-          minWidth: cols.length > 3 ? 500 : 'auto',
-          width: '100%',
-        }}>
+        <table
+          style={{
+            borderCollapse: 'separate',
+            borderSpacing: '0',
+            minWidth: cols.length > 3 ? 500 : 'auto',
+            width: '100%',
+          }}
+        >
           {/* Column headers */}
           <thead>
             <tr>
               <th style={{ width: '38%', paddingBottom: 12 }} />
               {cols.map((col, ci) => (
-                <th key={col.value ?? ci} style={{
-                  paddingBottom: 12,
-                  paddingLeft: 8, paddingRight: 8,
-                  textAlign: 'center',
-                  fontFamily: 'Syne, sans-serif',
-                  fontSize: 9, fontWeight: 700,
-                  letterSpacing: '0.12em',
-                  textTransform: 'uppercase',
-                  color: 'rgba(22,15,8,0.38)',
-                  whiteSpace: 'nowrap',
-                }}>
+                <th
+                  key={col.value ?? ci}
+                  style={{
+                    paddingBottom: 12,
+                    paddingLeft: 8,
+                    paddingRight: 8,
+                    textAlign: 'center',
+                    fontFamily: 'Syne, sans-serif',
+                    fontSize: 9,
+                    fontWeight: 700,
+                    letterSpacing: '0.12em',
+                    textTransform: 'uppercase',
+                    color: 'rgba(22,15,8,0.38)',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
                   {col.label}
                 </th>
               ))}
@@ -121,21 +153,29 @@ export default function MatrixInput({ q, val = {}, set, tc }) {
                   transition={{ delay: ri * 0.05, duration: 0.3 }}
                 >
                   {/* Row label */}
-                  <td style={{
-                    fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 15,
-                    color: isAnswered ? 'var(--espresso, #160F08)' : 'rgba(22,15,8,0.55)',
-                    paddingRight: 20,
-                    paddingTop: 6, paddingBottom: 6,
-                    verticalAlign: 'middle',
-                    transition: 'color 0.2s',
-                    whiteSpace: 'nowrap',
-                  }}>
+                  <td
+                    style={{
+                      fontFamily: 'Fraunces, serif',
+                      fontWeight: 300,
+                      fontSize: 15,
+                      color: isAnswered ? 'var(--espresso, #160F08)' : 'rgba(22,15,8,0.55)',
+                      paddingRight: 20,
+                      paddingTop: 6,
+                      paddingBottom: 6,
+                      verticalAlign: 'middle',
+                      transition: 'color 0.2s',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
                     <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       {isAnswered && (
                         <motion.span
                           initial={{ scale: 0 }}
                           animate={{ scale: 1 }}
-                          style={{ color: tc, fontSize: 11, lineHeight: 1 }}>✓</motion.span>
+                          style={{ color: tc, fontSize: 11, lineHeight: 1 }}
+                        >
+                          ✓
+                        </motion.span>
                       )}
                       {row.label}
                     </span>
@@ -145,22 +185,28 @@ export default function MatrixInput({ q, val = {}, set, tc }) {
                   {cols.map((col, ci) => {
                     const active = selected === col.value;
                     return (
-                      <td key={col.value ?? ci} style={{
-                        textAlign: 'center',
-                        padding: '6px 8px',
-                        verticalAlign: 'middle',
-                      }}>
+                      <td
+                        key={col.value ?? ci}
+                        style={{
+                          textAlign: 'center',
+                          padding: '6px 8px',
+                          verticalAlign: 'middle',
+                        }}
+                      >
                         <motion.button
                           whileHover={{ scale: 1.15 }}
                           whileTap={{ scale: 0.88 }}
                           onClick={() => toggle(row.value, col.value)}
                           style={{
-                            width: 34, height: 34,
+                            width: 34,
+                            height: 34,
                             borderRadius: '50%',
                             border: `2px solid ${active ? tc : 'rgba(22,15,8,0.13)'}`,
                             background: active ? tc : 'transparent',
                             cursor: 'pointer',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
                             margin: '0 auto',
                             transition: 'border-color 0.2s, background 0.2s',
                             boxShadow: active ? `0 4px 16px ${tc}35` : 'none',
@@ -173,9 +219,14 @@ export default function MatrixInput({ q, val = {}, set, tc }) {
                               initial={{ scale: 0, rotate: -20 }}
                               animate={{ scale: 1, rotate: 0 }}
                               transition={{ type: 'spring', stiffness: 500, damping: 22 }}
-                              width="12" height="12" viewBox="0 0 24 24"
-                              fill="none" stroke="white" strokeWidth="3"
-                              strokeLinecap="round" strokeLinejoin="round"
+                              width="12"
+                              height="12"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="white"
+                              strokeWidth="3"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
                             >
                               <path d="M5 13l4 4L19 7" />
                             </motion.svg>
@@ -197,19 +248,32 @@ export default function MatrixInput({ q, val = {}, set, tc }) {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           style={{
-            marginTop: 18, display: 'flex', alignItems: 'center', gap: 8,
-            fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700,
-            letterSpacing: '0.14em', textTransform: 'uppercase', color: tc,
+            marginTop: 18,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            fontFamily: 'Syne, sans-serif',
+            fontSize: 9,
+            fontWeight: 700,
+            letterSpacing: '0.14em',
+            textTransform: 'uppercase',
+            color: tc,
           }}
         >
           <span>✓</span> All rows answered
         </motion.div>
       )}
       {answered > 0 && answered < rows.length && (
-        <p style={{
-          marginTop: 14, fontFamily: 'Fraunces, serif', fontWeight: 300,
-          fontSize: 12, color: 'rgba(22,15,8,0.3)', fontStyle: 'italic',
-        }}>
+        <p
+          style={{
+            marginTop: 14,
+            fontFamily: 'Fraunces, serif',
+            fontWeight: 300,
+            fontSize: 12,
+            color: 'rgba(22,15,8,0.3)',
+            fontStyle: 'italic',
+          }}
+        >
           {rows.length - answered} row{rows.length - answered !== 1 ? 's' : ''} remaining
         </p>
       )}

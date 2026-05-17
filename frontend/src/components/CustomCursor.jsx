@@ -15,38 +15,51 @@ export default function CustomCursor() {
     if (_attached) return;
     _attached = true;
 
-    const dot  = document.getElementById('np-cur-dot');
+    const dot = document.getElementById('np-cur-dot');
     const ring = document.getElementById('np-cur-ring');
-    if (!dot || !ring) { _attached = false; return; }
+    if (!dot || !ring) {
+      _attached = false;
+      return;
+    }
 
-    let mx = 0, my = 0, rx = 0, ry = 0;
+    let mx = 0,
+      my = 0,
+      rx = 0,
+      ry = 0;
     let raf;
 
-    const onMove = e => {
+    const onMove = (e) => {
       mx = e.clientX;
       my = e.clientY;
       dot.style.left = mx + 'px';
-      dot.style.top  = my + 'px';
+      dot.style.top = my + 'px';
     };
 
     const loopRing = () => {
       rx += (mx - rx) * 0.07;
       ry += (my - ry) * 0.07;
       ring.style.left = rx + 'px';
-      ring.style.top  = ry + 'px';
+      ring.style.top = ry + 'px';
       raf = requestAnimationFrame(loopRing);
     };
 
     const onEnter = () => document.documentElement.classList.add('np-hovering');
     const onLeave = () => document.documentElement.classList.remove('np-hovering');
-    const onDown  = () => document.documentElement.classList.add('np-clicking');
-    const onUp    = () => document.documentElement.classList.remove('np-clicking');
-    const onOut   = () => { dot.style.opacity = '0'; ring.style.opacity = '0'; };
-    const onIn    = () => { dot.style.opacity = '1'; ring.style.opacity = ''; };
+    const onDown = () => document.documentElement.classList.add('np-clicking');
+    const onUp = () => document.documentElement.classList.remove('np-clicking');
+    const onOut = () => {
+      dot.style.opacity = '0';
+      ring.style.opacity = '0';
+    };
+    const onIn = () => {
+      dot.style.opacity = '1';
+      ring.style.opacity = '';
+    };
 
     function bindHovers() {
-      document.querySelectorAll('a, button, [role="button"], input, textarea, select, label, [tabindex]')
-        .forEach(el => {
+      document
+        .querySelectorAll('a, button, [role="button"], input, textarea, select, label, [tabindex]')
+        .forEach((el) => {
           if (el._npHover) return;
           el._npHover = true;
           el.addEventListener('mouseenter', onEnter);
@@ -56,7 +69,7 @@ export default function CustomCursor() {
 
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mousedown', onDown);
-    document.addEventListener('mouseup',   onUp);
+    document.addEventListener('mouseup', onUp);
     document.addEventListener('mouseleave', onOut);
     document.addEventListener('mouseenter', onIn);
     loopRing();
@@ -71,7 +84,7 @@ export default function CustomCursor() {
       obs.disconnect();
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mousedown', onDown);
-      document.removeEventListener('mouseup',   onUp);
+      document.removeEventListener('mouseup', onUp);
       document.removeEventListener('mouseleave', onOut);
       document.removeEventListener('mouseenter', onIn);
     };

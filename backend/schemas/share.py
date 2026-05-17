@@ -1,8 +1,11 @@
 from __future__ import annotations
+
 from datetime import datetime
 from typing import Optional
 from uuid import UUID
+
 from pydantic import BaseModel
+
 
 class SurveyShareUser(BaseModel):
     id: UUID
@@ -11,9 +14,11 @@ class SurveyShareUser(BaseModel):
 
     model_config = {"from_attributes": True}
 
+
 class SurveyShareCreate(BaseModel):
     shared_with: UUID
     permission: str = "viewer"
+
 
 class SurveyShareOut(BaseModel):
     id: UUID

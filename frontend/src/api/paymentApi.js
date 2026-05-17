@@ -22,7 +22,10 @@ export async function getSubscription() {
 
 function loadRazorpayScript() {
   return new Promise((resolve) => {
-    if (window.Razorpay) { resolve(true); return; }
+    if (window.Razorpay) {
+      resolve(true);
+      return;
+    }
     const s = document.createElement('script');
     s.src = 'https://checkout.razorpay.com/v1/checkout.js';
     s.onload = () => resolve(true);
@@ -33,7 +36,10 @@ function loadRazorpayScript() {
 
 export async function openCheckout({ order, planCode, profile, onSuccess, onError }) {
   const loaded = await loadRazorpayScript();
-  if (!loaded) { onError('Failed to load payment gateway. Please try again.'); return; }
+  if (!loaded) {
+    onError('Failed to load payment gateway. Please try again.');
+    return;
+  }
 
   const rzp = new window.Razorpay({
     key: order.key_id,

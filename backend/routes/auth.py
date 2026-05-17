@@ -6,15 +6,22 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
+from auth_utils import verify_password
+from cognito_utils import admin_delete_user, admin_get_user_status, verify_cognito_token
 from core.rate_limiter import limiter
 from db.database import get_db
-from db.models import Tenant, UserProfile, RoleEnum
-from schemas import (
-    MeResponse, UserProfileOut, TenantOut, UserProfileUpdate, SyncRequest, SyncResponse, MigrateCheckRequest, CleanupRequest
-)
-from cognito_utils import verify_cognito_token, admin_get_user_status, admin_delete_user
-from auth_utils import verify_password
+from db.models import RoleEnum, Tenant, UserProfile
 from dependencies import get_current_user
+from schemas import (
+    CleanupRequest,
+    MeResponse,
+    MigrateCheckRequest,
+    SyncRequest,
+    SyncResponse,
+    TenantOut,
+    UserProfileOut,
+    UserProfileUpdate,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -29,6 +36,7 @@ def _slugify(text: str) -> str:
 
 
 # ── /auth/me ─────────────────────────────────────────────────────────────────
+
 
 @router.get("/me", response_model=MeResponse)
 @limiter.limit("30/minute")
@@ -48,6 +56,7 @@ def me(
 
 # ── /auth/me/profile ──────────────────────────────────────────────────────────
 
+
 @router.patch("/me/profile")
 @limiter.limit("20/minute")
 def update_profile(
@@ -63,6 +72,7 @@ def update_profile(
 
 
 # ── /auth/sync ────────────────────────────────────────────────────────────────
+
 
 @router.post("/sync", response_model=SyncResponse)
 @limiter.limit("10/minute")
@@ -139,6 +149,7 @@ def sync(
 
 
 # ── /auth/migrate-check ───────────────────────────────────────────────────────
+
 
 @router.post("/migrate-check")
 def migrate_check(

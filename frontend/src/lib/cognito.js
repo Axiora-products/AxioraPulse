@@ -11,7 +11,8 @@ function getUserPool() {
   if (!_userPool) {
     const id = import.meta.env.VITE_COGNITO_USER_POOL_ID;
     const clientId = import.meta.env.VITE_COGNITO_APP_CLIENT_ID;
-    if (!id || !clientId) throw new Error('VITE_COGNITO_USER_POOL_ID and VITE_COGNITO_APP_CLIENT_ID must be set');
+    if (!id || !clientId)
+      throw new Error('VITE_COGNITO_USER_POOL_ID and VITE_COGNITO_APP_CLIENT_ID must be set');
     _userPool = new CognitoUserPool({ UserPoolId: id, ClientId: clientId });
   }
   return _userPool;

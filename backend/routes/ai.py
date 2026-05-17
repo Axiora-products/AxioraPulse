@@ -4,25 +4,35 @@ routes/ai.py
 AI-powered survey insights using OpenAI.
 """
 
-import os
 import json
-from typing import List
-from fastapi import Request
-from fastapi import APIRouter, Depends, HTTPException
+import os
 
 import google.generativeai as genai
-
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import ValidationError
-from starlette.concurrency import run_in_threadpool
-from core.rate_limiter import limiter
-
 from sqlalchemy.orm import Session, joinedload
+from starlette.concurrency import run_in_threadpool
+
+from core.rate_limiter import limiter
 from db.database import get_db
-from db.models import UserProfile, Survey, SurveyQuestion, SurveyResponse, SurveyAnswer, ResponseStatusEnum
-from schemas import AIInsightsRequest, AIInsightsResponse, AISuggestionsRequest, AISuggestionsResponse, AIGenerateRequest, AIGenerateResponse
+from db.models import (
+    ResponseStatusEnum,
+    Survey,
+    SurveyResponse,
+    UserProfile,
+)
 from dependencies import get_current_user
+from schemas import (
+    AIGenerateRequest,
+    AIGenerateResponse,
+    AIInsightsRequest,
+    AIInsightsResponse,
+    AISuggestionsRequest,
+    AISuggestionsResponse,
+)
 
 router = APIRouter(prefix="/ai", tags=["ai"])
+
 
 @router.get("/ping")
 @limiter.limit("30/minute")
@@ -32,9 +42,15 @@ async def ping_ai(request: Request):
 
 # ── Internal Helpers ──────────────────────────────────────────────────────────
 
+
 def _build_survey_context(survey_id: str, db: Session) -> dict:
     """Fetch survey, questions, and responses to build context for AI."""
-    survey = db.query(Survey).options(joinedload(Survey.questions)).filter(Survey.id == survey_id).first()
+    survey = (
+        db.query(Survey)
+        .options(joinedload(Survey.questions))
+        .filter(Survey.id == survey_id)
+        .first()
+    )
     if not survey:
         return None
 
@@ -46,15 +62,19 @@ def _build_survey_context(survey_id: str, db: Session) -> dict:
     )
 
     total = len(responses)
-    completed = len([r for r in responses if r.status == ResponseStatusEnum.completed]) if total > 0 else 0
-    abandoned = len([r for r in responses if r.status == ResponseStatusEnum.abandoned]) if total > 0 else 0
+    completed = (
+        len([r for r in responses if r.status == ResponseStatusEnum.completed]) if total > 0 else 0
+    )
+    abandoned = (
+        len([r for r in responses if r.status == ResponseStatusEnum.abandoned]) if total > 0 else 0
+    )
     completion_rate = round((completed / total) * 100) if total > 0 else 0
     abandon_rate = round((abandoned / total) * 100) if total > 0 else 0
 
     # Calculate average time for completed responses
     durations = [
-        (r.completed_at - r.started_at).total_seconds() 
-        for r in responses 
+        (r.completed_at - r.started_at).total_seconds()
+        for r in responses
         if r.completed_at and r.started_at and r.status == ResponseStatusEnum.completed
     ]
     avg_time = round(sum(durations) / len(durations) / 60, 1) if durations else 0
@@ -67,7 +87,7 @@ def _build_survey_context(survey_id: str, db: Session) -> dict:
                 val = int(a.answer_value)
                 if val >= 0 and val <= 10:
                     nps_scores.append(val)
-    
+
     nps_val = None
     if nps_scores:
         promoters = len([s for s in nps_scores if s >= 9])
@@ -81,15 +101,17 @@ def _build_survey_context(survey_id: str, db: Session) -> dict:
         for r in responses:
             ans = next((a for a in r.survey_answers if a.question_id == q.id), None)
             if ans:
-                if ans.answer_value: q_answers.append(ans.answer_value)
-                elif ans.answer_json: q_answers.append(ans.answer_json)
-        
+                if ans.answer_value:
+                    q_answers.append(ans.answer_value)
+                elif ans.answer_json:
+                    q_answers.append(ans.answer_json)
+
         summary = {
             "id": str(q.id),
             "text": q.question_text,
             "type": q.question_type.value,
             "responseCount": len(q_answers),
-            "responses": q_answers[:50] 
+            "responses": q_answers[:50],
         }
         question_summaries.append(summary)
 
@@ -101,10 +123,11 @@ def _build_survey_context(survey_id: str, db: Session) -> dict:
             "completionRate": completion_rate,
             "abandonRate": abandon_rate,
             "avgTimeMin": avg_time,
-            "nps": nps_val
+            "nps": nps_val,
         },
-        "questionSummaries": question_summaries
+        "questionSummaries": question_summaries,
     }
+
 
 @router.get("/surveys/{survey_id}/insights")
 @limiter.limit("3/minute")
@@ -112,12 +135,16 @@ async def generate_survey_insights(
     request: Request,
     survey_id: str,
     db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(get_current_user)
+    current_user: UserProfile = Depends(get_current_user),
 ):
     """
     Generate Deep AI insights for a survey by fetching all data from the database.
     """
-    survey = db.query(Survey).filter(Survey.id == survey_id, Survey.tenant_id == current_user.tenant_id).first()
+    survey = (
+        db.query(Survey)
+        .filter(Survey.id == survey_id, Survey.tenant_id == current_user.tenant_id)
+        .first()
+    )
     if not survey:
         raise HTTPException(status_code=404, detail="Survey not found")
 
@@ -128,7 +155,7 @@ async def generate_survey_insights(
     body = AIInsightsRequest(
         surveyTitle=context["title"],
         responses=context["stats"],
-        questionSummaries=context["questionSummaries"]
+        questionSummaries=context["questionSummaries"],
     )
     return await generate_insights(request, body, current_user)
 
@@ -136,17 +163,17 @@ async def generate_survey_insights(
 @router.post("/insights")
 @limiter.limit("3/minute")
 async def generate_insights(
-    request: Request,   # ✅ ADD
+    request: Request,  # ✅ ADD
     body: AIInsightsRequest,
-    current_user: UserProfile = Depends(get_current_user)
+    current_user: UserProfile = Depends(get_current_user),
 ):
     print(f"[AI] Received Gemini request for survey: {body.surveyTitle}")
-    
+
     api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key:
         raise HTTPException(
-            status_code=500, 
-            detail="Google API key not configured on server. Please set GOOGLE_API_KEY in .env"
+            status_code=500,
+            detail="Google API key not configured on server. Please set GOOGLE_API_KEY in .env",
         )
 
     try:
@@ -160,11 +187,11 @@ async def generate_insights(
         Survey Title: {body.surveyTitle}
         
         Overall Stats:
-        - Total Responses: {body.responses.get('total')}
-        - Completion Rate: {body.responses.get('completionRate')}%
-        - Abandon Rate: {body.responses.get('abandonRate')}%
-        - Avg Time: {body.responses.get('avgTimeMin')} minutes
-        - NPS: {json.dumps(body.responses.get('nps'))}
+        - Total Responses: {body.responses.get("total")}
+        - Completion Rate: {body.responses.get("completionRate")}%
+        - Abandon Rate: {body.responses.get("abandonRate")}%
+        - Avg Time: {body.responses.get("avgTimeMin")} minutes
+        - NPS: {json.dumps(body.responses.get("nps"))}
         
         Question Summaries:
         {json.dumps(body.questionSummaries, indent=2)}
@@ -189,7 +216,7 @@ async def generate_insights(
             prompt,
             generation_config=genai.GenerationConfig(
                 response_mime_type="application/json",
-            )
+            ),
         )
 
         result_json = json.loads(response.text)
@@ -202,16 +229,16 @@ async def generate_insights(
         print(f"[AI] Gemini Error: {e}")
         # Check for quota errors in string
         if "quota" in str(e).lower() or "429" in str(e):
-             raise HTTPException(status_code=429, detail="Google API quota exceeded or rate limited.")
+            raise HTTPException(
+                status_code=429, detail="Google API quota exceeded or rate limited."
+            )
         raise HTTPException(status_code=500, detail=f"Failed to generate Gemini insights: {str(e)}")
 
 
 @router.post("/generate")
 @limiter.limit("5/minute")
 async def generate_survey(
-    request: Request,
-    body: AIGenerateRequest,
-    current_user: UserProfile = Depends(get_current_user)
+    request: Request, body: AIGenerateRequest, current_user: UserProfile = Depends(get_current_user)
 ):
     api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key:
@@ -252,7 +279,7 @@ async def generate_survey(
             prompt,
             generation_config=genai.GenerationConfig(
                 response_mime_type="application/json",
-            )
+            ),
         )
 
         result_json = json.loads(response.text)
@@ -264,25 +291,24 @@ async def generate_survey(
     except Exception as e:
         print(f"[AI] Generate Error: {e}")
         if "quota" in str(e).lower() or "429" in str(e):
-            raise HTTPException(status_code=429, detail="Google API quota exceeded or rate limited.")
+            raise HTTPException(
+                status_code=429, detail="Google API quota exceeded or rate limited."
+            )
         raise HTTPException(status_code=500, detail=f"Failed to generate survey: {str(e)}")
 
 
 @router.post("/suggestions")
 @limiter.limit("5/minute")
 async def generate_suggestions(
-    request: Request,   # ✅ ADD
+    request: Request,  # ✅ ADD
     body: AISuggestionsRequest,
-    current_user: UserProfile = Depends(get_current_user)
+    current_user: UserProfile = Depends(get_current_user),
 ):
     print(f"[AI] Received Gemini suggestions request for survey: {body.surveyTitle}")
-    
+
     api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key:
-        raise HTTPException(
-            status_code=500, 
-            detail="Google API key not configured on server"
-        )
+        raise HTTPException(status_code=500, detail="Google API key not configured on server")
 
     try:
         genai.configure(api_key=api_key)
@@ -315,7 +341,7 @@ async def generate_suggestions(
             prompt,
             generation_config=genai.GenerationConfig(
                 response_mime_type="application/json",
-            )
+            ),
         )
 
         result_json = json.loads(response.text)
@@ -327,5 +353,9 @@ async def generate_suggestions(
     except Exception as e:
         print(f"[AI] Gemini Error: {e}")
         if "quota" in str(e).lower() or "429" in str(e):
-             raise HTTPException(status_code=429, detail="Google API quota exceeded or rate limited.")
-        raise HTTPException(status_code=500, detail=f"Failed to generate Gemini suggestions: {str(e)}")
+            raise HTTPException(
+                status_code=429, detail="Google API quota exceeded or rate limited."
+            )
+        raise HTTPException(
+            status_code=500, detail=f"Failed to generate Gemini suggestions: {str(e)}"
+        )

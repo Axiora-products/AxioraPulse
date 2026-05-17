@@ -16,3 +16,10 @@ slowapi
 requests
 razorpay==1.4.2
 boto3
+
+# Dev & Security Tools
+ruff
+bandit
+pytest
+pip-audit
+httpx

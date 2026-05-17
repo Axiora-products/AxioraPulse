@@ -68,7 +68,9 @@ const useAuthStore = create((set, get) => ({
 
   // ── signOut ───────────────────────────────────────────────────────────────
   signOut: async () => {
-    try { await API.post('/auth/logout'); } catch (_) {}
+    try {
+      await API.post('/auth/logout');
+    } catch (_) {}
     cognitoSignOut();
     localStorage.removeItem('token');
     set({ user: null, profile: null, tenant: null, initialized: false });

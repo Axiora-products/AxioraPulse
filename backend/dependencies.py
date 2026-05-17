@@ -6,14 +6,15 @@ Reusable FastAPI dependencies:
   - get_current_user → verifies Cognito ID token, loads UserProfile from DB
 """
 
-from datetime import timezone, datetime
+from datetime import datetime, timezone
+
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
+from cognito_utils import verify_cognito_token
 from db.database import get_db
 from db.models import UserProfile
-from cognito_utils import verify_cognito_token
 
 bearer_scheme = HTTPBearer(auto_error=False)
 

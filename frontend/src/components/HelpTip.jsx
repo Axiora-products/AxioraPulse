@@ -14,31 +14,51 @@ export default function HelpTip({ text, position = 'top' }) {
 
   // Close on Escape
   useEffect(() => {
-    const onKey = e => { if (e.key === 'Escape') setVisible(false); };
+    const onKey = (e) => {
+      if (e.key === 'Escape') setVisible(false);
+    };
     if (visible) window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [visible]);
 
-  const tooltipPos = {
-    top:    { bottom: 'calc(100% + 8px)', left: '50%', transform: 'translateX(-50%)' },
-    bottom: { top:    'calc(100% + 8px)', left: '50%', transform: 'translateX(-50%)' },
-    left:   { right:  'calc(100% + 8px)', top:  '50%', transform: 'translateY(-50%)' },
-    right:  { left:   'calc(100% + 8px)', top:  '50%', transform: 'translateY(-50%)' },
-  }[position] || {};
+  const tooltipPos =
+    {
+      top: { bottom: 'calc(100% + 8px)', left: '50%', transform: 'translateX(-50%)' },
+      bottom: { top: 'calc(100% + 8px)', left: '50%', transform: 'translateX(-50%)' },
+      left: { right: 'calc(100% + 8px)', top: '50%', transform: 'translateY(-50%)' },
+      right: { left: 'calc(100% + 8px)', top: '50%', transform: 'translateY(-50%)' },
+    }[position] || {};
 
   return (
     <span
       ref={ref}
-      style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', verticalAlign: 'middle' }}
+      style={{
+        position: 'relative',
+        display: 'inline-flex',
+        alignItems: 'center',
+        verticalAlign: 'middle',
+      }}
     >
       <button
         type="button"
         aria-label="Help"
         aria-expanded={visible}
-        onMouseEnter={e => { setVisible(true); e.currentTarget.style.color = 'var(--coral)'; }}
-        onMouseLeave={e => { setVisible(false); e.currentTarget.style.color = 'rgba(22,15,8,0.3)'; }}
-        onFocus={e => { setVisible(true); e.currentTarget.style.color = 'var(--coral)'; }}
-        onBlur={e => { setVisible(false); e.currentTarget.style.color = 'rgba(22,15,8,0.3)'; }}
+        onMouseEnter={(e) => {
+          setVisible(true);
+          e.currentTarget.style.color = 'var(--coral)';
+        }}
+        onMouseLeave={(e) => {
+          setVisible(false);
+          e.currentTarget.style.color = 'rgba(22,15,8,0.3)';
+        }}
+        onFocus={(e) => {
+          setVisible(true);
+          e.currentTarget.style.color = 'var(--coral)';
+        }}
+        onBlur={(e) => {
+          setVisible(false);
+          e.currentTarget.style.color = 'rgba(22,15,8,0.3)';
+        }}
         style={{
           background: 'none',
           border: 'none',
@@ -54,9 +74,16 @@ export default function HelpTip({ text, position = 'top' }) {
         }}
       >
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-          <circle cx="7" cy="7" r="6.5" stroke="currentColor" strokeWidth="1.2"/>
-          <text x="7" y="10.5" textAnchor="middle" fill="currentColor"
-            style={{ fontSize: 8, fontFamily: 'Georgia, serif', fontWeight: 700 }}>i</text>
+          <circle cx="7" cy="7" r="6.5" stroke="currentColor" strokeWidth="1.2" />
+          <text
+            x="7"
+            y="10.5"
+            textAnchor="middle"
+            fill="currentColor"
+            style={{ fontSize: 8, fontFamily: 'Georgia, serif', fontWeight: 700 }}
+          >
+            i
+          </text>
         </svg>
       </button>
 
@@ -88,13 +115,51 @@ export default function HelpTip({ text, position = 'top' }) {
           >
             {text}
             {/* Arrow */}
-            <span style={{
-              position: 'absolute',
-              ...(position === 'top'    ? { top: '100%', left: '50%', transform: 'translateX(-50%)', borderTop: '5px solid var(--espresso)', borderLeft: '5px solid transparent', borderRight: '5px solid transparent' } : {}),
-              ...(position === 'bottom' ? { bottom: '100%', left: '50%', transform: 'translateX(-50%)', borderBottom: '5px solid var(--espresso)', borderLeft: '5px solid transparent', borderRight: '5px solid transparent' } : {}),
-              ...(position === 'left'   ? { left: '100%', top: '50%', transform: 'translateY(-50%)', borderLeft: '5px solid var(--espresso)', borderTop: '5px solid transparent', borderBottom: '5px solid transparent' } : {}),
-              ...(position === 'right'  ? { right: '100%', top: '50%', transform: 'translateY(-50%)', borderRight: '5px solid var(--espresso)', borderTop: '5px solid transparent', borderBottom: '5px solid transparent' } : {}),
-            }} />
+            <span
+              style={{
+                position: 'absolute',
+                ...(position === 'top'
+                  ? {
+                      top: '100%',
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      borderTop: '5px solid var(--espresso)',
+                      borderLeft: '5px solid transparent',
+                      borderRight: '5px solid transparent',
+                    }
+                  : {}),
+                ...(position === 'bottom'
+                  ? {
+                      bottom: '100%',
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      borderBottom: '5px solid var(--espresso)',
+                      borderLeft: '5px solid transparent',
+                      borderRight: '5px solid transparent',
+                    }
+                  : {}),
+                ...(position === 'left'
+                  ? {
+                      left: '100%',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      borderLeft: '5px solid var(--espresso)',
+                      borderTop: '5px solid transparent',
+                      borderBottom: '5px solid transparent',
+                    }
+                  : {}),
+                ...(position === 'right'
+                  ? {
+                      right: '100%',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      borderRight: '5px solid var(--espresso)',
+                      borderTop: '5px solid transparent',
+                      borderBottom: '5px solid transparent',
+                    }
+                  : {}),
+              }}
+            />
           </motion.div>
         )}
       </AnimatePresence>

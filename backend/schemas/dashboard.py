@@ -1,9 +1,13 @@
 from __future__ import annotations
+
 from datetime import datetime
 from typing import Optional
 from uuid import UUID
+
 from pydantic import BaseModel
+
 from .survey import SurveyCreator
+
 
 class DashboardStats(BaseModel):
     total_surveys: int
@@ -11,6 +15,7 @@ class DashboardStats(BaseModel):
     total_responses: int
     completion_rate: float
     team_members: int
+
 
 class RecentSurvey(BaseModel):
     id: UUID

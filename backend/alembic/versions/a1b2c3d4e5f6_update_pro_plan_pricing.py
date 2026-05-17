@@ -9,6 +9,7 @@ Updates the Pro plan: price to ₹2,499 (249900 paise), unlimited surveys,
 """
 
 from typing import Sequence, Union
+
 from alembic import op
 
 revision: str = "a1b2c3d4e5f6"

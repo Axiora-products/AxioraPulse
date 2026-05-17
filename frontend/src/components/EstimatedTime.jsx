@@ -25,20 +25,20 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 // Rough type-based time estimates (seconds)
 const TYPE_SECS = {
-  short_text:      25,
-  long_text:       55,
-  email:           10,
-  number:          10,
-  date:            12,
-  yes_no:           6,
-  single_choice:    8,
+  short_text: 25,
+  long_text: 55,
+  email: 10,
+  number: 10,
+  date: 12,
+  yes_no: 6,
+  single_choice: 8,
   multiple_choice: 12,
-  dropdown:         8,
-  rating:           6,
-  scale:            7,
-  ranking:         20,
-  slider:          10,
-  matrix:          30,
+  dropdown: 8,
+  rating: 6,
+  scale: 7,
+  ranking: 20,
+  slider: 10,
+  matrix: 30,
 };
 
 function estimateSecs(questions, trackerAvg) {
@@ -52,8 +52,8 @@ function estimateSecs(questions, trackerAvg) {
 }
 
 function formatTime(secs) {
-  if (secs <= 30)  return null;          // too short to show
-  if (secs < 60)   return '< 1 min';
+  if (secs <= 30) return null; // too short to show
+  if (secs < 60) return '< 1 min';
   const mins = secs / 60;
   // Round to nearest 0.5
   const rounded = Math.round(mins * 2) / 2;
@@ -62,9 +62,9 @@ function formatTime(secs) {
 
 export default function EstimatedTime({
   remainingQuestions = [],
-  avgSecsPerQ        = 0,
-  onWelcome          = false,
-  tc                 = '#FF4500',
+  avgSecsPerQ = 0,
+  onWelcome = false,
+  tc = '#FF4500',
 }) {
   const label = useMemo(() => {
     const secs = estimateSecs(remainingQuestions, avgSecsPerQ);
@@ -78,25 +78,32 @@ export default function EstimatedTime({
       <motion.span
         key={label}
         initial={{ opacity: 0, y: -4 }}
-        animate={{ opacity: 1, y:  0 }}
-        exit={{    opacity: 0, y:  4 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 4 }}
         transition={{ duration: 0.25 }}
         style={{
-          display:       'inline-flex',
-          alignItems:    'center',
-          gap:           5,
-          fontFamily:    'Syne, sans-serif',
-          fontSize:      9,
-          fontWeight:    700,
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 5,
+          fontFamily: 'Syne, sans-serif',
+          fontSize: 9,
+          fontWeight: 700,
           letterSpacing: '0.12em',
           textTransform: 'uppercase',
-          color:         'rgba(22,15,8,0.3)',
+          color: 'rgba(22,15,8,0.3)',
         }}
       >
         {/* Clock icon */}
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" strokeWidth="2.5"
-          strokeLinecap="round" strokeLinejoin="round">
+        <svg
+          width="10"
+          height="10"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           <circle cx="12" cy="12" r="10" />
           <polyline points="12 6 12 12 16 14" />
         </svg>
