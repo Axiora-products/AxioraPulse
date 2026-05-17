@@ -2,7 +2,7 @@ fastapi==0.110.3
 uvicorn[standard]==0.29.0
 sqlalchemy==2.0.49
 pydantic==2.8.2
-pydantic-core==2.20.1
+pydantic-core==2.46.4
 python-jose[cryptography]==3.3.0
 passlib==1.7.4
 python-dotenv==1.0.1
