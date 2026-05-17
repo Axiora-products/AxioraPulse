@@ -9,7 +9,7 @@ python-dotenv==1.2.2
 python-multipart==0.0.29
 alembic==1.13.1
 email-validator==2.1.1
-psycopg2-binary==2.9.11
+psycopg2-binary==2.9.12
 anthropic==0.40.0
 google-generativeai==0.8.6
 slowapi==0.1.9
