@@ -10,7 +10,7 @@ python-multipart==0.0.29
 alembic==1.13.1
 email-validator==2.1.1
 psycopg2-binary==2.9.11
-anthropic==0.40.0
+anthropic==0.102.0
 google-generativeai==0.8.6
 slowapi==0.1.9
 requests==2.34.2
