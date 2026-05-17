@@ -3,6 +3,7 @@ import sys
 import subprocess
 import platform
 import argparse
+import shutil
 
 def check_python_version():
     """Ensure we are running on Python 3.11.x."""
@@ -38,7 +39,7 @@ def run_command(command, cwd=None, env=None):
         print("\n\033[93mShutting down process...\033[0m")
         return 0
 
-def setup_backend():
+def setup_backend(force_clean=False):
     print("\n\033[94m--- Setting up Backend ---\033[0m")
     backend_dir = os.path.join(os.getcwd(), "backend")
     venv_dir = os.path.join(backend_dir, ".venv")
@@ -53,6 +54,23 @@ def setup_backend():
         python_path = os.path.join(venv_dir, "bin", "python")
         uvicorn_path = os.path.join(venv_dir, "bin", "uvicorn")
 
+    # Check for version mismatch if venv exists
+    if os.path.exists(venv_dir):
+        try:
+            # Check the python version inside the venv
+            venv_version_out = subprocess.check_output([python_path, "--version"], text=True).strip()
+            if "3.11" not in venv_version_out:
+                print(f"\033[93mVersion mismatch detected in venv ({venv_version_out}). Cleaning up...\033[0m")
+                force_clean = True
+        except Exception:
+            print("\033[93mCorrupted or incompatible venv detected. Cleaning up...\033[0m")
+            force_clean = True
+
+    # Forced cleanup if requested or mismatch found
+    if force_clean and os.path.exists(venv_dir):
+        print(f"Deleting existing virtual environment in {venv_dir}...")
+        shutil.rmtree(venv_dir)
+
     # Create venv if it doesn't exist
     if not os.path.exists(venv_dir):
         print(f"Creating virtual environment in {venv_dir}...")
@@ -65,17 +83,21 @@ def setup_backend():
     
     return uvicorn_path, backend_dir
 
-def run_backend():
-    uvicorn_path, backend_dir = setup_backend()
+def run_backend(force_clean=False):
+    uvicorn_path, backend_dir = setup_backend(force_clean=force_clean)
     print("\n\033[94m--- Starting Backend (FastAPI) ---\033[0m")
-    # Using python -m uvicorn instead of absolute path to avoid PATH issues on some systems
     run_command(f"\"{uvicorn_path}\" app.main:app --reload --host 0.0.0.0 --port 8000", cwd=backend_dir)
 
-def run_frontend():
+def run_frontend(force_clean=False):
     print("\n\033[95m--- Starting Frontend (Vite) ---\033[0m")
     frontend_dir = os.path.join(os.getcwd(), "frontend")
+    node_modules_dir = os.path.join(frontend_dir, "node_modules")
+
+    if force_clean and os.path.exists(node_modules_dir):
+        print(f"Deleting existing node_modules in {node_modules_dir}...")
+        shutil.rmtree(node_modules_dir)
     
-    if not os.path.exists(os.path.join(frontend_dir, "node_modules")):
+    if not os.path.exists(node_modules_dir):
         print("Installing npm dependencies...")
         subprocess.run("npm install", cwd=frontend_dir, shell=True, check=True)
     
@@ -84,20 +106,19 @@ def run_frontend():
 def main():
     parser = argparse.ArgumentParser(description="AxioraPulse Developer Orchestrator")
     parser.add_argument("module", choices=["backend", "frontend", "both"], help="Module to run")
+    parser.add_argument("--clean", "-c", action="store_true", help="Force cleanup of virtual environment or node_modules before running")
     args = parser.parse_args()
 
     check_python_version()
 
     try:
         if args.module == "backend":
-            run_backend()
+            run_backend(force_clean=args.clean)
         elif args.module == "frontend":
-            run_frontend()
+            run_frontend(force_clean=args.clean)
         elif args.module == "both":
             print("\033[93mNote: Running both requires two terminal sessions usually. Starting sequentially...\033[0m")
-            # For simplicity in this script, we don't handle parallel processes here yet 
-            # as it complicates log streaming. Recommended to run in separate tabs.
-            run_backend()
+            run_backend(force_clean=args.clean)
     except Exception as e:
         print(f"\033[91mError: {e}\033[0m")
         sys.exit(1)
