@@ -1,8 +1,54 @@
 # Quick Development & Deployment Reference
 
+## 🛠️ PREREQUISITES
+
+To ensure consistency with production (AWS ECS), you MUST use **Python 3.11.x**. 
+
+### 1. Install Python 3.11
+We recommend using **pyenv** to avoid conflicts with your system Python.
+
+- **Mac/Linux:**
+  ```bash
+  brew install pyenv
+  pyenv install 3.11.9
+  ```
+- **Windows:**
+  ```powershell
+  # Using pyenv-win
+  pyenv install 3.11.9
+  ```
+
+### 2. Lock Project to 3.11
+Run this in the project root:
+```bash
+pyenv local 3.11.9
+```
+
+> ⚠️ **Warning:** Do NOT use Python 3.12 or 3.14. These versions cause build failures in `cryptography`, `pydantic`, and other core dependencies.
+
+---
+
 ## 🚀 LOCAL DEVELOPMENT
 
-### Start everything (Backend + Database)
+### Option A: Using run.py (Recommended for active dev)
+This script automatically handles OS detection, virtual environments, and dependency installation.
+
+1. **Start the Database only:**
+   ```bash
+   docker-compose up -d db
+   ```
+
+2. **Run Backend or Frontend:**
+   ```bash
+   # Run Backend
+   python run.py backend
+
+   # Run Frontend
+   python run.py frontend
+   ```
+
+### Option B: Using Docker Compose
+Starts the full stack (Backend + Database) inside containers.
 ```bash
 docker-compose up
 ```
