@@ -25,31 +25,31 @@
       "secrets": [
         {
           "name": "SECRET_KEY",
-          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/production/SECRET_KEY"
+          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/dev/SECRET_KEY"
         },
         {
           "name": "DATABASE_URL",
-          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/production/DATABASE_URL"
+          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/dev/DATABASE_URL"
         },
         {
           "name": "ANTHROPIC_KEY",
-          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/production/ANTHROPIC_KEY"
+          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/dev/ANTHROPIC_KEY"
         },
         {
           "name": "EMAIL_FROM",
-          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/production/EMAIL_FROM"
+          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/dev/EMAIL_FROM"
         },
         {
           "name": "FRONTEND_URL",
-          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/production/FRONTEND_URL"
+          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/dev/FRONTEND_URL"
         },
         {
           "name": "RAZORPAY_KEY_ID",
-          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/production/RAZORPAY_KEY_ID"
+          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/dev/RAZORPAY_KEY_ID"
         },
         {
           "name": "RAZORPAY_KEY_SECRET",
-          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/production/RAZORPAY_KEY_SECRET"
+          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/dev/RAZORPAY_KEY_SECRET"
         },
         {
           "name": "COGNITO_USER_POOL_ID",
