@@ -20,23 +20,34 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     environment: ${{ github.ref_name == 'main' && 'production' || 'development' }}
+    permissions:
+      id-token: write
+      contents: read
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Get AWS Account ID from Environment
+        id: account
+        run: |
+          if [ "${{ github.ref_name }}" == "main" ]; then
+            echo "account_id=217757579310" >> $GITHUB_OUTPUT
+          else
+            echo "account_id=079975324160" >> $GITHUB_OUTPUT
+          fi
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            ${{ env.AWS_REGION }}
+          role-to-assume: arn:aws:iam::${{ steps.account.outputs.account_id }}:role/GitHubActionsRole
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Get AWS Account ID
+      - name: Get Real AWS Account ID
         id: get-account-id
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
