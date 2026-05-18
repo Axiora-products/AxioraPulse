@@ -142,7 +142,7 @@ export class AxioraPulseStack extends cdk.Stack {
     });
 
     const backendContainer = backendTaskDef.addContainer('BackendContainer', {
-      image: ecs.ContainerImage.fromRegistry('217757579310.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-fastapi:latest'), // Placeholder
+      image: ecs.ContainerImage.fromRegistry('079975324160.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-fastapi:latest'), // Placeholder
       logging: ecs.LogDrivers.awsLogs({ 
         streamPrefix: 'ecs', 
         logGroup: new logs.LogGroup(this, 'BackendLogGroup', {
@@ -211,7 +211,7 @@ export class AxioraPulseStack extends cdk.Stack {
     });
 
     const frontendContainer = frontendTaskDef.addContainer('FrontendContainer', {
-      image: ecs.ContainerImage.fromRegistry('217757579310.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-frontend:latest'), // Placeholder
+      image: ecs.ContainerImage.fromRegistry('079975324160.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-frontend:latest'), // Placeholder
       logging: ecs.LogDrivers.awsLogs({ 
         streamPrefix: 'ecs', 
         logGroup: new logs.LogGroup(this, 'FrontendLogGroup', {
