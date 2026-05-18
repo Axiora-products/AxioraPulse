@@ -4,7 +4,7 @@
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "256",
   "memory": "512",
-  "executionRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/ecsTaskExecutionRole",
+  "executionRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/${EXECUTION_ROLE_NAME}",
   "containerDefinitions": [
     {
       "name": "pulse-frontend",
@@ -19,7 +19,7 @@
       "logConfiguration": {
         "logDriver": "awslogs",
         "options": {
-          "awslogs-group": "/ecs/pulse-frontend",
+          "awslogs-group": "${LOG_GROUP}",
           "awslogs-region": "ap-south-1",
           "awslogs-stream-prefix": "ecs"
         }
