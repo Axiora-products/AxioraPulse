@@ -243,6 +243,31 @@ def get_subscription(
     db: Session = Depends(get_db),
 ):
     """Return the current tenant's active subscription (or 404 if on free plan)."""
+    if config.DISABLE_PAYMENTS:
+        # Return a mock Pro subscription if payments are disabled
+        pro_plan = db.query(Plan).filter(Plan.code == "pro").first()
+        if not pro_plan:
+            # Fallback if DB isn't seeded yet
+            pro_plan = Plan(
+                id=uuid.uuid4(),
+                code="pro",
+                name="Pro Plan (Mock)",
+                price_paise=249900,
+                currency="INR",
+                billing_period="monthly",
+                ai_insights_enabled=True,
+                is_active=True
+            )
+        
+        return SubscriptionOut(
+            id=uuid.uuid4(),
+            tenant_id=current_user.tenant_id,
+            plan=PlanOut.model_validate(pro_plan),
+            status="active",
+            cancel_at_period_end=False,
+            created_at=datetime.utcnow()
+        )
+
     sub = (
         db.query(Subscription)
         .options(joinedload(Subscription.plan))
