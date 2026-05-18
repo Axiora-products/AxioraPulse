@@ -5,9 +5,9 @@ import { AxioraPulseStack } from '../lib/axiora-pulse-stack';
 
 const app = new cdk.App();
 
-// Dev Environment (Account: 079975324160)
-new AxioraPulseStack(app, 'AxioraPulseStackDev', {
-  environment: 'dev',
+// Development Environment (Account: 079975324160)
+new AxioraPulseStack(app, 'AxioraPulseStackDevelopment', {
+  environment: 'development',
   env: { 
     account: '079975324160', 
     region: 'ap-south-1' 
@@ -16,17 +16,11 @@ new AxioraPulseStack(app, 'AxioraPulseStackDev', {
 });
 
 // Production Environment (Account: 217757579310)
-new AxioraPulseStack(app, 'AxioraPulseStackProd', {
-  environment: 'prod',
+new AxioraPulseStack(app, 'AxioraPulseStackProduction', {
+  environment: 'production',
   env: { 
     account: '217757579310', 
     region: 'ap-south-1' 
   },
   description: 'Production environment for AxioraPulse',
 });
-
-// QA Environment (Placeholder for 3rd account)
-// new AxioraPulseStack(app, 'AxioraPulseStackQa', {
-//   environment: 'qa',
-//   env: { account: 'THIRD_ACCOUNT_ID', region: 'ap-south-1' },
-// });

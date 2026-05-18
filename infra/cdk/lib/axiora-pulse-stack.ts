@@ -11,7 +11,7 @@ import * as logs from 'aws-cdk-lib/aws-logs';
 import * as ecr from 'aws-cdk-lib/aws-ecr';
 
 export interface AxioraPulseStackProps extends cdk.StackProps {
-  environment: 'dev' | 'prod' | 'qa';
+  environment: 'development' | 'production';
 }
 
 export class AxioraPulseStack extends cdk.Stack {
@@ -20,7 +20,6 @@ export class AxioraPulseStack extends cdk.Stack {
 
     const envName = props.environment;
 
-    // 0. ECR Repositories
     const backendRepo = new ecr.Repository(this, 'BackendRepo', {
       repositoryName: 'axiora/pulse-fastapi',
       removalPolicy: cdk.RemovalPolicy.RETAIN,
@@ -33,10 +32,9 @@ export class AxioraPulseStack extends cdk.Stack {
       imageScanOnPush: true,
     });
 
-    // 1. VPC
     const vpc = new ec2.Vpc(this, 'Vpc', {
       maxAzs: 2,
-      natGateways: envName === 'prod' ? 2 : 1,
+      natGateways: envName === 'production' ? 2 : 1,
       subnetConfiguration: [
         {
           name: 'Public',
@@ -49,51 +47,48 @@ export class AxioraPulseStack extends cdk.Stack {
       ],
     });
 
-    // 2. Security Groups
     const albSg = new ec2.SecurityGroup(this, 'AlbSg', {
       vpc,
       allowAllOutbound: true,
-      description: `ALB Security Group for AxioraPulse ${envName}`,
+      description: 'ALB Security Group for AxioraPulse ' + envName,
     });
     albSg.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(80));
 
     const backendSg = new ec2.SecurityGroup(this, 'BackendSg', {
       vpc,
       allowAllOutbound: true,
-      description: `Backend Security Group for AxioraPulse ${envName}`,
+      description: 'Backend Security Group for AxioraPulse ' + envName,
     });
     backendSg.addIngressRule(albSg, ec2.Port.tcp(8000));
 
     const frontendSg = new ec2.SecurityGroup(this, 'FrontendSg', {
       vpc,
       allowAllOutbound: true,
-      description: `Frontend Security Group for AxioraPulse ${envName}`,
+      description: 'Frontend Security Group for AxioraPulse ' + envName,
     });
     frontendSg.addIngressRule(albSg, ec2.Port.tcp(80));
 
     const dbSg = new ec2.SecurityGroup(this, 'DbSg', {
       vpc,
       allowAllOutbound: true,
-      description: `Database Security Group for AxioraPulse ${envName}`,
+      description: 'Database Security Group for AxioraPulse ' + envName,
     });
     dbSg.addIngressRule(backendSg, ec2.Port.tcp(5432));
 
-    // 3. RDS
     const database = new rds.DatabaseInstance(this, 'Database', {
       engine: rds.DatabaseInstanceEngine.postgres({ version: rds.PostgresEngineVersion.VER_16 }),
-      instanceType: envName === 'prod' 
+      instanceType: envName === 'production' 
         ? ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.SMALL)
         : ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.MICRO),
       vpc,
       securityGroups: [dbSg],
       databaseName: 'axiorapulse',
       removalPolicy: cdk.RemovalPolicy.RETAIN,
-      deletionProtection: envName === 'prod',
+      deletionProtection: envName === 'production',
     });
 
-    // 4. Cognito
     const userPool = new cognito.UserPool(this, 'UserPool', {
-      userPoolName: `AxioraPulseUserPool-${envName}`,
+      userPoolName: 'AxioraPulseUserPool-' + envName,
       selfSignUpEnabled: true,
       signInAliases: { email: true },
       autoVerify: { email: true },
@@ -101,34 +96,31 @@ export class AxioraPulseStack extends cdk.Stack {
     });
 
     const userPoolClient = userPool.addClient('UserPoolClient', {
-      userPoolClientName: `AxioraPulseClient-${envName}`,
+      userPoolClientName: 'AxioraPulseClient-' + envName,
     });
 
-    // 5. ECS Cluster
     const cluster = new ecs.Cluster(this, 'Cluster', {
       vpc,
-      clusterName: `axiora-pulse-cluster-${envName}`,
+      clusterName: 'axiora-pulse-cluster-' + envName,
       containerInsights: true,
     });
 
-    // 6. ALBs
     const backendAlb = new elbv2.ApplicationLoadBalancer(this, 'BackendAlb', {
       vpc,
       internetFacing: true,
       securityGroup: albSg,
-      loadBalancerName: `axiora-pulse-backend-alb-${envName}`,
+      loadBalancerName: 'axiora-pulse-backend-alb-' + envName,
     });
 
     const frontendAlb = new elbv2.ApplicationLoadBalancer(this, 'FrontendAlb', {
       vpc,
       internetFacing: true,
       securityGroup: albSg,
-      loadBalancerName: `axiora-pulse-frontend-alb-${envName}`,
+      loadBalancerName: 'axiora-pulse-frontend-alb-' + envName,
     });
 
-    // 7. ECS Tasks and Services
     const executionRole = new iam.Role(this, 'EcsTaskExecutionRole', {
-      roleName: `ecsTaskExecutionRole-${envName}`,
+      roleName: 'ecsTaskExecutionRole-' + envName,
       assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
       managedPolicies: [
         iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AmazonECSTaskExecutionRolePolicy'),
@@ -140,17 +132,16 @@ export class AxioraPulseStack extends cdk.Stack {
     frontendRepo.grantPull(executionRole);
 
     const taskRole = new iam.Role(this, 'EcsTaskRole', {
-      roleName: `ecsTaskRole-${envName}`,
+      roleName: 'ecsTaskRole-' + envName,
       assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
     });
 
-    // Backend
     const backendTaskDef = new ecs.FargateTaskDefinition(this, 'BackendTaskDef', {
       memoryLimitMiB: 1024,
       cpu: 512,
       executionRole,
       taskRole,
-      family: `pulse-backend-${envName}`,
+      family: 'pulse-backend-' + envName,
     });
 
     const backendContainer = backendTaskDef.addContainer('BackendContainer', {
@@ -158,13 +149,13 @@ export class AxioraPulseStack extends cdk.Stack {
       logging: ecs.LogDrivers.awsLogs({ 
         streamPrefix: 'ecs', 
         logGroup: new logs.LogGroup(this, 'BackendLogGroup', {
-          logGroupName: `/ecs/pulse-backend-${envName}`,
+          logGroupName: '/ecs/pulse-backend-' + envName,
           retention: logs.RetentionDays.ONE_MONTH,
           removalPolicy: cdk.RemovalPolicy.DESTROY,
         })
       }),
       healthCheck: {
-        command: ["CMD-SHELL", "curl -f http://localhost:8000/health || python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\" || exit 1"],
+        command: ["CMD-SHELL", "curl -f http://localhost:8000/health || python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1"],
         interval: cdk.Duration.seconds(30),
         timeout: cdk.Duration.seconds(10),
         retries: 3,
@@ -180,7 +171,7 @@ export class AxioraPulseStack extends cdk.Stack {
       desiredCount: 1,
       securityGroups: [backendSg],
       assignPublicIp: false,
-      serviceName: `pulse-backend-service-${envName}`,
+      serviceName: 'pulse-backend-service-' + envName,
       healthCheckGracePeriod: cdk.Duration.seconds(120),
       circuitBreaker: { rollback: true },
     });
@@ -195,12 +186,11 @@ export class AxioraPulseStack extends cdk.Stack {
       },
     });
 
-    // Frontend
     const frontendTaskDef = new ecs.FargateTaskDefinition(this, 'FrontendTaskDef', {
       memoryLimitMiB: 512,
       cpu: 256,
       executionRole,
-      family: `pulse-frontend-${envName}`,
+      family: 'pulse-frontend-' + envName,
     });
 
     frontendTaskDef.addContainer('FrontendContainer', {
@@ -208,7 +198,7 @@ export class AxioraPulseStack extends cdk.Stack {
       logging: ecs.LogDrivers.awsLogs({ 
         streamPrefix: 'ecs', 
         logGroup: new logs.LogGroup(this, 'FrontendLogGroup', {
-          logGroupName: `/ecs/pulse-frontend-${envName}`,
+          logGroupName: '/ecs/pulse-frontend-' + envName,
           retention: logs.RetentionDays.ONE_MONTH,
           removalPolicy: cdk.RemovalPolicy.DESTROY,
         })
@@ -228,7 +218,7 @@ export class AxioraPulseStack extends cdk.Stack {
       desiredCount: 1,
       securityGroups: [frontendSg],
       assignPublicIp: false,
-      serviceName: `pulse-frontend-service-${envName}`,
+      serviceName: 'pulse-frontend-service-' + envName,
       healthCheckGracePeriod: cdk.Duration.seconds(60),
       circuitBreaker: { rollback: true },
     });
@@ -243,7 +233,6 @@ export class AxioraPulseStack extends cdk.Stack {
       },
     });
 
-    // Outputs
     new cdk.CfnOutput(this, 'UserPoolId', { value: userPool.userPoolId });
     new cdk.CfnOutput(this, 'UserPoolClientId', { value: userPoolClient.userPoolClientId });
     new cdk.CfnOutput(this, 'DbEndpoint', { value: database.dbInstanceEndpointAddress });
