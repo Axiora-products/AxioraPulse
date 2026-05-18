@@ -1,7 +1,23 @@
 # AWS ECS Deployment Setup — AxioraPulse
 
-Complete one-time AWS setup for deploying frontend and backend to ECS Fargate behind CloudFront.  
-**Region:** `ap-south-1` (Mumbai) | **Account:** `217757579310` | **Domain:** `axiorapulse.com`
+Complete setup for deploying frontend and backend to ECS Fargate across multiple environments.
+
+## Multi-Account Strategy
+
+| Environment | Branch | AWS Profile | Account ID | Purpose |
+|---|---|---|---|---|
+| **Production** | `main` | `default` | `217757579310` | Live user traffic |
+| **Development** | `develop` | `dev` | `079975324160` | Testing and staging |
+
+The CI/CD pipeline automatically detects the branch and deploys to the corresponding account using environment-specific secrets.
+
+---
+
+## Region & account Info
+**Region:** `ap-south-1` (Mumbai)  
+**Production Account:** `217757579310`  
+**Development Account:** `079975324160`  
+**Domain:** `axiorapulse.com`
 
 ---
 
