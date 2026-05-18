@@ -24,6 +24,7 @@ from db.models import (  # noqa: F401 — imported so Alembic detects all tables
     SurveyResponse,
     SurveyShare,
     Tenant,
+    UploadedFile,
     UserProfile,
 )
 
