@@ -1,7 +1,7 @@
 """add uploaded_files table
 
-Revision ID: a1b2c3d4e5f6
-Revises: e7da82edf568
+Revision ID: d4e5f6a7b8c9
+Revises: c3d4e5f6a7b8
 Create Date: 2026-05-14
 
 Adds the uploaded_files table for storing file/audio upload metadata
@@ -12,8 +12,8 @@ from typing import Sequence, Union
 
 from alembic import op
 
-revision: str = "a1b2c3d4e5f6"
-down_revision: Union[str, None] = "e7da82edf568"
+revision: str = "d4e5f6a7b8c9"
+down_revision: Union[str, None] = "c3d4e5f6a7b8"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
