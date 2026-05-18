@@ -4,12 +4,12 @@
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "512",
   "memory": "1024",
-  "executionRoleArn": "arn:aws:iam::079975324160:role/ecsTaskExecutionRole",
-  "taskRoleArn": "arn:aws:iam::079975324160:role/ecsTaskRole",
+  "executionRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/ecsTaskRole",
   "containerDefinitions": [
     {
       "name": "pulse-backend",
-      "image": "079975324160.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-fastapi:latest",
+      "image": "${AWS_ACCOUNT_ID}.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-fastapi:latest",
       "essential": true,
       "portMappings": [
         {
@@ -25,43 +25,43 @@
       "secrets": [
         {
           "name": "SECRET_KEY",
-          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/dev/SECRET_KEY"
+          "valueFrom": "arn:aws:ssm:ap-south-1:${AWS_ACCOUNT_ID}:parameter/axiorapulse/${ENV_NAME}/SECRET_KEY"
         },
         {
           "name": "DATABASE_URL",
-          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/dev/DATABASE_URL"
+          "valueFrom": "arn:aws:ssm:ap-south-1:${AWS_ACCOUNT_ID}:parameter/axiorapulse/${ENV_NAME}/DATABASE_URL"
         },
         {
           "name": "ANTHROPIC_KEY",
-          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/dev/ANTHROPIC_KEY"
+          "valueFrom": "arn:aws:ssm:ap-south-1:${AWS_ACCOUNT_ID}:parameter/axiorapulse/${ENV_NAME}/ANTHROPIC_KEY"
         },
         {
           "name": "EMAIL_FROM",
-          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/dev/EMAIL_FROM"
+          "valueFrom": "arn:aws:ssm:ap-south-1:${AWS_ACCOUNT_ID}:parameter/axiorapulse/${ENV_NAME}/EMAIL_FROM"
         },
         {
           "name": "FRONTEND_URL",
-          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/dev/FRONTEND_URL"
+          "valueFrom": "arn:aws:ssm:ap-south-1:${AWS_ACCOUNT_ID}:parameter/axiorapulse/${ENV_NAME}/FRONTEND_URL"
         },
         {
           "name": "RAZORPAY_KEY_ID",
-          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/dev/RAZORPAY_KEY_ID"
+          "valueFrom": "arn:aws:ssm:ap-south-1:${AWS_ACCOUNT_ID}:parameter/axiorapulse/${ENV_NAME}/RAZORPAY_KEY_ID"
         },
         {
           "name": "RAZORPAY_KEY_SECRET",
-          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/dev/RAZORPAY_KEY_SECRET"
+          "valueFrom": "arn:aws:ssm:ap-south-1:${AWS_ACCOUNT_ID}:parameter/axiorapulse/${ENV_NAME}/RAZORPAY_KEY_SECRET"
         },
         {
           "name": "COGNITO_USER_POOL_ID",
-          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/COGNITO_USER_POOL_ID"
+          "valueFrom": "arn:aws:ssm:ap-south-1:${AWS_ACCOUNT_ID}:parameter/axiorapulse/COGNITO_USER_POOL_ID"
         },
         {
           "name": "COGNITO_APP_CLIENT_ID",
-          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/COGNITO_APP_CLIENT_ID"
+          "valueFrom": "arn:aws:ssm:ap-south-1:${AWS_ACCOUNT_ID}:parameter/axiorapulse/COGNITO_APP_CLIENT_ID"
         },
         {
           "name": "MIGRATION_LAMBDA_SECRET",
-          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/MIGRATION_LAMBDA_SECRET"
+          "valueFrom": "arn:aws:ssm:ap-south-1:${AWS_ACCOUNT_ID}:parameter/axiorapulse/MIGRATION_LAMBDA_SECRET"
         }
       ],
       "logConfiguration": {
