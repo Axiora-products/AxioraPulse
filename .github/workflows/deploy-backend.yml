@@ -10,7 +10,7 @@ on:
 
 env:
   AWS_REGION:       ap-south-1
-  ECR_REGISTRY:     217757579310.dkr.ecr.ap-south-1.amazonaws.com
+  ECR_REGISTRY:     079975324160.dkr.ecr.ap-south-1.amazonaws.com
   ECR_REPOSITORY:   axiora/pulse-fastapi
   ECS_CLUSTER:      axiora-pulse-cluster
   ECS_SERVICE:      pulse-backend-service
