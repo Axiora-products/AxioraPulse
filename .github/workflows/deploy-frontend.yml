@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - develop
+      - 'feature/**'
     paths:
       - 'frontend/**'
   workflow_dispatch:
@@ -12,8 +13,6 @@ on:
 env:
   AWS_REGION:       ap-south-1
   ECR_REPOSITORY:   axiora/pulse-frontend
-  ECS_CLUSTER:      axiora-pulse-cluster
-  ECS_SERVICE:      pulse-frontend-service
   CONTAINER_NAME:   pulse-frontend
 
 jobs:
@@ -28,13 +27,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Get AWS Account ID from Environment
+      - name: Get AWS Account ID
         id: account
         run: |
           if [ "${{ github.ref_name }}" == "main" ]; then
             echo "account_id=217757579310" >> $GITHUB_OUTPUT
+            echo "env_name=prod" >> $GITHUB_OUTPUT
           else
             echo "account_id=079975324160" >> $GITHUB_OUTPUT
+            echo "env_name=dev" >> $GITHUB_OUTPUT
           fi
 
       - name: Configure AWS credentials
@@ -46,12 +47,6 @@ jobs:
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Get Real AWS Account ID
-        id: get-account-id
-        run: |
-          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          echo "account_id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
 
       - name: Build and push frontend image
         id: build-image
@@ -78,8 +73,11 @@ jobs:
 
       - name: Process Task Definition Template
         env:
-          AWS_ACCOUNT_ID: ${{ steps.get-account-id.outputs.account_id }}
+          AWS_ACCOUNT_ID: ${{ steps.account.outputs.account_id }}
+          ENV_NAME: ${{ steps.account.outputs.env_name }}
         run: |
+          export EXECUTION_ROLE_NAME="ecsTaskExecutionRole-${ENV_NAME}"
+          export LOG_GROUP="/ecs/pulse-frontend-${ENV_NAME}"
           envsubst < frontend/ecs-task-def.json > frontend/ecs-task-def-rendered.json
 
       - name: Update ECS task definition with new image
@@ -94,6 +92,6 @@ jobs:
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition:          ${{ steps.task-def.outputs.task-definition }}
-          service:                  ${{ env.ECS_SERVICE }}
-          cluster:                  ${{ env.ECS_CLUSTER }}
+          service:                  pulse-frontend-service-${{ steps.account.outputs.env_name }}
+          cluster:                  axiora-pulse-cluster-${{ steps.account.outputs.env_name }}
           wait-for-service-stability: true
