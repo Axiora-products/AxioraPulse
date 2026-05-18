@@ -11,7 +11,6 @@ on:
 
 env:
   AWS_REGION:       ap-south-1
-  ECR_REGISTRY:     079975324160.dkr.ecr.ap-south-1.amazonaws.com
   ECR_REPOSITORY:   axiora/pulse-fastapi
   ECS_CLUSTER:      axiora-pulse-cluster
   ECS_SERVICE:      pulse-backend-service
@@ -37,6 +36,12 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Get AWS Account ID
+        id: get-account-id
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          echo "account_id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
+
       - name: Build and push backend image
         id: build-image
         env:
@@ -53,11 +58,18 @@ jobs:
         if: always()
         run: docker logout ${{ steps.login-ecr.outputs.registry }}
 
+      - name: Process Task Definition Template
+        env:
+          AWS_ACCOUNT_ID: ${{ steps.get-account-id.outputs.account_id }}
+          ENV_NAME: ${{ github.ref_name == 'main' && 'production' || 'dev' }}
+        run: |
+          envsubst < backend/ecs-task-def.json > backend/ecs-task-def-rendered.json
+
       - name: Update ECS task definition with new image
         id: task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          task-definition: backend/ecs-task-def.json
+          task-definition: backend/ecs-task-def-rendered.json
           container-name:  ${{ env.CONTAINER_NAME }}
           image:           ${{ steps.build-image.outputs.image }}
 
