@@ -3,14 +3,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import API from '../api/axios';
 
 // ── Launch target ─────────────────────────────────────────────────────────────
-const LAUNCH_DATE = new Date('2026-07-01T00:00:00Z');
+const LAUNCH_DATE = new Date('2026-06-14T23:59:59');
 
 function getTimeLeft() {
   const diff = LAUNCH_DATE - Date.now();
   if (diff <= 0) return { days: 0, hours: 0, minutes: 0, seconds: 0 };
   return {
-    days:    Math.floor(diff / 86400000),
-    hours:   Math.floor((diff % 86400000) / 3600000),
+    days: Math.floor(diff / 86400000),
+    hours: Math.floor((diff % 86400000) / 3600000),
     minutes: Math.floor((diff % 3600000) / 60000),
     seconds: Math.floor((diff % 60000) / 1000),
   };
@@ -228,9 +228,9 @@ export default function ComingSoon() {
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.6, delay: 0.3 }}
           style={{ display: 'flex', gap: 'clamp(12px, 3vw, 32px)', justifyContent: 'center', alignItems: 'flex-start', marginBottom: 52 }}>
-          <CountUnit value={time.days}    label="Days" />
+          <CountUnit value={time.days} label="Days" />
           <Sep />
-          <CountUnit value={time.hours}   label="Hours" />
+          <CountUnit value={time.hours} label="Hours" />
           <Sep />
           <CountUnit value={time.minutes} label="Minutes" />
           <Sep />
@@ -255,9 +255,30 @@ export default function ComingSoon() {
                 onChange={e => setEmail(e.target.value)}
                 placeholder="your@email.com"
                 required
-                style={{ padding: '14px 20px', borderRadius: 999, border: '1px solid rgba(253,245,232,0.15)', background: 'rgba(253,245,232,0.07)', color: 'var(--cream)', fontFamily: 'Fraunces, serif', fontSize: 15, outline: 'none', width: 260, backdropFilter: 'blur(4px)', transition: 'border-color 0.2s' }}
-                onFocus={e => e.target.style.borderColor = 'rgba(255,69,0,0.5)'}
-                onBlur={e => e.target.style.borderColor = 'rgba(253,245,232,0.15)'}
+                style={{
+                  padding: '14px 20px',
+                  borderRadius: 999,
+                  border: '1px solid rgba(253,245,232,0.15)',
+                  background: 'rgba(255,255,255,0.12)', // changed
+                  color: '#452812',
+                  fontFamily: 'Fraunces, serif',
+                  fontSize: 15,
+                  outline: 'none',
+                  width: 260,
+                  backdropFilter: 'blur(8px)',
+                  transition: 'all 0.25s ease',
+                  caretColor: 'var(--coral)',
+                }} onFocus={e => {
+                  e.target.style.borderColor = 'rgba(255,69,0,0.8)';
+                  e.target.style.background = 'rgba(255,255,255,0.18)';
+                  e.target.style.boxShadow = '0 0 18px rgba(255,69,0,0.25)';
+                }}
+
+                onBlur={e => {
+                  e.target.style.borderColor = 'rgba(253,245,232,0.15)';
+                  e.target.style.background = 'rgba(255,255,255,0.12)';
+                  e.target.style.boxShadow = 'none';
+                }}
               />
               <motion.button
                 whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
