@@ -11,7 +11,8 @@ import * as logs from 'aws-cdk-lib/aws-logs';
 import * as ecr from 'aws-cdk-lib/aws-ecr';
 
 export interface AxioraPulseStackProps extends cdk.StackProps {
-  environment: 'development' | 'production';
+  environment: 'dev' | 'qa' | 'prod' | 'development' | 'production';
+  prodOverride?: boolean;
 }
 
 export class AxioraPulseStack extends cdk.Stack {
@@ -19,14 +20,39 @@ export class AxioraPulseStack extends cdk.Stack {
     super(scope, id, props);
 
     const envName = props.environment;
-    const shortEnv = envName === 'development' ? 'dev' : 'prod';
+    const shortEnv = (envName === 'development' || envName === 'dev') ? 'dev' : 
+                    (envName === 'production' || envName === 'prod') ? 'prod' : 'qa';
 
     const backendRepo = ecr.Repository.fromRepositoryName(this, 'BackendRepo', 'axiora/pulse-fastapi');
     const frontendRepo = ecr.Repository.fromRepositoryName(this, 'FrontendRepo', 'axiora/pulse-frontend');
 
+    // Safety Check: Prevent production deployment unless explicitly overridden
+    if (shortEnv === 'prod' && !props.prodOverride && envName !== 'production') {
+      throw new Error('Production deployment is disabled. Set prodOverride: true to enable.');
+    }
+
+    // Safety Check: Verify target account
+    const expectedAccounts: { [key: string]: string } = {
+      'dev': '079975324160',
+      'prod': '217757579310',
+      'qa': '681816818894',
+    };
+
+    if (expectedAccounts[shortEnv] && this.account !== expectedAccounts[shortEnv]) {
+      throw new Error(`Account mismatch! Environment ${envName} expected account ${expectedAccounts[shortEnv]} but got ${this.account}.`);
+    }
+
+    // Log target information
+    console.log(`\n🚀 Deploying AxioraPulse`);
+    console.log(`📍 Environment: ${envName} (${shortEnv})`);
+    console.log(`🆔 Account:     ${this.account}`);
+    console.log(`🌍 Region:      ${this.region}`);
+    console.log(`📦 Stack:       ${this.stackName}\n`);
+
+    // 1. VPC
     const vpc = new ec2.Vpc(this, 'Vpc', {
       maxAzs: 2,
-      natGateways: envName === 'production' ? 2 : 1,
+      natGateways: shortEnv === 'prod' ? 2 : 1,
       subnetConfiguration: [
         {
           name: 'Public',
@@ -69,14 +95,14 @@ export class AxioraPulseStack extends cdk.Stack {
 
     const database = new rds.DatabaseInstance(this, 'Database', {
       engine: rds.DatabaseInstanceEngine.postgres({ version: rds.PostgresEngineVersion.VER_16 }),
-      instanceType: envName === 'production' 
+      instanceType: shortEnv === 'prod' 
         ? ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.SMALL)
         : ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.MICRO),
       vpc,
       securityGroups: [dbSg],
       databaseName: 'axiorapulse',
-      removalPolicy: envName === 'production' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
-      deletionProtection: envName === 'production',
+      removalPolicy: shortEnv === 'prod' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
+      deletionProtection: shortEnv === 'prod',
     });
 
     const userPool = new cognito.UserPool(this, 'UserPool', {
@@ -84,7 +110,7 @@ export class AxioraPulseStack extends cdk.Stack {
       selfSignUpEnabled: true,
       signInAliases: { email: true },
       autoVerify: { email: true },
-      removalPolicy: envName === 'production' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
+      removalPolicy: shortEnv === 'prod' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
     });
 
     const userPoolClient = userPool.addClient('UserPoolClient', {
@@ -179,7 +205,7 @@ export class AxioraPulseStack extends cdk.Stack {
         })
       }),
       healthCheck: {
-        command: ["CMD-SHELL", "curl -f http://localhost:8000/health || python3 -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8000/health\")' || exit 1"],
+        command: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\" || exit 1"],
         interval: cdk.Duration.seconds(30),
         timeout: cdk.Duration.seconds(10),
         retries: 3,
