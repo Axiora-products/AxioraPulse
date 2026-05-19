@@ -13,7 +13,7 @@ on:
 env:
   AWS_REGION:       ap-south-1
   ECR_REPOSITORY:   axiora/pulse-fastapi
-  CONTAINER_NAME:   pulse-backend
+  CONTAINER_NAME:   BackendContainer
 
 jobs:
   build-and-deploy:

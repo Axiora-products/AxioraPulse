@@ -7,7 +7,7 @@
   "executionRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/${EXECUTION_ROLE_NAME}",
   "containerDefinitions": [
     {
-      "name": "pulse-frontend",
+      "name": "FrontendContainer",
       "image": "${AWS_ACCOUNT_ID}.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-frontend:latest",
       "essential": true,
       "portMappings": [
