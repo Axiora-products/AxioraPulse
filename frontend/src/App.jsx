@@ -26,7 +26,6 @@ import Settings from './pages/Settings';
 import ResetPassword from './pages/ResetPassword';
 import UpdatePassword from './pages/UpdatePassword';
 import AcceptInvite from './pages/AcceptInvite';
-import ComingSoon from './pages/ComingSoon';
 import Pricing from './pages/Pricing';
 import Billing from './pages/Billing';
 import PaymentWall from './components/PaymentWall';
@@ -114,9 +113,8 @@ function AppRoutes() {
           path="/"
           element={isAuth ? <Navigate to="/dashboard" replace /> : <LandingPage />}
         />
-        <Route path="/coming-soon" element={<ComingSoon />} />
         <Route path="/login" element={isAuth ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
-        <Route path="/register" element={<Navigate to="/coming-soon" replace />} />
+        <Route path="/register" element={isAuth ? <Navigate to="/dashboard" replace /> : <RegisterPage />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/update-password" element={<UpdatePassword />} />
         <Route path="/accept-invite" element={<AcceptInvite />} />
@@ -149,7 +147,6 @@ function AppRoutes() {
               to={isAuth ? "/dashboard" : "/"}
               replace
             />
-
           }
         />      </Routes>
     </>

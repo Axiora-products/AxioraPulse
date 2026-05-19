@@ -9,6 +9,8 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as logs from 'aws-cdk-lib/aws-logs';
 
+import * as ecr from 'aws-cdk-lib/aws-ecr';
+
 export interface AxioraPulseStackProps extends cdk.StackProps {
   environment: 'dev' | 'qa' | 'prod';
   prodOverride?: boolean;
@@ -39,7 +41,6 @@ export class AxioraPulseStack extends cdk.Stack {
     // Enable termination protection for PROD
     if (envName === 'prod') {
       // Note: terminationProtection can only be set on the Stack before it is instantiated or via CfnStack
-      // But we can suggest it or try to set it via stack props in bin/cdk.ts
     }
 
     // Log target information
@@ -48,6 +49,27 @@ export class AxioraPulseStack extends cdk.Stack {
     console.log(`🆔 Account:     ${this.account}`);
     console.log(`🌍 Region:      ${this.region}`);
     console.log(`📦 Stack:       ${this.stackName}\n`);
+
+    // 0. ECR Repositories (Only create if not PROD, assuming PROD already has them or is manual)
+    let backendRepo: ecr.IRepository;
+    let frontendRepo: ecr.IRepository;
+
+    if (envName !== 'prod') {
+      backendRepo = new ecr.Repository(this, 'BackendRepo', {
+        repositoryName: `axiora/pulse-fastapi-${envName}`,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+        emptyOnDelete: true,
+      });
+
+      frontendRepo = new ecr.Repository(this, 'FrontendRepo', {
+        repositoryName: `axiora/pulse-frontend-${envName}`,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+        emptyOnDelete: true,
+      });
+    } else {
+      backendRepo = ecr.Repository.fromRepositoryName(this, 'BackendRepo', 'axiora/pulse-fastapi');
+      frontendRepo = ecr.Repository.fromRepositoryName(this, 'FrontendRepo', 'axiora/pulse-frontend');
+    }
 
     // 1. VPC
     const vpc = new ec2.Vpc(this, 'Vpc', {
@@ -162,7 +184,7 @@ export class AxioraPulseStack extends cdk.Stack {
       assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
     });
 
-    // Backend
+    // 7. ECS Tasks and Services
     const backendTaskDef = new ecs.FargateTaskDefinition(this, 'BackendTaskDef', {
       memoryLimitMiB: 1024,
       cpu: 512,
@@ -172,11 +194,12 @@ export class AxioraPulseStack extends cdk.Stack {
     });
 
     const backendContainer = backendTaskDef.addContainer('BackendContainer', {
-      image: ecs.ContainerImage.fromRegistry('217757579310.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-fastapi:latest'), // Placeholder
+      image: ecs.ContainerImage.fromEcrRepository(backendRepo, 'latest'),
       logging: ecs.LogDrivers.awsLogs({ 
         streamPrefix: 'ecs', 
         logGroup: new logs.LogGroup(this, 'BackendLogGroup', {
           logGroupName: `/ecs/pulse-backend-${envName}`,
+
           retention: logs.RetentionDays.ONE_MONTH,
           removalPolicy: cdk.RemovalPolicy.DESTROY,
         })
@@ -241,7 +264,7 @@ export class AxioraPulseStack extends cdk.Stack {
     });
 
     const frontendContainer = frontendTaskDef.addContainer('FrontendContainer', {
-      image: ecs.ContainerImage.fromRegistry('217757579310.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-frontend:latest'), // Placeholder
+      image: ecs.ContainerImage.fromEcrRepository(frontendRepo, 'latest'),
       logging: ecs.LogDrivers.awsLogs({ 
         streamPrefix: 'ecs', 
         logGroup: new logs.LogGroup(this, 'FrontendLogGroup', {
