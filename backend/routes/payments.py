@@ -17,7 +17,7 @@ from typing import List
 
 import razorpay
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from core import config
 from db.database import get_db
@@ -245,6 +245,7 @@ def get_subscription(
     """Return the current tenant's active subscription (or 404 if on free plan)."""
     sub = (
         db.query(Subscription)
+        .options(joinedload(Subscription.plan))
         .filter(Subscription.tenant_id == current_user.tenant_id)
         .first()
     )

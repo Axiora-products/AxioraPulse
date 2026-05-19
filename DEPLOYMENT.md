@@ -12,19 +12,19 @@ docker-compose.yml
 - Database included for convenience
 - Code mounted as volume for hot-reload
 
-### Production (AWS ECS + Supabase)
+### Production (AWS ECS + Aurora RDS)
 ```
-ECR (Docker Image)
+ECR (Docker Images)
     ↓
-ECS Task Definition
+ECS Task Definitions
     ↓
 ECS Service/Fargate
     ↓
-Supabase PostgreSQL (external)
+AWS Aurora PostgreSQL (internal)
 ```
-- **Only backend image** in ECR
-- Database managed externally by Supabase
-- Scalable, managed infrastructure
+- Both frontend and backend images in ECR
+- Database provided by AWS Aurora RDS
+- Scalable, fully managed infrastructure
 
 ---
 
@@ -61,17 +61,28 @@ docker push 123456789.dkr.ecr.us-east-1.amazonaws.com/axiora-backend:latest
 
 ---
 
-## Step 2: Set up Supabase Database
+## Step 2: Set up Aurora RDS Database
 
-### Create Supabase project
-1. Go to [supabase.com](https://supabase.com)
-2. Create new project
-3. Copy the connection string from Settings → Database
-   - Format: `postgresql://postgres:[PASSWORD]@[PROJECT-ID].supabase.co:5432/postgres?sslmode=require`
+### Create Aurora RDS Instance
+1. Go to **RDS → Create database**
+2. Choose **Aurora (PostgreSQL Compatible)**
+3. Settings:
+   - DB Cluster Identifier: `axiorapulse-db`
+   - Master username: `postgres`
+   - Master password: `[your-password]`
+4. Connectivity:
+   - VPC: Use the same VPC as your ECS cluster
+   - Public access: **No**
+   - Security Group: Create `pulse-db-sg` allowing port 5432 from `pulse-backend-sg`
+
+### Configure Connection
+1. Note the **Endpoint** from the RDS Connectivity tab
+2. Update the `DATABASE_URL` in SSM Parameter Store:
+   - Format: `postgresql://postgres:[PASSWORD]@[ENDPOINT]:5432/postgres`
 
 ### Run migrations
 ```bash
-# Connect to Supabase and run Alembic migrations
+# Connect to Aurora RDS (via VPC or Bastion) and run Alembic migrations
 DATABASE_URL="postgresql://..." alembic upgrade head
 ```
 
@@ -251,7 +262,7 @@ docker-compose up
 - GitHub Actions builds image
 - Image pushed to ECR
 - ECS automatically deploys
-- Connects to Supabase database
+- Connects to AWS Aurora RDS
 
 ---
 
@@ -259,9 +270,9 @@ docker-compose up
 
 | Aspect | Local | Production |
 |--------|-------|-----------|
-| **Database** | PostgreSQL in docker-compose | Supabase (external) |
+| **Database** | PostgreSQL in docker-compose | AWS Aurora RDS |
 | **Image** | Dockerfile (dev friendly) | Dockerfile.prod (optimized) |
-| **Environment** | .env.local | AWS Secrets Manager |
+| **Environment** | .env.local | SSM Parameter Store |
 | **Deployment** | `docker-compose up` | ECS Service |
 | **Scaling** | Manual | Auto-scaling via ECS |
 | **Monitoring** | Local logs | CloudWatch logs |
@@ -270,17 +281,17 @@ docker-compose up
 
 ## Troubleshooting
 
-### Backend can't connect to Supabase
-- Check DATABASE_URL in Secrets Manager
-- Verify SSL mode is `require`
-- Check security group allows outbound HTTPS
+### Backend can't connect to RDS
+- Check DATABASE_URL in SSM Parameter Store
+- Verify security groups allow 5432 from backend to DB
+- Check VPC routing and subnet connectivity
 
 ### ECS task keeps failing
-- Check CloudWatch logs: `/ecs/axiora-backend`
+- Check CloudWatch logs: `/ecs/pulse-backend`
 - Verify secrets are accessible by task role
 - Check health check endpoint at `/health`
 
 ### Database migration fails
 - Run migrations before deploying: `alembic upgrade head`
-- Check Supabase has correct schema
+- Check RDS security groups and connectivity
 - Verify DATABASE_URL permissions

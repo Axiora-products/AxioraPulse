@@ -9,9 +9,9 @@ from core.rate_limiter import limiter
 from db.database import get_db
 from db.models import Tenant, UserProfile, RoleEnum
 from schemas import (
-    MeResponse, UserProfileOut, TenantOut, UserProfileUpdate, SyncRequest, SyncResponse, MigrateCheckRequest
+    MeResponse, UserProfileOut, TenantOut, UserProfileUpdate, SyncRequest, SyncResponse, MigrateCheckRequest, CleanupRequest
 )
-from cognito_utils import verify_cognito_token
+from cognito_utils import verify_cognito_token, admin_get_user_status, admin_delete_user
 from auth_utils import verify_password
 from dependencies import get_current_user
 
@@ -163,3 +163,17 @@ def migrate_check(
         "email": user.email,
         "name": user.full_name or "",
     }
+
+
+@router.post("/cleanup-unconfirmed")
+def cleanup_unconfirmed(body: CleanupRequest):
+    """
+    Deletes a user from Cognito ONLY if they are UNCONFIRMED.
+    Used during signup retries to allow fresh start.
+    """
+    status = admin_get_user_status(body.email)
+    if status == "UNCONFIRMED":
+        success = admin_delete_user(body.email)
+        return {"deleted": success, "email": body.email}
+
+    return {"deleted": False, "status": status}

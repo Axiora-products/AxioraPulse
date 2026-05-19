@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate, Navigate } from 'react-router-dom';
+import { Link, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { useLoading } from '../context/LoadingContext';
 import useAuthStore from "../hooks/useAuth";
-import { cognitoSignUp, cognitoConfirmSignUp, cognitoSignIn } from '../lib/cognito';
+import { cognitoSignUp, cognitoConfirmSignUp, cognitoSignIn, cognitoResendCode } from '../lib/cognito';
 import API from '../api/axios';
 const Logo = ({ dark }) => (
   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 0, lineHeight: 1 }}>
@@ -17,10 +17,18 @@ const Logo = ({ dark }) => (
 );
 
 export default function Register() {
-  const [f, sf] = useState({ fullName: '', email: '', password: '', tenantName: '', tenantSlug: '' });
+  const location = useLocation();
+  const [f, sf] = useState({ 
+    fullName: '', 
+    email: location.state?.email || '', 
+    password: '', 
+    tenantName: '', 
+    tenantSlug: '' 
+  });
   const [verifyCode, setVerifyCode] = useState('');
-  const [step, setStep] = useState('form'); // 'form' | 'verify'
+  const [step, setStep] = useState(location.state?.step || 'form'); // 'form' | 'verify'
   const [busy, setBusy] = useState(false);
+  const [resending, setResending] = useState(false);
   const { user, initialized, initialize } = useAuthStore();
   const { stopLoading } = useLoading();
   const nav = useNavigate();
@@ -48,12 +56,58 @@ export default function Register() {
       toast.success('Verification code sent to your email');
     } catch (err) {
       if (err.code === 'UsernameExistsException') {
-        toast.error('An account with this email already exists');
+        console.log('UsernameExistsException detected. Attempting cleanup flow...');
+        // Option 1: Cleanup flow
+        try {
+          console.log('Calling /auth/cleanup-unconfirmed...');
+          const cleanupResp = await API.post('/auth/cleanup-unconfirmed', { email: f.email });
+          console.log('Cleanup response:', cleanupResp.data);
+          
+          if (cleanupResp.data?.deleted) {
+            console.log('User was unconfirmed and deleted. Retrying signup...');
+            await cognitoSignUp(f.email, f.password, f.fullName);
+            setStep('verify');
+            toast.success('Verification code sent to your email');
+            return;
+          } else {
+            console.log('Cleanup did not delete user. Status:', cleanupResp.data?.status);
+          }
+        } catch (cleanupErr) {
+          console.error('Cleanup flow failed:', cleanupErr);
+        }
+
+        toast(
+          (t) => (
+            <span>
+              Account exists.{' '}
+              <button 
+                onClick={() => { setStep('verify'); toast.dismiss(t.id); }}
+                style={{ background: 'none', border: 'none', color: 'var(--espresso)', fontWeight: 700, textDecoration: 'underline', cursor: 'pointer', padding: 0 }}
+              >
+                Verify now?
+              </button>
+            </span>
+          ),
+          { duration: 6000 }
+        );
       } else {
         toast.error(err.message || 'Registration failed');
       }
     } finally {
       setBusy(false);
+    }
+  };
+
+  const resend = async () => {
+    if (!f.email) return toast.error('Email is missing');
+    setResending(true);
+    try {
+      await cognitoResendCode(f.email);
+      toast.success('New verification code sent!');
+    } catch (err) {
+      toast.error(err.message || 'Failed to resend code');
+    } finally {
+      setResending(false);
     }
   };
 
@@ -64,17 +118,20 @@ export default function Register() {
     setBusy(true);
     try {
       await cognitoConfirmSignUp(f.email, verifyCode);
-      const session = await cognitoSignIn(f.email, f.password);
-      const idToken = session.getIdToken().getJwtToken();
-      localStorage.setItem('token', idToken);
+      
+      // If we don't have password (e.g. redirected from Login), redirect back to Login
+      if (!f.password) {
+        toast.success('Email verified! Please sign in.');
+        return nav('/login', { state: { email: f.email } });
+      }
 
-      await API.post('/auth/sync', {
-        id_token: idToken,
+      const session = await cognitoSignIn(f.email, f.password);
+      localStorage.setItem('token', session.getIdToken().getJwtToken());
+
+      await initialize(true, {
         tenant_name: f.tenantName,
         tenant_slug: f.tenantSlug || f.tenantName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
       });
-
-      await initialize(true);
       toast.success('Welcome to Axiora Pulse!');
       nav('/dashboard');
     } catch (err) {
@@ -154,7 +211,13 @@ export default function Register() {
                   {busy ? 'Verifying…' : 'Verify & continue →'}
                 </motion.button>
               </form>
-              <p style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 13, color: 'rgba(22,15,8,0.4)', marginTop: 24, textAlign: 'center' }}>
+              <div style={{ textAlign: 'center', marginTop: 24 }}>
+                <button onClick={resend} disabled={resending}
+                  style={{ background: 'none', border: 'none', padding: 0, color: 'var(--espresso)', fontFamily: 'Fraunces, serif', fontWeight: 500, fontSize: 13, cursor: resending ? 'not-allowed' : 'pointer', textDecoration: 'underline', opacity: resending ? 0.5 : 1 }}>
+                  {resending ? 'Resending…' : "Didn't get a code? Resend"}
+                </button>
+              </div>
+              <p style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 13, color: 'rgba(22,15,8,0.4)', marginTop: 12, textAlign: 'center' }}>
                 Wrong email?{' '}
                 <button onClick={() => setStep('form')} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--espresso)', fontFamily: 'Fraunces, serif', fontWeight: 500, fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}>
                   Go back

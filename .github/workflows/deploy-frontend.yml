@@ -42,6 +42,7 @@ jobs:
           docker build --platform linux/amd64 \
             --build-arg VITE_COGNITO_USER_POOL_ID=${{ secrets.VITE_COGNITO_USER_POOL_ID }} \
             --build-arg VITE_COGNITO_APP_CLIENT_ID=${{ secrets.VITE_COGNITO_APP_CLIENT_ID }} \
+            --build-arg VITE_FRONTEND_URL=${{ secrets.VITE_FRONTEND_URL }} \
             -t $IMAGE_URI:latest \
             -t $IMAGE_URI:${{ github.sha }} \
             ./frontend

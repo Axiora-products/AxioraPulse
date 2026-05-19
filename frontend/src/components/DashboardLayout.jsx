@@ -46,10 +46,9 @@ export default function DashboardLayout() {
   const nav = useNavigate();
   const loc = useLocation();
 
-  // STALE SESSION FIX: On every navigation, verify the session is still alive
   useEffect(() => {
     checkSession();
-  }, [loc.pathname, checkSession]);
+  }, [checkSession]);
 
 
   // ── Auto sign-out after inactivity ───────────────────────────────────────

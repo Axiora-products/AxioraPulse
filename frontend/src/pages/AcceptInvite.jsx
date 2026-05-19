@@ -4,6 +4,8 @@ import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { useLoading } from '../context/LoadingContext';
 import API from '../api/axios';
+import { cognitoSignIn } from '../lib/cognito';
+import useAuthStore from '../hooks/useAuth';
 
 const Logo = ({ dark }) => (
   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 0, lineHeight: 1 }}>
@@ -80,12 +82,9 @@ export default function AcceptInvite() {
         password: f.password,
       });
 
-      // 2. Log in immediately to get a JWT
-      const loginRes = await API.post('/auth/login', {
-        email: inviteInfo.email,
-        password: f.password,
-      });
-      localStorage.setItem('token', loginRes.data.access_token);
+      // 2. Sign in via Cognito and initialise session
+      await cognitoSignIn(inviteInfo.email, f.password);
+      await useAuthStore.getState().initialize(true);
 
       toast.success('Account set up! Welcome to Axiora Pulse.');
       nav('/dashboard');
@@ -139,7 +138,7 @@ export default function AcceptInvite() {
   const tenantName = inviteInfo?.tenant_name || '';
 
   return (
-    <div style={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: '1fr 480px' }}>
+    <div className="accept-invite-grid" style={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: '1fr 480px' }}>
 
       {/* ── LEFT: dark editorial panel ── */}
       <div style={{ background: 'var(--espresso)', position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '80px 72px', overflow: 'hidden' }}>
@@ -232,7 +231,7 @@ export default function AcceptInvite() {
         </motion.div>
       </div>
 
-      <style>{`@media (max-width: 900px) { div[style*="gridTemplateColumns: '1fr 480px'"] { grid-template-columns: 1fr !important; } }`}</style>
+      <style>{`.accept-invite-grid { } @media (max-width: 900px) { .accept-invite-grid { grid-template-columns: 1fr !important; } .accept-invite-grid > div:first-child { display: none !important; } }`}</style>
     </div>
   );
 }

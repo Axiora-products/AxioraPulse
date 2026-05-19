@@ -30,7 +30,7 @@ export const PERMISSIONS = {
   view_analytics: ['super_admin', 'admin', 'manager', 'creator'],
   manage_team: ['super_admin', 'admin'],
   view_audit: ['super_admin', 'admin'],
-  manage_tenant: ['super_admin'],
+  manage_tenant: ['super_admin', 'admin'],
   resume_survey: ['super_admin', 'admin', 'manager'],
   share_survey: ['super_admin', 'admin', 'manager', 'creator'],
 };

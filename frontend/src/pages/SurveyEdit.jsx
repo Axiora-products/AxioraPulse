@@ -59,25 +59,24 @@ export default function SurveyEdit() {
 
   async function load() {
     try {
-      const { data: s } = await API.get(`/surveys/${id}`);
+      const [{ data: s }, { data: q }, { data: sh }, { data: u }] = await Promise.all([
+        API.get(`/surveys/${id}`),
+        API.get(`/surveys/${id}/questions`),
+        API.get(`/surveys/${id}/shares`),
+        API.get('/users/'),
+      ]);
       setSv({ ...s, expires_at: s.expires_at ? new Date(s.expires_at).toISOString().slice(0,16) : '' });
       setIsEditing(s.status === 'draft');
-      
-      const { data: q } = await API.get(`/surveys/${id}/questions`);
       sQs((q||[]).map(x => {
         const opts = isMx(x.question_type) ? parseOpts(x.options, true) : hasO(x.question_type) ? parseOpts(x.options) : x.options;
         return { ...x, _id: x.id, options: opts };
       }));
-      
-      const { data: sh } = await API.get(`/surveys/${id}/shares`);
       setShares(sh||[]);
-      
-      const { data: u } = await API.get('/users/'); 
       setUsers(u||[]);
-    } catch(e) { 
-      console.error(e); 
-      toast.error('Failed to load survey'); 
-      nav('/surveys'); 
+    } catch(e) {
+      console.error(e);
+      toast.error('Failed to load survey');
+      nav('/surveys');
     }
     finally { stopLoading(); }
   }

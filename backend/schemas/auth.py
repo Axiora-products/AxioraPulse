@@ -26,3 +26,7 @@ class MigrateCheckRequest(BaseModel):
     email: EmailStr
     password: str
     secret: str
+
+
+class CleanupRequest(BaseModel):
+    email: EmailStr
