@@ -80,8 +80,9 @@ export class GitHubOidcStack extends cdk.Stack {
     githubDeployerRole.addToPolicy(new iam.PolicyStatement({
       actions: ['iam:PassRole'],
       resources: [
-        `arn:aws:iam::${this.account}:role/ecsTaskExecutionRole`,
-        `arn:aws:iam::${this.account}:role/ecsTaskRole`,
+        githubDeployerRole.roleArn,
+        `arn:aws:iam::${this.account}:role/ecsTaskExecutionRole*`,
+        `arn:aws:iam::${this.account}:role/ecsTaskRole*`,
       ],
       conditions: {
         StringEquals: {

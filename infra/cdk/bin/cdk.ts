@@ -7,6 +7,17 @@ import { GitHubOidcStack } from '../lib/github-oidc-stack';
 const app = new cdk.App();
 
 // Global / Shared Infrastructure
+new GitHubOidcStack(app, 'AxioraPulseGitHubOidcStackDev', {
+  env: { 
+    account: '079975324160', 
+    region: 'ap-south-1' 
+  },
+  repositoryConfig: [
+    { owner: 'Kiran-axiora', repo: 'AxioraPulse' }
+  ],
+  description: 'GitHub Actions OIDC role for AxioraPulse DEV',
+});
+
 new GitHubOidcStack(app, 'AxioraPulseGitHubOidcStackProd', {
   env: { 
     account: '217757579310', 
