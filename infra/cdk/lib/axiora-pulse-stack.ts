@@ -89,6 +89,11 @@ export class AxioraPulseStack extends cdk.Stack {
 
     const userPoolClient = userPool.addClient('UserPoolClient', {
       userPoolClientName: 'AxioraPulseClient-' + envName,
+      authFlows: {
+        userPassword: true,
+        userSrp: true,
+        refreshToken: true,
+      },
     });
 
     const cluster = new ecs.Cluster(this, 'Cluster', {
