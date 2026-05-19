@@ -19,7 +19,7 @@ env:
   ECR_REPOSITORY:   axiora/pulse-fastapi
   ECS_CLUSTER:      axiora-pulse-cluster-dev
   ECS_SERVICE:      pulse-backend-service-dev
-  CONTAINER_NAME:   pulse-backend
+  CONTAINER_NAME:   BackendContainer
 
 jobs:
   build-and-deploy:

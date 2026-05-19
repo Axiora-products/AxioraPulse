@@ -18,7 +18,7 @@ env:
   ECR_REPOSITORY:   axiora/pulse-frontend
   ECS_CLUSTER:      axiora-pulse-cluster-dev
   ECS_SERVICE:      pulse-frontend-service-dev
-  CONTAINER_NAME:   pulse-frontend
+  CONTAINER_NAME:   FrontendContainer
 
 jobs:
   build-and-deploy:
