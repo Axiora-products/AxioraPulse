@@ -25,31 +25,31 @@
       "secrets": [
         {
           "name": "SECRET_KEY",
-          "valueFrom": "arn:aws:ssm:ap-south-1:${AWS_ACCOUNT_ID}:parameter/axiorapulse/${ENV_NAME}/SECRET_KEY"
+          "valueFrom": "arn:aws:ssm:ap-south-1:${AWS_ACCOUNT_ID}:parameter/axiorapulse/${SHORT_ENV}/SECRET_KEY"
         },
         {
           "name": "DATABASE_URL",
-          "valueFrom": "arn:aws:ssm:ap-south-1:${AWS_ACCOUNT_ID}:parameter/axiorapulse/${ENV_NAME}/DATABASE_URL"
+          "valueFrom": "arn:aws:ssm:ap-south-1:${AWS_ACCOUNT_ID}:parameter/axiorapulse/${SHORT_ENV}/DATABASE_URL"
         },
         {
           "name": "ANTHROPIC_KEY",
-          "valueFrom": "arn:aws:ssm:ap-south-1:${AWS_ACCOUNT_ID}:parameter/axiorapulse/${ENV_NAME}/ANTHROPIC_KEY"
+          "valueFrom": "arn:aws:ssm:ap-south-1:${AWS_ACCOUNT_ID}:parameter/axiorapulse/${SHORT_ENV}/ANTHROPIC_KEY"
         },
         {
           "name": "EMAIL_FROM",
-          "valueFrom": "arn:aws:ssm:ap-south-1:${AWS_ACCOUNT_ID}:parameter/axiorapulse/${ENV_NAME}/EMAIL_FROM"
+          "valueFrom": "arn:aws:ssm:ap-south-1:${AWS_ACCOUNT_ID}:parameter/axiorapulse/${SHORT_ENV}/EMAIL_FROM"
         },
         {
           "name": "FRONTEND_URL",
-          "valueFrom": "arn:aws:ssm:ap-south-1:${AWS_ACCOUNT_ID}:parameter/axiorapulse/${ENV_NAME}/FRONTEND_URL"
+          "valueFrom": "arn:aws:ssm:ap-south-1:${AWS_ACCOUNT_ID}:parameter/axiorapulse/${SHORT_ENV}/FRONTEND_URL"
         },
         {
           "name": "RAZORPAY_KEY_ID",
-          "valueFrom": "arn:aws:ssm:ap-south-1:${AWS_ACCOUNT_ID}:parameter/axiorapulse/${ENV_NAME}/RAZORPAY_KEY_ID"
+          "valueFrom": "arn:aws:ssm:ap-south-1:${AWS_ACCOUNT_ID}:parameter/axiorapulse/${SHORT_ENV}/RAZORPAY_KEY_ID"
         },
         {
           "name": "RAZORPAY_KEY_SECRET",
-          "valueFrom": "arn:aws:ssm:ap-south-1:${AWS_ACCOUNT_ID}:parameter/axiorapulse/${ENV_NAME}/RAZORPAY_KEY_SECRET"
+          "valueFrom": "arn:aws:ssm:ap-south-1:${AWS_ACCOUNT_ID}:parameter/axiorapulse/${SHORT_ENV}/RAZORPAY_KEY_SECRET"
         }
       ],
       "logConfiguration": {
