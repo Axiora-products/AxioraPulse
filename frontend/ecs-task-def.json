@@ -4,7 +4,7 @@
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "256",
   "memory": "512",
-  "executionRoleArn": "arn:aws:iam::079975324160:role/ecsTaskExecutionRole-dev",
+  "executionRoleArn": "arn:aws:iam::079975324160:role/GitHubActionsRole",
   "containerDefinitions": [
     {
       "name": "FrontendContainer",
