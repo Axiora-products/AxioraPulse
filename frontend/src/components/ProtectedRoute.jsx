@@ -14,10 +14,5 @@ export default function ProtectedRoute() {
     return <Navigate to="/login" replace />;
   }
 
-  // App is in coming-soon mode — only internal team members get through.
-  if (!profile?.is_internal) {
-    return <Navigate to="/coming-soon" replace />;
-  }
-
   return <Outlet />;
 }
