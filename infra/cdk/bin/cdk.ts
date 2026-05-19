@@ -2,8 +2,21 @@
 import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
 import { AxioraPulseStack } from '../lib/axiora-pulse-stack';
+import { GitHubOidcStack } from '../lib/github-oidc-stack';
 
 const app = new cdk.App();
+
+// Global / Shared Infrastructure
+new GitHubOidcStack(app, 'AxioraPulseGitHubOidcStack', {
+  env: { 
+    account: '217757579310', 
+    region: 'ap-south-1' 
+  },
+  repositoryConfig: [
+    { owner: 'Kiran-axiora', repo: 'AxioraPulse' }
+  ],
+  description: 'GitHub Actions OIDC role for AxioraPulse',
+});
 
 // Dev Environment
 new AxioraPulseStack(app, 'AxioraPulseStackDev', {
@@ -25,8 +38,16 @@ new AxioraPulseStack(app, 'AxioraPulseStackQa', {
   description: 'QA environment for AxioraPulse',
 });
 
-// Production (Reference for future use or to compare)
-// new AxioraPulseStack(app, 'AxioraPulseStackProd', {
-//   environment: 'prod',
-//   env: { account: '217757579310', region: 'ap-south-1' },
-// });
+// Production (STRICTLY DISABLED)
+// To enable, uncomment and set prodOverride: true
+/*
+new AxioraPulseStack(app, 'AxioraPulseStackProd', {
+  environment: 'prod',
+  prodOverride: false, // Must be true to deploy
+  env: { 
+    account: '217757579310', 
+    region: 'ap-south-1' 
+  },
+  description: 'Production environment for AxioraPulse',
+});
+*/

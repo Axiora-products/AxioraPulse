@@ -1,36 +1,29 @@
-name: Deploy Frontend to ECS (PROD)
+name: Deploy Frontend to ECS (DEV)
 
 on:
-  # Disable automatic deployment to PROD
-  # push:
-  #   branches:
-  #     - main
-  #   paths:
-  #     - 'frontend/**'
+  push:
+    branches:
+      - develop
+    paths:
+      - 'frontend/**'
   workflow_dispatch:
-    inputs:
-      confirm:
-        description: 'Type "CONFIRM" to deploy to PROD'
-        required: true
-        default: 'CANCEL'
 
 concurrency:
-  group: deploy-frontend-prod-${{ github.ref }}
-  cancel-in-progress: false
+  group: deploy-frontend-dev-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   AWS_REGION:       ap-south-1
-  ECR_REGISTRY:     217757579310.dkr.ecr.ap-south-1.amazonaws.com
+  ECR_REGISTRY:     079975324160.dkr.ecr.ap-south-1.amazonaws.com
   ECR_REPOSITORY:   axiora/pulse-frontend
-  ECS_CLUSTER:      axiora-pulse-cluster
-  ECS_SERVICE:      pulse-frontend-service
+  ECS_CLUSTER:      axiora-pulse-cluster-development
+  ECS_SERVICE:      pulse-frontend-service-development
   CONTAINER_NAME:   pulse-frontend
 
 jobs:
   build-and-deploy:
-    if: github.event.inputs.confirm == 'CONFIRM'
     runs-on: ubuntu-latest
-    environment: production # Use GitHub Environments for protection
+    environment: development
     permissions:
       contents: read
       id-token: write
@@ -53,16 +46,17 @@ jobs:
         id: build-image
         run: |
           IMAGE_URI=${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}
+          # Tag with 'dev-latest' and SHA to avoid overwriting prod 'latest'
           docker build --platform linux/amd64 \
             --build-arg VITE_COGNITO_USER_POOL_ID=${{ secrets.VITE_COGNITO_USER_POOL_ID }} \
             --build-arg VITE_COGNITO_APP_CLIENT_ID=${{ secrets.VITE_COGNITO_APP_CLIENT_ID }} \
             --build-arg VITE_FRONTEND_URL=${{ secrets.VITE_FRONTEND_URL }} \
-            -t $IMAGE_URI:latest \
-            -t $IMAGE_URI:${{ github.sha }} \
+            -t $IMAGE_URI:dev-latest \
+            -t $IMAGE_URI:dev-${{ github.sha }} \
             ./frontend
-          docker push $IMAGE_URI:latest
-          docker push $IMAGE_URI:${{ github.sha }}
-          echo "image=$IMAGE_URI:${{ github.sha }}" >> $GITHUB_OUTPUT
+          docker push $IMAGE_URI:dev-latest
+          docker push $IMAGE_URI:dev-${{ github.sha }}
+          echo "image=$IMAGE_URI:dev-${{ github.sha }}" >> $GITHUB_OUTPUT
 
       - name: Update ECS task definition with new image
         id: task-def

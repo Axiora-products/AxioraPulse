@@ -10,7 +10,8 @@ import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as logs from 'aws-cdk-lib/aws-logs';
 
 export interface AxioraPulseStackProps extends cdk.StackProps {
-  environment: 'dev' | 'qa';
+  environment: 'dev' | 'qa' | 'prod';
+  prodOverride?: boolean;
 }
 
 export class AxioraPulseStack extends cdk.Stack {
@@ -18,6 +19,34 @@ export class AxioraPulseStack extends cdk.Stack {
     super(scope, id, props);
 
     const envName = props.environment;
+
+    // Safety Check: Prevent production deployment unless explicitly overridden
+    if (envName === 'prod' && !props.prodOverride) {
+      throw new Error('Production deployment is disabled. Set prodOverride: true to enable.');
+    }
+
+    // Safety Check: Verify target account
+    const expectedAccounts: { [key: string]: string } = {
+      'dev': '079975324160',
+      'prod': '217757579310',
+    };
+
+    if (expectedAccounts[envName] && this.account !== expectedAccounts[envName]) {
+      throw new Error(`Account mismatch! Environment ${envName} expected account ${expectedAccounts[envName]} but got ${this.account}.`);
+    }
+
+    // Enable termination protection for PROD
+    if (envName === 'prod') {
+      // Note: terminationProtection can only be set on the Stack before it is instantiated or via CfnStack
+      // But we can suggest it or try to set it via stack props in bin/cdk.ts
+    }
+
+    // Log target information
+    console.log(`\n🚀 Deploying AxioraPulse`);
+    console.log(`📍 Environment: ${envName}`);
+    console.log(`🆔 Account:     ${this.account}`);
+    console.log(`🌍 Region:      ${this.region}`);
+    console.log(`📦 Stack:       ${this.stackName}\n`);
 
     // 1. VPC
     const vpc = new ec2.Vpc(this, 'Vpc', {
@@ -167,7 +196,7 @@ export class AxioraPulseStack extends cdk.Stack {
         'RAZORPAY_KEY_SECRET': ecs.Secret.fromSsmParameter(ssm.StringParameter.fromSecureStringParameterAttributes(this, 'RazorpayKeySecretParam', { parameterName: `/axiorapulse/${envName}/RAZORPAY_KEY_SECRET`, version: 1 })),
       },
       healthCheck: {
-        command: ["CMD-SHELL", "python -c \"import requests; requests.get('http://localhost:8000/health')\" || exit 1"],
+        command: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\" || exit 1"],
         interval: cdk.Duration.seconds(30),
         timeout: cdk.Duration.seconds(10),
         retries: 3,
