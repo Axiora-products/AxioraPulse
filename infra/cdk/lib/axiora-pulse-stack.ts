@@ -50,7 +50,11 @@ export class AxioraPulseStack extends cdk.Stack {
     let backendRepo: ecr.IRepository;
     let frontendRepo: ecr.IRepository;
 
-    if (shortEnv !== 'prod') {
+    if (shortEnv === 'dev') {
+      // Import existing dev-specific repositories to avoid 'already exists' error
+      backendRepo = ecr.Repository.fromRepositoryName(this, 'BackendRepo', `axiora/pulse-fastapi-${envName}`);
+      frontendRepo = ecr.Repository.fromRepositoryName(this, 'FrontendRepo', `axiora/pulse-frontend-${envName}`);
+    } else if (shortEnv === 'qa') {
       backendRepo = new ecr.Repository(this, 'BackendRepo', {
         repositoryName: `axiora/pulse-fastapi-${envName}`,
         removalPolicy: cdk.RemovalPolicy.DESTROY,
@@ -136,7 +140,6 @@ export class AxioraPulseStack extends cdk.Stack {
       authFlows: {
         userPassword: true,
         userSrp: true,
-        refreshToken: true,
       },
     });
 

@@ -4,8 +4,8 @@
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "512",
   "memory": "1024",
-  "executionRoleArn": "arn:aws:iam::079975324160:role/GitHubActionsRole",
-  "taskRoleArn": "arn:aws:iam::079975324160:role/GitHubActionsRole",
+  "executionRoleArn": "arn:aws:iam::079975324160:role/GitHubActionsDeployerRole",
+  "taskRoleArn": "arn:aws:iam::079975324160:role/GitHubActionsDeployerRole",
   "containerDefinitions": [
     {
       "name": "BackendContainer",
