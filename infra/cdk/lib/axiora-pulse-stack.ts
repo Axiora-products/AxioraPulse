@@ -19,18 +19,10 @@ export class AxioraPulseStack extends cdk.Stack {
     super(scope, id, props);
 
     const envName = props.environment;
+    const shortEnv = envName === 'development' ? 'dev' : 'prod';
 
-    const backendRepo = new ecr.Repository(this, 'BackendRepo', {
-      repositoryName: 'axiora/pulse-fastapi',
-      removalPolicy: cdk.RemovalPolicy.RETAIN,
-      imageScanOnPush: true,
-    });
-
-    const frontendRepo = new ecr.Repository(this, 'FrontendRepo', {
-      repositoryName: 'axiora/pulse-frontend',
-      removalPolicy: cdk.RemovalPolicy.RETAIN,
-      imageScanOnPush: true,
-    });
+    const backendRepo = ecr.Repository.fromRepositoryName(this, 'BackendRepo', 'axiora/pulse-fastapi');
+    const frontendRepo = ecr.Repository.fromRepositoryName(this, 'FrontendRepo', 'axiora/pulse-frontend');
 
     const vpc = new ec2.Vpc(this, 'Vpc', {
       maxAzs: 2,
@@ -83,7 +75,7 @@ export class AxioraPulseStack extends cdk.Stack {
       vpc,
       securityGroups: [dbSg],
       databaseName: 'axiorapulse',
-      removalPolicy: cdk.RemovalPolicy.RETAIN,
+      removalPolicy: envName === 'production' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
       deletionProtection: envName === 'production',
     });
 
@@ -92,7 +84,7 @@ export class AxioraPulseStack extends cdk.Stack {
       selfSignUpEnabled: true,
       signInAliases: { email: true },
       autoVerify: { email: true },
-      removalPolicy: cdk.RemovalPolicy.RETAIN,
+      removalPolicy: envName === 'production' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
     });
 
     const userPoolClient = userPool.addClient('UserPoolClient', {
@@ -109,14 +101,14 @@ export class AxioraPulseStack extends cdk.Stack {
       vpc,
       internetFacing: true,
       securityGroup: albSg,
-      loadBalancerName: 'axiora-pulse-backend-alb-' + envName,
+      loadBalancerName: 'pulse-back-alb-' + shortEnv,
     });
 
     const frontendAlb = new elbv2.ApplicationLoadBalancer(this, 'FrontendAlb', {
       vpc,
       internetFacing: true,
       securityGroup: albSg,
-      loadBalancerName: 'axiora-pulse-frontend-alb-' + envName,
+      loadBalancerName: 'pulse-front-alb-' + shortEnv,
     });
 
     const executionRole = new iam.Role(this, 'EcsTaskExecutionRole', {
@@ -146,6 +138,33 @@ export class AxioraPulseStack extends cdk.Stack {
 
     const backendContainer = backendTaskDef.addContainer('BackendContainer', {
       image: ecs.ContainerImage.fromEcrRepository(backendRepo, 'latest'),
+      environment: {
+        'ENVIRONMENT': envName,
+        'COGNITO_REGION': this.region,
+      },
+      secrets: {
+        'SECRET_KEY': ecs.Secret.fromSsmParameter(ssm.StringParameter.fromSecureStringParameterAttributes(this, 'SecretKeyParam', {
+          parameterName: `/axiorapulse/${shortEnv}/SECRET_KEY`,
+        })),
+        'DATABASE_URL': ecs.Secret.fromSsmParameter(ssm.StringParameter.fromSecureStringParameterAttributes(this, 'DatabaseUrlParam', {
+          parameterName: `/axiorapulse/${shortEnv}/DATABASE_URL`,
+        })),
+        'ANTHROPIC_KEY': ecs.Secret.fromSsmParameter(ssm.StringParameter.fromSecureStringParameterAttributes(this, 'AnthropicKeyParam', {
+          parameterName: `/axiorapulse/${shortEnv}/ANTHROPIC_KEY`,
+        })),
+        'EMAIL_FROM': ecs.Secret.fromSsmParameter(ssm.StringParameter.fromSecureStringParameterAttributes(this, 'EmailFromParam', {
+          parameterName: `/axiorapulse/${shortEnv}/EMAIL_FROM`,
+        })),
+        'FRONTEND_URL': ecs.Secret.fromSsmParameter(ssm.StringParameter.fromSecureStringParameterAttributes(this, 'FrontendUrlParam', {
+          parameterName: `/axiorapulse/${shortEnv}/FRONTEND_URL`,
+        })),
+        'RAZORPAY_KEY_ID': ecs.Secret.fromSsmParameter(ssm.StringParameter.fromSecureStringParameterAttributes(this, 'RazorpayKeyIdParam', {
+          parameterName: `/axiorapulse/${shortEnv}/RAZORPAY_KEY_ID`,
+        })),
+        'RAZORPAY_KEY_SECRET': ecs.Secret.fromSsmParameter(ssm.StringParameter.fromSecureStringParameterAttributes(this, 'RazorpayKeySecretParam', {
+          parameterName: `/axiorapulse/${shortEnv}/RAZORPAY_KEY_SECRET`,
+        })),
+      },
       logging: ecs.LogDrivers.awsLogs({ 
         streamPrefix: 'ecs', 
         logGroup: new logs.LogGroup(this, 'BackendLogGroup', {
@@ -155,7 +174,7 @@ export class AxioraPulseStack extends cdk.Stack {
         })
       }),
       healthCheck: {
-        command: ["CMD-SHELL", "curl -f http://localhost:8000/health || python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1"],
+        command: ["CMD-SHELL", "curl -f http://localhost:8000/health || python3 -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8000/health\")' || exit 1"],
         interval: cdk.Duration.seconds(30),
         timeout: cdk.Duration.seconds(10),
         retries: 3,
