@@ -8,7 +8,7 @@
   "taskRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/${TASK_ROLE_NAME}",
   "containerDefinitions": [
     {
-      "name": "pulse-backend",
+      "name": "BackendContainer",
       "image": "${AWS_ACCOUNT_ID}.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-fastapi:latest",
       "essential": true,
       "portMappings": [
