@@ -23,9 +23,6 @@ export class AxioraPulseStack extends cdk.Stack {
     const shortEnv = (envName === 'development' || envName === 'dev') ? 'dev' : 
                     (envName === 'production' || envName === 'prod') ? 'prod' : 'qa';
 
-    const backendRepo = ecr.Repository.fromRepositoryName(this, 'BackendRepo', 'axiora/pulse-fastapi');
-    const frontendRepo = ecr.Repository.fromRepositoryName(this, 'FrontendRepo', 'axiora/pulse-frontend');
-
     // Safety Check: Prevent production deployment unless explicitly overridden
     if (shortEnv === 'prod' && !props.prodOverride && envName !== 'production') {
       throw new Error('Production deployment is disabled. Set prodOverride: true to enable.');
@@ -34,8 +31,8 @@ export class AxioraPulseStack extends cdk.Stack {
     // Safety Check: Verify target account
     const expectedAccounts: { [key: string]: string } = {
       'dev': '079975324160',
-      'prod': '217757579310',
       'qa': '681816818894',
+      'prod': '217757579310',
     };
 
     if (expectedAccounts[shortEnv] && this.account !== expectedAccounts[shortEnv]) {
@@ -48,6 +45,27 @@ export class AxioraPulseStack extends cdk.Stack {
     console.log(`🆔 Account:     ${this.account}`);
     console.log(`🌍 Region:      ${this.region}`);
     console.log(`📦 Stack:       ${this.stackName}\n`);
+
+    // 0. ECR Repositories (Only create if not PROD, assuming PROD already has them or is manual)
+    let backendRepo: ecr.IRepository;
+    let frontendRepo: ecr.IRepository;
+
+    if (shortEnv !== 'prod') {
+      backendRepo = new ecr.Repository(this, 'BackendRepo', {
+        repositoryName: `axiora/pulse-fastapi-${envName}`,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+        emptyOnDelete: true,
+      });
+
+      frontendRepo = new ecr.Repository(this, 'FrontendRepo', {
+        repositoryName: `axiora/pulse-frontend-${envName}`,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+        emptyOnDelete: true,
+      });
+    } else {
+      backendRepo = ecr.Repository.fromRepositoryName(this, 'BackendRepo', 'axiora/pulse-fastapi');
+      frontendRepo = ecr.Repository.fromRepositoryName(this, 'FrontendRepo', 'axiora/pulse-frontend');
+    }
 
     // 1. VPC
     const vpc = new ec2.Vpc(this, 'Vpc', {
