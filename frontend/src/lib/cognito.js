@@ -53,6 +53,16 @@ export function cognitoConfirmSignUp(email, code) {
   });
 }
 
+export function cognitoResendCode(email) {
+  return new Promise((resolve, reject) => {
+    const cognitoUser = new CognitoUser({ Username: email, Pool: getUserPool() });
+    cognitoUser.resendConfirmationCode((err, result) => {
+      if (err) reject(err);
+      else resolve(result);
+    });
+  });
+}
+
 export function cognitoForgotPassword(email) {
   return new Promise((resolve, reject) => {
     const cognitoUser = new CognitoUser({ Username: email, Pool: getUserPool() });

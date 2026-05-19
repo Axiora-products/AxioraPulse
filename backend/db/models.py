@@ -356,3 +356,11 @@ class DemoSchedule(Base):
     status = Column(String, default="scheduled")
 
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class WaitlistEntry(Base):
+    __tablename__ = "waitlist_entries"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    email = Column(String, nullable=False, unique=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)

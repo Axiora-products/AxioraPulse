@@ -28,6 +28,7 @@ from schemas import (
 )
 from auth_utils import hash_password
 from dependencies import get_current_user
+from cognito_utils import get_cognito_client, COGNITO_USER_POOL_ID
 
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
 
@@ -378,9 +379,31 @@ def accept_invite(
     user.full_name = body.full_name.strip()
     user.password_hash = hash_password(body.password)
     user.account_status = "active"
-    user.invite_token = None # Clear token after use
+    user.invite_token = None
     user.invite_accepted_at = datetime.now(timezone.utc)
     db.commit()
+
+    # Create/confirm the user in Cognito so they can sign in immediately
+    if COGNITO_USER_POOL_ID:
+        try:
+            client = get_cognito_client()
+            try:
+                client.admin_create_user(
+                    UserPoolId=COGNITO_USER_POOL_ID,
+                    Username=user.email,
+                    MessageAction='SUPPRESS',
+                )
+            except client.exceptions.UsernameExistsException:
+                pass
+            client.admin_set_user_password(
+                UserPoolId=COGNITO_USER_POOL_ID,
+                Username=user.email,
+                Password=body.password,
+                Permanent=True,
+            )
+        except Exception:
+            pass  # Don't block invite acceptance if Cognito setup fails
+
     return {"message": "Invite accepted. Account is now active."}
 
 

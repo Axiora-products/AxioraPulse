@@ -10,7 +10,7 @@ const useAuthStore = create((set, get) => ({
   initialized: false,
 
   // ── Initialize: called once on app load ───────────────────────────────────
-  initialize: async (force = false) => {
+  initialize: async (force = false, syncParams = {}) => {
     if (get().initialized && !force) return;
     set({ loading: true });
     try {
@@ -18,15 +18,17 @@ const useAuthStore = create((set, get) => ({
       const idToken = session.getIdToken().getJwtToken();
       localStorage.setItem('token', idToken);
 
-      // Link cognito_sub in DB for existing users whose sub isn't set yet
-      await API.post('/auth/sync', { id_token: idToken });
+      await API.post('/auth/sync', { id_token: idToken, ...syncParams });
 
       const res = await API.get('/auth/me');
       const { user, profile, tenant } = res.data;
       set({ user, profile, tenant, loading: false, initialized: true });
-    } catch {
-      cognitoSignOut();
-      localStorage.removeItem('token');
+    } catch (err) {
+      const status = err?.response?.status;
+      if (!status || status === 401 || status === 403) {
+        cognitoSignOut();
+        localStorage.removeItem('token');
+      }
       set({ user: null, profile: null, tenant: null, loading: false, initialized: true });
     }
   },
@@ -38,17 +40,17 @@ const useAuthStore = create((set, get) => ({
       const idToken = session.getIdToken().getJwtToken();
       localStorage.setItem('token', idToken);
 
-      // Link cognito_sub in DB for existing users whose sub isn't set yet
-      await API.post('/auth/sync', { id_token: idToken });
-
       const res = await API.get('/auth/me');
       const { user, profile, tenant } = res.data;
       set({ user, profile, tenant, loading: false, initialized: true });
       return true;
-    } catch {
-      cognitoSignOut();
-      localStorage.removeItem('token');
-      set({ user: null, profile: null, tenant: null, loading: false });
+    } catch (err) {
+      const status = err?.response?.status;
+      if (!status || status === 401 || status === 403) {
+        cognitoSignOut();
+        localStorage.removeItem('token');
+        set({ user: null, profile: null, tenant: null, loading: false });
+      }
       return false;
     }
   },

@@ -1,25 +1,29 @@
 import os
-import smtplib
-from email.mime.text import MIMEText
+import boto3
+from botocore.exceptions import ClientError
 
-EMAIL_USER = os.getenv("EMAIL_USER")
-EMAIL_PASS = os.getenv("EMAIL_PASS")
+_ses_client = None
+
+
+def _get_ses():
+    global _ses_client
+    if _ses_client is None:
+        region = os.getenv("AWS_SES_REGION", "ap-south-1")
+        _ses_client = boto3.client("ses", region_name=region)
+    return _ses_client
+
 
 def send_email(to_email: str, subject: str, body: str):
+    email_from = os.getenv("EMAIL_FROM", "Axiora Pulse <noreply@axiorapulse.com>")
+
     try:
-        msg = MIMEText(body, "html")
-        msg["Subject"] = subject
-        msg["From"] = EMAIL_USER
-        msg["To"] = to_email
-
-        with smtplib.SMTP("smtp.gmail.com", 587) as server:
-            server.starttls()
-            server.login(EMAIL_USER, EMAIL_PASS)
-            server.send_message(msg)
-
-        print("STATUS: 200")
-        print("RESPONSE: Email sent successfully")
-
-    except Exception as e:
-        print("STATUS: 500")
-        print("RESPONSE:", str(e))
+        _get_ses().send_email(
+            Source=email_from,
+            Destination={"ToAddresses": [to_email]},
+            Message={
+                "Subject": {"Data": subject, "Charset": "UTF-8"},
+                "Body": {"Html": {"Data": body, "Charset": "UTF-8"}},
+            },
+        )
+    except ClientError as e:
+        raise Exception(f"SES error: {e.response['Error']['Message']}")
