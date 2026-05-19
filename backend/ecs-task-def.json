@@ -4,12 +4,12 @@
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "512",
   "memory": "1024",
-  "executionRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/${EXECUTION_ROLE_NAME}",
-  "taskRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/${TASK_ROLE_NAME}",
+  "executionRoleArn": "arn:aws:iam::079975324160:role/ecsTaskExecutionRole-dev",
+  "taskRoleArn": "arn:aws:iam::079975324160:role/ecsTaskRole-dev",
   "containerDefinitions": [
     {
       "name": "BackendContainer",
-      "image": "${AWS_ACCOUNT_ID}.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-fastapi:latest",
+      "image": "079975324160.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-fastapi:latest",
       "essential": true,
       "portMappings": [
         {
@@ -18,44 +18,44 @@
         }
       ],
       "environment": [
-        { "name": "ENVIRONMENT",      "value": "${ENV_NAME}" },
+        { "name": "ENVIRONMENT",      "value": "dev" },
         { "name": "COGNITO_REGION",   "value": "ap-south-1" },
         { "name": "AWS_SES_REGION",   "value": "ap-south-1" }
       ],
       "secrets": [
         {
           "name": "SECRET_KEY",
-          "valueFrom": "arn:aws:ssm:ap-south-1:${AWS_ACCOUNT_ID}:parameter/axiorapulse/${SHORT_ENV}/SECRET_KEY"
+          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/dev/SECRET_KEY"
         },
         {
           "name": "DATABASE_URL",
-          "valueFrom": "arn:aws:ssm:ap-south-1:${AWS_ACCOUNT_ID}:parameter/axiorapulse/${SHORT_ENV}/DATABASE_URL"
+          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/dev/DATABASE_URL"
         },
         {
           "name": "ANTHROPIC_KEY",
-          "valueFrom": "arn:aws:ssm:ap-south-1:${AWS_ACCOUNT_ID}:parameter/axiorapulse/${SHORT_ENV}/ANTHROPIC_KEY"
+          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/dev/ANTHROPIC_KEY"
         },
         {
           "name": "EMAIL_FROM",
-          "valueFrom": "arn:aws:ssm:ap-south-1:${AWS_ACCOUNT_ID}:parameter/axiorapulse/${SHORT_ENV}/EMAIL_FROM"
+          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/dev/EMAIL_FROM"
         },
         {
           "name": "FRONTEND_URL",
-          "valueFrom": "arn:aws:ssm:ap-south-1:${AWS_ACCOUNT_ID}:parameter/axiorapulse/${SHORT_ENV}/FRONTEND_URL"
+          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/dev/FRONTEND_URL"
         },
         {
           "name": "RAZORPAY_KEY_ID",
-          "valueFrom": "arn:aws:ssm:ap-south-1:${AWS_ACCOUNT_ID}:parameter/axiorapulse/${SHORT_ENV}/RAZORPAY_KEY_ID"
+          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/dev/RAZORPAY_KEY_ID"
         },
         {
           "name": "RAZORPAY_KEY_SECRET",
-          "valueFrom": "arn:aws:ssm:ap-south-1:${AWS_ACCOUNT_ID}:parameter/axiorapulse/${SHORT_ENV}/RAZORPAY_KEY_SECRET"
+          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/dev/RAZORPAY_KEY_SECRET"
         }
       ],
       "logConfiguration": {
         "logDriver": "awslogs",
         "options": {
-          "awslogs-group": "${LOG_GROUP}",
+          "awslogs-group": "/ecs/pulse-backend-dev",
           "awslogs-region": "ap-south-1",
           "awslogs-stream-prefix": "ecs"
         }

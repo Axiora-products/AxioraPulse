@@ -4,11 +4,11 @@
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "256",
   "memory": "512",
-  "executionRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/${EXECUTION_ROLE_NAME}",
+  "executionRoleArn": "arn:aws:iam::079975324160:role/ecsTaskExecutionRole-dev",
   "containerDefinitions": [
     {
       "name": "FrontendContainer",
-      "image": "${AWS_ACCOUNT_ID}.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-frontend:latest",
+      "image": "079975324160.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-frontend:latest",
       "essential": true,
       "portMappings": [
         {
@@ -19,7 +19,7 @@
       "logConfiguration": {
         "logDriver": "awslogs",
         "options": {
-          "awslogs-group": "${LOG_GROUP}",
+          "awslogs-group": "/ecs/pulse-frontend-dev",
           "awslogs-region": "ap-south-1",
           "awslogs-stream-prefix": "ecs"
         }
