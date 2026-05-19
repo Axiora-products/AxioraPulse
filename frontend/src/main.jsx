@@ -5,6 +5,12 @@ import App from './App';
 import './index.css';                 // Tailwind base + design tokens
 import './styles/index.css';          // App component styles
 import './styles/app-overrides.css';  // Axiora Pulse visual overrides
+import { Buffer } from 'buffer';
+import process from 'process';
+
+window.global = window;
+window.Buffer = Buffer;
+window.process = process;
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
