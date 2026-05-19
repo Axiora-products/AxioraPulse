@@ -28,6 +28,7 @@ export class AxioraPulseStack extends cdk.Stack {
     // Safety Check: Verify target account
     const expectedAccounts: { [key: string]: string } = {
       'dev': '079975324160',
+      'qa': '681816818894',
       'prod': '217757579310',
     };
 

@@ -7,7 +7,7 @@ import { GitHubOidcStack } from '../lib/github-oidc-stack';
 const app = new cdk.App();
 
 // Global / Shared Infrastructure
-new GitHubOidcStack(app, 'AxioraPulseGitHubOidcStack', {
+new GitHubOidcStack(app, 'AxioraPulseGitHubOidcStackProd', {
   env: { 
     account: '217757579310', 
     region: 'ap-south-1' 
@@ -15,7 +15,18 @@ new GitHubOidcStack(app, 'AxioraPulseGitHubOidcStack', {
   repositoryConfig: [
     { owner: 'Kiran-axiora', repo: 'AxioraPulse' }
   ],
-  description: 'GitHub Actions OIDC role for AxioraPulse',
+  description: 'GitHub Actions OIDC role for AxioraPulse PROD',
+});
+
+new GitHubOidcStack(app, 'AxioraPulseGitHubOidcStackQa', {
+  env: { 
+    account: '681816818894', 
+    region: 'ap-south-1' 
+  },
+  repositoryConfig: [
+    { owner: 'Kiran-axiora', repo: 'AxioraPulse' }
+  ],
+  description: 'GitHub Actions OIDC role for AxioraPulse QA',
 });
 
 // Dev Environment
@@ -32,8 +43,8 @@ new AxioraPulseStack(app, 'AxioraPulseStackDev', {
 new AxioraPulseStack(app, 'AxioraPulseStackQa', {
   environment: 'qa',
   env: { 
-    account: process.env.CDK_QA_ACCOUNT || process.env.CDK_DEFAULT_ACCOUNT, 
-    region: process.env.CDK_QA_REGION || 'ap-south-1' 
+    account: '681816818894', 
+    region: 'ap-south-1' 
   },
   description: 'QA environment for AxioraPulse',
 });
