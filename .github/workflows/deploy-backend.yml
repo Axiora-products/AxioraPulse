@@ -32,10 +32,12 @@ jobs:
         run: |
           if [ "${{ github.ref_name }}" == "main" ]; then
             echo "account_id=217757579310" >> $GITHUB_OUTPUT
-            echo "env_name=prod" >> $GITHUB_OUTPUT
+            echo "env_name=production" >> $GITHUB_OUTPUT
+            echo "short_env=prod" >> $GITHUB_OUTPUT
           else
             echo "account_id=079975324160" >> $GITHUB_OUTPUT
-            echo "env_name=dev" >> $GITHUB_OUTPUT
+            echo "env_name=development" >> $GITHUB_OUTPUT
+            echo "short_env=dev" >> $GITHUB_OUTPUT
           fi
 
       - name: Configure AWS credentials
@@ -68,10 +70,12 @@ jobs:
         env:
           AWS_ACCOUNT_ID: ${{ steps.account.outputs.account_id }}
           ENV_NAME: ${{ steps.account.outputs.env_name }}
+          SHORT_ENV: ${{ steps.account.outputs.short_env }}
         run: |
           export EXECUTION_ROLE_NAME="ecsTaskExecutionRole-${ENV_NAME}"
           export TASK_ROLE_NAME="ecsTaskRole-${ENV_NAME}"
           export LOG_GROUP="/ecs/pulse-backend-${ENV_NAME}"
+          export SHORT_ENV="${SHORT_ENV}"
           envsubst < backend/ecs-task-def.json > backend/ecs-task-def-rendered.json
 
       - name: Update ECS task definition with new image
