@@ -2,6 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import API from '../api/axios';
+import BulkEmailModal from './BulkEmailModal';
+import BulkWhatsAppModal from './BulkWhatsAppModal';
+import { parseFile } from '../utils/contactParser';
 
 
 
@@ -33,6 +36,151 @@ const EMBED_SIZES = [
 ];
 
 
+function ContactFileUploader({ type, fileData, setFileData, isParsing, setIsParsing }) {
+  const fileInputRef = useRef(null);
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setIsParsing(true);
+    try {
+      const result = await parseFile(file, type);
+      setFileData({
+        name: file.name,
+        total: result.total,
+        valid: result.valid,
+        invalid: result.invalid
+      });
+      toast.success(`Loaded ${result.valid.length} valid contacts from ${file.name}`);
+    } catch (err) {
+      toast.error("Failed to parse the file");
+    } finally {
+      setIsParsing(false);
+    }
+  };
+
+  const clearFile = () => {
+    setFileData(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  return (
+    <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {!fileData ? (
+        <div
+          onClick={() => fileInputRef.current.click()}
+          style={{
+            border: '2px dashed rgba(22,15,8,0.1)',
+            borderRadius: 12,
+            padding: '16px 20px',
+            textAlign: 'center',
+            background: 'var(--cream)',
+            cursor: 'pointer',
+            transition: 'border-color 0.2s',
+            boxSizing: 'border-box'
+          }}
+          onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--coral)'}
+          onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(22,15,8,0.1)'}
+        >
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            accept=".xlsx,.xls,.csv"
+            style={{ display: 'none' }}
+          />
+          <div style={{ fontSize: 24, marginBottom: 6 }}>📥</div>
+          <div style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 10, color: 'var(--espresso)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            {isParsing ? 'Processing File...' : 'Upload List (.csv, .xlsx)'}
+          </div>
+          <div style={{ fontFamily: 'Fraunces,serif', fontSize: 11, color: 'rgba(22,15,8,0.4)', marginTop: 4 }}>
+            Drag & drop or click to browse contact lists
+          </div>
+        </div>
+      ) : (
+        <div style={{
+          background: 'var(--cream)',
+          border: '1px solid rgba(22,15,8,0.06)',
+          borderRadius: 12,
+          padding: '12px 16px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+          boxSizing: 'border-box'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 18 }}>📄</span>
+              <span style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, color: 'var(--espresso)', wordBreak: 'break-all' }}>
+                {fileData.name}
+              </span>
+            </div>
+            <button
+              onClick={clearFile}
+              style={{
+                background: 'rgba(22,15,8,0.06)',
+                border: 'none',
+                width: 20,
+                height: 20,
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                fontSize: 10,
+                color: 'var(--espresso)'
+              }}
+            >
+              ✕
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', gap: 12, borderTop: '1px solid rgba(22,15,8,0.04)', paddingTop: 8 }}>
+            <div style={{ flex: 1, textAlign: 'center' }}>
+              <div style={{ fontSize: 12, fontWeight: 900, color: 'var(--espresso)' }}>{fileData.total}</div>
+              <div style={{ fontSize: 8, fontFamily: 'Syne,sans-serif', textTransform: 'uppercase', color: 'rgba(22,15,8,0.4)' }}>Total</div>
+            </div>
+            <div style={{ flex: 1, textAlign: 'center', borderLeft: '1px solid rgba(22,15,8,0.04)', borderRight: '1px solid rgba(22,15,8,0.04)' }}>
+              <div style={{ fontSize: 12, fontWeight: 900, color: '#25D366' }}>{fileData.valid.length}</div>
+              <div style={{ fontSize: 8, fontFamily: 'Syne,sans-serif', textTransform: 'uppercase', color: 'rgba(22,15,8,0.4)' }}>Valid</div>
+            </div>
+            <div style={{ flex: 1, textAlign: 'center' }}>
+              <div style={{ fontSize: 12, fontWeight: 900, color: 'var(--terracotta)' }}>{fileData.invalid.length}</div>
+              <div style={{ fontSize: 8, fontFamily: 'Syne,sans-serif', textTransform: 'uppercase', color: 'rgba(22,15,8,0.4)' }}>Invalid</div>
+            </div>
+          </div>
+
+          {fileData.invalid.length > 0 && (
+            <div style={{
+              background: 'rgba(214,59,31,0.04)',
+              border: '1px solid rgba(214,59,31,0.15)',
+              borderRadius: 8,
+              padding: '8px 12px',
+              maxHeight: 80,
+              overflowY: 'auto',
+              fontSize: 11,
+              fontFamily: 'monospace',
+              color: 'var(--terracotta)'
+            }}>
+              <div style={{ fontWeight: 'bold', marginBottom: 4, fontFamily: 'Syne,sans-serif', fontSize: 9, textTransform: 'uppercase' }}>
+                ⚠️ Invalid Entries (will be ignored):
+              </div>
+              {fileData.invalid.map((item, idx) => (
+                <div key={idx} style={{ borderBottom: '1px solid rgba(214,59,31,0.05)', paddingBottom: 2, marginBottom: 2 }}>
+                  {item.value} - {item.reason}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 export default function ShareModal({ survey, isOpen, onClose }) {
   const [tab, setTab] = useState('link');
@@ -40,6 +188,14 @@ export default function ShareModal({ survey, isOpen, onClose }) {
   const [embedSize, setEmbed] = useState(1);     // index into EMBED_SIZES
   const [emailTo, setEmailTo] = useState('');
   const [sending, setSending] = useState(false);
+  const [isBulkEmailOpen, setIsBulkEmailOpen] = useState(false);
+  const [isBulkWhatsAppOpen, setIsBulkWhatsAppOpen] = useState(false);
+  const [whatsAppNumbers, setWhatsAppNumbers] = useState('');
+  const [whatsAppFile, setWhatsAppFile] = useState(null);
+  const [isWhatsAppFileParsing, setIsWhatsAppFileParsing] = useState(false);
+  const [isWhatsAppSubViewOpen, setIsWhatsAppSubViewOpen] = useState(false);
+  const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
+  const [whatsAppMessage, setWhatsAppMessage] = useState(`Check out this survey: "${survey?.title || 'User Feedback'}"\n\nPlease participate: [link]`);
   const inputRef = useRef(null);
 
   const appOrigin = import.meta.env.VITE_FRONTEND_URL || window.location.origin;
@@ -56,8 +212,19 @@ export default function ShareModal({ survey, isOpen, onClose }) {
   }
   // Reset state when closed
   useEffect(() => {
-    if (!isOpen) { setTab('link'); setCopied(false); setEmailTo(''); }
-  }, [isOpen]);
+    if (!isOpen) {
+      setTab('link');
+      setCopied(false);
+      setEmailTo('');
+      setWhatsAppNumbers('');
+      setWhatsAppFile(null);
+      setIsWhatsAppFileParsing(false);
+      setIsWhatsAppSubViewOpen(false);
+      setSendingWhatsApp(false);
+    } else {
+      setWhatsAppMessage(`Hello! We would love to get your feedback on our survey: "${survey?.title || 'User Feedback'}"\n\nPlease tap this link to participate: ${surveyUrl}`);
+    }
+  }, [isOpen, survey, surveyUrl]);
 
   function copyLink() {
     navigator.clipboard.writeText(surveyUrl);
@@ -71,40 +238,6 @@ export default function ShareModal({ survey, isOpen, onClose }) {
     toast.success('Embed code copied!');
   }
 
-  // async function sendEmail() {
-  //   if (!emailTo.trim()) {
-  //     return toast.error("Enter an email address");
-  //   }
-
-  //   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTo)) {
-  //     return toast.error("Invalid email");
-  //   }
-
-  //   setSending(true);
-
-  //   try {
-  //     await API.post("/users/share-survey", {
-  //       email: emailTo.trim(),
-  //       survey_link: surveyUrl,
-  //       survey_title: survey?.title
-  //     }); 
-  //     toast.success(`Invite sent to ${emailTo}`);
-  //     setEmailTo("");
-
-  //   } catch (error) {
-  //     console.log(error.response?.data);
-  //     console.log("FULL ERROR:", error); // 🔥 full object
-  //     console.log("RESPONSE DATA:", error.response?.data);
-  //     console.log("STATUS:", error.response?.status);
-  //     const msg =
-  //       error.response?.data?.detail ||
-  //       "Failed to send invite";
-
-  //     toast.error(msg);
-  //   } finally {
-  //     setSending(false);
-  //   }
-  // }
   async function sendEmail() {
     if (!emailTo.trim()) {
       return toast.error("Enter email addresses");
@@ -128,40 +261,122 @@ export default function ShareModal({ survey, isOpen, onClose }) {
     setSending(true);
 
     try {
-
-      // 🔥 Single email
+      // Single email
       if (emails.length === 1) {
-
         await API.post("/users/share-survey", {
           email: emails[0],
           survey_link: surveyUrl,
           survey_title: survey?.title
         });
-
       } else {
-
-        // 🔥 Bulk email
+        // Bulk email
         await API.post("/users/bulk-share-survey", {
           emails,
           survey_link: surveyUrl,
           survey_title: survey?.title
         });
-
       }
 
       toast.success(`Survey sent successfully`);
       setEmailTo("");
 
     } catch (error) {
-
       const msg =
         error.response?.data?.detail ||
         "Failed to send survey";
 
       toast.error(msg);
-
     } finally {
       setSending(false);
+    }
+  }
+
+  function downloadBroadcastReport(results) {
+    if (!results || results.length === 0) return;
+
+    // Define CSV headers exactly matching the user's details
+    const headers = ["Mobile Number", "Status", "Timestamp", "Reason/Error"];
+    
+    // Convert results to CSV rows
+    const csvRows = [
+      headers.join(","),
+      ...results.map(r => {
+        const mobile = (r.recipient || '').toString().replace(/"/g, '""');
+        const rawStatus = r.status || '';
+        const status = rawStatus === 'sent' ? 'sent successfully' : 'failed';
+        const timestamp = (r.timestamp || '').replace(/"/g, '""');
+        const reason = (r.reason || '').replace(/"/g, '""');
+        return `"${mobile}","${status}","${timestamp}","${reason}"`;
+      })
+    ];
+
+    const csvContent = "\uFEFF" + csvRows.join("\n"); // Add UTF-8 BOM for Excel compatibility
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement("a");
+    const timestampStr = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `whatsapp_broadcast_report_${timestampStr}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  async function sendWhatsApp() {
+    let numbersList = [];
+
+    if (whatsAppFile) {
+      if (!whatsAppFile.valid || whatsAppFile.valid.length === 0) {
+        return toast.error("No valid phone numbers to send to");
+      }
+      numbersList = whatsAppFile.valid;
+    } else {
+      if (!whatsAppNumbers.trim()) {
+        return toast.error("Enter phone numbers or upload a file");
+      }
+
+      // Split manual numbers by comma or new line
+      numbersList = whatsAppNumbers
+        .split(/[\n,]/)
+        .map(n => n.replace(/[\s\-\(\)]/g, '').trim())
+        .filter(Boolean);
+
+      // Validate
+      const invalidNum = numbersList.find(n => !/^\+?[1-9]\d{6,14}$/.test(n));
+      if (invalidNum) {
+        return toast.error(`Invalid mobile number format: ${invalidNum}`);
+      }
+    }
+
+    setSendingWhatsApp(true);
+
+    try {
+      const res = await API.post("/users/bulk-share-whatsapp", {
+        numbers: numbersList,
+        survey_link: surveyUrl,
+        survey_title: survey?.title,
+        message: whatsAppMessage
+      });
+
+      const { sent, failed, results } = res.data;
+
+      // Automatically trigger report spreadsheet download
+      if (results && results.length > 0) {
+        downloadBroadcastReport(results);
+      }
+
+      toast.success(`WhatsApp broadcast complete! Sent: ${sent}, Failed: ${failed}. Spreadsheet report downloaded.`, { duration: 6000 });
+      setWhatsAppNumbers('');
+      setWhatsAppFile(null);
+      setIsWhatsAppSubViewOpen(false);
+
+    } catch (error) {
+      const msg = error.response?.data?.detail || "Failed to send WhatsApp broadcast";
+      toast.error(msg);
+    } finally {
+      setSendingWhatsApp(false);
     }
   }
 
@@ -236,10 +451,10 @@ export default function ShareModal({ survey, isOpen, onClose }) {
             exit={{ opacity: 0, scale: 0.95, y: 8 }}
             transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
             onClick={e => e.stopPropagation()}
-            style={{ background: 'var(--warm-white)', borderRadius: 24, padding: '32px 32px 28px', width: '100%', maxWidth: 480, boxShadow: '0 40px 100px rgba(22,15,8,0.2)', position: 'relative' }}>
+            style={{ background: 'var(--warm-white)', borderRadius: 24, padding: '32px 32px 28px', width: '100%', maxWidth: 480, boxShadow: '0 40px 100px rgba(22,15,8,0.2)', position: 'relative', maxHeight: '90vh', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
 
             {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24, flexShrink: 0 }}>
               <div>
                 <div style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--coral)', marginBottom: 6 }}>Share</div>
                 <h2 style={{ fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: 22, letterSpacing: '-0.5px', color: 'var(--espresso)', margin: 0, lineHeight: 1.15, maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{survey?.title}</h2>
@@ -251,7 +466,7 @@ export default function ShareModal({ survey, isOpen, onClose }) {
             </div>
 
             {/* Tab bar */}
-            <div style={{ display: 'flex', gap: 4, padding: 5, background: 'var(--cream-deep)', borderRadius: 999, marginBottom: 28 }}>
+            <div style={{ display: 'flex', gap: 4, padding: 5, background: 'var(--cream-deep)', borderRadius: 999, marginBottom: 28, flexShrink: 0 }}>
               {TABS.map(t => (
                 <button key={t.id} onClick={() => setTab(t.id)}
                   style={{ flex: 1, padding: '8px 0', borderRadius: 999, border: 'none', cursor: 'pointer', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', transition: 'all 0.2s', background: tab === t.id ? 'var(--espresso)' : 'transparent', color: tab === t.id ? 'var(--cream)' : 'rgba(22,15,8,0.4)' }}>
@@ -367,73 +582,171 @@ export default function ShareModal({ survey, isOpen, onClose }) {
             )}
             {tab === 'social' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {!isWhatsAppSubViewOpen ? (
+                  <>
+                    <p style={{ fontFamily: 'Fraunces,serif', fontSize: 13, color: 'rgba(22,15,8,0.5)', margin: 0 }}>
+                      Share this survey instantly across platforms.
+                    </p>
 
-                <p style={{
-                  fontFamily: 'Fraunces,serif',
-                  fontSize: 13,
-                  color: 'rgba(22,15,8,0.5)',
-                  margin: 0
-                }}>
-                  Share this survey instantly across platforms.
-                </p>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                      {/* WhatsApp */}
+                      <button
+                        onClick={() => setIsWhatsAppSubViewOpen(true)}
+                        style={socialBtn("#25D366")}
+                      >
+                        <WhatsAppIcon /> WhatsApp
+                      </button>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                      {/* Telegram */}
+                      <button
+                        onClick={() => openShare(`https://t.me/share/url?url=${encodedUrl}&text=${encodedText}`)}
+                        style={socialBtn("#229ED9")}
+                      >
+                        <TelegramIcon /> Telegram
+                      </button>
 
-                  {/* WhatsApp */}
-                  <button
-                    onClick={() => openShare(`https://wa.me/?text=${encodedText}%20${encodedUrl}`)}
-                    style={socialBtn("#25D366")}
-                  >
-                    <WhatsAppIcon /> WhatsApp
-                  </button>
+                      {/* Twitter/X */}
+                      <button
+                        onClick={() => openShare(`https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedUrl}`)}
+                        style={socialBtn("#000")}
+                      >
+                        <TwitterIcon /> Twitter
+                      </button>
 
-                  {/* Telegram */}
-                  <button
-                    onClick={() => openShare(`https://t.me/share/url?url=${encodedUrl}&text=${encodedText}`)}
-                    style={socialBtn("#229ED9")}
-                  >
-                    <TelegramIcon /> Telegram
-                  </button>
+                      {/* Instagram */}
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(surveyUrl);
+                          window.open("https://www.instagram.com/", "_blank");
+                          toast.success("Link copied! Paste it in Instagram bio or DM");
+                        }}
+                        style={socialBtn("linear-gradient(45deg,#f58529,#dd2a7b,#8134af,#515bd4)")}
+                      >
+                        <InstagramIcon /> Instagram
+                      </button>
+                    </div>
 
-                  {/* Twitter/X */}
-                  <button
-                    onClick={() => openShare(`https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedUrl}`)}
-                    style={socialBtn("#000")}
-                  >
-                    <TwitterIcon /> Twitter
-                  </button>
+                    <p style={{ fontSize: 12, color: 'rgba(22,15,8,0.35)', margin: 0 }}>
+                      Instagram doesn't support direct sharing — link copied instead.
+                    </p>
+                  </>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                      <span style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, color: '#25D366', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        WhatsApp Share Campaign
+                      </span>
+                      <button
+                        onClick={() => { setIsWhatsAppSubViewOpen(false); setWhatsAppFile(null); setWhatsAppNumbers(''); }}
+                        style={{ background: 'none', border: 'none', color: 'rgba(22,15,8,0.4)', fontSize: 10, fontFamily: 'Syne,sans-serif', fontWeight: 700, textTransform: 'uppercase', cursor: 'pointer' }}
+                      >
+                        ← Back to Social
+                      </button>
+                    </div>
 
-                  {/* Instagram (info only) */}
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(surveyUrl);
+                    <p style={{ fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 12, color: 'rgba(22,15,8,0.5)', margin: 0, lineHeight: 1.6 }}>
+                      Send the survey invite via WhatsApp to individual numbers or in bulk using contact lists.
+                    </p>
 
-                      // Try to open Instagram
-                      window.open("https://www.instagram.com/", "_blank");
+                    {/* Phone Number Input */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <label style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, color: 'rgba(22,15,8,0.4)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Manual Entry (Comma or new-line separated)
+                      </label>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <input
+                          type="text"
+                          value={whatsAppNumbers}
+                          onChange={e => setWhatsAppNumbers(e.target.value)}
+                          onKeyDown={e => e.key === 'Enter' && sendWhatsApp()}
+                          placeholder={whatsAppFile ? "File selected — manual input disabled" : "+919876543210, +14155552671"}
+                          disabled={!!whatsAppFile}
+                          style={{ ...fieldStyle, flex: 1, opacity: whatsAppFile ? 0.5 : 1 }}
+                          onFocus={e => e.target.style.borderColor = '#25D366'}
+                          onBlur={e => e.target.style.borderColor = 'rgba(22,15,8,0.1)'}
+                        />
+                        <motion.button
+                          whileTap={{ scale: 0.96 }}
+                          onClick={sendWhatsApp}
+                          disabled={sendingWhatsApp || !!whatsAppFile || !whatsAppNumbers.trim()}
+                          style={{ ...btnPrimary(sendingWhatsApp || !!whatsAppFile || !whatsAppNumbers.trim()) }}
+                          onMouseEnter={e => { if (!sendingWhatsApp && !whatsAppFile && whatsAppNumbers.trim()) e.currentTarget.style.background = 'var(--coral)'; }}
+                          onMouseLeave={e => { if (!sendingWhatsApp && !whatsAppFile && whatsAppNumbers.trim()) e.currentTarget.style.background = 'var(--espresso)'; }}
+                        >
+                          {sendingWhatsApp ? '…' : 'Send'}
+                        </motion.button>
+                      </div>
+                    </div>
 
-                      toast.success("Link copied! Paste it in Instagram bio or DM");
-                    }}
-                    style={{
-                      ...socialBtn("linear-gradient(45deg,#f58529,#dd2a7b,#8134af,#515bd4)")
-                    }}
-                  >
-                    <InstagramIcon /> Instagram
-                  </button>
-                </div>
+                    {/* OR Divider */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '2px 0' }}>
+                      <div style={{ flex: 1, height: 1, background: 'rgba(22,15,8,0.06)' }}></div>
+                      <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, color: 'rgba(22,15,8,0.3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>OR</span>
+                      <div style={{ flex: 1, height: 1, background: 'rgba(22,15,8,0.06)' }}></div>
+                    </div>
 
-                <p style={{
-                  fontSize: 12,
-                  color: 'rgba(22,15,8,0.35)',
-                  margin: 0
-                }}>
-                  Instagram doesn't support direct sharing — link copied instead.
-                </p>
+                    {/* File Upload Zone */}
+                    <ContactFileUploader
+                      type="phone"
+                      fileData={whatsAppFile}
+                      setFileData={setWhatsAppFile}
+                      isParsing={isWhatsAppFileParsing}
+                      setIsParsing={setIsWhatsAppFileParsing}
+                    />
 
+                    {/* WhatsApp Custom Message text */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <label style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, color: 'rgba(22,15,8,0.4)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Custom Message Body
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={whatsAppMessage}
+                        onChange={e => setWhatsAppMessage(e.target.value)}
+                        style={fieldStyle}
+                        onFocus={e => e.target.style.borderColor = '#25D366'}
+                        onBlur={e => e.target.style.borderColor = 'rgba(22,15,8,0.1)'}
+                      />
+                    </div>
+
+                    {/* Action Button */}
+                    <motion.button
+                      whileTap={{ scale: 0.98 }}
+                      onClick={sendWhatsApp}
+                      disabled={sendingWhatsApp}
+                      style={{
+                        ...btnPrimary(sendingWhatsApp),
+                        background: sendingWhatsApp ? 'rgba(22,15,8,0.12)' : '#25D366',
+                        color: sendingWhatsApp ? 'rgba(22,15,8,0.3)' : '#FFF',
+                        width: '100%',
+                        justifyContent: 'center',
+                        marginTop: 4
+                      }}
+                    >
+                      {sendingWhatsApp ? 'Broadcasting...' : '🚀 Send WhatsApp Broadcast'}
+                    </motion.button>
+                  </div>
+                )}
               </div>
             )}
           </motion.div>
         </motion.div>
       )}
+
+      {/* Bulk Broadcast Modals */}
+      <BulkEmailModal
+        survey={survey}
+        isOpen={isOpen && isBulkEmailOpen}
+        onClose={() => setIsBulkEmailOpen(false)}
+        surveyUrl={surveyUrl}
+      />
+
+      <BulkWhatsAppModal
+        survey={survey}
+        isOpen={isOpen && isBulkWhatsAppOpen}
+        onClose={() => setIsBulkWhatsAppOpen(false)}
+        surveyUrl={surveyUrl}
+      />
     </AnimatePresence>
   );
 }

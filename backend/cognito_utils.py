@@ -12,6 +12,9 @@ import requests
 import boto3
 from functools import lru_cache
 from jose import jwt, JWTError
+from dotenv import load_dotenv
+
+load_dotenv()
 
 COGNITO_REGION = os.getenv("COGNITO_REGION", "ap-south-1")
 COGNITO_USER_POOL_ID = os.getenv("COGNITO_USER_POOL_ID")
