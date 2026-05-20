@@ -5,6 +5,18 @@ import subprocess
 import shutil
 from pathlib import Path
 
+# Ensure UTF-8 output encoding for consoles (especially on Windows)
+if hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+if hasattr(sys.stderr, 'reconfigure'):
+    try:
+        sys.stderr.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+
 # --- Configuration ---
 PYTHON_VERSION = "3.11.9"
 # Go up one level from dev-tools to find backend/frontend
@@ -76,15 +88,25 @@ def setup_python():
 
     # Get the exact path to the python executable for this version
     try:
-        pyenv_prefix = subprocess.check_output(["pyenv", "prefix", PYTHON_VERSION]).decode().strip()
-        python_exe = Path(pyenv_prefix) / "bin" / "python"
+        if os.name == "nt":
+            # On Windows, pyenv-win doesn't support 'prefix', but we know the path directly
+            pyenv_root = str(Path(pyenv_bin).parent.parent)
+            pyenv_prefix = str(Path(pyenv_root) / "versions" / PYTHON_VERSION)
+        else:
+            pyenv_prefix = subprocess.check_output([pyenv_bin, "prefix", PYTHON_VERSION]).decode().strip()
+            
+        python_exe = Path(pyenv_prefix) / "python.exe" if os.name == "nt" else Path(pyenv_prefix) / "bin" / "python"
+        if not python_exe.exists():
+            python_exe = Path(pyenv_prefix) / "bin" / "python"
         if not python_exe.exists():
             python_exe = Path(pyenv_prefix) / "bin" / "python3"
+        if not python_exe.exists():
+            python_exe = Path(pyenv_prefix) / "python"
         
         print(f"🎯 Using Python executable: {python_exe}")
         return str(python_exe)
-    except subprocess.CalledProcessError:
-        print(f"❌ Error: Could not find prefix for Python {PYTHON_VERSION}.")
+    except Exception as e:
+        print(f"❌ Error: Could not resolve path for Python {PYTHON_VERSION}. Details: {e}")
         sys.exit(1)
 
 def clean_and_setup_venv(python_exe):
@@ -97,17 +119,15 @@ def clean_and_setup_venv(python_exe):
     print(f"📦 Creating new virtual environment with {PYTHON_VERSION}...")
     run_command(f"{python_exe} -m venv {abs_venv_dir}")
     
-    # Locate pip using absolute path
+    # Locate python inside venv
     if os.name == "nt":
-        pip_path = abs_venv_dir / "Scripts" / "pip.exe"
+        python_venv_exe = abs_venv_dir / "Scripts" / "python.exe"
     else:
-        pip_path = abs_venv_dir / "bin" / "pip"
-        if not pip_path.exists():
-            pip_path = abs_venv_dir / "bin" / "pip3"
+        python_venv_exe = abs_venv_dir / "bin" / "python"
 
-    print(f"🛠️  Installing backend requirements using {pip_path}...")
-    run_command(f"{pip_path} install --upgrade pip")
-    run_command(f"{pip_path} install -r requirements.txt", cwd=BACKEND_DIR)
+    print(f"🛠️  Installing backend requirements using {python_venv_exe} -m pip...")
+    run_command(f"{python_venv_exe} -m pip install --upgrade pip")
+    run_command(f"{python_venv_exe} -m pip install -r requirements.txt", cwd=BACKEND_DIR)
 
 def pull_ssm_parameters(venv_dir):
     """Pulls parameters from AWS SSM and creates .env files by running a script in the venv."""
