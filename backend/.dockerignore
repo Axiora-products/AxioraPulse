@@ -1,0 +1,7 @@
+venv/
+.env
+__pycache__/
+*.pyc
+Dockerfile
+Dockerfile.prod
+ecs-task-def.json
