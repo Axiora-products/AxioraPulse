@@ -2,12 +2,12 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 
 class ResponseCreate(BaseModel):
     survey_id: UUID
     session_token: Optional[str] = None
-    respondent_email: Optional[str] = None
+    respondent_email: Optional[EmailStr] = None
     age_range: Optional[str] = None
     gender: Optional[str] = None
     occupation: Optional[str] = None
@@ -15,10 +15,14 @@ class ResponseCreate(BaseModel):
     status: str = "in_progress"
 
 class ResponseUpdate(BaseModel):
-    respondent_email: Optional[str] = None
+    respondent_email: Optional[EmailStr] = None
     status: Optional[str] = None
     last_saved_at: Optional[datetime] = None
     metadata: Optional[Dict[str, Any]] = None
+    age_range: Optional[str] = None
+    gender: Optional[str] = None
+    occupation: Optional[str] = None
+    city: Optional[str] = None
 
 class AnswerIn(BaseModel):
     question_id: UUID
@@ -54,5 +58,4 @@ class ResponseOut(BaseModel):
 
 class SubmitResponse(BaseModel):
     action: str = "submit"
-    response_id: UUID
     metadata: Optional[Dict[str, Any]] = None
