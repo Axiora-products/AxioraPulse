@@ -1,24 +1,21 @@
-import os
 import requests
+from core.config import RESEND_API_KEY, EMAIL_FROM
 
 RESEND_API_URL = "https://api.resend.com/emails"
 
 
 def send_email(to_email: str, subject: str, body: str):
-    resend_key = os.getenv("RESEND_API_KEY")
-    email_from = os.getenv("EMAIL_FROM", "Axiora Pulse <noreply@axiorapulse.com>")
-
-    if not resend_key:
+    if not RESEND_API_KEY:
         raise Exception("RESEND_API_KEY is not configured")
 
     resp = requests.post(
         RESEND_API_URL,
         headers={
-            "Authorization": f"Bearer {resend_key}",
+            "Authorization": f"Bearer {RESEND_API_KEY}",
             "Content-Type": "application/json",
         },
         json={
-            "from": email_from,
+            "from": EMAIL_FROM,
             "to": [to_email],
             "subject": subject,
             "html": body,
