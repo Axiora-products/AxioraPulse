@@ -1,8 +1,10 @@
 import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import API from '../api/axios';
+import useAuthStore from '../hooks/useAuth';
 
 // ── Launch target ─────────────────────────────────────────────────────────────
+
 const LAUNCH_DATE = new Date('2026-06-14T23:59:59');
 
 function getTimeLeft() {
@@ -305,6 +307,31 @@ export default function ComingSoon() {
         <p style={{ marginTop: 24, fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(253,245,232,0.2)' }}>
           Axiora Pulse &nbsp;·&nbsp; Idea validation, powered by AI
         </p>
+
+        {useAuthStore.getState().user && (
+          <button
+            onClick={() => useAuthStore.getState().signOut()}
+            style={{
+              marginTop: 32,
+              background: 'none',
+              border: 'none',
+              fontFamily: 'Syne, sans-serif',
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+              color: 'rgba(253,245,232,0.4)',
+              cursor: 'pointer',
+              textDecoration: 'underline',
+              opacity: 0.6,
+              transition: 'opacity 0.2s'
+            }}
+            onMouseEnter={e => e.currentTarget.style.opacity = 1}
+            onMouseLeave={e => e.currentTarget.style.opacity = 0.6}
+          >
+            Sign out
+          </button>
+        )}
       </motion.div>
     </div>
   );
