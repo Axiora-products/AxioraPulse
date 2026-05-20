@@ -36,6 +36,10 @@
           "valueFrom": "arn:aws:ssm:ap-south-1:217757579310:parameter/axiorapulse/production/ANTHROPIC_KEY"
         },
         {
+          "name": "RESEND_API_KEY",
+          "valueFrom": "arn:aws:ssm:ap-south-1:217757579310:parameter/axiorapulse/production/RESEND_API_KEY"
+        },
+        {
           "name": "EMAIL_FROM",
           "valueFrom": "arn:aws:ssm:ap-south-1:217757579310:parameter/axiorapulse/production/EMAIL_FROM"
         },
