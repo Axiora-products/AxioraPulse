@@ -23,6 +23,28 @@ function parseOpts(raw) {
   return raw;
 }
 
+function isValidEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
+}
+
+function describeApiError(error, fallback = 'Submission failed. Your answers are saved; please try again.') {
+  if (!error.response) return 'Network error. Please check your connection and try again.';
+
+  const status = error.response.status;
+  const detail = error.response.data?.detail;
+  const message = Array.isArray(detail)
+    ? detail.map(d => d.msg || d.message).filter(Boolean).join(', ')
+    : detail;
+
+  if (status === 400) return message || 'Validation failed. Please review your answers and try again.';
+  if (status === 409) return message || 'This survey response has already been submitted.';
+  if (status === 422) return message || 'Validation failed. Please check the email and required answers.';
+  if (status === 429) return 'Too many attempts. Please wait a moment and try again.';
+  if (status >= 500) return 'Server unavailable. Your answers are saved; please try again shortly.';
+
+  return message || fallback;
+}
+
 // ─── Inline SVG icons — no emojis, no icon libraries ─────────────────────────
 const Icons = {
   Arrow: ({ d = 'M5 12h14M12 5l7 7-7 7', ...p }) => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" {...p}><path d={d} /></svg>,
@@ -154,12 +176,15 @@ export default function SurveyRespond() {
 
     insertPending.current = (async () => {
       // POST /responses/ handles dedup via session_token server-side
-      const res = await API.post('/responses/', {
+      const payload = {
         survey_id: sv.id,
         session_token: token.current,
         respondent_email: email || null,
         status: 'in_progress',
-      });
+      };
+      console.debug('[survey-submit] create response request', { surveyId: sv.id, sessionToken: token.current });
+      const res = await API.post('/responses/', payload);
+      console.debug('[survey-submit] create response success', { responseId: res.data.id });
       rId.current = res.data.id;
       return res.data.id;
     })();
@@ -172,7 +197,7 @@ export default function SurveyRespond() {
   }
 
   // ── Auto-save (via Netlify function) ─────────────────────────────────────
-  const autoSave = useCallback(async (a, id) => {
+  const autoSave = useCallback(async (a, id, { silent = true } = {}) => {
     if (!id) return;
     try {
       const answers = Object.entries(a).map(([qId, v]) => {
@@ -183,9 +208,19 @@ export default function SurveyRespond() {
           answer_json: isObj ? v : null,
         };
       });
+      console.debug('[survey-submit] save answers request', { responseId: id, answerCount: answers.length });
       await API.post(`/responses/${id}/answers`, answers);
+      console.debug('[survey-submit] save answers success', { responseId: id, answerCount: answers.length });
       setSaved(new Date().toISOString());
-    } catch (e) { console.warn('Auto-save silently failed:', e.message); }
+    } catch (e) {
+      console.warn('[survey-submit] save answers failed', {
+        responseId: id,
+        status: e.response?.status,
+        detail: e.response?.data?.detail,
+        message: e.message,
+      });
+      if (!silent) throw e;
+    }
   }, []);
 
   // ── Answer setter ─────────────────────────────────────────────────────────
@@ -213,26 +248,36 @@ export default function SurveyRespond() {
     for (const q of visibleQuestions) {
       if (q.is_required && !ans[q.id]) { goTo(qs.indexOf(q)); return toast.error(`Please answer: "${q.question_text}"`); }
     }
+    const cleanEmail = email.trim();
+    if (sv?.require_email && !isValidEmail(cleanEmail)) {
+      return toast.error('Invalid email. Please enter a valid email address.');
+    }
     setBusy(true);
     try {
+      console.debug('[survey-submit] final submit started', { surveyId: sv?.id, slug, requiresEmail: !!sv?.require_email });
       const id = await ensureR();
       const quality = await tracker.onSubmit(ans, qs);
-      await autoSave(ans, id);
+      await autoSave(ans, id, { silent: false });
       // Update email if collected at end
-      if (sv?.require_email && email) {
-        await API.patch(`/responses/${id}`, { respondent_email: email });
+      if (sv?.require_email && cleanEmail) {
+        console.debug('[survey-submit] update email request', { responseId: id });
+        await API.patch(`/responses/${id}`, { respondent_email: cleanEmail });
+        console.debug('[survey-submit] update email success', { responseId: id });
       }
+      console.debug('[survey-submit] submit response request', { responseId: id, qualityScore: quality });
       await API.post(`/responses/${id}/submit`, { metadata: { quality_score: quality } });
+      console.debug('[survey-submit] submit response success', { responseId: id });
       setShowDemographics(true);
       localStorage.removeItem(`nx_${slug}`);
-      if (sv?.id) {
-        try {
-          localStorage.removeItem(`surveyAnswers_${sv.id}`);
-        } catch (e) {
-          console.warn('Failed to clear draft from localStorage:', e);
-        }
-      }
-    } catch (e) { toast.error('Submission failed — your answers are saved. Try again.'); }
+    } catch (e) {
+      console.error('[survey-submit] final submit failed', {
+        responseId: rId.current,
+        status: e.response?.status,
+        detail: e.response?.data?.detail,
+        message: e.message,
+      });
+      toast.error(describeApiError(e));
+    }
     finally { setBusy(false); }
   }
 
