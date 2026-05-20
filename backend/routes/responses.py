@@ -14,20 +14,23 @@ GET    /responses/session/{token} — find in-progress response by session_token
 """
 
 import uuid
+import logging
 from datetime import datetime, timezone
 from typing import List, Optional
 from core.rate_limiter import limiter
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 from fastapi import Request
 from db.database import get_db
 from db.models import SurveyResponse, SurveyAnswer, ResponseStatusEnum
 from schemas import (
     ResponseCreate, ResponseUpdate, AnswerIn, ResponseOut, AnswerOut,
-    MessageResponse,
+    MessageResponse, SubmitResponse,
 )
 
 router = APIRouter(prefix="/responses", tags=["responses"])
+logger = logging.getLogger("axiora.responses")
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -66,13 +69,17 @@ def create_response(request: Request, body: ResponseCreate, db: Session = Depend
             .first()
         )
         if existing:
+            logger.info(
+                "response_create_existing",
+                extra={"response_id": str(existing.id), "survey_id": str(existing.survey_id)},
+            )
             return ResponseOut.model_validate(existing)
 
     row = SurveyResponse(
         id=uuid.uuid4(),
         survey_id=body.survey_id,
         session_token=body.session_token,
-        respondent_email=body.respondent_email,
+        respondent_email=str(body.respondent_email) if body.respondent_email else None,
         age_range=body.age_range,
         gender=body.gender,
         occupation=body.occupation,
@@ -81,8 +88,32 @@ def create_response(request: Request, body: ResponseCreate, db: Session = Depend
         started_at=datetime.now(timezone.utc),
     )
     db.add(row)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        if body.session_token:
+            existing = (
+                db.query(SurveyResponse)
+                .filter(SurveyResponse.session_token == body.session_token)
+                .first()
+            )
+            if existing:
+                logger.warning(
+                    "response_create_duplicate_session_recovered",
+                    extra={"response_id": str(existing.id), "survey_id": str(existing.survey_id)},
+                )
+                return ResponseOut.model_validate(existing)
+        logger.exception(
+            "response_create_integrity_error",
+            extra={"survey_id": str(body.survey_id), "has_session_token": bool(body.session_token)},
+        )
+        raise HTTPException(status_code=409, detail="Duplicate response session") from exc
     db.refresh(row)
+    logger.info(
+        "response_created",
+        extra={"response_id": str(row.id), "survey_id": str(row.survey_id)},
+    )
     return ResponseOut.model_validate(row)
 
 
@@ -132,13 +163,21 @@ def update_response(
     if not r:
         raise HTTPException(status_code=404, detail="Response not found")
 
+    logger.info(
+        "response_update_requested",
+        extra={
+            "response_id": str(response_id),
+            "fields": list(body.model_fields_set),
+        },
+    )
+
     if body.respondent_email is not None:
-        r.respondent_email = body.respondent_email
+        r.respondent_email = str(body.respondent_email)
     if body.status is not None:
         try:
             r.status = ResponseStatusEnum(body.status)
         except ValueError:
-            pass
+            raise HTTPException(status_code=422, detail="Invalid response status")
     if body.last_saved_at is not None:
         r.last_saved_at = body.last_saved_at
     if body.metadata is not None:
@@ -151,10 +190,17 @@ def update_response(
 
     if body.occupation is not None:
         r.occupation = body.occupation
+    if body.city is not None:
         r.city = body.city
 
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("response_update_failed", extra={"response_id": str(response_id)})
+        raise
     db.refresh(r)
+    logger.info("response_updated", extra={"response_id": str(response_id), "status": r.status.value})
     return ResponseOut.model_validate(r)
 
 
@@ -198,7 +244,19 @@ def upsert_answers(
 
     # Update last_saved_at
     r.last_saved_at = datetime.now(timezone.utc)
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception(
+            "response_answers_save_failed",
+            extra={"response_id": str(response_id), "answer_count": len(answers)},
+        )
+        raise
+    logger.info(
+        "response_answers_saved",
+        extra={"response_id": str(response_id), "answer_count": len(answers)},
+    )
     return {"message": "Answers saved", "count": len(answers)}
 
 
@@ -210,7 +268,7 @@ def upsert_answers(
 def submit_response(
     request: Request, 
     response_id: uuid.UUID,
-    body: dict = {},
+    body: SubmitResponse,
     db: Session = Depends(get_db),
 ):
     """
@@ -221,15 +279,24 @@ def submit_response(
     r = db.query(SurveyResponse).filter(SurveyResponse.id == response_id).first()
     if not r:
         raise HTTPException(status_code=404, detail="Response not found")
+    if r.status == ResponseStatusEnum.completed:
+        logger.info("response_submit_duplicate", extra={"response_id": str(response_id)})
+        raise HTTPException(status_code=409, detail="This survey response has already been submitted")
 
     r.status = ResponseStatusEnum.completed
     r.completed_at = datetime.now(timezone.utc)
 
     # Merge any extra metadata (quality_score from useResponseTracking)
-    if isinstance(body, dict) and body.get("metadata"):
-        r.response_metadata = {**(r.response_metadata or {}), **body["metadata"]}
+    if body.metadata:
+        r.response_metadata = {**(r.response_metadata or {}), **body.metadata}
 
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("response_submit_failed", extra={"response_id": str(response_id)})
+        raise
+    logger.info("response_submitted", extra={"response_id": str(response_id), "survey_id": str(r.survey_id)})
     return {"message": "Response submitted successfully", "response_id": response_id}
 
 

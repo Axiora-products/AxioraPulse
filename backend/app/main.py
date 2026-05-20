@@ -12,11 +12,14 @@ Startup sequence:
 
 import sys
 import os
+import logging
+import time
+import uuid
 
 # Ensure the backend root is on the path so `db`, `routes`, etc. resolve
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from db.database import engine, Base
@@ -42,6 +45,9 @@ from routes.demo import router as demo_router
 from core import config
 from core.rate_limiter import limiter
 
+logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
+logger = logging.getLogger("axiora.api")
+
 # ── Create tables ─────────────────────────────────────────────────────────────
 # In production, replace this with Alembic migrations.
 
@@ -55,6 +61,43 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
 )
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    request_id = request.headers.get("x-request-id", str(uuid.uuid4()))
+    start = time.perf_counter()
+
+    try:
+        response = await call_next(request)
+    except Exception:
+        duration_ms = round((time.perf_counter() - start) * 1000, 2)
+        logger.exception(
+            "api_request_failed",
+            extra={
+                "request_id": request_id,
+                "method": request.method,
+                "path": request.url.path,
+                "duration_ms": duration_ms,
+                "client": request.client.host if request.client else None,
+            },
+        )
+        raise
+
+    duration_ms = round((time.perf_counter() - start) * 1000, 2)
+    log = logger.warning if response.status_code >= 400 else logger.info
+    log(
+        "api_request_completed",
+        extra={
+            "request_id": request_id,
+            "method": request.method,
+            "path": request.url.path,
+            "status_code": response.status_code,
+            "duration_ms": duration_ms,
+            "client": request.client.host if request.client else None,
+        },
+    )
+    response.headers["x-request-id"] = request_id
+    return response
 # ── Rate Limiter ─────────────────────────────────────────────────────────────
 app.state.limiter = limiter
 app.add_middleware(SlowAPIMiddleware)
