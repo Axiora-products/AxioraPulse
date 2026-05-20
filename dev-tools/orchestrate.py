@@ -153,10 +153,22 @@ try:
     paginator = ssm.get_paginator('get_parameters_by_path')
     for page in paginator.paginate(Path=prefix, WithDecryption=True):
         params.extend(page['Parameters'])
+        
+    # Also fetch the global Cognito parameters
+    global_names = [
+        "/axiorapulse/COGNITO_USER_POOL_ID", 
+        "/axiorapulse/COGNITO_APP_CLIENT_ID", 
+        "/axiorapulse/COGNITO_REGION"
+    ]
+    try:
+        resp = ssm.get_parameters(Names=global_names, WithDecryption=True)
+        params.extend(resp.get('Parameters', []))
+    except Exception as e:
+        print(f"WARNING: Global Cognito fetch failed: {{e}}")
     
     print(f"FOUND:{{len(params)}}")
     for p in params:
-        name = p['Name'].replace(prefix, "")
+        name = p['Name'].replace(prefix, "").replace("/axiorapulse/", "")
         value = p['Value']
         print(f"PARAM:{{name}}={{value}}")
         
@@ -205,12 +217,18 @@ except Exception as e:
         be_f.write(f"# Auto-generated from SSM {SSM_PREFIX}\n")
         fe_f.write(f"# Auto-generated from SSM {SSM_PREFIX}\n")
         
+        # Ensure we always have Vite base URL
+        fe_f.write("VITE_API_BASE_URL=http://localhost:8000\n")
+        
         for name, value in params_dict.items():
             line = f"{name}={value}\n"
             be_f.write(line)
-            # Vite requires VITE_ prefix for frontend
-            if name.startswith("VITE_") or name in ["COGNITO_CLIENT_ID", "COGNITO_USER_POOL_ID"]:
+            
+            # Map Cognito parameters to VITE_ prefix for frontend, alongside other VITE_ variables
+            if name.startswith("VITE_"):
                 fe_f.write(line)
+            elif name in ["COGNITO_USER_POOL_ID", "COGNITO_APP_CLIENT_ID", "COGNITO_REGION"]:
+                fe_f.write(f"VITE_{name}={value}\n")
 
 def setup_frontend():
     """Installs frontend dependencies."""
