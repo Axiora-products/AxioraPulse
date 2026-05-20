@@ -1,29 +1,32 @@
-import os
-import boto3
-from botocore.exceptions import ClientError
+import requests
+from core.config import RESEND_API_KEY, EMAIL_FROM
 
-_ses_client = None
-
-
-def _get_ses():
-    global _ses_client
-    if _ses_client is None:
-        region = os.getenv("AWS_SES_REGION", "ap-south-1")
-        _ses_client = boto3.client("ses", region_name=region)
-    return _ses_client
+RESEND_API_URL = "https://api.resend.com/emails"
 
 
 def send_email(to_email: str, subject: str, body: str):
-    email_from = os.getenv("EMAIL_FROM", "Axiora Pulse <noreply@axiorapulse.com>")
+    if not RESEND_API_KEY:
+        raise Exception("RESEND_API_KEY is not configured")
 
-    try:
-        _get_ses().send_email(
-            Source=email_from,
-            Destination={"ToAddresses": [to_email]},
-            Message={
-                "Subject": {"Data": subject, "Charset": "UTF-8"},
-                "Body": {"Html": {"Data": body, "Charset": "UTF-8"}},
-            },
-        )
-    except ClientError as e:
-        raise Exception(f"SES error: {e.response['Error']['Message']}")
+    resp = requests.post(
+        RESEND_API_URL,
+        headers={
+            "Authorization": f"Bearer {RESEND_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "from": EMAIL_FROM,
+            "to": [to_email],
+            "subject": subject,
+            "html": body,
+        },
+        timeout=10,
+    )
+
+    if not resp.ok:
+        try:
+            error_msg = resp.json().get("message", "Email send failed")
+        except Exception:
+            error_msg = "Email send failed"
+        raise Exception(f"Resend error {resp.status_code}: {error_msg}")
+
