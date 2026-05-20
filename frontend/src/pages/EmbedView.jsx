@@ -87,6 +87,19 @@ export default function EmbedView() {
       const { data: q } = await API.get(`/surveys/${s.id}/questions`);
       setQs(q || []);
       
+      // Load local draft answers if present
+      let localDraft = {};
+      if (s.id) {
+        try {
+          const raw = localStorage.getItem(`surveyAnswers_${s.id}`);
+          if (raw) {
+            localDraft = JSON.parse(raw) || {};
+          }
+        } catch (e) {
+          console.warn('Failed to parse local draft:', e);
+        }
+      }
+
       // 3. Try to resume session
       const { data: ex } = await API.get(`/responses/session/${token.current}`);
       if (ex) {
@@ -95,12 +108,19 @@ export default function EmbedView() {
         (ex.survey_answers||[]).forEach(a => { 
           r[a.question_id] = a.answer_json ?? a.answer_value ?? ''; 
         }); 
-        setAns(r);
-        const first = (q||[]).findIndex(x => !r[x.id]); 
+        const combined = { ...r, ...localDraft };
+        setAns(combined);
+        const first = (q||[]).findIndex(x => !combined[x.id]); 
         setStep(first >= 0 ? first : 0); 
         setSaved(true);
       } else { 
-        setStep(s.welcome_message ? -1 : 0); 
+        if (Object.keys(localDraft).length > 0) {
+          setAns(localDraft);
+          const first = (q||[]).findIndex(x => !localDraft[x.id]);
+          setStep(first >= 0 ? first : 0);
+        } else {
+          setStep(s.welcome_message ? -1 : 0); 
+        }
       }
     } catch(e) { 
       console.error(e); 
@@ -146,6 +166,16 @@ export default function EmbedView() {
 
   const setAn = async (qId, val) => {
     const next = { ...ans, [qId]: val }; setAns(next); tracker.onEdit(qId);
+
+    // Save to localStorage immediately
+    if (sv?.id) {
+      try {
+        localStorage.setItem(`surveyAnswers_${sv.id}`, JSON.stringify(next));
+      } catch (e) {
+        console.warn('Failed to save draft to localStorage:', e);
+      }
+    }
+
     const id = await ensureR(); cnt.current++;
     if (cnt.current >= 2) { cnt.current = 0; autoSave(next, id); tracker.flush(); }
     else { clearTimeout(timer.current); timer.current = setTimeout(() => { autoSave(next, id); tracker.flush(); cnt.current = 0; }, 5000); }
@@ -169,6 +199,13 @@ export default function EmbedView() {
       
       setDone(true);
       localStorage.removeItem(`nx_embed_${slug}`);
+      if (sv?.id) {
+        try {
+          localStorage.removeItem(`surveyAnswers_${sv.id}`);
+        } catch (e) {
+          console.warn('Failed to clear draft from localStorage:', e);
+        }
+      }
       window.parent?.postMessage({ type: 'nx:completed', slug, surveyTitle: sv?.title }, '*');
     } catch(e) { 
       console.error(e);
