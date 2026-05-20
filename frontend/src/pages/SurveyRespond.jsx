@@ -103,6 +103,20 @@ export default function SurveyRespond() {
       if (s.tenant_name) setOrgName(s.tenant_name);
       const q = (s.questions || []).slice().sort((a, b) => a.sort_order - b.sort_order);
       setQs(q);
+
+      // Load local draft answers if present
+      let localDraft = {};
+      if (s.id) {
+        try {
+          const raw = localStorage.getItem(`surveyAnswers_${s.id}`);
+          if (raw) {
+            localDraft = JSON.parse(raw) || {};
+          }
+        } catch (e) {
+          console.warn('Failed to parse local draft:', e);
+        }
+      }
+
       // Resume previous in-progress session
       const sessionRes = await API.get(`/responses/session/${token.current}`);
       const ex = sessionRes.data;
@@ -110,12 +124,19 @@ export default function SurveyRespond() {
         rId.current = ex.id;
         const r = {};
         (ex.survey_answers || []).forEach(a => { r[a.question_id] = a.answer_json ?? a.answer_value ?? ''; });
-        setAns(r);
-        const first = q.findIndex(x => !r[x.id]);
+        const combined = { ...r, ...localDraft };
+        setAns(combined);
+        const first = q.findIndex(x => !combined[x.id]);
         setStep(first >= 0 ? first : 0);
         setSaved(ex.last_saved_at);
       } else {
-        setStep(-1);
+        if (Object.keys(localDraft).length > 0) {
+          setAns(localDraft);
+          const first = q.findIndex(x => !localDraft[x.id]);
+          setStep(first >= 0 ? first : 0);
+        } else {
+          setStep(-1);
+        }
       }
     } catch (e) { console.error(e); setErr('Failed to load survey'); }
     finally { stopLoading(); }
@@ -172,6 +193,16 @@ export default function SurveyRespond() {
     const next = { ...ans, [qId]: val };
     setAns(next);
     tracker.onEdit(qId);
+
+    // Save to localStorage immediately
+    if (sv?.id) {
+      try {
+        localStorage.setItem(`surveyAnswers_${sv.id}`, JSON.stringify(next));
+      } catch (e) {
+        console.warn('Failed to save draft to localStorage:', e);
+      }
+    }
+
     const id = await ensureR();
     clearTimeout(timer.current);
     timer.current = setTimeout(() => { autoSave(next, id); tracker.flush(); }, 3000);
@@ -194,6 +225,13 @@ export default function SurveyRespond() {
       await API.post(`/responses/${id}/submit`, { metadata: { quality_score: quality } });
       setShowDemographics(true);
       localStorage.removeItem(`nx_${slug}`);
+      if (sv?.id) {
+        try {
+          localStorage.removeItem(`surveyAnswers_${sv.id}`);
+        } catch (e) {
+          console.warn('Failed to clear draft from localStorage:', e);
+        }
+      }
     } catch (e) { toast.error('Submission failed — your answers are saved. Try again.'); }
     finally { setBusy(false); }
   }
