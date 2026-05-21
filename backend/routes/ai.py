@@ -18,7 +18,7 @@ from core.rate_limiter import limiter
 from sqlalchemy.orm import Session, joinedload
 from db.database import get_db
 from db.models import UserProfile, Survey, SurveyQuestion, SurveyResponse, SurveyAnswer, ResponseStatusEnum
-from schemas import AIInsightsRequest, AIInsightsResponse, AISuggestionsRequest, AISuggestionsResponse, AIGenerateRequest, AIGenerateResponse, IdeaProtectionMetadata
+from schemas import AIInsightsRequest, AIInsightsResponse, AISuggestionsRequest, AISuggestionsResponse, AIGenerateRequest, AIGenerateResponse, IdeaProtectionMetadata, SurveyIntelligenceResponse
 from dependencies import get_current_user
 from services.feature_gate import require_feature
 
@@ -848,3 +848,125 @@ Rules:
         if "rate" in str(e).lower() or "429" in str(e):
             raise HTTPException(status_code=429, detail="API rate limit reached, please try again shortly")
         raise HTTPException(status_code=500, detail=f"Failed to generate suggestions: {str(e)}")
+
+
+# ── Survey Intelligence (Guidance + Roadmap) ──────────────────────────────────
+
+@router.post("/survey-intelligence")
+@limiter.limit("3/minute")
+async def generate_survey_intelligence(
+    request: Request,
+    body: dict,
+    current_user: UserProfile = Depends(get_current_user),
+):
+    """
+    Generate AI-powered competitor landscape, target persona, opportunity mapping,
+    viability score, and development roadmap — all contextually aligned with the
+    survey idea, title, description, and questions.
+    """
+    client = _get_client()
+
+    title = body.get("title", "")
+    description = body.get("description", "")
+    questions = body.get("questions", [])
+    welcome = body.get("welcome_message", "")
+    location_country = body.get("location_country", "")
+    location_state = body.get("location_state", "")
+
+    q_summary = "\n".join(
+        f"  - Q{i+1} ({q.get('type','text')}): {q.get('text','')}"
+        for i, q in enumerate(questions[:20])
+    )
+
+    location_section = ""
+    if location_country or location_state:
+        location_section = f"""== TARGET GEOGRAPHIC LOCATION ==
+Country: {location_country}
+State/Region: {location_state}
+"""
+
+    prompt = f"""You are a senior market research strategist and startup advisor.
+Analyze the following survey concept thoroughly and generate deep, highly specific intelligence.
+
+== SURVEY CONTEXT ==
+Title: {title}
+Description: {description}
+Welcome message: {welcome}
+Questions:
+{q_summary}
+
+{location_section}
+== YOUR TASK ==
+Based on the survey's idea, industry, problem statement, research objectives, and the specified target location/geography (if provided), generate:
+
+1. **category** — The industry/vertical this survey belongs to (e.g. "EdTech", "FinTech", "HealthTech", "E-commerce", "SaaS", "HR Tech", "PropTech", "FoodTech", etc.). Be specific.
+
+2. **competitors** — 5 real companies that are direct or adjacent competitors in this specific space (tailored to the target geographic location if provided). For each:
+   - name: company name
+   - offering: what they sell/provide (one line)
+   - pricing: their pricing model with actual numbers (e.g. local currency if applicable)
+   - strengths: key competitive advantages
+   - weaknesses: known limitations
+   - diff: their unique differentiator
+   - share: estimated relative market share as percentage string (e.g. "24%")
+
+3. **persona** — The ideal target customer for this survey/product:
+   - name: persona archetype name (e.g. "Growth-Stage Startup Founder")
+   - demographics: age range, role, location (should align with target state/country), professional background
+   - psychographics: values, motivations, decision-making style
+   - painPoints: specific frustrations this persona faces related to the survey topic
+   - buyingBehavior: how they evaluate and purchase solutions
+
+4. **opportunities** — 3 strategic innovation lanes specific to this survey's domain:
+   - lane: short title (e.g. "Lane 1: AI-Powered Personalization")
+   - description: 2-3 sentence actionable description
+
+5. **viabilityScore** — An integer 0-100 estimating market viability based on market size, competition intensity, timing, and problem urgency.
+
+6. **roadmap** — 6-8 execution phases tailored to this specific idea. For each phase:
+   - name: e.g. "Phase 1: Idea Validation"
+   - goals: specific objectives for this phase in context of the survey idea
+   - resources: what people/assets are needed
+   - timeline: estimated duration (e.g. "2 - 3 weeks")
+   - risks: key risk + mitigation in format "Risk description. Mitigation: mitigation description"
+   - tools: recommended tools/platforms
+   - cost: estimated budget (e.g. "$500")
+
+== CRITICAL RULES ==
+- Every output MUST be directly aligned with the survey's specific idea, industry, and research context.
+- If a target geographic location is specified, ensure all insights (competitors, personas, currency/pricing, and roadmap regulatory steps) are highly tailored to that specific region/country.
+- Do NOT use generic or template-like outputs. Tailor everything to the survey content.
+- Competitors must be real companies relevant to the survey's problem space.
+- Persona must match the likely respondent/customer profile for this specific survey.
+- Roadmap phases must contain actionable steps connected to the survey's concept.
+- Return ONLY valid JSON with no markdown, no explanation.
+
+
+Return this exact JSON structure:
+{{
+  "category": "string",
+  "competitors": [{{
+    "name": "string", "offering": "string", "pricing": "string",
+    "strengths": "string", "weaknesses": "string", "diff": "string", "share": "string"
+  }}],
+  "persona": {{
+    "name": "string", "demographics": "string", "psychographics": "string",
+    "painPoints": "string", "buyingBehavior": "string"
+  }},
+  "opportunities": [{{ "lane": "string", "description": "string" }}],
+  "viabilityScore": 82,
+  "roadmap": [{{
+    "name": "string", "goals": "string", "resources": "string",
+    "timeline": "string", "risks": "string", "tools": "string", "cost": "string"
+  }}]
+}}"""
+
+    try:
+        text = await run_in_threadpool(_call_claude, client, prompt, 4096)
+        result_json = json.loads(text)
+        return SurveyIntelligenceResponse(**result_json)
+    except Exception as e:
+        print(f"[AI] Survey intelligence error: {e}")
+        if "rate" in str(e).lower() or "429" in str(e):
+            raise HTTPException(status_code=429, detail="API rate limit reached, please try again shortly")
+        raise HTTPException(status_code=500, detail=f"Failed to generate survey intelligence: {str(e)}")

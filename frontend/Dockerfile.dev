@@ -1,0 +1,21 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Frontend — Development Dockerfile
+# Runs Vite dev server with HMR (Hot Module Replacement) on port 5173.
+# Source code is bind-mounted from the host, so changes reflect instantly.
+# ─────────────────────────────────────────────────────────────────────────────
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install dependencies first (cached layer — only re-runs when package.json changes)
+COPY package*.json ./
+RUN npm install
+
+# Copy source (bind-mount will override this at runtime, but needed for image build)
+COPY . .
+
+EXPOSE 5173
+
+# --host 0.0.0.0 is required so Vite listens on all interfaces inside Docker
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]

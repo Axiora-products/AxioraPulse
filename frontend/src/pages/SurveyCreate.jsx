@@ -693,23 +693,18 @@ export default function SurveyCreate() {
         {/* Bottom separator */}
         <div style={{ position:'absolute',bottom:0,left:0,right:0,height:'1px',background:'linear-gradient(90deg,transparent,rgba(22,15,8,0.08) 30%,rgba(22,15,8,0.08) 70%,transparent)' }}/>
 
-        <div style={{ position:'relative',zIndex:1,display:'flex',alignItems:'flex-end',justifyContent:'space-between',flexWrap:'wrap',gap:20 }}>
-          <div>
-            <div style={{ display:'flex',alignItems:'center',gap:10,marginBottom:14 }}>
-              <div style={{ width:28,height:1.5,background:'var(--coral)',borderRadius:1 }}/>
-              <span style={{ fontFamily:"'Syne',sans-serif",fontSize:9,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:'var(--coral)' }}>Research Studio</span>
-            </div>
-            <h1 style={{ fontFamily:"'Playfair Display', serif",fontWeight:900,fontSize:'clamp(38px,4.5vw,60px)',letterSpacing:'-2.5px',color:'var(--espresso)',margin:0,lineHeight:0.95 }}>
-              New <em style={{ fontStyle:'italic',color:tc }}>Survey</em>
-            </h1>
+        <div style={{ position:'relative',zIndex:1,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:16 }}>
+          <div style={{ display:'flex',alignItems:'center',gap:6 }}>
+            <div style={{ width:28,height:1.5,background:'var(--coral)',borderRadius:1 }}/>
+            <span style={{ fontFamily:"'Syne',sans-serif",fontSize:9,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:'var(--coral)' }}>Research Studio</span>
             {dirty && (
-              <div style={{ display:'flex',alignItems:'center',gap:7,marginTop:14 }}>
-                <div style={{ width:6,height:6,borderRadius:'50%',background:'var(--saffron)',boxShadow:'0 0 10px rgba(255,184,0,0.6)' }}/>
-                <span style={{ fontFamily:"'Syne',sans-serif",fontSize:9,fontWeight:700,letterSpacing:'0.14em',textTransform:'uppercase',color:'#A07000' }}>Unsaved changes</span>
+              <div style={{ display:'flex',alignItems:'center',gap:5,padding:'4px 10px',borderRadius:999,background:'rgba(255,184,0,0.12)',marginLeft:4 }}>
+                <div style={{ width:5,height:5,borderRadius:'50%',background:'var(--saffron)',boxShadow:'0 0 8px rgba(255,184,0,0.5)' }}/>
+                <span style={{ fontFamily:"'Syne',sans-serif",fontSize:8,fontWeight:700,letterSpacing:'0.14em',textTransform:'uppercase',color:'#A07000' }}>Unsaved changes</span>
               </div>
             )}
           </div>
-          <div style={{ display:'flex',gap:8,flexShrink:0 }}>
+          <div style={{ display:'flex',gap:8,flexShrink:0,flexWrap:'wrap' }}>
             <button onClick={() => setShowTemplates(true)} style={{ display:'flex',alignItems:'center',gap:8,padding:'11px 20px',borderRadius:999,border:'1.5px solid rgba(22,15,8,0.12)',background:'rgba(255,255,255,0.6)',backdropFilter:'blur(8px)',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:10,letterSpacing:'0.12em',textTransform:'uppercase',color:'rgba(22,15,8,0.5)',cursor:'pointer',transition:'all 0.2s' }}
               onMouseEnter={e=>{e.currentTarget.style.borderColor='rgba(22,15,8,0.25)';e.currentTarget.style.color='var(--espresso)';e.currentTarget.style.background='rgba(255,255,255,0.9)';}}
               onMouseLeave={e=>{e.currentTarget.style.borderColor='rgba(22,15,8,0.12)';e.currentTarget.style.color='rgba(22,15,8,0.5)';e.currentTarget.style.background='rgba(255,255,255,0.6)';}}>
