@@ -140,6 +140,7 @@ class Survey(Base):
     tenant_id         = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
     created_by        = Column(UUID(as_uuid=True), ForeignKey("user_profiles.id", ondelete="SET NULL"), nullable=True)
     created_at        = Column(DateTime(timezone=True), server_default=func.now())
+    ai_intelligence   = Column(JSONB, nullable=True)
 
     # relationships
     tenant    = relationship("Tenant", back_populates="surveys")
