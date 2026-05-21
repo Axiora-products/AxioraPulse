@@ -7,7 +7,7 @@ import { hasPermission, timeAgo, SURVEY_STATUS } from '../lib/constants';
 import { useLoading } from '../context/LoadingContext';
 import OnboardingChecklist from '../components/OnboardingChecklist';
 import { checkMilestone } from '../components/MilestoneToast';
-import DocumentLibraryPane from '../components/DocumentLibraryPane';
+import DocumentFilesPane from '../components/DocumentFilesPane';
 
 // ── Animated counter hook ─────────────────────────────────────────────────
 function useCountUp(target, duration = 700) {
@@ -46,19 +46,15 @@ const S = {
   tag: { fontFamily: "'Syne', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--coral)', marginBottom: 12 },
   h1: { fontFamily: "'Playfair Display', serif", fontWeight: 900, fontSize: 'clamp(34px,4vw,52px)', letterSpacing: '-2px', color: 'var(--espresso)', lineHeight: 1.05, margin: 0 },
   statsGrid: {
-  display: 'grid',
-
-  gridTemplateColumns: 'repeat(4, minmax(120px, 1fr))',
-
-  gap: 28,
-
-  marginBottom: 72,
-
-  position: 'relative',
-  zIndex: 1,
-
-  maxWidth: '100%',
-}, statCard: (accent) => ({ background: 'var(--warm-white)', borderRadius: 20, padding: '36px 30px 30px', border: '1px solid rgba(22,15,8,0.07)', borderTop: `3px solid ${accent}`, cursor: 'default' }),
+    display: 'grid',
+    gridTemplateColumns: 'repeat(4, minmax(120px, 1fr))',
+    gap: 28,
+    marginBottom: 72,
+    position: 'relative',
+    zIndex: 1,
+    maxWidth: '100%',
+  },
+  statCard: (accent) => ({ background: 'var(--warm-white)', borderRadius: 20, padding: '36px 30px 30px', border: '1px solid rgba(22,15,8,0.07)', borderTop: `3px solid ${accent}`, cursor: 'default' }),
   statNum: { fontFamily: "'Playfair Display', serif", fontWeight: 900, fontSize: 48, letterSpacing: '-3px', color: 'var(--espresso)', lineHeight: 1, marginBottom: 8 },
   statLabel: { fontFamily: "'Syne', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.35)' },
   sectionHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, position: 'relative', zIndex: 1 },
@@ -82,6 +78,7 @@ export default function Dashboard() {
   const { stopLoading } = useLoading();
   const [stats, setStats] = useState({ surveys: 0, responses: 0, completions: 0, team: 0 });
   const [recent, setRecent] = useState([]);
+  const [isRightCollapsed, setIsRightCollapsed] = useState(false);
   const prevResponses = useRef(null);
 
   const location = useLocation();
@@ -132,7 +129,6 @@ export default function Dashboard() {
   return (
     <div className="db-layout">
       <div className="db-main">
-
         {/* Header */}
         <div style={S.header} className="np-page-header">
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}>
@@ -141,16 +137,6 @@ export default function Dashboard() {
               {greet}, <em style={{ fontStyle: 'italic', color: 'var(--coral)' }}>{firstName}</em>
             </h1>
           </motion.div>
-
-          {/* {hasPermission(profile?.role, 'create_survey') && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
-              <Link to="/surveys/new" style={S.cta}
-                onMouseEnter={e => e.currentTarget.style.background = 'var(--coral)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'var(--espresso)'}>
-                + New Survey
-              </Link>
-            </motion.div>
-          )} */}
         </div>
 
         {/* Stat cards */}
@@ -165,6 +151,7 @@ export default function Dashboard() {
             </motion.div>
           ))}
         </div>
+        
         {/* Onboarding */}
         <OnboardingChecklist surveyCount={stats.surveys} responseCount={stats.responses} teamCount={stats.team} />
 
@@ -236,15 +223,30 @@ export default function Dashboard() {
         )}
       </div>
 
-      <aside className="db-right-pane">
-        <DocumentLibraryPane />
+      <aside className={`db-right-pane${isRightCollapsed ? ' collapsed' : ''}`}>
+        <DocumentFilesPane onCollapse={() => setIsRightCollapsed(true)} />
       </aside>
+
+      {isRightCollapsed && (
+        <button
+          onClick={() => setIsRightCollapsed(false)}
+          className="right-expand-floating-btn"
+          title="Expand Files"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="11 17 6 12 11 7"/>
+            <polyline points="18 17 13 12 18 7"/>
+          </svg>
+        </button>
+      )}
 
       <style>{`
         .db-layout {
           display: flex;
           min-height: calc(100vh - 100px);
           margin: -48px -48px -40px -48px;
+          overflow: hidden;
+          position: relative;
         }
         .db-main {
           flex: 1;
@@ -252,24 +254,49 @@ export default function Dashboard() {
           overflow-y: auto;
         }
         .db-right-pane {
-  width: 240px;
-
-  position: sticky;
-  top: 0;
-
-  min-height: 100vh;
-
-  flex-shrink: 0;
-
-  background: var(--warm-white);
-
-  border-left: 1px solid rgba(22,15,8,0.07);
-}
+          width: 240px;
+          position: sticky;
+          top: 0;
+          min-height: 100vh;
+          flex-shrink: 0;
+          background: var(--warm-white);
+          border-left: 1px solid rgba(22,15,8,0.07);
+          transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .db-right-pane.collapsed {
+          transform: translateX(240px);
+        }
+        .right-expand-floating-btn {
+          position: absolute;
+          right: 20px;
+          top: 24px;
+          z-index: 295;
+          width: 32px;
+          height: 32px;
+          border-radius: 10px;
+          border: 1px solid rgba(255, 69, 0, 0.25);
+          background: var(--warm-white);
+          color: var(--espresso);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          box-shadow: 0 4px 14px rgba(22,15,8,0.08);
+          transition: all 0.2s ease;
+        }
+        .right-expand-floating-btn:hover {
+          color: var(--coral);
+          border-color: var(--coral);
+          background: rgba(255, 69, 0, 0.05);
+          transform: scale(1.05);
+        }
         .survey-card-link:hover .card-title { color: var(--coral) !important; }
 
         @media (max-width: 1200px) {
-          .db-layout { flex-direction: column; }
+          .db-layout { flex-direction: column; overflow: visible; }
           .db-right-pane { width: 100%; position: static; height: auto; border-left: none; border-top: 1px solid rgba(22,15,8,0.07); }
+          .db-right-pane.collapsed { transform: none; }
+          .right-expand-floating-btn { display: none; }
         }
       `}</style>
     </div>

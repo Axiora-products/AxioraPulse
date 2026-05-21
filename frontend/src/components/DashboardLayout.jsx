@@ -14,6 +14,7 @@ export default function DashboardLayout() {
   const [userMenu, setUserMenu] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
+  const [isLeftCollapsed, setIsLeftCollapsed] = useState(false);
   const userRef = useRef(null);
 
   // Sidebar data
@@ -145,7 +146,7 @@ export default function DashboardLayout() {
   };
 
   return (
-    <div className="ws-layout" style={{ cursor: 'none' }}>
+    <div className={`ws-layout${isLeftCollapsed ? ' left-collapsed' : ''}`} style={{ cursor: 'none' }}>
 
       {/* ── MOBILE TOP BAR ── */}
       <div className="ws-mobile-topbar">
@@ -169,13 +170,45 @@ export default function DashboardLayout() {
 
         {/* Header: Logo + New Survey */}
         <div className="ws-sidebar-header">
-          <NavLink to="/dashboard" className="ws-sidebar-logo" onClick={() => setMobileOpen(false)}>
-            <span className="ws-sidebar-logo-pre">Axiora</span>
-            <span className="ws-sidebar-logo-main">Pulse</span>
-            <div className="ws-sidebar-logo-dot">
-              <div className="sonar-ring" /><div className="sonar-ring" /><div className="sonar-ring" />
-            </div>
-          </NavLink>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: '16px' }}>
+            <NavLink to="/dashboard" className="ws-sidebar-logo" onClick={() => setMobileOpen(false)}>
+              <span className="ws-sidebar-logo-pre">Axiora</span>
+              <span className="ws-sidebar-logo-main">Pulse</span>
+              <div className="ws-sidebar-logo-dot">
+                <div className="sonar-ring" /><div className="sonar-ring" /><div className="sonar-ring" />
+              </div>
+            </NavLink>
+            <button
+              onClick={() => setIsLeftCollapsed(!isLeftCollapsed)}
+              className="ws-sidebar-collapse-btn"
+              title={isLeftCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'rgba(253,245,232,0.4)',
+                cursor: 'pointer',
+                padding: '6px',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.2s',
+                marginTop: '-4px'
+              }}
+            >
+              {isLeftCollapsed ? (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="13 17 18 12 13 7"/>
+                  <polyline points="6 17 11 12 6 7"/>
+                </svg>
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="11 17 6 12 11 7"/>
+                  <polyline points="18 17 13 12 18 7"/>
+                </svg>
+              )}
+            </button>
+          </div>
           <Link to="/surveys/new" className="ws-new-btn" onClick={() => setMobileOpen(false)}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             <span>New Survey</span>
@@ -192,6 +225,12 @@ export default function DashboardLayout() {
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
               </div>
               <span className="ws-sidebar-item-text">Overview</span>
+            </NavLink>
+            <NavLink to="/surveys" className={`ws-sidebar-item${loc.pathname === '/surveys' ? ' active' : ''}`} onClick={() => setMobileOpen(false)}>
+              <div className="ws-sidebar-item-icon">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              </div>
+              <span className="ws-sidebar-item-text">Surveys</span>
             </NavLink>
             <NavLink to="/team" className={`ws-sidebar-item${loc.pathname === '/team' ? ' active' : ''}`} onClick={() => setMobileOpen(false)}>
               <div className="ws-sidebar-item-icon">
@@ -363,6 +402,125 @@ export default function DashboardLayout() {
       <AnimatePresence>
         {cmdOpen && <CommandPalette onClose={() => setCmdOpen(false)} />}
       </AnimatePresence>
+
+      <style>{`
+        .ws-layout {
+          overflow-x: hidden;
+          position: relative;
+        }
+        .ws-sidebar {
+          transition: width 0.35s cubic-bezier(0.16, 1, 0.3, 1), min-width 0.35s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        }
+        .ws-content {
+          transition: margin-left 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .ws-sidebar-collapse-btn:hover {
+          color: var(--coral) !important;
+          background: rgba(253, 245, 232, 0.08) !important;
+        }
+
+        /* --- Left Sidebar Narrow Collapsed Strip Styles --- */
+        @media (min-width: 769px) {
+          .ws-layout.left-collapsed .ws-sidebar {
+            width: 80px;
+            min-width: 80px;
+            padding-left: 0;
+            padding-right: 0;
+            align-items: center;
+          }
+          
+          /* Enforce absolute spatial stability for the center content - no layout shifting! */
+          .ws-layout.left-collapsed .ws-content {
+            margin-left: 200px; /* 80px + 200px spacer = exactly original 280px left boundary! */
+          }
+
+          /* Hide labels, text, metadata and extra controls */
+          .ws-layout.left-collapsed .ws-sidebar-logo-pre,
+          .ws-layout.left-collapsed .ws-sidebar-logo-main,
+          .ws-layout.left-collapsed .ws-sidebar-item-text,
+          .ws-layout.left-collapsed .ws-sidebar-section-label,
+          .ws-layout.left-collapsed .ws-sidebar-item-meta,
+          .ws-layout.left-collapsed .ws-sidebar-user-info,
+          .ws-layout.left-collapsed .ws-empty-text,
+          .ws-layout.left-collapsed .ws-sidebar-user button,
+          .ws-layout.left-collapsed .ws-notification-feed-trigger {
+            display: none !important;
+          }
+
+          /* Center header elements */
+          .ws-layout.left-collapsed .ws-sidebar-header {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 24px 8px;
+          }
+          .ws-layout.left-collapsed .ws-sidebar-logo {
+            justify-content: center;
+            margin-bottom: 24px;
+            padding: 0;
+          }
+          .ws-layout.left-collapsed .ws-sidebar-logo-dot {
+            margin: 0 !important;
+          }
+
+          /* Render New Survey button as a premium centered circle, maintaining original espresso/coral color */
+          .ws-layout.left-collapsed .ws-new-btn {
+            width: 44px;
+            height: 44px;
+            padding: 0;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto;
+            min-height: 0;
+          }
+          .ws-layout.left-collapsed .ws-new-btn svg {
+            margin: 0 !important;
+          }
+
+          /* Center navigation item icons */
+          .ws-layout.left-collapsed .ws-sidebar-item {
+            justify-content: center;
+            padding: 12px 0;
+            margin: 6px auto;
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+          }
+          .ws-layout.left-collapsed .ws-sidebar-item-icon {
+            margin: 0 !important;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+
+          /* Center user avatar section */
+          .ws-layout.left-collapsed .ws-sidebar-user {
+            justify-content: center;
+            padding: 16px 0;
+            width: 100%;
+          }
+          .ws-layout.left-collapsed .ws-sidebar-avatar {
+            margin: 0 auto !important;
+          }
+
+          /* Smooth toggle transition positioning */
+          .ws-layout.left-collapsed .ws-sidebar-header > div:first-child {
+            flex-direction: column !important;
+            align-items: center !important;
+            gap: 16px !important;
+          }
+          .ws-layout.left-collapsed .ws-sidebar-collapse-btn {
+            margin: 0 !important;
+            padding: 8px !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }
