@@ -947,9 +947,9 @@ export default function SurveyEdit() {
                   <div style={{ background:'var(--cream-deep)',borderRadius:18,padding:24,display:'flex',flexDirection:'column',justifyContent:'space-between',alignItems:'flex-start',border:'1px solid rgba(22,15,8,0.04)' }}>
                     <div>
                       <div style={{ fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:10,letterSpacing:'0.12em',textTransform:'uppercase',color:tc,marginBottom:8 }}>1-on-1 Office Hours</div>
-                      <h3 style={{ fontFamily:"'Playfair Display',serif",fontWeight:700,fontSize:18,color:'var(--espresso)',marginBottom:6 }}>Silicon Valley Mentor Office Hours</h3>
+                      <h3 style={{ fontFamily:"'Playfair Display',serif",fontWeight:700,fontSize:18,color:'var(--espresso)',marginBottom:6 }}> Mentor Consultation Sessions</h3>
                       <p style={{ fontFamily:"'Fraunces',serif",fontWeight:300,fontSize:13,color:'rgba(22,15,8,0.55)',lineHeight:1.5,margin:'0 0 20px' }}>
-                        Book a 30-minute strategic review session with product lead mentors from Stripe, Airbnb, or Google to validate your survey response trends.
+                        Book a consultation session to discuss survey insights, challenges, and recommendations based on your needs.
                       </p>
                     </div>
                     <button onClick={() => toast.success('Booking system opening...')}
