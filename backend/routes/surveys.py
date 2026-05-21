@@ -141,7 +141,6 @@ def auto_save_draft(
         if survey:
             survey.description = prompt_text
             # Store mode and attachments in a JSONB-safe way via welcome_message
-            import json
             meta = json.dumps({"mode": mode, "custom_instruction": custom_instruction, "attachments": attachments})
             survey.welcome_message = meta
             db.commit()
