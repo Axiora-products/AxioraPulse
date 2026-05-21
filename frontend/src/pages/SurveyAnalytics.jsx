@@ -798,7 +798,7 @@ function ResponsesTable({ rs, qs, ans }) {
               </tr>
             </thead>
             <tbody>
-              {rs.slice(0,50).map((r,i) => (
+              {rs.map((r,i) => (
                 <tr key={r.id} style={{ borderBottom:'1px solid rgba(22,15,8,0.04)', transition:'background 0.15s' }}
                   onMouseEnter={e=>e.currentTarget.style.background='var(--cream)'}
                   onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
@@ -815,7 +815,6 @@ function ResponsesTable({ rs, qs, ans }) {
               ))}
             </tbody>
           </table>
-          {rs.length>50 && <div style={{ fontFamily:'Syne,sans-serif', fontSize:11, fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', color:'rgba(22,15,8,0.50)', padding:'14px 12px 0', textAlign:'center' }}>Showing 50 of {rs.length} — export CSV for all</div>}
         </div>
       )}
     </div>
