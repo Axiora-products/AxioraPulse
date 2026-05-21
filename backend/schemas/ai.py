@@ -67,3 +67,43 @@ class AIGenerateResponse(BaseModel):
     welcome_message: str
     questions: List[AIGeneratedQuestionItem]
     protection_metadata: Optional[IdeaProtectionMetadata] = None
+
+
+# ── Survey Intelligence (Guidance + Roadmap) ──────────────────────────────────
+
+class SurveyIntelCompetitor(BaseModel):
+    name: str
+    offering: str
+    pricing: str
+    strengths: str
+    weaknesses: str
+    diff: str
+    share: str
+
+class SurveyIntelPersona(BaseModel):
+    name: str
+    demographics: str
+    psychographics: str
+    painPoints: str
+    buyingBehavior: str
+
+class SurveyIntelOpportunity(BaseModel):
+    lane: str
+    description: str
+
+class SurveyIntelRoadmapStep(BaseModel):
+    name: str
+    goals: str
+    resources: str
+    timeline: str
+    risks: str
+    tools: str
+    cost: str
+
+class SurveyIntelligenceResponse(BaseModel):
+    category: str
+    competitors: List[SurveyIntelCompetitor]
+    persona: SurveyIntelPersona
+    opportunities: List[SurveyIntelOpportunity]
+    viabilityScore: int
+    roadmap: List[SurveyIntelRoadmapStep]
