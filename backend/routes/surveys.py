@@ -22,7 +22,7 @@ import random
 import string
 import os
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Optional
 from core.rate_limiter import limiter
 from fastapi import Request
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -572,7 +572,7 @@ def revoke_share(
 def get_survey_responses(
     request: Request,  
     survey_id: uuid.UUID,
-    skip: int = 0, limit: int = Query(10, le=100),
+    skip: int = 0, limit: Optional[int] = Query(None, description="Limit responses returned (omitted or null for all)"),
     current_user: UserProfile = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -582,16 +582,18 @@ def get_survey_responses(
     if not survey:
         raise HTTPException(status_code=404, detail="Survey not found")
 
-    responses = (
+    query = (
         db.query(SurveyResponse)
         .options(joinedload(SurveyResponse.survey_answers))
         .filter(SurveyResponse.survey_id == survey_id)
         .order_by(SurveyResponse.started_at.desc())
-        .offset(skip)
-        .limit(limit)
-        .all()
-
     )
+    if skip:
+        query = query.offset(skip)
+    if limit is not None:
+        query = query.limit(limit)
+
+    responses = query.all()
 
     return [ResponseOut.model_validate(r) for r in responses]
 
