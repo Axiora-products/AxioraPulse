@@ -270,7 +270,7 @@ export default function SurveyList() {
                     {menu === sv.id && (
                       <div style={{ position: 'absolute', right: 0, top: 36, zIndex: 200, width: 190, background: 'var(--espresso)', borderRadius: 16, padding: 8, boxShadow: '0 24px 60px rgba(22,15,8,0.25)' }}>
                         {[
-                          { label: 'Edit',        icon: <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>, action: () => { nav(`/surveys/${sv.id}/edit`); setMenu(null); } },
+                          { label: 'Overview',    icon: <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>, action: () => { nav(`/surveys/${sv.id}/edit`); setMenu(null); } },
                           { label: 'Analytics',   icon: <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 20h18M7 20V12M11 20V8M15 20V14M19 20V4"/></svg>, action: () => { nav(`/surveys/${sv.id}/analytics`); setMenu(null); } },
                           // Copy link — only shown when survey is NOT in draft
                           sv.status !== 'draft' && { label: 'Copy link', icon: <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>, action: () => copy(sv.slug) },
@@ -319,7 +319,7 @@ export default function SurveyList() {
                   <Link to={`/surveys/${sv.id}/edit`} style={{ display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.4)', textDecoration: 'none', transition: 'color 0.2s' }}
                     onMouseEnter={e => e.currentTarget.style.color = 'var(--espresso)'}
                     onMouseLeave={e => e.currentTarget.style.color = 'rgba(22,15,8,0.4)'}>
-                    Edit
+                    Overview
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
                   </Link>
                 </div>
