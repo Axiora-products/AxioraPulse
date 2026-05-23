@@ -39,12 +39,13 @@ const CSS = `
 ::selection { background: var(--coral); color: #fff; }
 
 /* ─── CURSOR ─── */
-#lp-cur { position: fixed; z-index: 9999; pointer-events: none; }
+#lp-cur { position: fixed; top: 0; left: 0; z-index: 9999; pointer-events: none; }
 #lp-cur-dot {
   width: 6px; height: 6px; background: var(--coral); border-radius: 50%;
   position: absolute; transform: translate(-50%,-50%);
   box-shadow: 0 0 0 2px rgba(255,255,255,.8), 0 0 0 3.5px rgba(255,69,0,.18);
   transition: width .18s ease, height .18s ease, box-shadow .18s ease;
+  will-change: transform;
 }
 #lp-cur-ring {
   width: 30px; height: 30px; border-radius: 50%;
@@ -52,6 +53,7 @@ const CSS = `
   box-shadow: 0 0 0 1px rgba(22,15,8,.2), 0 0 0 2px rgba(255,255,255,.4);
   transition: width .32s ease, height .32s ease, opacity .32s ease;
   opacity: .5;
+  will-change: transform;
 }
 .lp-hovering #lp-cur-dot { width: 5px; height: 5px; }
 .lp-hovering #lp-cur-ring { width: 40px; height: 40px; opacity: .28; }
@@ -574,34 +576,7 @@ export default function Landing() {
     });
   }, []);
 
-  // Custom cursor
-  useEffect(() => {
-    const dot = document.getElementById("lp-cur-dot");
-    const ring = document.getElementById("lp-cur-ring");
-    if (!dot || !ring) return;
-    let mx = 0, my = 0, rx = 0, ry = 0;
-    const onMove = e => {
-      mx = e.clientX; my = e.clientY;
-      dot.style.left = mx + "px"; dot.style.top = my + "px";
-    };
-    const loopRing = () => {
-      rx += (mx - rx) * 0.07; ry += (my - ry) * 0.07;
-      ring.style.left = rx + "px"; ring.style.top = ry + "px";
-      requestAnimationFrame(loopRing);
-    };
-    document.addEventListener("mousemove", onMove);
-    loopRing();
-    const interactables = document.querySelectorAll("a, button, .lp-step, .lp-tcard, .lp-pcard, .lp-qt-chip, .lp-q-card, .lp-kpi-box");
-    interactables.forEach(el => {
-      el.addEventListener("mouseenter", () => document.documentElement.classList.add("lp-hovering"));
-      el.addEventListener("mouseleave", () => document.documentElement.classList.remove("lp-hovering"));
-    });
-    document.addEventListener("mousedown", () => document.documentElement.classList.add("lp-clicking"));
-    document.addEventListener("mouseup", () => document.documentElement.classList.remove("lp-clicking"));
-    document.addEventListener("mouseleave", () => { dot.style.opacity = "0"; ring.style.opacity = "0"; });
-    document.addEventListener("mouseenter", () => { dot.style.opacity = ""; ring.style.opacity = ""; });
-    return () => document.removeEventListener("mousemove", onMove);
-  }, []);
+
 
   // Nav stuck
   const [stuck, setStuck] = useState(false);
@@ -691,11 +666,6 @@ export default function Landing() {
 
   return (
     <div className="lp">
-      {/* Cursor */}
-      <div id="lp-cur">
-        <div id="lp-cur-dot" />
-        <div id="lp-cur-ring" />
-      </div>
 
       {/* ── NAV ── */}
       <nav className={`lp-nav${stuck ? " stuck" : ""}`}>

@@ -709,35 +709,4 @@ body {
 .role-creator     { background: rgba(30,122,74,0.1);  color: #1E7A4A; }
 .role-viewer      { background: rgba(22,15,8,0.06);   color: rgba(22,15,8,0.45); }
 
-/* ─── GLOBAL CUSTOM CURSOR ─── */
-/* Hide the native cursor everywhere */
-*, *::before, *::after { cursor: none !important; }
 
-#np-cur-dot {
-  width: 6px; height: 6px;
-  background: var(--coral);
-  border-radius: 50%;
-  position: fixed;
-  pointer-events: none;
-  z-index: 99999;
-  transform: translate(-50%, -50%);
-  box-shadow: 0 0 0 2px rgba(255,255,255,.8), 0 0 0 3.5px rgba(255,69,0,.18);
-  transition: width .18s ease, height .18s ease, opacity .18s ease;
-  will-change: left, top;
-}
-#np-cur-ring {
-  width: 30px; height: 30px;
-  border-radius: 50%;
-  position: fixed;
-  pointer-events: none;
-  z-index: 99998;
-  transform: translate(-50%, -50%);
-  box-shadow: 0 0 0 1px rgba(22,15,8,.2), 0 0 0 2px rgba(255,255,255,.4);
-  transition: width .32s ease, height .32s ease, opacity .32s ease;
-  opacity: .5;
-  will-change: left, top;
-}
-.np-hovering #np-cur-dot { width: 5px; height: 5px; }
-.np-hovering #np-cur-ring { width: 40px; height: 40px; opacity: .28; }
-.np-clicking  #np-cur-dot { width: 4px; height: 4px; }
-.np-clicking  #np-cur-ring { width: 22px; height: 22px; opacity: .65; }

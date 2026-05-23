@@ -144,7 +144,7 @@ export default function DashboardLayout() {
   });
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--cream)', cursor: 'none' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--cream)' }}>
 
       {/* ── STICKY TOP NAV ── */}
       <header style={{
