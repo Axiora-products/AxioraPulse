@@ -116,7 +116,7 @@ function AppRoutes() {
         />
         <Route path="/coming-soon" element={<ComingSoon />} />
         <Route path="/login" element={isAuth ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
-        <Route path="/register" element={isAuth ? <Navigate to="/dashboard" replace /> : <RegisterPage />} />
+        <Route path="/register" element={<Navigate to="/coming-soon" replace />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/update-password" element={<UpdatePassword />} />
         <Route path="/accept-invite" element={<AcceptInvite />} />

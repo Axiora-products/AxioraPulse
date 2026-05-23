@@ -87,10 +87,10 @@ export default function Pricing() {
       return;
     }
     if (plan.code === 'free') {
-      navigate(user ? '/dashboard' : '/register');
+      navigate(user ? '/dashboard' : '/coming-soon');
       return;
     }
-    if (!user) { navigate('/register'); return; }
+    if (!user) { navigate('/coming-soon'); return; }
     setLoadingPlan(plan.code);
     try {
       const order = await createOrder(plan.code);

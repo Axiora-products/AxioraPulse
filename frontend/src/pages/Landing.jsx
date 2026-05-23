@@ -597,8 +597,8 @@ const CSS = `
 // ─── COMPONENT ───────────────────────────────────────────────────────────────
 export default function Landing() {
   const navigate = useNavigate();
-  const onEnterApp = () => navigate('/login');
-  const onSignUp   = () => navigate('/register');
+  const onEnterApp = () => navigate('/coming-soon');
+  const onSignUp   = () => navigate('/coming-soon');
   const bodyRef = useRef(null);
   const { stopLoading } = useLoading();
   useEffect(() => { stopLoading(); }, [stopLoading]);
