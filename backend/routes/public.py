@@ -6,6 +6,7 @@ Unauthenticated endpoints called by public-facing survey pages.
 POST /public/send-email  — Send survey share or resume-link email via AWS SES
 """
 
+import logging
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, EmailStr
 from typing import Literal, Optional
@@ -17,6 +18,7 @@ from db.database import get_db
 from db.models import WaitlistEntry
 
 router = APIRouter(prefix="/public", tags=["public"])
+logger = logging.getLogger(__name__)
 
 
 class SendEmailRequest(BaseModel):
@@ -185,7 +187,8 @@ def join_waitlist(body: WaitlistRequest, db: Session = Depends(get_db)):
             subject="You're on the Axiora Pulse waitlist",
             body=_waitlist_confirmation_html(body.email),
         )
-    except Exception:
+    except Exception as e:
+        logger.error(f"Failed to send waitlist confirmation email to {body.email}: {e}")
         pass  # Don't fail the request if email sending fails
 
     return {"success": True}
