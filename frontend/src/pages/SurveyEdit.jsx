@@ -10,6 +10,7 @@ import { useLoading } from '../context/LoadingContext';
 import { Reorder, useDragControls } from 'framer-motion';
 import ConfirmModal from '../components/ConfirmModal';
 import HelpTip from '../components/HelpTip';
+import PitchInvestorReadinessPanel from '../pitch-investor-readiness';
 
 const hasO = t => ['single_choice','multiple_choice','dropdown','ranking','emoji_reaction','swipe_choice','visual_choice'].includes(t);
 const isMx = t => t === 'matrix';
@@ -930,26 +931,8 @@ export default function SurveyEdit() {
           {/* ── EXECUTE TAB ── */}
           {tab === 'execute' && (
             <div style={{ display:'flex',flexDirection:'column',gap:32 }}>
-              {/* PDF report card */}
-              <div className="q-card" style={{ background:'var(--espresso)',color:'var(--cream)',borderRadius:24,padding:32,position:'relative',overflow:'hidden',boxShadow:'0 16px 40px rgba(22,15,8,0.15)' }}>
-                <div style={{ position:'absolute',right:-40,top:-40,width:180,height:180,borderRadius:'50%',background:`radial-gradient(circle,${tc}35,transparent 70%)`,pointerEvents:'none' }}/>
-                <div style={{ position:'relative',zIndex:1,display:'flex',justifyContent:'space-between',alignItems:'center',gap:24,flexWrap:'wrap' }}>
-                  <div style={{ flex:1 }}>
-                    <span style={{ fontFamily:"'Syne',sans-serif",fontSize:9,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',color:tc,marginBottom:8,display:'block' }}>Fundraising Prep</span>
-                    <h2 style={{ fontFamily:"'Playfair Display',serif",fontWeight:900,fontSize:26,lineHeight:1.15,marginBottom:8 }}>Investor Readiness Report</h2>
-                    <p style={{ fontFamily:"'Fraunces',serif",fontWeight:300,fontSize:14,color:'rgba(255,251,244,0.65)',lineHeight:1.6,margin:0,maxWidth:520 }}>
-                      Export a comprehensive AI-powered investment memo containing your competitor landscape, target customer personas, and strategic roadmap formatted specifically for early-stage venture capital review.
-                    </p>
-                  </div>
-                  <button onClick={generatePDF}
-                    style={{ padding:'14px 28px',borderRadius:999,background:'#fff',border:'none',color:'var(--espresso)',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:10,letterSpacing:'0.12em',textTransform:'uppercase',cursor:'pointer',transition:'all 0.2s',boxShadow:'0 4px 18px rgba(255,255,255,0.15)',display:'flex',alignItems:'center',gap:8 }}
-                    onMouseEnter={e=>{e.currentTarget.style.background=tc;e.currentTarget.style.color='#fff';}}
-                    onMouseLeave={e=>{e.currentTarget.style.background='#fff';e.currentTarget.style.color='var(--espresso)';}}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    Download PDF
-                  </button>
-                </div>
-              </div>
+              {/* Premium Pitch & Investor Readiness Dashboard */}
+              <PitchInvestorReadinessPanel survey={sv} />
 
               {/* Mentorship / Contact a Mentor */}
               <div style={{ background:'var(--warm-white)',borderRadius:22,border:'1.5px solid rgba(22,15,8,0.07)',padding:32 }}>
