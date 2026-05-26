@@ -37,7 +37,6 @@ from routes.ai        import router as ai_router
 from routes.payments  import router as payments_router
 from routes.public    import router as public_router
 from routes.uploads   import router as uploads_router
-from routes.investor  import router as investor_router
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from fastapi.responses import JSONResponse
@@ -96,7 +95,6 @@ app.include_router(payments_router)
 app.include_router(uploads_router)
 app.include_router(demo_router)
 app.include_router(public_router)
-app.include_router(investor_router)
 
 
 
