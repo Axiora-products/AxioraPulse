@@ -57,7 +57,7 @@ switch ($branch) {
     }
     "staging" {
         $defaultProfile = "qa"
-        $defaultEnv = "staging"
+        $defaultEnv = "qa"
     }
     "develop" {
         $defaultProfile = "dev"
