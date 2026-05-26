@@ -149,6 +149,7 @@ set +e
 docker run --rm \
   $AWS_MOUNT_ARGS \
   $AWS_ENV_ARGS \
+  -e HOME=/root \
   -e AWS_PROFILE="$AWS_PROFILE" \
   -e AWS_REGION="ap-south-1" \
   -e AWS_DEFAULT_REGION="ap-south-1" \
@@ -159,6 +160,7 @@ echo "📥 Pulling environment-specific secrets from AWS SSM Parameter Store (ax
 docker run --rm \
   $AWS_MOUNT_ARGS \
   $AWS_ENV_ARGS \
+  -e HOME=/root \
   -e AWS_PROFILE="$AWS_PROFILE" \
   -e AWS_REGION="ap-south-1" \
   -e AWS_DEFAULT_REGION="ap-south-1" \
