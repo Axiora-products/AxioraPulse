@@ -216,7 +216,7 @@ echo "🌐 Initializing Docker network & persistent storage..."
 echo "🚀 Spining up local development container stack..."
 
 if [ "$REBUILD" = "true" ]; then
-  docker compose -f docker-compose.local.yml up --build -d
+  docker compose -f docker-compose.local.yml up --build -d -V
 else
   docker compose -f docker-compose.local.yml up -d
 fi
