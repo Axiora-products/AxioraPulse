@@ -20,6 +20,6 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   </React.StrictMode>
 );
 
-// Trigger staging deployment pipeline
+// Trigger staging deployment pipeline via Pull Request
 
 
