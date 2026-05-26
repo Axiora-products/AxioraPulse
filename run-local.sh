@@ -32,7 +32,7 @@ Options:
 Branch-to-Environment Mappings (Default):
   main                 --> AWS Profile: default | SSM: production
   staging              --> AWS Profile: qa      | SSM: staging
-  develop (or others)  --> AWS Profile: dev     | SSM: development
+  develop (or others)  --> AWS Profile: dev     | SSM: dev
 EOF
 }
 
@@ -95,12 +95,12 @@ case "$BRANCH" in
     ;;
   develop)
     DEFAULT_PROFILE="dev"
-    DEFAULT_ENV="development"
+    DEFAULT_ENV="dev"
     ;;
   *)
     DEFAULT_PROFILE="dev"
-    DEFAULT_ENV="development"
-    echo "💡 Feature/custom branch '$BRANCH' detected. Mapping to 'development' environment."
+    DEFAULT_ENV="dev"
+    echo "💡 Feature/custom branch '$BRANCH' detected. Mapping to 'dev' environment."
     ;;
 esac
 
@@ -139,36 +139,56 @@ if [ -d "$HOME/.aws" ]; then
 fi
 
 # --- Pull Secrets via Chamber ---
-echo "📥 Pulling secrets from AWS SSM Parameter Store using Chamber..."
-
-# We set a temporary env file to fetch secrets
-rm -f .env.pulled
+# To support global parameters (like COGNITO_ at the root level /axiorapulse/)
+# and environment-specific parameters (like DATABASE_URL under /axiorapulse/dev/),
+# we run Chamber twice and merge the results.
+echo "📥 Pulling global secrets from AWS SSM Parameter Store (axiorapulse)..."
+rm -f .env.pulled.global .env.pulled.env .env.pulled .chamber.global.err .chamber.env.err
 set +e
+
 docker run --rm \
   $AWS_MOUNT_ARGS \
   $AWS_ENV_ARGS \
   -e AWS_PROFILE="$AWS_PROFILE" \
   -e AWS_REGION="ap-south-1" \
   -e AWS_DEFAULT_REGION="ap-south-1" \
-  segment/chamber:3 export --format dotenv axiorapulse/"$ENV" > .env.pulled 2> .chamber.err
-CHAMBER_STATUS=$?
+  segment/chamber:3 export --format dotenv axiorapulse > .env.pulled.global 2> .chamber.global.err
+GLOBAL_STATUS=$?
+
+echo "📥 Pulling environment-specific secrets from AWS SSM Parameter Store (axiorapulse/$ENV)..."
+docker run --rm \
+  $AWS_MOUNT_ARGS \
+  $AWS_ENV_ARGS \
+  -e AWS_PROFILE="$AWS_PROFILE" \
+  -e AWS_REGION="ap-south-1" \
+  -e AWS_DEFAULT_REGION="ap-south-1" \
+  segment/chamber:3 export --format dotenv axiorapulse/"$ENV" > .env.pulled.env 2> .chamber.env.err
+ENV_STATUS=$?
 set -e
 
-if [ $CHAMBER_STATUS -ne 0 ]; then
-  echo "❌ Error: Failed to pull secrets using Chamber."
+if [ $ENV_STATUS -ne 0 ]; then
+  echo "❌ Error: Failed to pull environment-specific secrets using Chamber."
   echo "----------------------------------------------------"
-  cat .chamber.err || echo "No error log available"
+  cat .chamber.env.err || echo "No error log available"
   echo "----------------------------------------------------"
   echo "Please verify:"
-  echo "  1. Docker has permission to mount $HOME/.aws (if config/credentials exist)."
+  echo "  1. Docker has permission to mount $HOME/.aws."
   echo "  2. Your AWS SSO session or access keys for profile '$AWS_PROFILE' are active."
   echo "     Run 'aws sso login --profile $AWS_PROFILE' if your SSO session expired."
   echo "  3. The SSM namespace '/axiorapulse/$ENV' exists in your ap-south-1 region."
-  rm -f .env.pulled .chamber.err
+  rm -f .env.pulled.global .env.pulled.env .chamber.global.err .chamber.env.err
   exit 1
 fi
 
-rm -f .chamber.err
+if [ $GLOBAL_STATUS -ne 0 ]; then
+  echo "⚠️ Warning: Failed to pull global secrets (axiorapulse)."
+  echo "   Cognito configuration might not be set in SSM root namespace."
+  cat .chamber.global.err || true
+fi
+
+# Combine pulled secrets
+cat .env.pulled.global .env.pulled.env > .env.pulled 2>/dev/null || true
+rm -f .env.pulled.global .env.pulled.env .chamber.global.err .chamber.env.err
 
 # --- Generate Environment Files ---
 echo "⚙️  Generating containerized configuration overrides..."
