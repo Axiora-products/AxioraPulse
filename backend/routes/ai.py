@@ -942,6 +942,7 @@ Based on the survey's idea, industry, problem statement, research objectives, an
 - Roadmap phases must contain actionable steps connected to the survey's concept.
 - Return ONLY valid JSON with no markdown, no explanation.
 
+
 Return this exact JSON structure:
 {{
   "category": "string",
