@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from core.rate_limiter import limiter
 from db.database import get_db
-from db.models import Survey, SurveyResponse, UserProfile, ResponseStatusEnum, SurveyStatusEnum
+from db.models import Survey, SurveyResponse, UserProfile, ResponseStatusEnum, SurveyStatusEnum , SurveyQuestion
 from schemas import DashboardStats, RecentSurvey
 from dependencies import get_current_user
 from fastapi import Request

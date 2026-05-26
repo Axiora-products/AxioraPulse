@@ -51,7 +51,48 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
   const [libraryPage, setLibraryPage] = useState(0);
 
   const [openPicker, authResponse] = useDrivePicker();
+  const [isRecording, setIsRecording] = useState(false);
+  const [audioChunks, setAudioChunks] = useState([]);
+  const mediaRecorderRef = useRef(null);
 
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+      });
+
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+
+      const chunks = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunks.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(chunks, { type: "audio/webm" });
+
+        // Upload or use audioBlob here
+        console.log(audioBlob);
+
+        setAudioChunks([]);
+      };
+
+      mediaRecorder.start();
+      setAudioChunks(chunks);
+      setIsRecording(true);
+    } catch (err) {
+      console.error("Mic permission denied", err);
+    }
+  };
+
+  const stopRecording = () => {
+    mediaRecorderRef.current?.stop();
+    setIsRecording(false);
+  };
   const handleOpenPicker = () => {
     setUploadOpen(false);
     openPicker({
@@ -372,112 +413,274 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
             <div className="cp-mode-selector" ref={uploadRef}>
               <button
                 type="button"
-                className={`cp-tool-btn${uploadOpen ? ' open' : ''}`}
+                className={`cp-tool-btn premium-upload-btn ${uploadOpen ? ' open' : ''}`}
                 onClick={() => setUploadOpen(o => !o)}
                 disabled={uploading}
               >
                 {uploading ? (
-                  <motion.span animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
-                    style={{ display: 'inline-block', width: 12, height: 12, border: '1.5px solid rgba(22,15,8,0.15)', borderTopColor: 'var(--coral)', borderRadius: '50%' }} />
+                  <motion.span
+                    animate={{ rotate: 360 }}
+                    transition={{
+                      repeat: Infinity,
+                      duration: 1,
+                      ease: 'linear'
+                    }}
+                    style={{
+                      display: 'inline-block',
+                      width: 14,
+                      height: 14,
+                      border: '2px solid rgba(255,120,40,0.15)',
+                      borderTopColor: '#ff5a1f',
+                      borderRadius: '50%',
+                    }}
+                  />
                 ) : (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.9"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
                   </svg>
                 )}
-                <span className="cp-tool-label">Upload Files</span>
               </button>
 
               {uploadOpen && (
-                <div className="cp-mode-dropdown" style={{ minWidth: '220px', bottom: 'calc(100% + 8px)', left: 0, padding: '8px' }}>
+                <div
+                  className="cp-mode-dropdown premium-upload-dropdown"
+                  style={{
+                    minWidth: '260px',
+                    bottom: 'calc(100% + 10px)',
+                    left: 0,
+                    padding: '10px',
+                  }}
+                >
 
-                  {/* My Folder (Expandable) */}
+                  {/* MY FOLDER */}
                   <button
                     type="button"
-                    className={`cp-mode-option${myFolderView ? ' active' : ''}`}
-                    onClick={(e) => { e.stopPropagation(); setMyFolderView(!myFolderView); }}
+                    className={`cp-mode-option premium-option ${myFolderView ? ' active' : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMyFolderView(!myFolderView);
+                    }}
                   >
-                    <div className="cp-mode-icon">📁</div>
-                    <div className="cp-mode-option-text" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                    <div className="premium-icon">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                        <path
+                          d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </div>
+
+                    <div
+                      className="cp-mode-option-text"
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        width: '100%',
+                      }}
+                    >
                       <div>My folder</div>
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: myFolderView ? 1 : 0.3, transform: myFolderView ? 'rotate(90deg)' : 'none', transition: 'all 0.2s' }}>
-                        <path d="M9 18l6-6-6-6"/>
+
+                      <svg
+                        width="10"
+                        height="10"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        style={{
+                          opacity: myFolderView ? 1 : 0.3,
+                          transform: myFolderView ? 'rotate(90deg)' : 'none',
+                          transition: 'all 0.25s',
+                        }}
+                      >
+                        <path d="M9 18l6-6-6-6" />
                       </svg>
                     </div>
                   </button>
 
-                  {/* Expanded My Folder Content */}
+                  {/* EXPAND */}
                   <AnimatePresence>
                     {myFolderView && (
                       <motion.div
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
-                        style={{ overflow: 'hidden', paddingLeft: '16px', marginTop: '2px', marginBottom: '6px' }}
+                        style={{
+                          overflow: 'hidden',
+                          paddingLeft: '12px',
+                          marginTop: '4px',
+                          marginBottom: '8px',
+                        }}
                       >
-                        {libraryFiles.length === 0 && fetchedLibrary ? (
-                          <div style={{ padding: '8px', fontSize: 11, color: 'rgba(22,15,8,0.4)', fontFamily: "'Syne', sans-serif" }}>No files yet.</div>
-                        ) : !fetchedLibrary ? (
-                          <div style={{ padding: '8px', fontSize: 11, color: 'rgba(22,15,8,0.4)', fontFamily: "'Syne', sans-serif" }}>Loading...</div>
-                        ) : (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                            {libraryPage > 0 && (
-                              <button type="button" className="cp-mode-option" onClick={(e) => { e.stopPropagation(); setLibraryPage(p => Math.max(0, p - 1)); }} style={{ padding: '6px 8px', minHeight: 32, borderRadius: '8px', marginBottom: '2px' }}>
-                                <div className="cp-mode-option-text" style={{ width: '100%', textAlign: 'center' }}>
-                                  <div style={{ color: 'var(--coral)', fontSize: 11, fontWeight: 700 }}>...Previous 5 files</div>
-                                </div>
-                              </button>
-                            )}
-                            {libraryFiles.slice(libraryPage * 5, libraryPage * 5 + 5).map(f => (
-                              <button key={f.id} type="button" className="cp-mode-option" onClick={(e) => { e.stopPropagation(); handleLibrarySelect(f); setUploadOpen(false); }} style={{ padding: '6px 8px', minHeight: 32, borderRadius: '8px' }}>
-                                <div className="cp-mode-icon" style={{ background: 'none', width: 16, height: 16, fontSize: 13 }}>
-                                  {f.upload_type === 'audio' ? '🎙️' : '📄'}
-                                </div>
-                                <div className="cp-mode-option-text" style={{ flex: 1, overflow: 'hidden' }}>
-                                  <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: 11 }}>{f.filename}</div>
-                                </div>
-                              </button>
-                            ))}
-                            {(libraryPage + 1) * 5 < libraryFiles.length && (
-                              <button type="button" className="cp-mode-option" onClick={(e) => { e.stopPropagation(); setLibraryPage(p => p + 1); }} style={{ padding: '6px 8px', minHeight: 32, borderRadius: '8px', marginTop: '2px' }}>
-                                <div className="cp-mode-option-text" style={{ width: '100%', textAlign: 'center' }}>
-                                  <div style={{ color: 'var(--coral)', fontSize: 11, fontWeight: 700 }}>Next 5 files...</div>
-                                </div>
-                              </button>
-                            )}
-                          </div>
-                        )}
+                        {libraryFiles.slice(libraryPage * 5, libraryPage * 5 + 5).map(f => (
+                          <button
+                            key={f.id}
+                            type="button"
+                            className="cp-mode-option premium-file-option"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleLibrarySelect(f);
+                              setUploadOpen(false);
+                            }}
+                          >
+                            <div className="premium-mini-icon">
+                              {f.upload_type === 'audio' ? (
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                                  <path
+                                    d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"
+                                    stroke="currentColor"
+                                    strokeWidth="1.8"
+                                  />
+                                </svg>
+                              ) : (
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                                  <path
+                                    d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+                                    stroke="currentColor"
+                                    strokeWidth="1.8"
+                                  />
+                                </svg>
+                              )}
+                            </div>
+
+                            <div
+                              className="cp-mode-option-text"
+                              style={{
+                                flex: 1,
+                                overflow: 'hidden',
+                              }}
+                            >
+                              <div
+                                style={{
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  fontSize: 11,
+                                }}
+                              >
+                                {f.filename}
+                              </div>
+                            </div>
+                          </button>
+                        ))}
                       </motion.div>
                     )}
                   </AnimatePresence>
 
-                  <button type="button" className="cp-mode-option" onClick={handleOpenPicker}>
-                    <div className="cp-mode-icon">☁️</div>
-                    <div className="cp-mode-option-text"><div>From drive</div></div>
+                  {/* DRIVE */}
+                  <button
+                    type="button"
+                    className="cp-mode-option premium-option"
+                    onClick={handleOpenPicker}
+                  >
+                    <div className="premium-icon drive-icon">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                        <path
+                          d="M7 3h10l4 7-5 8H6L1 10l6-7z"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </div>
+
+                    <div className="cp-mode-option-text">
+                      <div>From drive</div>
+                    </div>
                   </button>
-                  <button type="button" className="cp-mode-option" onClick={() => { setUploadOpen(false); fileInputRef.current?.click(); }}>
-                    <div className="cp-mode-icon">💻</div>
-                    <div className="cp-mode-option-text"><div>Local system</div></div>
+
+                  {/* LOCAL */}
+                  <button
+                    type="button"
+                    className="cp-mode-option premium-option"
+                    onClick={() => {
+                      setUploadOpen(false);
+                      fileInputRef.current?.click();
+                    }}
+                  >
+                    <div className="premium-icon">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                        <rect
+                          x="3"
+                          y="4"
+                          width="18"
+                          height="12"
+                          rx="2"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                        />
+                        <path
+                          d="M8 20h8"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                    </div>
+
+                    <div className="cp-mode-option-text">
+                      <div>Local system</div>
+                    </div>
                   </button>
                 </div>
               )}
             </div>
-
             {/* Record/Upload Audio */}
             <button
               type="button"
-              className="cp-tool-btn"
-              onClick={() => audioInputRef.current?.click()}
-              disabled={uploading}
+              className={`cp-tool-btn ${isRecording ? "recording" : ""}`}
+              onClick={isRecording ? stopRecording : startRecording}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill={isRecording ? "currentColor" : "none"}
+                stroke={isRecording ? "#ff5a1f" : "currentColor"}
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
                 <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
                 <line x1="12" y1="19" x2="12" y2="23" />
                 <line x1="8" y1="23" x2="16" y2="23" />
               </svg>
-              <span className="cp-tool-label">Upload Audio</span>
-            </button>
 
+              <div className="voice-record-container">
+                {/* <span className="recording-text">
+                  {isRecording ? " : ""}
+                </span> */}
+
+                {isRecording && (
+                  <div className="chatgpt-wave">
+                    {Array.from({ length: 18 }).map((_, i) => (
+                      <span
+                        key={i}
+                        style={{
+                          animationDelay: `${i * 0.04}s`,
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </button>
             {/* Survey Mode Selector */}
             <div className="cp-mode-selector" ref={modeRef}>
               <button
@@ -602,7 +805,240 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
           </svg>
         </button>
       </div>
+      <style>
+        {`.chatgpt-wave {
+  display: flex;
+  align-items: center;
+  gap: 3px;
 
+  width: 95px;
+  height: 20px;
+
+  overflow: hidden;
+}
+
+.chatgpt-wave span {
+  width: 3px;
+  border-radius: 999px;
+
+  /* PREMIUM ORANGE */
+  background: linear-gradient(
+    180deg,
+    #ffb066 0%,
+    #ff7a1a 45%,
+    #ff5200 100%
+  );
+
+  box-shadow:
+    0 0 6px rgba(255, 98, 0, 0.35),
+    0 0 12px rgba(255, 120, 40, 0.18);
+
+  animation: chatWave 0.9s infinite ease-in-out;
+}
+
+.chatgpt-wave span:nth-child(odd) {
+  height: 6px;
+}
+
+.chatgpt-wave span:nth-child(even) {
+  height: 13px;
+}
+
+.chatgpt-wave span:nth-child(3n) {
+  height: 20px;
+}
+
+.voice-record-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.recording-text {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+
+  /* PREMIUM TEXT */
+  color: #ff6b1a;
+
+  white-space: nowrap;
+}
+
+.cp-tool-btn.recording {
+  background: rgba(255, 115, 0, 0.08);
+  border: 1px solid rgba(255, 115, 0, 0.22);
+
+  box-shadow:
+    0 0 0 1px rgba(255, 120, 20, 0.06),
+    0 10px 30px rgba(255, 98, 0, 0.08);
+}
+
+@keyframes chatWave {
+  0%, 100% {
+    transform: scaleY(0.55);
+    opacity: 0.45;
+  }
+
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+.premium-option {
+  border-radius: 18px;
+  transition: all 0.25s ease;
+
+  position: relative;
+  overflow: hidden;
+}
+
+.premium-option:hover {
+  background: rgba(255,120,40,0.07);
+  transform: translateY(-1px);
+}
+
+/* ICON NORMAL */
+.premium-icon {
+  width: 36px;
+  height: 36px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 14px;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255,255,255,0.95),
+      rgba(255,245,238,0.8)
+    );
+
+  border: 1px solid rgba(255,120,40,0.12);
+
+  color: #ff641f;
+
+  transition: all 0.25s ease;
+
+  box-shadow:
+    0 6px 18px rgba(255,120,40,0.08);
+}
+
+/* ICON HOVER */
+.premium-option:hover .premium-icon {
+  background:
+    linear-gradient(
+      180deg,
+      #ff8a3d 0%,
+      #ff641f 100%
+    );
+
+  color: white;
+
+  border-color: rgba(255,120,40,0.35);
+
+  transform: scale(1.05);
+
+  box-shadow:
+    0 12px 24px rgba(255,90,0,0.22),
+    0 0 18px rgba(255,120,40,0.16);
+}
+
+/* MINI ICONS */
+.premium-mini-icon {
+  width: 28px;
+  height: 28px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 10px;
+
+  background: rgba(255,120,40,0.08);
+
+  color: #ff641f;
+
+  transition: all 0.25s ease;
+}
+
+.premium-file-option:hover .premium-mini-icon {
+  background:
+    linear-gradient(
+      180deg,
+      #ff8a3d 0%,
+      #ff641f 100%
+    );
+
+  color: white;
+
+  transform: scale(1.05);
+
+  box-shadow:
+    0 10px 20px rgba(255,90,0,0.18);
+}
+    /* FILE + MIC BUTTON */
+.cp-tool-btn {
+  cursor: pointer;
+  transition:
+    all 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.25s ease,
+    color 0.25s ease;
+}
+
+/* HOVER EFFECT */
+.cp-tool-btn:hover {
+  color: #ff641f;
+
+  border-color: rgba(255,120,40,0.28);
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255,140,60,0.08),
+      rgba(255,90,0,0.04)
+    );
+
+  box-shadow:
+    0 10px 26px rgba(255,90,0,0.12),
+    0 0 0 1px rgba(255,120,40,0.08);
+
+  transform: translateY(-1px);
+}
+
+/* SVG ICON ORANGE */
+.cp-tool-btn:hover svg {
+  color: #ff641f;
+  stroke: #ff641f;
+}
+
+/* MIC BUTTON SPECIAL */
+.cp-tool-btn.recording:hover {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255,120,40,0.12),
+      rgba(255,90,0,0.06)
+    );
+
+  box-shadow:
+    0 12px 28px rgba(255,90,0,0.18),
+    0 0 20px rgba(255,120,40,0.08);
+}
+
+/* ORANGE CURSOR FEEL */
+.cp-tool-btn:hover,
+.premium-option:hover,
+.premium-file-option:hover {
+  cursor: pointer;
+}
+}`}
+      </style>
     </div>
   );
 }

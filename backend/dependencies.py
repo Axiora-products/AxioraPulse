@@ -43,6 +43,75 @@ def get_current_user(
         raise credentials_exception
 
     user = db.query(UserProfile).filter(UserProfile.cognito_sub == cognito_sub).first()
+    if user is None:
+        # Self-healing on-the-fly user synchronization
+        email = payload.get("email", "")
+        name = payload.get("name", "")
+        
+        if email:
+            # 1. Existing user migrated or invited - link by email
+            existing = db.query(UserProfile).filter(UserProfile.email == email).first()
+            if existing:
+                existing.cognito_sub = cognito_sub
+                db.commit()
+                db.refresh(existing)
+                user = existing
+
+        if user is None:
+            # 2. Brand new user - create tenant + profile
+            import uuid
+            import re
+            from db.models import Tenant, RoleEnum
+
+            def _slugify(text: str) -> str:
+                text = text.lower().strip()
+                text = re.sub(r"[^\w\s-]", "", text)
+                text = re.sub(r"[\s_-]+", "-", text)
+                return text.strip("-") or "org"
+
+            derived_tenant_name = email.split('@')[1].split('.')[0].title() if email else 'My Organisation'
+            derived_tenant_slug = _slugify(derived_tenant_name)
+
+            # Check if a tenant with this slug already exists — reuse it or find a fallback
+            tenant = db.query(Tenant).filter(Tenant.slug == derived_tenant_slug).first()
+            if not tenant:
+                try:
+                    tenant = Tenant(
+                        id=uuid.uuid4(),
+                        name=derived_tenant_name,
+                        slug=derived_tenant_slug,
+                    )
+                    db.add(tenant)
+                    db.flush()
+                except Exception:
+                    db.rollback()
+                    tenant = db.query(Tenant).filter(Tenant.slug == derived_tenant_slug).first()
+                    if not tenant:
+                        # Fallback: reuse first available tenant or create a default
+                        tenant = db.query(Tenant).first()
+                        if not tenant:
+                            tenant = Tenant(
+                                id=uuid.uuid4(),
+                                name="Default Organisation",
+                                slug="default-org",
+                            )
+                            db.add(tenant)
+                            db.flush()
+
+            user = UserProfile(
+                id=uuid.uuid4(),
+                email=email,
+                full_name=name,
+                cognito_sub=cognito_sub,
+                role=RoleEnum.super_admin,
+                tenant_id=tenant.id,
+                is_active=True,
+                account_status="active",
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+
     if user is None or not user.is_active:
         raise credentials_exception
 
