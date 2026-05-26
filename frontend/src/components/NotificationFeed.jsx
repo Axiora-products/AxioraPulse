@@ -18,16 +18,16 @@ function markSeen(ids) {
     // Keep max 200 ids to avoid unbounded growth
     const arr = [...existing].slice(-200);
     localStorage.setItem(SEEN_KEY, JSON.stringify(arr));
-  } catch {}
+  } catch { }
 }
 function clearAllSeen() {
-  try { localStorage.removeItem(SEEN_KEY); } catch {}
+  try { localStorage.removeItem(SEEN_KEY); } catch { }
 }
 
 export default function NotificationFeed() {
-  const [open, setOpen]       = useState(false);
-  const [events, setEvents]   = useState([]);
-  const [unread, setUnread]   = useState(0);
+  const [open, setOpen] = useState(false);
+  const [events, setEvents] = useState([]);
+  const [unread, setUnread] = useState(0);
   const [loading, setLoading] = useState(false);
   const ref = useRef(null);
   const nav = useNavigate();
@@ -92,33 +92,108 @@ export default function NotificationFeed() {
 
   const iconEl = (icon) => {
     if (icon === 'inbox') return (
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 17.24 4H6.76a2 2 0 0 0-1.79 1.11z"/></svg>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12" /><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 17.24 4H6.76a2 2 0 0 0-1.79 1.11z" /></svg>
     );
     if (icon === 'active') return (
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M5 3l14 9-14 9V3z"/></svg>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M5 3l14 9-14 9V3z" /></svg>
     );
     if (icon === 'paused') return (
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="8" y1="5" x2="8" y2="19"/><line x1="16" y1="5" x2="16" y2="19"/></svg>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="8" y1="5" x2="8" y2="19" /><line x1="16" y1="5" x2="16" y2="19" /></svg>
     );
     return (
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M9 7h6M9 11h6M9 15h4"/></svg>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" /><path d="M9 7h6M9 11h6M9 15h4" /></svg>
     );
   };
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
       {/* Bell button */}
+      {/* Bell button */}
       <button
         onClick={handleOpen}
         aria-label="Notifications"
-        style={{ position: 'relative', background: open ? 'var(--cream-deep)' : 'none', border: 'none', cursor: 'pointer', padding: '7px', borderRadius: 10, color: open ? 'var(--espresso)' : 'rgba(22,15,8,0.4)', fontSize: 18, lineHeight: 1, transition: 'all 0.2s', display: 'flex', alignItems: 'center' }}
-        onMouseEnter={e => { e.currentTarget.style.background = 'var(--cream-deep)'; e.currentTarget.style.color = 'var(--espresso)'; }}
-        onMouseLeave={e => { if (!open) { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'rgba(22,15,8,0.4)'; } }}
+        style={{
+          position: 'relative',
+
+          width: '38px',
+          height: '38px',
+
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+
+          background: open
+            ? 'rgba(255,69,0,0.10)'
+            : 'rgba(253,245,232,0.04)',
+
+          border: open
+            ? '1px solid rgba(255,69,0,0.24)'
+            : '1px solid rgba(253,245,232,0.08)',
+
+          color: open
+            ? '#FF4500'
+            : 'rgba(253,245,232,0.72)',
+
+          backdropFilter: 'blur(12px)',
+
+          boxShadow: open
+            ? '0 10px 28px rgba(255,69,0,0.22)'
+            : '0 4px 14px rgba(0,0,0,0.18)',
+
+          cursor: 'pointer',
+
+          padding: 0,
+
+          borderRadius: 12,
+
+          transition: 'all 0.25s ease',
+
+          lineHeight: 1,
+
+          flexShrink: 0
+        }}
+
+        onMouseEnter={e => {
+          e.currentTarget.style.background = 'rgba(255,69,0,0.10)';
+          e.currentTarget.style.borderColor = 'rgba(255,69,0,0.24)';
+          e.currentTarget.style.color = '#FF4500';
+          e.currentTarget.style.transform = 'translateY(-1px)';
+          e.currentTarget.style.boxShadow =
+            '0 10px 28px rgba(255,69,0,0.22)';
+        }}
+
+        onMouseLeave={e => {
+          if (!open) {
+            e.currentTarget.style.background =
+              'rgba(253,245,232,0.04)';
+
+            e.currentTarget.style.borderColor =
+              'rgba(253,245,232,0.08)';
+
+            e.currentTarget.style.color =
+              'rgba(253,245,232,0.72)';
+
+            e.currentTarget.style.transform = 'translateY(0)';
+
+            e.currentTarget.style.boxShadow =
+              '0 4px 14px rgba(0,0,0,0.18)';
+          }
+        }}
       >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-          <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
         </svg>
+
         <AnimatePresence>
           {unread > 0 && (
             <motion.span
@@ -126,25 +201,53 @@ export default function NotificationFeed() {
               initial={{ scale: 0, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0, opacity: 0 }}
-              transition={{ type: 'spring', stiffness: 500, damping: 20 }}
-              style={{ position: 'absolute', top: 2, right: 2, minWidth: 16, height: 16, background: 'var(--coral)', borderRadius: 999, border: '2px solid var(--cream)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 8, color: '#fff', lineHeight: 1, padding: '0 3px' }}
+              transition={{
+                type: 'spring',
+                stiffness: 500,
+                damping: 20
+              }}
+              style={{
+                position: 'fixed',
+
+                left: 26,
+                bottom: 96,
+
+                zIndex: 99999,
+
+                width: 340,
+
+                background:
+                  'linear-gradient(180deg,#1A0D05 0%, #120803 100%)',
+
+                borderRadius: 22,
+
+                boxShadow:
+                  '0 32px 90px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.03)',
+
+                border:
+                  '1px solid rgba(255,255,255,0.06)',
+
+                overflow: 'hidden',
+
+                backdropFilter: 'blur(18px)'
+              }}
             >
               {unread > 9 ? '9+' : unread}
             </motion.span>
           )}
         </AnimatePresence>
       </button>
-
+      {/* End Bell button */}
       {/* Dropdown */}
       <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ opacity: 0, y: -10, scale: 0.97 }}
+            initial={{ opacity: 0, y: 16, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.97 }}
+            exit={{ opacity: 0, y: 10, scale: 0.97 }}
             transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
             className="np-notif-dropdown"
-            style={{ position: 'absolute', right: 0, top: 48, zIndex: 500, width: 340, background: 'var(--warm-white)', borderRadius: 20, boxShadow: '0 32px 80px rgba(22,15,8,0.2), 0 2px 8px rgba(22,15,8,0.06)', border: '1px solid rgba(22,15,8,0.07)', overflow: 'hidden' }}
+            style={{ position: 'absolute', right: 0, top: 100, zIndex: 500, width: 340, background: 'var(--warm-white)', borderRadius: 20, boxShadow: '0 32px 80px rgba(22,15,8,0.2), 0 2px 8px rgba(22,15,8,0.06)', border: '1px solid rgba(22,15,8,0.07)', overflow: 'hidden' }}
           >
             {/* Header */}
             <div style={{ padding: '14px 18px 12px', borderBottom: '1px solid rgba(22,15,8,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
@@ -179,7 +282,7 @@ export default function NotificationFeed() {
               {!loading && events.length === 0 && (
                 <div style={{ padding: '36px 24px', textAlign: 'center' }}>
                   <div style={{ marginBottom: 10, display: 'flex', justifyContent: 'center', color: 'rgba(22,15,8,0.15)' }}>
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 17.24 4H6.76a2 2 0 0 0-1.79 1.11z"/></svg>
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12" /><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 17.24 4H6.76a2 2 0 0 0-1.79 1.11z" /></svg>
                   </div>
                   <p style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 14, color: 'rgba(22,15,8,0.4)', margin: 0 }}>All caught up</p>
                   <p style={{ fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.25)', margin: '6px 0 0' }}>No recent activity</p>
@@ -199,7 +302,7 @@ export default function NotificationFeed() {
                       <p style={{ fontFamily: 'Fraunces, serif', fontWeight: isNew ? 400 : 300, fontSize: 13, color: 'var(--espresso)', margin: '0 0 4px', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.text}</p>
                       <span style={{ fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 600, letterSpacing: '0.08em', color: 'rgba(22,15,8,0.3)' }}>{timeAgo(ev.time)}</span>
                     </div>
-                    {isNew && <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--coral)', flexShrink: 0, marginTop: 8, boxShadow: '0 0 4px rgba(255,69,0,0.4)' }}/>}
+                    {isNew && <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--coral)', flexShrink: 0, marginTop: 8, boxShadow: '0 0 4px rgba(255,69,0,0.4)' }} />}
                   </button>
                 );
               })}
