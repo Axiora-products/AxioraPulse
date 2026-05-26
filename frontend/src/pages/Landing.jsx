@@ -753,7 +753,7 @@ export default function Landing() {
         <div className="lp-hero-wrap">
           {/* Left */}
           <div>
-            <div className="lp-h-tag"><span className="lp-h-tag-line" />INDIA’S LARGEST MARKET FEEDBACK & DECISION-MAKING PLATFORM</div>
+            <div className="lp-h-tag"><span className="lp-h-tag-line" />Behavioural Survey Intelligence</div>
             <h1 className="lp-h-head">
               <span className="lp-hline"><span className="lp-h-word lp-hw1">Opinion&nbsp;</span><span className="lp-h-word lp-hw2">is&nbsp;</span></span>
               <span className="lp-hline"><span className="lp-h-word lp-hw3"><em>evidence.</em>&nbsp;</span></span>

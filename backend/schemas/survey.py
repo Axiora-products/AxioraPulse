@@ -54,7 +54,6 @@ class SurveyUpdate(BaseModel):
     theme_color: Optional[str] = None
     slug: Optional[str] = None
     status: Optional[str] = None
-    ai_intelligence: Optional[Any] = None
 
 class SurveyStatusUpdate(BaseModel):
     status: str
@@ -83,6 +82,5 @@ class SurveyOut(BaseModel):
     created_at: Optional[datetime] = None
     questions: Optional[List[QuestionOut]] = None
     tenant_name: Optional[str] = None
-    ai_intelligence: Optional[Any] = None
 
     model_config = {"from_attributes": True}
