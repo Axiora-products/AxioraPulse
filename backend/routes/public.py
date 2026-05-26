@@ -128,48 +128,420 @@ class WaitlistRequest(BaseModel):
 
 
 def _waitlist_confirmation_html(email: str) -> str:
-    return f"""<!DOCTYPE html>
+    return f"""
+<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head>
-<body style="margin:0;padding:0;background:#160F08;font-family:Georgia,serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#160F08;padding:40px 20px;">
-  <tr><td align="center">
-    <table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#1E120A;border-radius:20px;overflow:hidden;border:1px solid rgba(255,69,0,0.15);">
-      <tr>
-        <td style="background:#160F08;padding:22px 36px;border-bottom:1px solid rgba(255,69,0,0.1);">
-          <table cellpadding="0" cellspacing="0"><tr>
-            <td style="font-family:Arial,sans-serif;font-size:8px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:rgba(253,245,232,0.35);padding-right:6px;vertical-align:middle;">Axiora</td>
-            <td style="font-family:Georgia,serif;font-size:20px;font-weight:700;color:#FDF5E8;letter-spacing:-0.5px;vertical-align:middle;">Pulse</td>
-            <td style="width:8px;height:8px;background:#FF4500;border-radius:50%;vertical-align:top;padding-top:4px;padding-left:6px;"></td>
-          </tr></table>
-        </td>
-      </tr>
-      <tr>
-        <td style="padding:40px 36px 32px;">
-          <p style="font-family:Arial,sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#FF4500;margin:0 0 14px;">You're on the list</p>
-          <h1 style="font-family:Georgia,serif;font-size:28px;font-weight:700;letter-spacing:-1px;color:#FDF5E8;margin:0 0 20px;line-height:1.15;">We'll let you know<br/>the moment we launch.</h1>
-          <p style="font-family:Arial,sans-serif;font-size:14px;line-height:1.75;color:rgba(253,245,232,0.55);margin:0 0 32px;">
-            Thanks for signing up — <strong style="color:rgba(253,245,232,0.8);">{email}</strong> is on the waitlist.
-            We're putting the finishing touches on Axiora Pulse and will send you a launch email the moment the doors open.
-          </p>
-          <p style="font-family:Arial,sans-serif;font-size:13px;line-height:1.7;color:rgba(253,245,232,0.35);margin:0;">
-            Stay tuned for smart surveys, real insights.
-          </p>
-        </td>
-      </tr>
-      <tr>
-        <td style="padding:20px 36px 28px;border-top:1px solid rgba(253,245,232,0.06);">
-          <p style="font-family:Arial,sans-serif;font-size:11px;color:rgba(253,245,232,0.2);margin:0;line-height:1.6;">
-            You received this because you joined the Axiora Pulse waitlist.
-          </p>
-        </td>
-      </tr>
-    </table>
-  </td></tr>
-</table>
-</body>
-</html>"""
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Welcome to Axiora Pulse</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Fraunces:wght@300;400;500&family=Syne:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
 
+<body style="margin:0;padding:0;background:#f5efe6;font-family:Arial,sans-serif;">
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f5efe6;padding:40px 16px;">
+<tr>
+<td align="center">
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0"
+style="
+max-width:640px;
+background:#fffaf4;
+border-radius:28px;
+overflow:hidden;
+border:1px solid rgba(22,15,8,0.06);
+box-shadow:0 10px 40px rgba(22,15,8,0.08);
+">
+
+    <!-- HEADER -->
+    <tr>
+        <td style="
+            background:#f7f1e8;
+            padding:28px 42px;
+            border-bottom:1px solid rgba(22,15,8,0.06);
+        ">
+
+            <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+
+                    <td align="left">
+                        <table cellpadding="0" cellspacing="0">
+                            <tr>
+
+                                <td style="
+                                    font-size:12px;
+                                    font-weight:700;
+                                    letter-spacing:4px;
+                                    text-transform:uppercase;
+                                    color:#8f867b;
+                                    padding-right:8px;
+                                    vertical-align:middle;
+                                ">
+                                    AXIORA
+                                </td>
+
+                                <td style="
+                                    font-family:'Playfair Display',serif;
+                                    font-size:42px;
+                                    font-weight:700;
+                                    color:#160F08;
+                                    letter-spacing:-2px;
+                                    vertical-align:middle;
+                                ">
+                                    Pulse
+                                </td>
+
+                                <td style="padding-left:10px;padding-top:2px;vertical-align:top;">
+                                    <div style="
+                                        width:18px;
+                                        height:18px;
+                                        border-radius:50%;
+                                        background:#ff5b1f;
+                                        box-shadow:
+                                            0 0 0 6px rgba(255,91,31,0.18),
+                                            0 0 0 12px rgba(255,91,31,0.08);
+                                    "></div>
+                                </td>
+
+                            </tr>
+                        </table>
+                </tr>
+            </table>
+
+        </td>
+    </tr>
+<!-- PREMIUM BRAND POSITIONING -->
+<table cellpadding="0" cellspacing="0" border="0" style="margin-bottom:28px;">
+    <tr>
+
+        <td style="padding-right:14px;" valign="middle">
+            <div style="
+                width:34px;
+                height:1px;
+                background:linear-gradient(90deg,#ff5b1f,#ffb800);
+            "></div>
+        </td>
+
+        <td valign="middle">
+
+            <span style="
+                font-family:'Syne',Arial,sans-serif;
+                font-size:10px;
+                font-weight:700;
+                letter-spacing:2.2px;
+                text-transform:uppercase;
+                color:#a89583;
+                line-height:1.9;
+            ">
+                INDIA’S LARGEST MARKET<br/>
+                FEEDBACK &amp; DECISION-MAKING PLATFORM
+            </span>
+
+        </td>
+
+    </tr>
+</table>
+    <!-- HERO -->
+    <tr>
+        <td style="
+            padding:60px 38px 14px;
+            background:
+                radial-gradient(circle at top right, rgba(255,91,31,0.08), transparent 35%),
+                #fffaf4;
+        ">
+
+            <p style="
+                margin:0 0 18px;
+                font-size:12px;
+                font-weight:700;
+                letter-spacing:3px;
+                text-transform:uppercase;
+                color:#ff5b1f;
+            ">
+                WAITLIST CONFIRMED
+            </p>
+
+            <h1 style="
+                margin:0;
+                font-family:'Playfair Display',serif;
+                font-size:42px;
+                line-height:1.15;
+                letter-spacing:-2px;
+                color:#160F08;
+                font-weight:700;
+            ">
+                You're officially<br/>
+                on the list.
+            </h1>
+
+            <p style="
+                font-family:'Fraunces',serif;
+font-size:17px;
+font-weight:300;
+line-height:1.9;
+color:#6f665d;
+            ">
+                Thank you for joining the Axiora Pulse early access waitlist.
+                We're building a premium AI-powered research ecosystem focused on
+                smarter surveys, better decision intelligence, and enterprise-grade analytics.
+            </p>
+
+        </td>
+    </tr>
+
+    <!-- USER INFO CARD -->
+    <tr>
+        <td style="padding:0 48px 18px;">
+
+            <table width="100%" cellpadding="0" cellspacing="0" border="0"
+            style="
+                background:#f8f2eb;
+                border-radius:22px;
+                border:1px solid rgba(22,15,8,0.05);
+            ">
+                <tr>
+
+                    <td style="padding:28px;">
+
+                        <p style="
+                            margin:0 0 10px;
+                            font-family:'Syne',sans-serif;
+                            font-size:11px;
+                            letter-spacing:2px;
+                            text-transform:uppercase;
+                            color:#a0968b;
+                            font-weight:700;
+                        ">
+                            Registered Email
+                        </p>
+
+                        <p style="
+                            margin:0;
+                            font-size:18px;
+                            color:#160F08;
+                            font-weight:700;
+                            word-break:break-word;
+                        ">
+                            {email}
+                        </p>
+
+                    </td>
+
+                </tr>
+            </table>
+
+        </td>
+    </tr>
+
+    <!-- CONTENT -->
+    <tr>
+        <td style="padding:10px 48px 10px;">
+
+            <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+
+                    <td style="
+                        padding:20px 0;
+                        border-bottom:1px solid rgba(22,15,8,0.06);
+                    ">
+
+                        <h3 style="
+                            margin:0 0 12px;
+                            font-size:18px;
+                            font-family:'Playfair Display',serif;
+                            color:#160F08;
+                        ">
+                            What happens next?
+                        </h3>
+
+                        <p style="
+                            margin:0;
+                            font-size:15px;
+                            line-height:1.9;
+                            color:#6f665d;
+                        ">
+                            You'll receive early updates, product announcements,
+                            and priority access once Axiora Pulse launches publicly.
+                        </p>
+
+                    </td>
+
+                </tr>
+
+                <tr>
+
+                    <td style="padding:26px 0 8px;">
+
+                        <table width="100%" cellpadding="0" cellspacing="0">
+                            <tr>
+
+                                <td width="33%" valign="top" style="padding-right:18px;">
+
+                                    <p style="
+                                        margin:0 0 8px;
+                                        font-family:'Syne',sans-serif;
+                                        font-size:13px;
+                                        font-weight:700;
+                                        color:#160F08;
+                                    ">
+                                        Research
+                                    </p>
+
+                                    <p style="
+                                        margin:0;
+                                        font-size:13px;
+                                        line-height:1.7;
+                                        color:#7a7269;
+                                    ">
+                                        AI-powered survey intelligence
+                                    </p>
+
+                                </td>
+
+                                <td width="33%" valign="top" style="padding-right:18px;">
+
+                                    <p style="
+                                        margin:0 0 8px;
+                                        font-size:13px;
+                                        font-weight:700;
+                                        font-family:'Syne',sans-serif;
+                                        color:#160F08;
+                                    ">
+                                        Builder
+                                    </p>
+
+                                    <p style="
+                                        margin:0;
+                                        font-size:13px;
+                                        line-height:1.7;
+                                        color:#7a7269;
+                                    ">
+                                        Dynamic form and workflow creation
+                                    </p>
+
+                                </td>
+
+                                <td width="33%" valign="top" style="padding-right:18px;">
+
+                                    <p style="
+                                        margin:0 0 8px;
+                                        font-size:13px;
+                                        font-weight:700;
+                                        color:#160F08;
+                                        font-family:'Syne',sans-serif;
+                                    ">
+                                        Analytics
+                                    </p>
+
+                                    <p style="
+                                        margin:0;
+                                        font-size:13px;
+                                        line-height:1.7;
+                                        color:#7a7269;
+                                    ">
+                                        Enterprise-grade insights dashboard
+                                    </p>
+
+                                </td>
+
+                            </tr>
+                        </table>
+
+                    </td>
+
+                </tr>
+            </table>
+
+        </td>
+    </tr>
+
+    <!-- CTA -->
+    <tr>
+        <td align="center" style="padding:34px 48px 56px;">
+
+    <a href="https://axiorapulse.com"
+    style="
+        display:inline-block;
+        background:#ff5b1f;
+        color:#ffffff;
+        text-decoration:none;
+        padding:16px 36px;
+        border-radius:999px;
+        font-size:15px;
+        font-weight:700;
+        letter-spacing:0.3px;
+        text-align:center;
+        box-shadow:0 8px 20px rgba(255,91,31,0.22);
+    ">
+        Visit Axiora Pulse →
+    </a>
+
+</td>
+    </tr>
+
+    <!-- FOOTER -->
+    <tr>
+        <td style="
+            background:#160F08;
+            padding:32px 42px;
+        ">
+
+            <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+
+                    <td align="left">
+
+                        <p style="
+                            margin:0 0 8px;
+                            font-size:13px;
+                            font-family:'Syne',sans-serif;
+                            color:rgba(253,245,232,0.92);
+                            font-weight:700;
+                        ">
+                            Axiora Pulse
+                        </p>
+
+                        <p style="
+                            margin:0;
+                            font-size:13px;
+                            line-height:1.8;
+                            color:rgba(253,245,232,0.45);
+                        ">
+                            Intelligent research infrastructure for modern businesses.
+                        </p>
+
+                    </td>
+
+                    <td align="right" style="padding-left:24px;">
+
+                        <p style="
+                            margin:0;
+                            font-size:12px;
+                            color:rgba(253,245,232,0.35);
+                            line-height:1.8;
+                        ">
+                            You received this email because you joined the waitlist.<br/>
+                            © 2026 Axiora Pulse. All rights reserved.
+                        </p>
+
+                    </td>
+
+                </tr>
+            </table>
+
+        </td>
+    </tr>
+
+</table>
+
+</td>
+</tr>
+</table>
+
+</body>
+</html>
+"""
 
 @router.post("/waitlist")
 def join_waitlist(body: WaitlistRequest, db: Session = Depends(get_db)):
