@@ -4,6 +4,7 @@ routes/ai.py
 AI-powered survey insights using Anthropic Claude.
 """
 
+from ast import Return
 import os
 import json
 import re
@@ -946,27 +947,36 @@ Return this exact JSON structure:
 {{
   "category": "string",
   "competitors": [{{
-    "name": "string", "offering": "string", "pricing": "string",
-    "strengths": "string", "weaknesses": "string", "diff": "string", "share": "string"
+    "name": "string",
+    "offering": "string",
+    "pricing": "string",
+    "strengths": "string",
+    "weaknesses": "string",
+    "diff": "string",
+    "share": "string"
   }}],
   "persona": {{
-    "name": "string", "demographics": "string", "psychographics": "string",
-    "painPoints": "string", "buyingBehavior": "string"
+    "name": "string",
+    "demographics": "string",
+    "psychographics": "string",
+    "painPoints": "string",
+    "buyingBehavior": "string"
   }},
-  "opportunities": [{{ "lane": "string", "description": "string" }}],
+  "opportunities": [
+    {{
+      "lane": "string",
+      "description": "string"
+    }}
+  ],
   "viabilityScore": 82,
   "roadmap": [{{
-    "name": "string", "goals": "string", "resources": "string",
-    "timeline": "string", "risks": "string", "tools": "string", "cost": "string"
+    "name": "string",
+    "goals": "string",
+    "resources": "string",
+    "timeline": "string",
+    "risks": "string",
+    "tools": "string",
+    "cost": "string"
   }}]
-}}"""
-
-    try:
-        text = await run_in_threadpool(_call_claude, client, prompt, 4096)
-        result_json = json.loads(text)
-        return SurveyIntelligenceResponse(**result_json)
-    except Exception as e:
-        print(f"[AI] Survey intelligence error: {e}")
-        if "rate" in str(e).lower() or "429" in str(e):
-            raise HTTPException(status_code=429, detail="API rate limit reached, please try again shortly")
-        raise HTTPException(status_code=500, detail=f"Failed to generate survey intelligence: {str(e)}")
+}}
+"""
