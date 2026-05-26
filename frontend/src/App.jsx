@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import PageLoader from "./pages/PageLoader";
@@ -10,24 +10,24 @@ import { LoadingProvider, useLoading } from './context/LoadingContext';
 import DashboardLayout from './components/DashboardLayout';
 import ProtectedRoute from './components/ProtectedRoute';
 
-// ── Pages ────────────────────────────────────────────────────────
-import LandingPage from './pages/Landing';
-import LoginPage from './pages/Login';
-import RegisterPage from './pages/Register';
-import Dashboard from './pages/Dashboard';
-import SurveyList from './pages/SurveyList';
-import SurveyCreate from './pages/SurveyCreate';
-import SurveyEdit from './pages/SurveyEdit';
-import SurveyAnalytics from './pages/SurveyAnalytics';
-import SurveyRespond from './pages/SurveyRespond';
-import EmbedView from './pages/EmbedView';
-import TeamManagement from './pages/TeamManagement';
-import Settings from './pages/Settings';
-import ResetPassword from './pages/ResetPassword';
-import UpdatePassword from './pages/UpdatePassword';
-import AcceptInvite from './pages/AcceptInvite';
-import Pricing from './pages/Pricing';
-import Billing from './pages/Billing';
+// ── Lazy-loaded Pages ─────────────────────────────────────────────
+const LandingPage = lazy(() => import('./pages/Landing'));
+const LoginPage = lazy(() => import('./pages/Login'));
+const RegisterPage = lazy(() => import('./pages/Register'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const SurveyList = lazy(() => import('./pages/SurveyList'));
+const SurveyCreate = lazy(() => import('./pages/SurveyCreate'));
+const SurveyEdit = lazy(() => import('./pages/SurveyEdit'));
+const SurveyAnalytics = lazy(() => import('./pages/SurveyAnalytics'));
+const SurveyRespond = lazy(() => import('./pages/SurveyRespond'));
+const EmbedView = lazy(() => import('./pages/EmbedView'));
+const TeamManagement = lazy(() => import('./pages/TeamManagement'));
+const Settings = lazy(() => import('./pages/Settings'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
+const UpdatePassword = lazy(() => import('./pages/UpdatePassword'));
+const AcceptInvite = lazy(() => import('./pages/AcceptInvite'));
+const Pricing = lazy(() => import('./pages/Pricing'));
+const Billing = lazy(() => import('./pages/Billing'));
 import PaymentWall from './components/PaymentWall';
 
 import useAuthStore from './hooks/useAuth';
@@ -106,49 +106,51 @@ function AppRoutes() {
         }}
       />
 
-      <Routes>
-        {/* ── Public ── */}
-        {/* <Route path="/" element={initialized && user ? <Navigate to="/dashboard" replace /> : <LandingPage />} /> */}
-        <Route
-          path="/"
-          element={isAuth ? <Navigate to="/dashboard" replace /> : <LandingPage />}
-        />
-        <Route path="/login" element={isAuth ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
-        <Route path="/register" element={isAuth ? <Navigate to="/dashboard" replace /> : <RegisterPage />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/update-password" element={<UpdatePassword />} />
-        <Route path="/accept-invite" element={<AcceptInvite />} />
-        <Route path="/accept-invite/:token" element={<AcceptInvite />} />
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          {/* ── Public ── */}
+          {/* <Route path="/" element={initialized && user ? <Navigate to="/dashboard" replace /> : <LandingPage />} /> */}
+          <Route
+            path="/"
+            element={isAuth ? <Navigate to="/dashboard" replace /> : <LandingPage />}
+          />
+          <Route path="/login" element={isAuth ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
+          <Route path="/register" element={isAuth ? <Navigate to="/dashboard" replace /> : <RegisterPage />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/update-password" element={<UpdatePassword />} />
+          <Route path="/accept-invite" element={<AcceptInvite />} />
+          <Route path="/accept-invite/:token" element={<AcceptInvite />} />
 
-        {/* ── Public survey response (no auth needed) ── */}
-        <Route path="/s/:slug" element={<SurveyRespond />} />
-        <Route path="/embed/:slug" element={<EmbedView />} />
-        <Route path="/pricing" element={<Pricing />} />
+          {/* ── Public survey response (no auth needed) ── */}
+          <Route path="/s/:slug" element={<SurveyRespond />} />
+          <Route path="/embed/:slug" element={<EmbedView />} />
+          <Route path="/pricing" element={<Pricing />} />
 
-        {/* ── Protected app (all children require auth) ── */}
-        <Route element={<ProtectedRoute />}>
-          <Route element={<DashboardLayout />}>
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/surveys" element={<SurveyList />} />
-            <Route path="/surveys/new" element={<SurveyCreate />} />
-            <Route path="/surveys/:id/edit" element={<SurveyEdit />} />
-            <Route path="/surveys/:id/analytics" element={<SurveyAnalytics />} />
-            <Route path="/team" element={<TeamManagement />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/billing" element={<Billing />} />
+          {/* ── Protected app (all children require auth) ── */}
+          <Route element={<ProtectedRoute />}>
+            <Route element={<DashboardLayout />}>
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/surveys" element={<SurveyList />} />
+              <Route path="/surveys/new" element={<SurveyCreate />} />
+              <Route path="/surveys/:id/edit" element={<SurveyEdit />} />
+              <Route path="/surveys/:id/analytics" element={<SurveyAnalytics />} />
+              <Route path="/team" element={<TeamManagement />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/billing" element={<Billing />} />
+            </Route>
           </Route>
-        </Route>
 
-        {/* ── Fallback ── */}
-        <Route
-          path="*"
-          element={
-            <Navigate
-              to={isAuth ? "/dashboard" : "/"}
-              replace
-            />
-          }
-        />      </Routes>
+          {/* ── Fallback ── */}
+          <Route
+            path="*"
+            element={
+              <Navigate
+                to={isAuth ? "/dashboard" : "/"}
+                replace
+              />
+            }
+          />      </Routes>
+      </Suspense>
     </>
   );
 }
