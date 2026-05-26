@@ -103,7 +103,8 @@ def recent_surveys(
             .filter(SurveyResponse.survey_id == sv.id)
             .scalar() or 0
         )
-        from db.models import SurveyQuestion
+        # Using a join or subquery would be more efficient, but keeping it simple for now
+        
         q_count = db.query(func.count(SurveyQuestion.id)).filter(SurveyQuestion.survey_id == sv.id).scalar() or 0
         
         result.append({
