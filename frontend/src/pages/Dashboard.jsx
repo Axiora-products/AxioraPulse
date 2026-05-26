@@ -8,6 +8,10 @@ import { useLoading } from '../context/LoadingContext';
 import OnboardingChecklist from '../components/OnboardingChecklist';
 import { checkMilestone } from '../components/MilestoneToast';
 import DocumentFilesPane from '../components/DocumentFilesPane';
+import {
+  PanelRightClose,
+  PanelRightOpen
+} from 'lucide-react';
 
 // ── Animated counter hook ─────────────────────────────────────────────────
 function useCountUp(target, duration = 700) {
@@ -151,7 +155,7 @@ export default function Dashboard() {
             </motion.div>
           ))}
         </div>
-        
+
         {/* Onboarding */}
         <OnboardingChecklist surveyCount={stats.surveys} responseCount={stats.responses} teamCount={stats.team} />
 
@@ -224,7 +228,9 @@ export default function Dashboard() {
       </div>
 
       <aside className={`db-right-pane${isRightCollapsed ? ' collapsed' : ''}`}>
-        <DocumentFilesPane onCollapse={() => setIsRightCollapsed(true)} />
+        <>
+          <DocumentFilesPane onCollapse={() => setIsRightCollapsed(true)} />
+        </>
       </aside>
 
       {isRightCollapsed && (
@@ -233,10 +239,10 @@ export default function Dashboard() {
           className="right-expand-floating-btn"
           title="Expand Files"
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="11 17 6 12 11 7"/>
-            <polyline points="18 17 13 12 18 7"/>
-          </svg>
+          <PanelRightClose
+            size={18}
+            strokeWidth={2}
+          />
         </button>
       )}
 
@@ -267,29 +273,57 @@ export default function Dashboard() {
           transform: translateX(240px);
         }
         .right-expand-floating-btn {
-          position: absolute;
-          right: 20px;
-          top: 24px;
-          z-index: 295;
-          width: 32px;
-          height: 32px;
-          border-radius: 10px;
-          border: 1px solid rgba(255, 69, 0, 0.25);
-          background: var(--warm-white);
-          color: var(--espresso);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
-          box-shadow: 0 4px 14px rgba(22,15,8,0.08);
-          transition: all 0.2s ease;
-        }
-        .right-expand-floating-btn:hover {
-          color: var(--coral);
-          border-color: var(--coral);
-          background: rgba(255, 69, 0, 0.05);
-          transform: scale(1.05);
-        }
+  position: fixed;
+
+  top: 18px;
+  right: 18px;
+
+  z-index: 9999;
+
+  width: 42px;
+  height: 42px;
+
+  border-radius: 14px;
+
+  border: 1px solid rgba(255,90,0,0.16);
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255,255,255,0.96),
+      rgba(255,248,240,0.98)
+    );
+
+  backdrop-filter: blur(14px);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  color: var(--espresso);
+
+  box-shadow:
+    0 10px 28px rgba(22,15,8,0.10);
+
+  cursor: pointer;
+
+  transition: all 0.25s ease;
+}
+
+.right-expand-floating-btn:hover {
+  transform: translateY(-2px);
+
+  color: var(--coral);
+
+  border-color: rgba(255,90,0,0.28);
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255,255,255,1),
+      rgba(255,248,240,1)
+    );
+}
         .survey-card-link:hover .card-title { color: var(--coral) !important; }
 
         @media (max-width: 1200px) {
@@ -298,6 +332,38 @@ export default function Dashboard() {
           .db-right-pane.collapsed { transform: none; }
           .right-expand-floating-btn { display: none; }
         }
+          .right-collapse-btn {
+  width: 36px;
+  height: 36px;
+
+  border-radius: 12px;
+
+  border: 1px solid rgba(22,15,8,0.08);
+
+  background: rgba(255,255,255,0.7);
+
+  color: rgba(22,15,8,0.75);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  cursor: pointer;
+
+  backdrop-filter: blur(12px);
+
+  transition: all 0.25s ease;
+}
+
+.right-collapse-btn:hover {
+  color: var(--coral);
+
+  border-color: rgba(255,69,0,0.25);
+
+  background: rgba(255,69,0,0.08);
+
+  transform: translateY(-1px);
+}
       `}</style>
     </div>
   );
