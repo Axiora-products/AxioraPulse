@@ -127,19 +127,30 @@ def sync(
             if not tenant:
                 raise HTTPException(500, "Failed to create or find tenant")
 
-    user = UserProfile(
-        id=uuid.uuid4(),
-        email=email,
-        full_name=name,
-        cognito_sub=cognito_sub,
-        role=RoleEnum.super_admin,
-        tenant_id=tenant.id,
-        is_active=True,
-        account_status="active",
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
+    try:
+        user = UserProfile(
+            id=uuid.uuid4(),
+            email=email,
+            full_name=name,
+            cognito_sub=cognito_sub,
+            role=RoleEnum.super_admin,
+            tenant_id=tenant.id,
+            is_active=True,
+            account_status="active",
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    except Exception:
+        db.rollback()
+        # Race condition: another request created this user simultaneously — fetch and reuse
+        user = db.query(UserProfile).filter(UserProfile.cognito_sub == cognito_sub).first()
+        if not user:
+            user = db.query(UserProfile).filter(UserProfile.email == email).first()
+        if not user:
+            raise HTTPException(500, "Failed to create or find user")
+        
+        tenant = db.query(Tenant).filter(Tenant.id == user.tenant_id).first()
 
     return SyncResponse(
         user=UserProfileOut.model_validate(user),
