@@ -137,8 +137,8 @@ class Survey(Base):
     theme_color       = Column(String(20), default="#FF4500")
     slug              = Column(String(50), unique=True, nullable=False)
     status            = Column(SAEnum(SurveyStatusEnum), default=SurveyStatusEnum.draft)
-    tenant_id         = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
-    created_by        = Column(UUID(as_uuid=True), ForeignKey("user_profiles.id", ondelete="SET NULL"), nullable=True)
+    tenant_id         = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), index=True, nullable=False)
+    created_by        = Column(UUID(as_uuid=True), ForeignKey("user_profiles.id", ondelete="SET NULL"), index=True, nullable=True)
     created_at        = Column(DateTime(timezone=True), server_default=func.now())
 
     # relationships
@@ -217,7 +217,7 @@ class SurveyAnswer(Base):
 
     id           = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     response_id  = Column(UUID(as_uuid=True), ForeignKey("survey_responses.id", ondelete="CASCADE"),index=True, nullable=False)
-    question_id  = Column(UUID(as_uuid=True), ForeignKey("survey_questions.id", ondelete="CASCADE"), nullable=False)
+    question_id  = Column(UUID(as_uuid=True), ForeignKey("survey_questions.id", ondelete="CASCADE"), index=True, nullable=False)
     answer_value = Column(Text, nullable=True)
     answer_json  = Column(JSONB, nullable=True)
 
@@ -256,7 +256,7 @@ class SurveyShare(Base):
 
     id           = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     survey_id    = Column(UUID(as_uuid=True), ForeignKey("surveys.id", ondelete="CASCADE"), index=True, nullable=False)
-    shared_with  = Column(UUID(as_uuid=True), ForeignKey("user_profiles.id", ondelete="CASCADE"), nullable=False)
+    shared_with  = Column(UUID(as_uuid=True), ForeignKey("user_profiles.id", ondelete="CASCADE"), index=True, nullable=False)
     permission   = Column(SAEnum(SharePermissionEnum), default=SharePermissionEnum.viewer)
     created_at   = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -382,6 +382,6 @@ class UploadedFile(Base):
     file_size    = Column(Integer, nullable=True)
     extracted_text = Column(Text, nullable=True)
     upload_type  = Column(String(20), default="file")  # 'file' | 'audio'
-    tenant_id    = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
-    created_by   = Column(UUID(as_uuid=True), ForeignKey("user_profiles.id", ondelete="SET NULL"), nullable=True)
+    tenant_id    = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), index=True, nullable=False)
+    created_by   = Column(UUID(as_uuid=True), ForeignKey("user_profiles.id", ondelete="SET NULL"), index=True, nullable=True)
     created_at   = Column(DateTime(timezone=True), server_default=func.now())
