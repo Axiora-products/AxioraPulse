@@ -18,6 +18,7 @@ GET    /surveys/slug/{slug}          — PUBLIC fetch by slug (SurveyRespond)
 
 import uuid
 import re
+import json
 import random
 import string
 import os
@@ -102,6 +103,74 @@ def _upsert_questions(survey_id: uuid.UUID, questions: List[QuestionIn], db: Ses
             validation_rules=q.validation_rules,
         )
         db.add(row)
+
+
+# ── Auto-save draft ──────────────────────────────────────────────────────────
+
+@router.patch("/draft/auto-save")
+@limiter.limit("10/minute")
+def auto_save_draft(
+    request: Request,
+    body: dict,
+    current_user: UserProfile = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Incrementally save a prompt draft while the user is typing.
+    Creates a new draft survey or updates an existing one (by draft_id).
+    """
+    _require_creator(current_user)
+
+    draft_id = body.get("draft_id")
+    prompt_text = body.get("prompt", "")
+    mode = body.get("mode", "conversational")
+    custom_instruction = body.get("custom_instruction", "")
+    attachments = body.get("attachments", [])
+
+    if draft_id:
+        # Update existing draft
+        try:
+            survey = db.query(Survey).filter(
+                Survey.id == draft_id,
+                Survey.tenant_id == current_user.tenant_id,
+                Survey.status == SurveyStatusEnum.draft,
+            ).first()
+        except Exception:
+            survey = None
+
+        if survey:
+            survey.description = prompt_text
+            # Store mode and attachments in a JSONB-safe way via welcome_message
+        
+            meta = json.dumps({"mode": mode, "custom_instruction": custom_instruction, "attachments": attachments})
+            survey.welcome_message = meta
+            db.commit()
+            db.refresh(survey)
+            return {
+                "id": str(survey.id),
+                "saved_at": survey.created_at.isoformat() if survey.created_at else None,
+            }
+
+    # Create new draft
+    slug = _ensure_unique_slug(_gen_slug("auto-draft"), db)
+    survey = Survey(
+        id=uuid.uuid4(),
+        title="Untitled Draft",
+        description=prompt_text,
+        welcome_message=json.dumps({"mode": mode, "custom_instruction": custom_instruction, "attachments": attachments}),
+        slug=slug,
+        status=SurveyStatusEnum.draft,
+        tenant_id=current_user.tenant_id,
+        created_by=current_user.id,
+    )
+    db.add(survey)
+    db.commit()
+    db.refresh(survey)
+
+    return {
+        "id": str(survey.id),
+        "saved_at": survey.created_at.isoformat() if survey.created_at else None,
+    }
 
 
 # ── List ──────────────────────────────────────────────────────────────────────

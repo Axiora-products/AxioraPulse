@@ -32,16 +32,18 @@ docker run -e DATABASE_URL="postgresql://..." pulse-backend:latest
 
 ### Deploy to ECR
 ```bash
-# 1. Authenticate with ECR
-aws ecr get-login-password --region ap-south-1 | \
-  docker login --username AWS --password-stdin 217757579310.dkr.ecr.ap-south-1.amazonaws.com
+# 1. Authenticate with ECR (use correct profile: default for prod, dev for dev)
+AWS_ACCOUNT_ID=$(aws sts get-caller-identity --profile [profile] --query Account --output text)
+aws ecr get-login-password --region ap-south-1 --profile [profile] | \
+  docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.ap-south-1.amazonaws.com
 
 # 2. Tag image
 docker tag pulse-backend:latest \
-  217757579310.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-fastapi:latest
+  ${AWS_ACCOUNT_ID}.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-fastapi:latest
 
 # 3. Push to ECR
-docker push 217757579310.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-fastapi:latest
+docker push ${AWS_ACCOUNT_ID}.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-fastapi:latest
+```
 
 # 4. Update ECS (auto-deploy via CI/CD in main branch)
 ```

@@ -16,6 +16,9 @@ import os
 # Ensure the backend root is on the path so `db`, `routes`, etc. resolve
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -33,6 +36,7 @@ from routes.utils     import router as utils_router
 from routes.ai        import router as ai_router
 from routes.payments  import router as payments_router
 from routes.public    import router as public_router
+from routes.uploads   import router as uploads_router
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from fastapi.responses import JSONResponse
@@ -65,14 +69,7 @@ app.add_middleware(SlowAPIMiddleware)
 # allow_credentials=True is NOT required.
 app.add_middleware(
     CORSMiddleware,
-  
-    allow_origins=[
-        *([config.FRONTEND_URL] if config.FRONTEND_URL else []),
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
+    allow_origins=["*"],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -95,6 +92,7 @@ app.include_router(dashboard_router)
 app.include_router(utils_router)
 app.include_router(ai_router)
 app.include_router(payments_router)
+app.include_router(uploads_router)
 app.include_router(demo_router)
 app.include_router(public_router)
 

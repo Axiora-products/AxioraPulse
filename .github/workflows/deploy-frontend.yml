@@ -20,17 +20,14 @@ concurrency:
 
 env:
   AWS_REGION:       ap-south-1
-  ECR_REGISTRY:     217757579310.dkr.ecr.ap-south-1.amazonaws.com
   ECR_REPOSITORY:   axiora/pulse-frontend
-  ECS_CLUSTER:      axiora-pulse-cluster
-  ECS_SERVICE:      pulse-frontend-service
-  CONTAINER_NAME:   pulse-frontend
+  CONTAINER_NAME:   FrontendContainer
 
 jobs:
   build-and-deploy:
     if: github.event.inputs.confirm == 'CONFIRM'
     runs-on: ubuntu-latest
-    environment: production # Use GitHub Environments for protection
+    environment: production
     permissions:
       contents: read
       id-token: write
@@ -51,18 +48,26 @@ jobs:
 
       - name: Build and push frontend image
         id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
         run: |
-          IMAGE_URI=${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}
+          IMAGE_URI=$ECR_REGISTRY/${{ env.ECR_REPOSITORY }}
           docker build --platform linux/amd64 \
             --build-arg VITE_COGNITO_USER_POOL_ID=${{ secrets.VITE_COGNITO_USER_POOL_ID }} \
             --build-arg VITE_COGNITO_APP_CLIENT_ID=${{ secrets.VITE_COGNITO_APP_CLIENT_ID }} \
             --build-arg VITE_FRONTEND_URL=${{ secrets.VITE_FRONTEND_URL }} \
+            --build-arg VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL }} \
             -t $IMAGE_URI:latest \
-            -t $IMAGE_URI:${{ github.sha }} \
+            -t $IMAGE_URI:$IMAGE_TAG \
             ./frontend
           docker push $IMAGE_URI:latest
-          docker push $IMAGE_URI:${{ github.sha }}
-          echo "image=$IMAGE_URI:${{ github.sha }}" >> $GITHUB_OUTPUT
+          docker push $IMAGE_URI:$IMAGE_TAG
+          echo "image=$IMAGE_URI:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Logout of Amazon ECR
+        if: always()
+        run: docker logout ${{ steps.login-ecr.outputs.registry }}
 
       - name: Update ECS task definition with new image
         id: task-def
@@ -76,6 +81,6 @@ jobs:
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition:          ${{ steps.task-def.outputs.task-definition }}
-          service:                  ${{ env.ECS_SERVICE }}
-          cluster:                  ${{ env.ECS_CLUSTER }}
+          service:                  pulse-frontend-service-production
+          cluster:                  axiora-pulse-cluster-production
           wait-for-service-stability: true

@@ -4,14 +4,14 @@ import AISurveySuggestions from '../components/AISurveySuggestions';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import API from '../api/axios';
 import useAuthStore from '../hooks/useAuth';
-import { QUESTION_TYPES, hasPermission, SURVEY_STATUS, formatDate, isExpired } from '../lib/constants';
+import { QUESTION_TYPES, SHORT_SURVEY_RULES, estimateSurveyMinutes, getFormatDiversityScore, getQuestionWordCount, hasPermission, SURVEY_STATUS, formatDate, isExpired } from '../lib/constants';
 import toast from 'react-hot-toast';
 import { useLoading } from '../context/LoadingContext';
 import { Reorder, useDragControls } from 'framer-motion';
 import ConfirmModal from '../components/ConfirmModal';
 import HelpTip from '../components/HelpTip';
 
-const hasO = t => ['single_choice','multiple_choice','dropdown','ranking'].includes(t);
+const hasO = t => ['single_choice','multiple_choice','dropdown','ranking','emoji_reaction','swipe_choice','visual_choice'].includes(t);
 const isMx = t => t === 'matrix';
 
 function parseOpts(raw, forMatrix=false) {
@@ -35,6 +35,21 @@ function getPreviewSection(step, qsLen) {
   return 'Questions';
 }
 
+// Lightweight local scores for Analytics tab (no AI)
+function getLocalSurveyScores(title = '', description = '') {
+  const len = (title + description).length;
+  return {
+    marketDemandScore: Math.min(95, Math.max(60, 65 + (len % 25))),
+    pricingSensitivityScore: Math.min(90, Math.max(40, 45 + (title.length % 40))),
+    sentimentScore: Math.min(98, Math.max(75, 80 + (description.length % 15))),
+    viabilityScore: Math.min(96, Math.max(62, 67 + ((len * 3) % 25))),
+    successProbability: Math.min(95, Math.max(55, 58 + ((len * 7) % 30))),
+    responseRate: Math.min(88, Math.max(35, 42 + (len % 35))),
+    completionRate: Math.min(95, Math.max(50, 55 + (title.length % 35))),
+    customerInterestIndex: Math.min(96, Math.max(65, 70 + (description.length % 20))),
+  };
+}
+
 const STATUS_COLORS = { draft: { bg: 'rgba(22,15,8,0.07)', text: 'rgba(22,15,8,0.45)', dot: 'rgba(22,15,8,0.3)' }, active: { bg: 'rgba(30,122,74,0.1)', text: 'var(--sage)', dot: 'var(--sage)' }, paused: { bg: 'rgba(255,184,0,0.12)', text: '#A07000', dot: 'var(--saffron)' }, closed: { bg: 'rgba(214,59,31,0.08)', text: 'var(--terracotta)', dot: 'var(--terracotta)' } };
 
 export default function SurveyEdit() {
@@ -54,6 +69,145 @@ export default function SurveyEdit() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+
+  // AI-powered intelligence for Guidance + Roadmap tabs
+  const [aiIntel, setAiIntel] = useState(null);
+  const [aiIntelLoading, setAiIntelLoading] = useState(false);
+  const [aiIntelError, setAiIntelError] = useState(null);
+  const [locationCountry, setLocationCountry] = useState('');
+  const [locationState, setLocationState] = useState('');
+  const [locationSubmitted, setLocationSubmitted] = useState(false);
+
+  const toggleSetting = async (k, v) => {
+    setSv(p => ({ ...p, [k]: v }));
+    try {
+      await API.patch(`/surveys/${id}`, { [k]: v });
+      toast.success('Setting updated');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to save setting');
+      setSv(p => ({ ...p, [k]: !v }));
+    }
+  };
+
+  const generatePDF = () => {
+    if (!aiIntel) {
+      toast.error('Please visit the Guidance tab first to generate AI intelligence before downloading.');
+      return;
+    }
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <title>Investor Readiness Memo — ${sv.title}</title>
+  <style>
+    body { font-family: 'Georgia', serif; color: #160f08; line-height: 1.6; margin: 40px auto; max-width: 800px; padding: 20px; background: #fffbf4; }
+    h1 { font-family: 'Playfair Display', serif; font-size: 32px; font-weight: 900; letter-spacing: -1.5px; margin-bottom: 4px; color: #160f08; }
+    .subtitle { font-family: 'Syne', sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: #ff4500; margin-bottom: 32px; border-bottom: 1.5px solid #160f08; padding-bottom: 12px; }
+    .section { margin-bottom: 40px; background: #fff; border-radius: 14px; border: 1px solid rgba(22,15,8,0.08); padding: 28px; }
+    h2 { font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 700; margin-top: 0; margin-bottom: 16px; color: #ff4500; }
+    .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; font-size: 13px; }
+    .meta-item strong { display: block; font-family: 'Syne', sans-serif; font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(22,15,8,0.4); margin-bottom: 2px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; }
+    th { text-align: left; padding: 10px; background: #fdf5e8; font-family: 'Syne', sans-serif; font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(22,15,8,0.5); }
+    td { padding: 10px; border-bottom: 1px solid rgba(22,15,8,0.05); }
+    .phase-card { border-left: 3px solid #ff4500; padding-left: 16px; margin-bottom: 16px; }
+    .phase-title { font-family: 'Playfair Display', serif; font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+    .footer { text-align: center; font-family: 'Syne', sans-serif; font-size: 8px; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(22,15,8,0.3); margin-top: 48px; }
+  </style>
+</head>
+<body>
+  <h1>${sv.title}</h1>
+  <div class="subtitle">Investor Readiness & AI Market Intelligence Memo</div>
+
+  <div class="section">
+    <h2>Executive Summary</h2>
+    <div class="meta-grid">
+      <div class="meta-item"><strong>Survey Idea</strong>${sv.description || 'Not specified'}</div>
+      <div class="meta-item"><strong>AI Industry Classification</strong>${aiIntel.category}</div>
+      <div class="meta-item"><strong>Idea Viability Score</strong>${aiIntel.viabilityScore} / 100</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Competitor Landscape</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Company</th>
+          <th>Offering</th>
+          <th>Pricing</th>
+          <th>Strengths</th>
+          <th>Weaknesses</th>
+          <th>Differentiator</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${aiIntel.competitors.map(c => `
+          <tr>
+            <td><strong>${c.name}</strong></td>
+            <td>${c.offering}</td>
+            <td>${c.pricing}</td>
+            <td>${c.strengths}</td>
+            <td>${c.weaknesses}</td>
+            <td style="color:#ff4500">${c.diff}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>Target Customer Segment</h2>
+    <div class="meta-grid">
+      <div class="meta-item"><strong>Persona Name</strong>${aiIntel.persona.name}</div>
+      <div class="meta-item"><strong>Demographics</strong>${aiIntel.persona.demographics}</div>
+      <div class="meta-item"><strong>Psychographics</strong>${aiIntel.persona.psychographics}</div>
+      <div class="meta-item"><strong>Pain Points</strong>${aiIntel.persona.painPoints}</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Strategic Roadmap</h2>
+    ${aiIntel.roadmap.map((step, idx) => `
+      <div class="phase-card">
+        <div class="phase-title">Phase ${idx + 1}: ${step.name.split(': ')[1] || step.name}</div>
+        <div style="font-size: 13px;"><strong>Timeline:</strong> ${step.timeline} | <strong>Cost:</strong> ${step.cost}</div>
+        <div style="font-size: 13px; margin-top: 4px;">${step.goals}</div>
+      </div>
+    `).join('')}
+  </div>
+
+  <div class="footer">Generated by Axiora Pulse — SaaS Survey Intelligence Science</div>
+</body>
+</html>`;
+    const w = window.open('', '_blank');
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 600);
+  };
+
+  const fetchAIIntelligence = async (force = false) => {
+    if (aiIntelLoading) return;
+    if (aiIntel && !force) return;
+    setAiIntelLoading(true);
+    setAiIntelError(null);
+    try {
+      const payload = {
+        title: sv?.title || '',
+        description: sv?.description || '',
+        welcome_message: sv?.welcome_message || '',
+        questions: (qs || []).map(q => ({ text: q.question_text, type: q.question_type })),
+      };
+      const res = await API.post('/ai/survey-intelligence', payload);
+      setAiIntel(res.data);
+    } catch (err) {
+      console.error('[AI Intel]', err);
+      setAiIntelError(err.response?.data?.detail || 'Failed to generate intelligence. Please try again.');
+    } finally {
+      setAiIntelLoading(false);
+    }
+  };
 
   useEffect(() => { if (profile?.id) load(); else stopLoading(); }, [id, profile?.id]);
 
@@ -82,18 +236,18 @@ export default function SurveyEdit() {
   }
 
   const s = (k,v) => { setSv(p => ({...p,[k]:v})); setDirty(true); };
-  const sQ = (tid,k,v) => sQs(a => a.map(q => q._id===tid ? {...q,[k]:v} : q));
-  const addQ = () => sQs(a => [...a, { _id:'new_'+Math.random().toString(36).slice(2), question_text:'', question_type:'short_text', options:[], is_required:false, description:'' }]);
+  const sQ = (tid,k,v) => { sQs(a => a.map(q => q._id===tid ? {...q,[k]:v} : q)); setDirty(true); };
+  const addQ = () => { sQs(a => [...a, { _id:'new_'+Math.random().toString(36).slice(2), question_text:'', question_type:'short_text', options:[], is_required:false, description:'' }]); setDirty(true); };
   const delQ = tid => {
     if (qs.length <= 1) return toast.error('Need at least 1 question');
     // We don't delete individually on backend anymore, we batch update on Save.
     sQs(a => a.filter(q => q._id !== tid));
     setDirty(true);
   };
-  const moveQ = (tid,d) => sQs(a => { const i=a.findIndex(q=>q._id===tid); if((d===-1&&i===0)||(d===1&&i===a.length-1)) return a; const b=[...a]; [b[i],b[i+d]]=[b[i+d],b[i]]; return b; });
-  const addOpt = tid => sQs(a => a.map(q => q._id===tid ? {...q,options:[...(q.options||[]),{label:'',value:''}]} : q));
-  const sOpt = (tid,i,v) => sQs(a => a.map(q => { if(q._id!==tid) return q; const o=[...(q.options||[])]; o[i]={label:v,value:v.toLowerCase().replace(/\s+/g,'_')}; return {...q,options:o}; }));
-  const delOpt = (tid,i) => sQs(a => a.map(q => q._id!==tid ? q : {...q,options:q.options.filter((_,j)=>j!==i)}));
+  const moveQ = (tid,d) => { sQs(a => { const i=a.findIndex(q=>q._id===tid); if((d===-1&&i===0)||(d===1&&i===a.length-1)) return a; const b=[...a]; [b[i],b[i+d]]=[b[i+d],b[i]]; return b; }); setDirty(true); };
+  const addOpt = tid => { sQs(a => a.map(q => q._id===tid ? {...q,options:[...(q.options||[]),{label:'',value:''}]} : q)); setDirty(true); };
+  const sOpt = (tid,i,v,imageUrl) => { sQs(a => a.map(q => { if(q._id!==tid) return q; const o=[...(q.options||[])]; o[i]={...o[i],label:v,value:v.toLowerCase().replace(/\s+/g,'_'),...(imageUrl !== undefined ? { image_url:imageUrl } : {})}; return {...q,options:o}; })); setDirty(true); };
+  const delOpt = (tid,i) => { sQs(a => a.map(q => q._id!==tid ? q : {...q,options:q.options.filter((_,j)=>j!==i)})); setDirty(true); };
 
   async function save() {
     if (!sv.title.trim()) return toast.error('Title required');
@@ -202,15 +356,28 @@ export default function SurveyEdit() {
   function calcHealth() {
     let score=100;
     if (!sv.welcome_message) score-=5; if (!sv.expires_at) score-=5;
-    if (qs.length>15) score-=20; if (qs.filter(q=>q.is_required).length>3) score-=10;
-    if (qs.every(q=>q.question_type==='short_text')) score-=15;
+    if (qs.length>SHORT_SURVEY_RULES.defaultQuestionCount) score-=15;
+    if (estimateSurveyMinutes(qs)>SHORT_SURVEY_RULES.targetCompletionMinutes) score-=15;
+    if (qs.filter(q=>q.is_required).length>SHORT_SURVEY_RULES.preferredRequiredQuestionLimit) score-=10;
+    if (getFormatDiversityScore(qs)<3) score-=15;
+    if (qs.some(q=>getQuestionWordCount(q)>SHORT_SURVEY_RULES.maxHighSignalWords)) score-=10;
     return Math.max(0, Math.min(100, score));
   }
   const health = calcHealth();
   const healthColor = health>=80 ? 'var(--sage)' : health>=50 ? 'var(--saffron)' : 'var(--terracotta)';
   const tc = sv.theme_color || '#FF4500';
+  const estimatedMinutes = estimateSurveyMinutes(qs);
+  const conciseQuestionCount = qs.filter(q => getQuestionWordCount(q) <= SHORT_SURVEY_RULES.maxHighSignalWords).length;
+  const hasAdaptiveFormats = getFormatDiversityScore(qs) >= 3;
   const statusStyle = STATUS_COLORS[sv.status] || STATUS_COLORS.draft;
-  const TABS = [{ id:'details', n:'01', label:'Details' }, { id:'questions', n:'02', label:'Questions', count:qs.length }, { id:'settings', n:'03', label:'Settings' }];
+  const TABS = [
+    { id: 'details', n: '01', label: 'Details' },
+    { id: 'questions', n: '02', label: 'Questions', count: qs.length },
+    { id: 'guidance', n: '03', label: 'Guidance' },
+    { id: 'roadmap', n: '04', label: 'Roadmap' },
+    { id: 'execute', n: '05', label: 'Execute' },
+    { id: 'settings', n: '06', label: '⚙️' }
+  ];
   const curSection = getPreviewSection(previewStep, qs.length);
 
   // Health arc
@@ -327,6 +494,9 @@ export default function SurveyEdit() {
                     </div>
                   ))}
                 </div>
+                {q.question_type === 'visual_choice' && (q.options || []).map((o, j) => (
+                  <input key={`img-${j}`} value={o.image_url || ''} onChange={e=>sOpt(q._id,j,o.label,e.target.value)} placeholder={`Image URL for option ${j+1}`} style={{ ...INP, marginTop:8, padding:'9px 13px', fontSize:12, borderRadius:12 }} onFocus={fi} onBlur={fo}/>
+                ))}
                 <button onClick={()=>addOpt(q._id)} style={{ marginTop:10,display:'inline-flex',alignItems:'center',gap:7,fontFamily:"'Syne',sans-serif",fontSize:9,fontWeight:700,letterSpacing:'0.12em',textTransform:'uppercase',color:tc,background:'none',border:'none',cursor:'pointer',padding:'4px 0',transition:'opacity 0.15s' }}>
                   <span style={{ width:18,height:18,borderRadius:6,background:`${tc}14`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700 }}>+</span>
                   Add option
@@ -516,29 +686,24 @@ export default function SurveyEdit() {
             <span style={{ fontFamily:"'Syne',sans-serif",fontSize:9,fontWeight:700,letterSpacing:'0.18em',textTransform:'uppercase',color:'rgba(22,15,8,0.35)' }}>Edit</span>
           </div>
 
-          <div className="np-page-header" style={{ marginBottom: 32 }}>
-            <div>
-              <div style={{ display:'flex',alignItems:'center',gap:10,marginBottom:14 }}>
-                <div style={{ width:28,height:1.5,background:'var(--coral)',borderRadius:1 }}/>
-                <span style={{ fontFamily:"'Syne',sans-serif",fontSize:9,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:'var(--coral)' }}>Research Studio</span>
-                {/* Status badge */}
-                <div style={{ display:'flex',alignItems:'center',gap:5,padding:'4px 12px',borderRadius:999,background:statusStyle.bg }}>
-                  <div style={{ width:5,height:5,borderRadius:'50%',background:statusStyle.dot }}/>
-                  <span style={{ fontFamily:"'Syne',sans-serif",fontSize:8,fontWeight:700,letterSpacing:'0.14em',textTransform:'uppercase',color:statusStyle.text }}>{sv.status}</span>
-                </div>
-                {dirty && (
-                  <div style={{ display:'flex',alignItems:'center',gap:5,padding:'4px 12px',borderRadius:999,background:'rgba(255,184,0,0.12)' }}>
-                    <div style={{ width:5,height:5,borderRadius:'50%',background:'var(--saffron)',boxShadow:'0 0 8px rgba(255,184,0,0.5)' }}/>
-                    <span style={{ fontFamily:"'Syne',sans-serif",fontSize:8,fontWeight:700,letterSpacing:'0.14em',textTransform:'uppercase',color:'#A07000' }}>Unsaved</span>
-                  </div>
-                )}
+          <div className="np-page-header" style={{ display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:24,flexWrap:'wrap',gap:16 }}>
+            <div style={{ display:'flex',alignItems:'center',gap:10 }}>
+              <div style={{ width:28,height:1.5,background:'var(--coral)',borderRadius:1 }}/>
+              <span style={{ fontFamily:"'Syne',sans-serif",fontSize:9,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:'var(--coral)' }}>Research Studio</span>
+              {/* Status badge */}
+              <div style={{ display:'flex',alignItems:'center',gap:5,padding:'4px 12px',borderRadius:999,background:statusStyle.bg }}>
+                <div style={{ width:5,height:5,borderRadius:'50%',background:statusStyle.dot }}/>
+                <span style={{ fontFamily:"'Syne',sans-serif",fontSize:8,fontWeight:700,letterSpacing:'0.14em',textTransform:'uppercase',color:statusStyle.text }}>{sv.status}</span>
               </div>
-              <h1 style={{ fontFamily:"'Playfair Display', serif",fontWeight:900,fontSize:'clamp(34px,4vw,56px)',letterSpacing:'-2.5px',color:'var(--espresso)',margin:0,lineHeight:0.95,maxWidth:600 }}>
-                {sv.title || <em style={{opacity:0.3}}>Untitled Survey</em>}
-              </h1>
+              {dirty && (
+                <div style={{ display:'flex',alignItems:'center',gap:5,padding:'4px 12px',borderRadius:999,background:'rgba(255,184,0,0.12)' }}>
+                  <div style={{ width:5,height:5,borderRadius:'50%',background:'var(--saffron)',boxShadow:'0 0 8px rgba(255,184,0,0.5)' }}/>
+                  <span style={{ fontFamily:"'Syne',sans-serif",fontSize:8,fontWeight:700,letterSpacing:'0.14em',textTransform:'uppercase',color:'#A07000' }}>Unsaved</span>
+                </div>
+              )}
             </div>
 
-            <div style={{ display:'flex',gap:8,flexShrink:0,flexWrap:'wrap' }}>
+            <div style={{ display:'flex',gap:8,flexShrink:0,alignItems:'center' }}>
               <button onClick={openPreview} style={{ display:'flex',alignItems:'center',gap:8,padding:'11px 20px',borderRadius:999,border:'1.5px solid rgba(22,15,8,0.12)',background:'rgba(255,255,255,0.6)',backdropFilter:'blur(8px)',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:10,letterSpacing:'0.12em',textTransform:'uppercase',color:'rgba(22,15,8,0.5)',cursor:'pointer',transition:'all 0.2s' }}
                 onMouseEnter={e=>{e.currentTarget.style.borderColor='rgba(22,15,8,0.25)';e.currentTarget.style.color='var(--espresso)';e.currentTarget.style.background='rgba(255,255,255,0.9)';}}
                 onMouseLeave={e=>{e.currentTarget.style.borderColor='rgba(22,15,8,0.12)';e.currentTarget.style.color='rgba(22,15,8,0.5)';e.currentTarget.style.background='rgba(255,255,255,0.6)';}}>
@@ -549,7 +714,7 @@ export default function SurveyEdit() {
                 onMouseEnter={e=>{e.currentTarget.style.borderColor='rgba(22,15,8,0.25)';e.currentTarget.style.color='var(--espresso)';e.currentTarget.style.background='rgba(255,255,255,0.9)';}}
                 onMouseLeave={e=>{e.currentTarget.style.borderColor='rgba(22,15,8,0.12)';e.currentTarget.style.color='rgba(22,15,8,0.5)';e.currentTarget.style.background='rgba(255,255,255,0.6)';}}>
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-                Copy link
+                Copy Link
               </button>
               {isEditing && (
                 <button onClick={save} disabled={busy} style={{ display:'flex',alignItems:'center',gap:8,padding:'11px 24px',borderRadius:999,border:'none',background:'var(--espresso)',color:'var(--cream)',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:10,letterSpacing:'0.12em',textTransform:'uppercase',cursor:'pointer',transition:'all 0.25s',opacity:busy?0.45:1,boxShadow:'0 6px 24px rgba(22,15,8,0.25)' }}
@@ -610,18 +775,25 @@ export default function SurveyEdit() {
         <div>
           {/* ── EDITORIAL TAB NAVIGATION ── */}
           <div style={{ display:'flex',gap:0,marginBottom:40,borderBottom:'1px solid rgba(22,15,8,0.07)' }}>
-            {TABS.map(t => (
-              <button key={t.id} onClick={() => setTab(t.id)}
-                className={`se-tab-btn${tab === t.id ? ' active' : ''}`}
-                style={{ display:'flex',alignItems:'center',gap:9,padding:'14px 28px 14px 0',border:'none',background:'none',cursor:'pointer',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:10,letterSpacing:'0.14em',textTransform:'uppercase',color:tab===t.id?'var(--espresso)':'rgba(22,15,8,0.32)',transition:'color 0.2s',marginRight:4 }}>
-                <span style={{ fontFamily:"'Playfair Display',serif",fontWeight:900,fontSize:11,letterSpacing:'0.05em',color:tab===t.id?tc:'rgba(22,15,8,0.2)',transition:'color 0.2s' }}>{t.n}</span>
-                <span style={{ width:1,height:10,background:'rgba(22,15,8,0.1)',display:'block' }}/>
-                {t.label}
-                {t.count !== undefined && (
-                  <span style={{ minWidth:18,height:18,borderRadius:999,background:tab===t.id?`${tc}15`:'rgba(22,15,8,0.07)',display:'flex',alignItems:'center',justifyContent:'center',padding:'0 5px',fontSize:9,fontFamily:"'Syne',sans-serif",fontWeight:700,color:tab===t.id?tc:'rgba(22,15,8,0.35)' }}>{t.count}</span>
-                )}
-              </button>
-            ))}
+            {TABS.map(t => {
+              const isSettings = t.id === 'settings';
+              return (
+                <button key={t.id} onClick={() => setTab(t.id)}
+                  className={`se-tab-btn${tab === t.id ? ' active' : ''}`}
+                  style={{ display:'flex',alignItems:'center',gap:isSettings ? 0 : 9,padding:isSettings ? '14px 14px' : '14px 28px 14px 0',border:'none',background:'none',cursor:'pointer',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:isSettings ? 14 : 10,letterSpacing:'0.14em',textTransform:'uppercase',color:tab===t.id?'var(--espresso)':'rgba(22,15,8,0.32)',transition:'color 0.2s',marginRight:4 }}>
+                  {!isSettings && (
+                    <>
+                      <span style={{ fontFamily:"'Playfair Display',serif",fontWeight:900,fontSize:11,letterSpacing:'0.05em',color:tab===t.id?tc:'rgba(22,15,8,0.2)',transition:'color 0.2s' }}>{t.n}</span>
+                      <span style={{ width:1,height:10,background:'rgba(22,15,8,0.1)',display:'block' }}/>
+                    </>
+                  )}
+                  {t.label}
+                  {t.count !== undefined && (
+                    <span style={{ minWidth:18,height:18,borderRadius:999,background:tab===t.id?`${tc}15`:'rgba(22,15,8,0.07)',display:'flex',alignItems:'center',justifyContent:'center',padding:'0 5px',fontSize:9,fontFamily:"'Syne',sans-serif",fontWeight:700,color:tab===t.id?tc:'rgba(22,15,8,0.35)' }}>{t.count}</span>
+                  )}
+                </button>
+              );
+            })}
           </div>
 
           {/* ── DETAILS TAB ── */}
@@ -670,6 +842,21 @@ export default function SurveyEdit() {
           {/* ── QUESTIONS TAB ── */}
           {tab === 'questions' && (
             <div style={{ display:'flex',flexDirection:'column',gap:16 }}>
+              {isEditing && (
+                <div style={{ display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))',gap:10 }}>
+                  {[
+                    [`${SHORT_SURVEY_RULES.defaultQuestionCount}`, 'default questions'],
+                    [`~${estimatedMinutes} min`, 'estimated time'],
+                    [`${conciseQuestionCount}/${qs.length}`, 'concise'],
+                    [hasAdaptiveFormats ? 'Balanced' : 'Mix formats', 'adaptive flow'],
+                  ].map(([value, label]) => (
+                    <div key={label} style={{ background:'var(--warm-white)',border:'1.5px solid rgba(22,15,8,0.07)',borderRadius:18,padding:'14px 16px' }}>
+                      <div style={{ fontFamily:"'Playfair Display',serif",fontWeight:900,fontSize:20,color:tc,lineHeight:1 }}>{value}</div>
+                      <div style={{ fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:8,letterSpacing:'0.12em',textTransform:'uppercase',color:'rgba(22,15,8,0.32)',marginTop:6 }}>{label}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
               {isEditing ? (
                 <Reorder.Group axis="y" values={qs} onReorder={sQs} style={{ listStyle:'none',padding:0,margin:0,display:'flex',flexDirection:'column',gap:16 }}>
                   {qs.map((q, i) => (
@@ -715,9 +902,82 @@ export default function SurveyEdit() {
                     Add Question
                   </button>
                   <AISurveySuggestions survey={sv} questions={qs} tc={tc}
-                    onAdd={q=>sQs(a=>[...a,{_id:'new_'+Math.random().toString(36).slice(2),question_text:q.question_text,question_type:q.question_type,options:q.options||[],is_required:false,description:q.description||''}])}/>
+                    onAdd={q=>{ sQs(a=>[...a,{_id:'new_'+Math.random().toString(36).slice(2),question_text:q.question_text,question_type:q.question_type,options:q.options||(isMx(q.question_type)?{ rows: [], columns: [] }:[]),is_required:false,description:q.description||''}]); setDirty(true); }}/>
                 </>
               )}
+            </div>
+          )}
+
+          {/* ── EXECUTE TAB ── */}
+          {tab === 'execute' && (
+            <div style={{ display:'flex',flexDirection:'column',gap:32 }}>
+              {/* PDF report card */}
+              <div className="q-card" style={{ background:'var(--espresso)',color:'var(--cream)',borderRadius:24,padding:32,position:'relative',overflow:'hidden',boxShadow:'0 16px 40px rgba(22,15,8,0.15)' }}>
+                <div style={{ position:'absolute',right:-40,top:-40,width:180,height:180,borderRadius:'50%',background:`radial-gradient(circle,${tc}35,transparent 70%)`,pointerEvents:'none' }}/>
+                <div style={{ position:'relative',zIndex:1,display:'flex',justifyContent:'space-between',alignItems:'center',gap:24,flexWrap:'wrap' }}>
+                  <div style={{ flex:1 }}>
+                    <span style={{ fontFamily:"'Syne',sans-serif",fontSize:9,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',color:tc,marginBottom:8,display:'block' }}>Fundraising Prep</span>
+                    <h2 style={{ fontFamily:"'Playfair Display',serif",fontWeight:900,fontSize:26,lineHeight:1.15,marginBottom:8 }}>Investor Readiness Report</h2>
+                    <p style={{ fontFamily:"'Fraunces',serif",fontWeight:300,fontSize:14,color:'rgba(255,251,244,0.65)',lineHeight:1.6,margin:0,maxWidth:520 }}>
+                      Export a comprehensive AI-powered investment memo containing your competitor landscape, target customer personas, and strategic roadmap formatted specifically for early-stage venture capital review.
+                    </p>
+                  </div>
+                  <button onClick={generatePDF}
+                    style={{ padding:'14px 28px',borderRadius:999,background:'#fff',border:'none',color:'var(--espresso)',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:10,letterSpacing:'0.12em',textTransform:'uppercase',cursor:'pointer',transition:'all 0.2s',boxShadow:'0 4px 18px rgba(255,255,255,0.15)',display:'flex',alignItems:'center',gap:8 }}
+                    onMouseEnter={e=>{e.currentTarget.style.background=tc;e.currentTarget.style.color='#fff';}}
+                    onMouseLeave={e=>{e.currentTarget.style.background='#fff';e.currentTarget.style.color='var(--espresso)';}}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Download PDF
+                  </button>
+                </div>
+              </div>
+
+              {/* Mentorship / Contact a Mentor */}
+              <div style={{ background:'var(--warm-white)',borderRadius:22,border:'1.5px solid rgba(22,15,8,0.07)',padding:32 }}>
+                <div style={{ display:'flex',alignItems:'center',gap:14,marginBottom:24 }}>
+                  <div style={{ width:38,height:38,borderRadius:12,background:'rgba(22,15,8,0.04)',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--espresso)',fontSize:18 }}>🎓</div>
+                  <div>
+                    <h2 style={{ fontFamily:"'Playfair Display',serif",fontWeight:700,fontSize:20,color:'var(--espresso)',margin:0 }}>Contact a Mentor</h2>
+                    <p style={{ fontFamily:"'Fraunces',serif",fontWeight:300,fontSize:13,color:'rgba(22,15,8,0.45)',margin:0 }}>Connect with industry-tested operators to scale your survey insights</p>
+                  </div>
+                </div>
+
+                <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:22 }} className="se-2col">
+                  {/* Option 1 */}
+                  <div style={{ background:'var(--cream-deep)',borderRadius:18,padding:24,display:'flex',flexDirection:'column',justifyContent:'space-between',alignItems:'flex-start',border:'1px solid rgba(22,15,8,0.04)' }}>
+                    <div>
+                      <div style={{ fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:10,letterSpacing:'0.12em',textTransform:'uppercase',color:tc,marginBottom:8 }}>1-on-1 Office Hours</div>
+                      <h3 style={{ fontFamily:"'Playfair Display',serif",fontWeight:700,fontSize:18,color:'var(--espresso)',marginBottom:6 }}> Mentor Consultation Sessions</h3>
+                      <p style={{ fontFamily:"'Fraunces',serif",fontWeight:300,fontSize:13,color:'rgba(22,15,8,0.55)',lineHeight:1.5,margin:'0 0 20px' }}>
+                        Book a consultation session to discuss survey insights, challenges, and recommendations based on your needs.
+                      </p>
+                    </div>
+                    <button onClick={() => toast.success('Booking system opening...')}
+                      style={{ padding:'8px 18px',borderRadius:999,border:`1.5px solid var(--espresso)`,background:'transparent',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:9,letterSpacing:'0.1em',textTransform:'uppercase',color:'var(--espresso)',cursor:'pointer',transition:'all 0.2s' }}
+                      onMouseEnter={e=>{e.currentTarget.style.background='var(--espresso)';e.currentTarget.style.color='#fff';}}
+                      onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.color='var(--espresso)';}}>
+                      Schedule Call
+                    </button>
+                  </div>
+
+                  {/* Option 2 */}
+                  <div style={{ background:'var(--cream-deep)',borderRadius:18,padding:24,display:'flex',flexDirection:'column',justifyContent:'space-between',alignItems:'flex-start',border:'1px solid rgba(22,15,8,0.04)' }}>
+                    <div>
+                      <div style={{ fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:10,letterSpacing:'0.12em',textTransform:'uppercase',color:tc,marginBottom:8 }}>Investor Outreach</div>
+                      <h3 style={{ fontFamily:"'Playfair Display',serif",fontWeight:700,fontSize:18,color:'var(--espresso)',marginBottom:6 }}>Pitch Deck Consultation</h3>
+                      <p style={{ fontFamily:"'Fraunces',serif",fontWeight:300,fontSize:13,color:'rgba(22,15,8,0.55)',lineHeight:1.5,margin:'0 0 20px' }}>
+                        Receive expert redlines on your pitch deck and value proposition from active seed investors. Includes qualitative scorecards.
+                      </p>
+                    </div>
+                    <button onClick={() => toast.success('Outreach console loading...')}
+                      style={{ padding:'8px 18px',borderRadius:999,border:`1.5px solid var(--espresso)`,background:'transparent',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:9,letterSpacing:'0.1em',textTransform:'uppercase',color:'var(--espresso)',cursor:'pointer',transition:'all 0.2s' }}
+                      onMouseEnter={e=>{e.currentTarget.style.background='var(--espresso)';e.currentTarget.style.color='#fff';}}
+                      onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.color='var(--espresso)';}}>
+                      Submit Deck
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -730,9 +990,9 @@ export default function SurveyEdit() {
                 { k:'show_progress_bar',l:'Show progress bar',d:'Display a completion indicator to respondents',ico:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>},
               ].map(x => (
                 <div key={x.k}
-                  style={{ display:'flex',alignItems:'center',justifyContent:'space-between',padding:'22px 26px',background:'var(--warm-white)',borderRadius:22,border:'1.5px solid rgba(22,15,8,0.07)',cursor:isEditing?'pointer':'default',transition:'all 0.25s',position:'relative',overflow:'hidden' }}
-                  onClick={()=>{if(isEditing)s(x.k,!sv[x.k]);}}
-                  onMouseEnter={e=>{if(isEditing){e.currentTarget.style.borderColor='rgba(22,15,8,0.14)';e.currentTarget.style.background='#fff';e.currentTarget.style.boxShadow='0 6px 28px rgba(22,15,8,0.06)';}}}
+                  style={{ display:'flex',alignItems:'center',justifyContent:'space-between',padding:'22px 26px',background:'var(--warm-white)',borderRadius:22,border:'1.5px solid rgba(22,15,8,0.07)',cursor:'pointer',transition:'all 0.25s',position:'relative',overflow:'hidden' }}
+                  onClick={()=>{ toggleSetting(x.k, !sv[x.k]); }}
+                  onMouseEnter={e=>{e.currentTarget.style.borderColor='rgba(22,15,8,0.14)';e.currentTarget.style.background='#fff';e.currentTarget.style.boxShadow='0 6px 28px rgba(22,15,8,0.06)';}}
                   onMouseLeave={e=>{e.currentTarget.style.borderColor='rgba(22,15,8,0.07)';e.currentTarget.style.background='var(--warm-white)';e.currentTarget.style.boxShadow='none';}}>
                   <div style={{ position:'absolute',left:0,top:0,bottom:0,width:3,background:sv[x.k]?`linear-gradient(180deg,${tc},${tc}50)`:'transparent',transition:'background 0.3s' }}/>
                   <div style={{ display:'flex',alignItems:'center',gap:18,paddingLeft:8 }}>
@@ -742,12 +1002,11 @@ export default function SurveyEdit() {
                       <div style={{ fontFamily:"'Fraunces',serif",fontWeight:300,fontSize:13,color:'rgba(22,15,8,0.42)' }}>{x.d}</div>
                     </div>
                   </div>
-                  <div style={{ width:46,height:26,borderRadius:999,background:sv[x.k]?tc:'rgba(22,15,8,0.12)',position:'relative',transition:'background 0.25s',flexShrink:0,opacity:isEditing?1:0.65 }}>
+                  <div style={{ width:46,height:26,borderRadius:999,background:sv[x.k]?tc:'rgba(22,15,8,0.12)',position:'relative',transition:'background 0.25s',flexShrink:0 }}>
                     <div style={{ position:'absolute',width:20,height:20,borderRadius:'50%',background:'#fff',top:3,left:sv[x.k]?23:3,transition:'left 0.25s',boxShadow:'0 1px 6px rgba(22,15,8,0.2)' }}/>
                   </div>
                 </div>
               ))}
-              {!isEditing && <p style={{ fontFamily:"'Syne',sans-serif",fontSize:9,fontWeight:700,letterSpacing:'0.1em',textTransform:'uppercase',color:'rgba(22,15,8,0.25)',textAlign:'center',paddingTop:4 }}>Read-only — click "Edit Survey" to make changes.</p>}
 
               {/* ── INTERNAL TEAM SHARING ── */}
               <div style={{ marginTop:24,padding:'24px 26px',background:'var(--warm-white)',borderRadius:22,border:'1.5px solid rgba(22,15,8,0.07)' }}>
@@ -813,10 +1072,270 @@ export default function SurveyEdit() {
                   )}
                 </div>
               </div>
-              {!isEditing && <p style={{ fontFamily:"'Syne',sans-serif",fontSize:9,fontWeight:700,letterSpacing:'0.1em',textTransform:'uppercase',color:'rgba(22,15,8,0.25)',textAlign:'center',paddingTop:4 }}>Read-only — click "Edit Survey" to make changes.</p>}
             </div>
           )}
-        </div>{/* end left */}
+        
+          {/* ── GUIDANCE TAB ── */}
+          {tab === 'guidance' && (() => {
+            const Skel = ({ w = '100%', h = 14, mb = 8 }) => <div style={{ width: w, height: h, borderRadius: 8, background: 'rgba(22,15,8,0.06)', marginBottom: mb, animation: 'pulse 1.5s ease-in-out infinite' }}/>;
+            
+            if (!locationSubmitted) {
+              return (
+                <div style={{ background:'var(--warm-white)',borderRadius:22,border:'1.5px solid rgba(22,15,8,0.07)',padding:40,textAlign:'center',boxShadow:'0 8px 32px rgba(22,15,8,0.03)' }}>
+                  <div style={{ width:56,height:56,borderRadius:16,background:'rgba(255,184,0,0.1)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 24px',fontSize:24,color:'var(--saffron)' }}>📍</div>
+                  <h2 style={{ fontFamily:"'Playfair Display',serif",fontWeight:900,fontSize:24,color:'var(--espresso)',marginBottom:8 }}>Define Target Market Geography</h2>
+                  <p style={{ fontFamily:"'Fraunces',serif",fontWeight:300,fontSize:14,color:'rgba(22,15,8,0.5)',lineHeight:1.6,maxWidth:420,margin:'0 auto 32px' }}>
+                    Specify the country and state/region to analyze competitors, localized target customer personas, and strategic milestone steps.
+                  </p>
+                  
+                  <div style={{ display:'flex',flexDirection:'column',gap:18,maxWidth:400,margin:'0 auto 32px',textAlign:'left' }}>
+                    <div>
+                      <label style={LBL}>Target Country</label>
+                      <input type="text" placeholder="e.g. United States, India, Germany" value={locationCountry} onChange={e=>setLocationCountry(e.target.value)} style={INP} onFocus={fi} onBlur={fo}/>
+                    </div>
+                    <div>
+                      <label style={LBL}>Target State / Region</label>
+                      <input type="text" placeholder="e.g. California, Telangana, Bavaria" value={locationState} onChange={e=>setLocationState(e.target.value)} style={INP} onFocus={fi} onBlur={fo}/>
+                    </div>
+                  </div>
+
+                  <button onClick={() => {
+                    if (!locationCountry.trim() || !locationState.trim()) {
+                      toast.error('Please fill in both Country and State/Region.');
+                      return;
+                    }
+                    setLocationSubmitted(true);
+                    fetchAIIntelligence(true, locationCountry, locationState);
+                  }}
+                    style={{ padding:'14px 32px',borderRadius:999,background:'var(--espresso)',color:'var(--cream)',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:11,letterSpacing:'0.12em',textTransform:'uppercase',border:'none',cursor:'pointer',transition:'all 0.25s',boxShadow:'0 6px 20px rgba(22,15,8,0.15)' }}
+                    onMouseEnter={e=>{e.currentTarget.style.background=tc;e.currentTarget.style.boxShadow=`0 10px 30px ${tc}40`;}}
+                    onMouseLeave={e=>{e.currentTarget.style.background='var(--espresso)';e.currentTarget.style.boxShadow='0 6px 20px rgba(22,15,8,0.15)';}}>
+                    ✦ Generate Localized Market Intel
+                  </button>
+                </div>
+              );
+            }
+
+            return (
+              <div style={{ display:'flex',flexDirection:'column',gap:32 }}>
+                {/* Header + Regenerate */}
+                <div style={{ padding:'24px 28px',background:'rgba(255,184,0,0.07)',borderRadius:22,border:'1.5px solid rgba(255,184,0,0.15)',display:'flex',alignItems:'center',justifyContent:'space-between',gap:18,flexWrap:'wrap' }}>
+                  <div style={{ display:'flex',alignItems:'center',gap:18 }}>
+                    <div style={{ width:48,height:48,borderRadius:14,background:'var(--saffron)',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--espresso)',fontSize:20 }}>💡</div>
+                    <div>
+                      <div style={{ fontFamily:"'Playfair Display',serif",fontWeight:700,fontSize:18,color:'var(--espresso)',marginBottom:4 }}>
+                        {aiIntel ? `Intelligence Classification: ${aiIntel.category}` : 'AI Market Intelligence'}
+                      </div>
+                      <div style={{ fontFamily:"'Fraunces',serif",fontWeight:300,fontSize:13,color:'rgba(22,15,8,0.6)',display:'flex',alignItems:'center',gap:8,flexWrap:'wrap' }}>
+                        <span>Target Market: <strong>${locationState}, ${locationCountry}</strong></span>
+                        <button onClick={() => setLocationSubmitted(false)} style={{ background:'none',border:'none',color:tc,fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:9,letterSpacing:'0.05em',textTransform:'uppercase',cursor:'pointer',padding:0,textDecoration:'underline' }}>✎ Change</button>
+                      </div>
+                    </div>
+                  </div>
+                  {aiIntel && (
+                    <button onClick={() => fetchAIIntelligence(true)} disabled={aiIntelLoading}
+                      style={{ flexShrink:0,padding:'8px 18px',borderRadius:999,border:`1.5px solid ${tc}`,background:'transparent',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:9,letterSpacing:'0.12em',textTransform:'uppercase',color:tc,cursor:'pointer',transition:'all 0.2s',opacity:aiIntelLoading?0.5:1 }}
+                      onMouseEnter={e=>{if(!aiIntelLoading){e.currentTarget.style.background=tc;e.currentTarget.style.color='#fff';}}}
+                      onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.color=tc;}}>
+                      {aiIntelLoading ? '⟳ Generating…' : '⟳ Regenerate'}
+                    </button>
+                  )}
+                </div>
+
+                {aiIntelError && (
+                  <div style={{ padding:'20px 24px',background:'rgba(214,59,31,0.06)',borderRadius:18,border:'1.5px solid rgba(214,59,31,0.15)',display:'flex',alignItems:'center',gap:14 }}>
+                    <span style={{ fontSize:20 }}>⚠️</span>
+                    <div>
+                      <div style={{ fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:11,color:'var(--terracotta)',marginBottom:4 }}>{aiIntelError}</div>
+                      <button onClick={() => fetchAIIntelligence(true)} style={{ fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:9,letterSpacing:'0.1em',textTransform:'uppercase',color:tc,background:'none',border:'none',cursor:'pointer',padding:0,textDecoration:'underline' }}>Try Again</button>
+                    </div>
+                  </div>
+                )}
+
+                {aiIntelLoading && !aiIntel && (
+                  <>
+                    <style>{`@keyframes pulse { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }`}</style>
+                    <div style={{ background:'var(--warm-white)',borderRadius:22,border:'1.5px solid rgba(22,15,8,0.07)',padding:26 }}>
+                      <Skel w="40%" h={20} mb={16}/>{[1,2,3,4,5].map(i => <Skel key={i} w="100%" h={36} mb={6}/>)}
+                    </div>
+                    <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:22 }}>
+                      <div style={{ background:'var(--warm-white)',borderRadius:22,border:'1.5px solid rgba(22,15,8,0.07)',padding:26 }}>
+                        <Skel w="60%" h={18} mb={20}/>{[1,2,3,4].map(i => <Skel key={i} w="90%" mb={12}/>)}
+                      </div>
+                      <div style={{ background:'var(--warm-white)',borderRadius:22,border:'1.5px solid rgba(22,15,8,0.07)',padding:26 }}>
+                        <Skel w="60%" h={18} mb={20}/>{[1,2,3].map(i => <Skel key={i} w="85%" mb={14}/>)}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {aiIntel && (<>
+                  {/* Competitors Table */}
+                  <div style={{ background:'var(--warm-white)',borderRadius:22,border:'1.5px solid rgba(22,15,8,0.07)',padding:26,overflow:'hidden' }}>
+                    <div style={{ display:'flex',alignItems:'center',gap:10,marginBottom:20 }}>
+                      <div style={{ width:32,height:32,borderRadius:10,background:'rgba(22,15,8,0.05)',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--espresso)' }}>📊</div>
+                      <div>
+                        <div style={{ fontFamily:"'Playfair Display',serif",fontWeight:700,fontSize:17,color:'var(--espresso)' }}>Competitor Landscape</div>
+                        <div style={{ fontFamily:"'Fraunces',serif",fontWeight:300,fontSize:12,color:'rgba(22,15,8,0.4)' }}>AI-analyzed competitors relevant to your survey concept</div>
+                      </div>
+                    </div>
+                    <div style={{ overflowX:'auto' }}>
+                      <table style={{ width:'100%',borderCollapse:'collapse',fontSize:13 }}>
+                        <thead><tr style={{ borderBottom:'2px solid rgba(22,15,8,0.08)' }}>
+                          {['Company','Offering','Pricing','Strengths','Weaknesses','Differentiator','Share'].map(h=>(<th key={h} style={{ fontFamily:"'Syne',sans-serif",fontSize:9,fontWeight:700,letterSpacing:'0.1em',textTransform:'uppercase',color:'rgba(22,15,8,0.4)',textAlign:'left',padding:12 }}>{h}</th>))}
+                        </tr></thead>
+                        <tbody>{aiIntel.competitors.map((c,idx)=>(<tr key={idx} style={{ borderBottom:'1.5px solid rgba(22,15,8,0.04)' }}>
+                          <td style={{ padding:14,fontFamily:"'Syne',sans-serif",fontWeight:700,color:'var(--espresso)' }}>{c.name}</td>
+                          <td style={{ padding:14,fontFamily:"'Fraunces',serif",fontWeight:300 }}>{c.offering}</td>
+                          <td style={{ padding:14,fontFamily:"'Fraunces',serif",fontWeight:300,whiteSpace:'nowrap' }}>{c.pricing}</td>
+                          <td style={{ padding:14,fontFamily:"'Fraunces',serif",fontWeight:300 }}>{c.strengths}</td>
+                          <td style={{ padding:14,fontFamily:"'Fraunces',serif",fontWeight:300 }}>{c.weaknesses}</td>
+                          <td style={{ padding:14,fontFamily:"'Fraunces',serif",fontWeight:300,color:tc }}>{c.diff}</td>
+                          <td style={{ padding:14 }}><span style={{ fontFamily:"'Syne',sans-serif",fontSize:10,fontWeight:700,background:`${tc}15`,color:tc,padding:'2px 8px',borderRadius:6 }}>{c.share}</span></td>
+                        </tr>))}</tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Target Customer & Opportunity */}
+                  <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:22 }} className="se-2col">
+                    <div style={{ background:'var(--warm-white)',borderRadius:22,border:'1.5px solid rgba(22,15,8,0.07)',padding:26 }}>
+                      <div style={{ display:'flex',alignItems:'center',gap:10,marginBottom:20 }}>
+                        <div style={{ width:32,height:32,borderRadius:10,background:'rgba(22,15,8,0.05)',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--espresso)' }}>👤</div>
+                        <div><div style={{ fontFamily:"'Playfair Display',serif",fontWeight:700,fontSize:17,color:'var(--espresso)' }}>Target Customer Segment</div><div style={{ fontFamily:"'Fraunces',serif",fontWeight:300,fontSize:12,color:'rgba(22,15,8,0.4)' }}>AI-generated Ideal Customer Persona</div></div>
+                      </div>
+                      <div style={{ display:'flex',flexDirection:'column',gap:16 }}>
+                        {[['Persona Name',aiIntel.persona.name,true],['Demographics',aiIntel.persona.demographics],['Psychographics',aiIntel.persona.psychographics],['Key Pain Points',aiIntel.persona.painPoints],['Buying Behavior',aiIntel.persona.buyingBehavior]].map(([label,val,bold])=>(
+                          <div key={label}><span style={LBL}>{label}</span><div style={{ fontFamily:bold?"'Playfair Display',serif":"'Fraunces',serif",fontWeight:bold?700:300,fontSize:bold?18:14,color:'var(--espresso)',lineHeight:1.5 }}>{val}</div></div>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={{ background:'var(--warm-white)',borderRadius:22,border:'1.5px solid rgba(22,15,8,0.07)',padding:26,display:'flex',flexDirection:'column',justifyContent:'space-between' }}>
+                      <div>
+                        <div style={{ display:'flex',alignItems:'center',gap:10,marginBottom:20 }}>
+                          <div style={{ width:32,height:32,borderRadius:10,background:'rgba(22,15,8,0.05)',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--espresso)' }}>🎯</div>
+                          <div><div style={{ fontFamily:"'Playfair Display',serif",fontWeight:700,fontSize:17,color:'var(--espresso)' }}>Opportunity Mapping</div><div style={{ fontFamily:"'Fraunces',serif",fontWeight:300,fontSize:12,color:'rgba(22,15,8,0.4)' }}>Innovation lanes & market alignment</div></div>
+                        </div>
+                        <div style={{ display:'flex',flexDirection:'column',gap:18,marginBottom:24 }}>
+                          {aiIntel.opportunities.map((o,i)=>(<div key={i}><div style={{ fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:10,color:tc,marginBottom:4 }}>{o.lane}</div><div style={{ fontFamily:"'Fraunces',serif",fontWeight:300,fontSize:13,color:'rgba(22,15,8,0.6)',lineHeight:1.5 }}>{o.description}</div></div>))}
+                        </div>
+                      </div>
+                      <div style={{ background:'var(--cream-deep)',padding:'18px 22px',borderRadius:16,display:'flex',alignItems:'center',justifyContent:'space-between' }}>
+                        <div><div style={{ fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:10,letterSpacing:'0.12em',textTransform:'uppercase',color:'rgba(22,15,8,0.4)',marginBottom:2 }}>Idea Viability Index</div><div style={{ fontFamily:"'Fraunces',serif",fontWeight:300,fontSize:12,color:'rgba(22,15,8,0.5)' }}>AI-evaluated opportunity score</div></div>
+                        <div style={{ display:'flex',alignItems:'baseline',gap:2 }}><span style={{ fontFamily:"'Playfair Display',serif",fontWeight:900,fontSize:38,color:tc }}>{aiIntel.viabilityScore}</span><span style={{ fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:11,color:tc }}>/100</span></div>
+                      </div>
+                    </div>
+                  </div>
+                </>)}
+              </div>
+            );
+          })()}
+
+          {/* ── ROADMAP TAB ── */}
+          {tab === 'roadmap' && (() => {
+            const Skel = ({ w = '100%', h = 14, mb = 8 }) => <div style={{ width: w, height: h, borderRadius: 8, background: 'rgba(22,15,8,0.06)', marginBottom: mb, animation: 'pulse 1.5s ease-in-out infinite' }}/>;
+            
+            if (!locationSubmitted) {
+              return (
+                <div style={{ background:'var(--warm-white)',borderRadius:22,border:'1.5px solid rgba(22,15,8,0.07)',padding:40,textAlign:'center',boxShadow:'0 8px 32px rgba(22,15,8,0.03)' }}>
+                  <div style={{ width:56,height:56,borderRadius:16,background:'rgba(255,184,0,0.1)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 24px',fontSize:24,color:'var(--saffron)' }}>📍</div>
+                  <h2 style={{ fontFamily:"'Playfair Display',serif",fontWeight:900,fontSize:24,color:'var(--espresso)',marginBottom:8 }}>Define Target Market Geography</h2>
+                  <p style={{ fontFamily:"'Fraunces',serif",fontWeight:300,fontSize:14,color:'rgba(22,15,8,0.5)',lineHeight:1.6,maxWidth:420,margin:'0 auto 32px' }}>
+                    Specify the country and state/region to analyze competitors, localized target customer personas, and strategic milestone steps.
+                  </p>
+                  
+                  <div style={{ display:'flex',flexDirection:'column',gap:18,maxWidth:400,margin:'0 auto 32px',textAlign:'left' }}>
+                    <div>
+                      <label style={LBL}>Target Country</label>
+                      <input type="text" placeholder="e.g. United States, India, Germany" value={locationCountry} onChange={e=>setLocationCountry(e.target.value)} style={INP} onFocus={fi} onBlur={fo}/>
+                    </div>
+                    <div>
+                      <label style={LBL}>Target State / Region</label>
+                      <input type="text" placeholder="e.g. California, Telangana, Bavaria" value={locationState} onChange={e=>setLocationState(e.target.value)} style={INP} onFocus={fi} onBlur={fo}/>
+                    </div>
+                  </div>
+
+                  <button onClick={() => {
+                    if (!locationCountry.trim() || !locationState.trim()) {
+                      toast.error('Please fill in both Country and State/Region.');
+                      return;
+                    }
+                    setLocationSubmitted(true);
+                    fetchAIIntelligence(true, locationCountry, locationState);
+                  }}
+                    style={{ padding:'14px 32px',borderRadius:999,background:'var(--espresso)',color:'var(--cream)',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:11,letterSpacing:'0.12em',textTransform:'uppercase',border:'none',cursor:'pointer',transition:'all 0.25s',boxShadow:'0 6px 20px rgba(22,15,8,0.15)' }}
+                    onMouseEnter={e=>{e.currentTarget.style.background=tc;e.currentTarget.style.boxShadow=`0 10px 30px ${tc}40`;}}
+                    onMouseLeave={e=>{e.currentTarget.style.background='var(--espresso)';e.currentTarget.style.boxShadow='0 6px 20px rgba(22,15,8,0.15)';}}>
+                    ✦ Generate Localized Market Intel
+                  </button>
+                </div>
+              );
+            }
+
+            return (
+              <div style={{ display:'flex',flexDirection:'column',gap:32 }}>
+                {/* Header */}
+                <div style={{ padding:'24px 28px',background:`rgba(255,69,0,0.06)`,borderRadius:22,border:`1.5px solid ${tc}30`,display:'flex',alignItems:'center',justifyContent:'space-between',gap:18,flexWrap:'wrap' }}>
+                  <div style={{ display:'flex',alignItems:'center',gap:18 }}>
+                    <div style={{ width:48,height:48,borderRadius:14,background:tc,display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:20 }}>🚀</div>
+                    <div>
+                      <div style={{ fontFamily:"'Playfair Display',serif",fontWeight:700,fontSize:18,color:'var(--espresso)',marginBottom:4 }}>Adaptive Development Roadmap</div>
+                      <div style={{ fontFamily:"'Fraunces',serif",fontWeight:300,fontSize:13,color:'rgba(22,15,8,0.6)',display:'flex',alignItems:'center',gap:8,flexWrap:'wrap' }}>
+                        <span>Target Market: <strong>${locationState}, ${locationCountry}</strong></span>
+                        <button onClick={() => setLocationSubmitted(false)} style={{ background:'none',border:'none',color:tc,fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:9,letterSpacing:'0.05em',textTransform:'uppercase',cursor:'pointer',padding:0,textDecoration:'underline' }}>✎ Change</button>
+                      </div>
+                    </div>
+                  </div>
+                  <span style={{ fontFamily:"'Syne',sans-serif",fontSize:9,fontWeight:700,background:`${tc}15`,color:tc,padding:'6px 14px',borderRadius:999,letterSpacing:'0.1em',textTransform:'uppercase' }}>AI Powered</span>
+                </div>
+
+                {aiIntelLoading && !aiIntel && (
+                  <div style={{ display:'flex',flexDirection:'column',gap:20,paddingLeft:24 }}>
+                    <style>{`@keyframes pulse { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }`}</style>
+                    {[1,2,3,4].map(i => (
+                      <div key={i} style={{ background:'var(--warm-white)',borderRadius:22,border:'1.5px solid rgba(22,15,8,0.07)',padding:24 }}>
+                        <div style={{ width:'30%',height:16,borderRadius:8,background:'rgba(22,15,8,0.06)',marginBottom:14,animation:'pulse 1.5s ease-in-out infinite' }}/>
+                        <div style={{ width:'90%',height:12,borderRadius:6,background:'rgba(22,15,8,0.04)',marginBottom:8,animation:'pulse 1.5s ease-in-out infinite' }}/>
+                        <div style={{ width:'70%',height:12,borderRadius:6,background:'rgba(22,15,8,0.04)',animation:'pulse 1.5s ease-in-out infinite' }}/>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {aiIntelError && !aiIntel && (
+                  <div style={{ padding:'20px 24px',background:'rgba(214,59,31,0.06)',borderRadius:18,border:'1.5px solid rgba(214,59,31,0.15)',textAlign:'center' }}>
+                    <div style={{ fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:11,color:'var(--terracotta)',marginBottom:8 }}>{aiIntelError}</div>
+                    <button onClick={() => fetchAIIntelligence(true)} style={{ fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:9,letterSpacing:'0.1em',textTransform:'uppercase',color:tc,background:'none',border:'none',cursor:'pointer',textDecoration:'underline' }}>Try Again</button>
+                  </div>
+                )}
+
+                {aiIntel && aiIntel.roadmap && (
+                  <div style={{ display:'flex',flexDirection:'column',gap:20,position:'relative',paddingLeft:24 }}>
+                    <div style={{ position:'absolute',left:7,top:20,bottom:20,width:2,background:'rgba(22,15,8,0.08)' }}/>
+                    {aiIntel.roadmap.map((step, idx) => (
+                      <div key={idx} className="q-card" style={{ background:'var(--warm-white)',borderRadius:22,border:'1.5px solid rgba(22,15,8,0.07)',padding:24,position:'relative',transition:'all 0.25s' }}>
+                        <div style={{ position:'absolute',left:-24,top:32,width:16,height:16,borderRadius:'50%',background:'#fff',border:`3px solid ${tc}`,boxShadow:`0 0 0 3px ${tc}20`,zIndex:2 }}/>
+                        <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center',borderBottom:'1px solid rgba(22,15,8,0.06)',paddingBottom:12,marginBottom:14 }}>
+                          <div style={{ display:'flex',alignItems:'center',gap:12 }}>
+                            <span style={{ fontFamily:"'Syne',sans-serif",fontSize:10,fontWeight:800,color:tc,background:`${tc}12`,padding:'4px 10px',borderRadius:8 }}>Phase {idx+1}</span>
+                            <h3 style={{ fontFamily:"'Playfair Display',serif",fontWeight:700,fontSize:18,color:'var(--espresso)' }}>{step.name.split(': ')[1] || step.name}</h3>
+                          </div>
+                          <span style={{ fontFamily:"'Syne',sans-serif",fontSize:10,fontWeight:700,color:'rgba(22,15,8,0.4)' }}>⏱️ {step.timeline}</span>
+                        </div>
+                        <div style={{ display:'grid',gridTemplateColumns:'1.5fr 1fr 1fr',gap:20 }} className="se-2col">
+                          <div><div style={LBL}>Core Phase Goals</div><div style={{ fontFamily:"'Fraunces',serif",fontWeight:300,fontSize:14,color:'var(--espresso)',lineHeight:1.55 }}>{step.goals}</div></div>
+                          <div><div style={LBL}>Resources & Tools</div><div style={{ fontFamily:"'Fraunces',serif",fontWeight:300,fontSize:13,color:'rgba(22,15,8,0.6)',lineHeight:1.5 }}><strong>Tools:</strong> {step.tools}<div style={{ marginTop:4 }}><strong>Resources:</strong> {step.resources}</div></div></div>
+                          <div><div style={LBL}>Risk & Budget</div><div style={{ fontFamily:"'Fraunces',serif",fontWeight:300,fontSize:13,color:'rgba(22,15,8,0.6)',lineHeight:1.5 }}><strong>Risk:</strong> {step.risks.split(' Mitigation: ')[0]}<div style={{ marginTop:4 }}><strong>Cost:</strong> <span style={{ color:'var(--sage)',fontWeight:700 }}>{step.cost}</span></div></div></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+</div>{/* end left */}
 
         {/* RIGHT — Sticky Sidebar */}
         <div className="se-sidebar" style={{ position:'sticky',top:88,display:'flex',flexDirection:'column',gap:16 }}>
@@ -833,8 +1352,8 @@ export default function SurveyEdit() {
               <div style={{ fontFamily:"'Playfair Display',serif",fontWeight:900,fontSize:17,letterSpacing:'-0.5px',color:'var(--cream)',lineHeight:1.15,marginBottom:sv.description?8:0 }}>{sv.title}</div>
               {sv.description && <div style={{ fontFamily:"'Fraunces',serif",fontWeight:300,fontSize:12,color:'rgba(255,251,244,0.45)',lineHeight:1.6 }}>{sv.description}</div>}
               <div style={{ display:'flex',gap:0,marginTop:18,paddingTop:16,borderTop:'1px solid rgba(255,251,244,0.08)' }}>
-                {[[`${qs.length}`,'questions'],[`${qs.filter(q=>q.is_required).length}`,'required']].map(([v,l]) => (
-                  <div key={l} style={{ flex:1,textAlign:'center',borderRight:l!=='required'?'1px solid rgba(255,251,244,0.08)':'none' }}>
+                {[[`${qs.length}`,'questions'],[`${qs.filter(q=>q.is_required).length}`,'required'],[`~${estimatedMinutes} min`,'est. time']].map(([v,l]) => (
+                  <div key={l} style={{ flex:1,textAlign:'center',borderRight:l!=='est. time'?'1px solid rgba(255,251,244,0.08)':'none' }}>
                     <div style={{ fontFamily:"'Playfair Display',serif",fontWeight:900,fontSize:22,letterSpacing:'-1px',color:tc,lineHeight:1 }}>{v}</div>
                     <div style={{ fontFamily:"'Syne',sans-serif",fontSize:8,fontWeight:700,letterSpacing:'0.12em',textTransform:'uppercase',color:'rgba(255,251,244,0.3)',marginTop:5 }}>{l}</div>
                   </div>
@@ -849,7 +1368,7 @@ export default function SurveyEdit() {
               <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16 }}>
                 <div style={{ display:'flex',alignItems:'center',gap:7 }}>
                   <span style={{ fontFamily:"'Syne',sans-serif",fontSize:9,fontWeight:700,letterSpacing:'0.18em',textTransform:'uppercase',color:'rgba(22,15,8,0.3)' }}>Survey health</span>
-                  <HelpTip text="Improve by adding a welcome message, setting an expiry, using varied question types, and keeping surveys under 15 questions." position="bottom"/>
+                  <HelpTip text={`Improve by aiming for ${SHORT_SURVEY_RULES.defaultQuestionCount} concise questions, varied formats, and a ${SHORT_SURVEY_RULES.targetCompletionMinutes}-minute completion time.`} position="bottom"/>
                 </div>
                 <div style={{ display:'flex',alignItems:'center',gap:2 }}>
                   <span style={{ fontFamily:"'Playfair Display',serif",fontWeight:900,fontSize:22,letterSpacing:'-1px',color:healthColor }}>{health}</span>
@@ -870,9 +1389,11 @@ export default function SurveyEdit() {
                   {[
                     [sv.welcome_message,'Welcome message'],
                     [sv.expires_at,'Expiry date set'],
-                    [qs.length<=15,'Under 15 questions'],
-                    [qs.filter(q=>q.is_required).length<=3,'≤3 required questions'],
-                    [!qs.every(q=>q.question_type==='short_text'),'Varied question types'],
+                    [qs.length<=SHORT_SURVEY_RULES.defaultQuestionCount,`At or below ${SHORT_SURVEY_RULES.defaultQuestionCount} questions`],
+                    [estimatedMinutes<=SHORT_SURVEY_RULES.targetCompletionMinutes,`${SHORT_SURVEY_RULES.targetCompletionMinutes} min target`],
+                    [qs.filter(q=>q.is_required).length<=SHORT_SURVEY_RULES.preferredRequiredQuestionLimit,`≤${SHORT_SURVEY_RULES.preferredRequiredQuestionLimit} required questions`],
+                    [conciseQuestionCount===qs.length,'Concise wording'],
+                    [hasAdaptiveFormats,'Adaptive formats'],
                   ].map(([done,tip]) => (
                     <div key={tip} style={{ display:'flex',alignItems:'center',gap:7 }}>
                       <div style={{ width:14,height:14,borderRadius:'50%',flexShrink:0,background:done?'var(--sage)':'rgba(22,15,8,0.08)',display:'flex',alignItems:'center',justifyContent:'center',transition:'background 0.25s' }}>

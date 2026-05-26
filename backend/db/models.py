@@ -53,6 +53,9 @@ class QuestionTypeEnum(str, enum.Enum):
     ranking         = "ranking"
     slider          = "slider"
     matrix          = "matrix"
+    emoji_reaction  = "emoji_reaction"
+    swipe_choice    = "swipe_choice"
+    visual_choice   = "visual_choice"
 
 
 class ResponseStatusEnum(str, enum.Enum):
@@ -156,7 +159,7 @@ class SurveyQuestion(Base):
     __tablename__ = "survey_questions"
 
     id               = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    survey_id        = Column(UUID(as_uuid=True), ForeignKey("surveys.id", ondelete="CASCADE"), nullable=False)
+    survey_id        = Column(UUID(as_uuid=True), ForeignKey("surveys.id", ondelete="CASCADE"),index=True, nullable=False)
     question_text    = Column(Text, nullable=False)
     question_type    = Column(SAEnum(QuestionTypeEnum), nullable=False)
     options          = Column(JSONB, nullable=True)
@@ -235,7 +238,7 @@ class SurveyFeedback(Base):
     __tablename__ = "survey_feedback"
 
     id           = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    survey_id    = Column(UUID(as_uuid=True), ForeignKey("surveys.id", ondelete="CASCADE"), nullable=False)
+    survey_id    = Column(UUID(as_uuid=True), ForeignKey("surveys.id", ondelete="CASCADE"), index=True, nullable=False)
     rating       = Column(Integer, nullable=True)
     comment      = Column(Text, nullable=True)
     responded_at = Column(DateTime(timezone=True), nullable=True)
@@ -252,7 +255,7 @@ class SurveyShare(Base):
     __tablename__ = "survey_shares"
 
     id           = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    survey_id    = Column(UUID(as_uuid=True), ForeignKey("surveys.id", ondelete="CASCADE"), nullable=False)
+    survey_id    = Column(UUID(as_uuid=True), ForeignKey("surveys.id", ondelete="CASCADE"), index=True, nullable=False)
     shared_with  = Column(UUID(as_uuid=True), ForeignKey("user_profiles.id", ondelete="CASCADE"), nullable=False)
     permission   = Column(SAEnum(SharePermissionEnum), default=SharePermissionEnum.viewer)
     created_at   = Column(DateTime(timezone=True), server_default=func.now())
@@ -364,3 +367,21 @@ class WaitlistEntry(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     email = Column(String, nullable=False, unique=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class UploadedFile(Base):
+    """
+    Stores uploaded file metadata and extracted text content.
+    Used for providing additional context to AI survey generation.
+    """
+    __tablename__ = "uploaded_files"
+
+    id           = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    filename     = Column(String(500), nullable=False)
+    content_type = Column(String(100), nullable=False)
+    file_size    = Column(Integer, nullable=True)
+    extracted_text = Column(Text, nullable=True)
+    upload_type  = Column(String(20), default="file")  # 'file' | 'audio'
+    tenant_id    = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
+    created_by   = Column(UUID(as_uuid=True), ForeignKey("user_profiles.id", ondelete="SET NULL"), nullable=True)
+    created_at   = Column(DateTime(timezone=True), server_default=func.now())

@@ -16,9 +16,9 @@ env:
   AWS_REGION:       ap-south-1
   ECR_REGISTRY:     079975324160.dkr.ecr.ap-south-1.amazonaws.com
   ECR_REPOSITORY:   axiora/pulse-frontend
-  ECS_CLUSTER:      axiora-pulse-cluster-development
-  ECS_SERVICE:      pulse-frontend-service-development
-  CONTAINER_NAME:   pulse-frontend
+  ECS_CLUSTER:      axiora-pulse-cluster-dev
+  ECS_SERVICE:      pulse-frontend-service-dev
+  CONTAINER_NAME:   FrontendContainer
 
 jobs:
   build-and-deploy:
@@ -51,6 +51,7 @@ jobs:
             --build-arg VITE_COGNITO_USER_POOL_ID=${{ secrets.VITE_COGNITO_USER_POOL_ID }} \
             --build-arg VITE_COGNITO_APP_CLIENT_ID=${{ secrets.VITE_COGNITO_APP_CLIENT_ID }} \
             --build-arg VITE_FRONTEND_URL=${{ secrets.VITE_FRONTEND_URL }} \
+            --build-arg VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL }} \
             -t $IMAGE_URI:dev-latest \
             -t $IMAGE_URI:dev-${{ github.sha }} \
             ./frontend

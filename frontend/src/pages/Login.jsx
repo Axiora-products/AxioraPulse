@@ -174,7 +174,18 @@ export default function Login() {
 
       await initialize(true);
       toast.success('Welcome back!');
-      nav('/dashboard');
+
+      // Robust redirect: check if Zustand store has user set after initialize.
+      // Use window.location.href as the primary redirect mechanism to guarantee
+      // a full navigation cycle, avoiding React re-render race conditions
+      // where nav('/dashboard') fires before the route guard sees the new user state.
+      const storeUser = useAuthStore.getState().user;
+      if (storeUser) {
+        window.location.href = '/dashboard';
+      } else {
+        // Fallback: force navigate even if store seems empty (token is valid)
+        window.location.href = '/dashboard';
+      }
     } catch (err) {
       if (err.code === 'UserNotConfirmedException') {
         toast.error('Email not verified. Redirecting to verification...');

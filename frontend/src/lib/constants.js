@@ -54,11 +54,43 @@ export const QUESTION_TYPES = [
   { value: 'ranking',         label: 'Ranking',          icon: '↕'  },
   { value: 'slider',          label: 'Slider',           icon: '—'  },
   { value: 'matrix',          label: 'Matrix / Grid',    icon: '⊞'  },
+  { value: 'emoji_reaction',  label: 'Emoji Reaction',   icon: ':)' },
+  { value: 'swipe_choice',    label: 'Swipe Choice',     icon: '⇄'  },
+  { value: 'visual_choice',   label: 'Visual Choice',    icon: '▧'  },
 ];
+
+export const SHORT_SURVEY_RULES = {
+  defaultQuestionCount: 12,
+  targetCompletionMinutes: 3,
+  maxHighSignalWords: 18,
+  preferredRequiredQuestionLimit: 5,
+};
+
+export function estimateSurveyMinutes(questions = []) {
+  const seconds = questions.reduce((total, q) => {
+    const type = q?.question_type || q?.type;
+    if (type === 'long_text' || type === 'matrix' || type === 'ranking') return total + 24;
+    if (type === 'visual_choice' || type === 'swipe_choice') return total + 18;
+    if (type === 'multiple_choice' || type === 'slider') return total + 16;
+    if (type === 'emoji_reaction') return total + 8;
+    return total + 12;
+  }, 0);
+  return Math.max(1, Math.ceil(seconds / 60));
+}
+
+export function getQuestionWordCount(question = {}) {
+  return (question.question_text || question.text || '').trim().split(/\s+/).filter(Boolean).length;
+}
+
+export function getFormatDiversityScore(questions = []) {
+  if (!questions.length) return 0;
+  return new Set(questions.map(q => q.question_type || q.type).filter(Boolean)).size;
+}
 
 // Question types that use options arrays
 export const OPTION_TYPES = [
   'single_choice', 'multiple_choice', 'dropdown', 'ranking',
+  'emoji_reaction', 'swipe_choice', 'visual_choice',
 ];
 
 // Matrix needs a special options structure { rows, columns }

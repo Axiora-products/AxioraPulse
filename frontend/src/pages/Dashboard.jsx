@@ -7,6 +7,7 @@ import { hasPermission, timeAgo, SURVEY_STATUS } from '../lib/constants';
 import { useLoading } from '../context/LoadingContext';
 import OnboardingChecklist from '../components/OnboardingChecklist';
 import { checkMilestone } from '../components/MilestoneToast';
+import DocumentFilesPane from '../components/DocumentFilesPane';
 
 // ── Animated counter hook ─────────────────────────────────────────────────
 function useCountUp(target, duration = 700) {
@@ -19,7 +20,6 @@ function useCountUp(target, duration = 700) {
     const step = (ts) => {
       if (!start) start = ts;
       const progress = Math.min((ts - start) / duration, 1);
-      // Ease out cubic
       const ease = 1 - Math.pow(1 - progress, 3);
       setDisplay(Math.round(from + (target - from) * ease));
       if (progress < 1) raf.current = requestAnimationFrame(step);
@@ -30,7 +30,6 @@ function useCountUp(target, duration = 700) {
   return display;
 }
 
-// Wrapper that animates each stat card individually
 function AnimatedStat({ val, label, accent }) {
   const display = useCountUp(val);
   return (
@@ -46,8 +45,16 @@ const S = {
   header: {},
   tag: { fontFamily: "'Syne', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--coral)', marginBottom: 12 },
   h1: { fontFamily: "'Playfair Display', serif", fontWeight: 900, fontSize: 'clamp(34px,4vw,52px)', letterSpacing: '-2px', color: 'var(--espresso)', lineHeight: 1.05, margin: 0 },
-  statsGrid: { display: 'grid', gap: 20, marginBottom: 64, position: 'relative', zIndex: 1 },
-  statCard: (accent) => ({ background: 'var(--warm-white)', borderRadius: 20, padding: '28px 28px 22px', border: '1px solid rgba(22,15,8,0.07)', borderTop: `3px solid ${accent}`, cursor: 'default' }),
+  statsGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(4, minmax(120px, 1fr))',
+    gap: 28,
+    marginBottom: 72,
+    position: 'relative',
+    zIndex: 1,
+    maxWidth: '100%',
+  },
+  statCard: (accent) => ({ background: 'var(--warm-white)', borderRadius: 20, padding: '36px 30px 30px', border: '1px solid rgba(22,15,8,0.07)', borderTop: `3px solid ${accent}`, cursor: 'default' }),
   statNum: { fontFamily: "'Playfair Display', serif", fontWeight: 900, fontSize: 48, letterSpacing: '-3px', color: 'var(--espresso)', lineHeight: 1, marginBottom: 8 },
   statLabel: { fontFamily: "'Syne', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.35)' },
   sectionHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, position: 'relative', zIndex: 1 },
@@ -62,7 +69,6 @@ const S = {
   emptyTitle: { fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 28, color: 'var(--espresso)', marginBottom: 12, letterSpacing: '-0.5px' },
   emptyBody: { fontFamily: "'Fraunces', serif", fontWeight: 300, fontSize: 16, color: 'rgba(22,15,8,0.45)', marginBottom: 32, lineHeight: 1.7 },
   cta: { display: 'inline-flex', alignItems: 'center', gap: 8, background: 'var(--espresso)', color: 'var(--cream)', fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', padding: '14px 28px', borderRadius: 999, textDecoration: 'none', transition: 'background 0.25s ease' },
-  skeleton: { background: 'var(--cream-deep)', borderRadius: 20, height: 160, animation: 'nx-shimmer 1.8s ease-in-out infinite' },
 };
 
 const STAT_ACCENTS = ['var(--coral)', 'var(--espresso)', 'var(--saffron)', 'var(--coral)'];
@@ -72,12 +78,12 @@ export default function Dashboard() {
   const { stopLoading } = useLoading();
   const [stats, setStats] = useState({ surveys: 0, responses: 0, completions: 0, team: 0 });
   const [recent, setRecent] = useState([]);
-  const prevResponses = useRef(null);  // null = first load, skip celebration
+  const [isRightCollapsed, setIsRightCollapsed] = useState(false);
+  const prevResponses = useRef(null);
 
   const location = useLocation();
   useEffect(() => { if (profile?.id) load(); else stopLoading(); }, [profile?.id, location.key]);
 
-  // Refetch when window regains focus
   useEffect(() => {
     const h = () => { if (profile?.id) load(); };
     window.addEventListener('focus', h);
@@ -109,12 +115,10 @@ export default function Dashboard() {
     finally { stopLoading(); }
   }
 
-  
-
   const h = new Date().getHours();
   const greet = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
-
   const firstName = profile?.full_name?.split(' ')[0] || 'there';
+
   const statItems = [
     { label: 'Total Surveys', val: stats.surveys },
     { label: 'Responses', val: stats.responses },
@@ -123,93 +127,177 @@ export default function Dashboard() {
   ];
 
   return (
-    <div style={S.page}>
-      {/* Onboarding */}
-      <OnboardingChecklist surveyCount={stats.surveys} responseCount={stats.responses} teamCount={stats.team} />
-      {/* Header */}
-      <div style={S.header} className="np-page-header">
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}>
-          {tenant?.name && <div style={S.tag}>{tenant.name}</div>}
-          <h1 style={S.h1}>
-            {greet}, <em style={{ fontStyle: 'italic', color: 'var(--coral)' }}>{firstName}</em>
-          </h1>
-        </motion.div>
-
-        {hasPermission(profile?.role, 'create_survey') && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
-            <Link to="/surveys/new" style={S.cta}
-              onMouseEnter={e => e.currentTarget.style.background = 'var(--coral)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'var(--espresso)'}>
-              + New Survey
-            </Link>
+    <div className="db-layout">
+      <div className="db-main">
+        {/* Header */}
+        <div style={S.header} className="np-page-header">
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}>
+            {tenant?.name && <div style={S.tag}>{tenant.name}</div>}
+            <h1 style={S.h1}>
+              {greet}, <em style={{ fontStyle: 'italic', color: 'var(--coral)' }}>{firstName}</em>
+            </h1>
           </motion.div>
-        )}
-      </div>
-
-      {/* Stat cards */}
-      <div style={S.statsGrid} className="np-stats-grid">
-        {statItems.map((item, i) => (
-          <motion.div key={i}
-            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.07, ease: [0.16, 1, 0.3, 1] }}
-            whileHover={{ y: -4, boxShadow: '0 24px 60px rgba(22,15,8,0.1)' }}
-            style={S.statCard(STAT_ACCENTS[i])}>
-            <AnimatedStat val={item.val} label={item.label} accent={STAT_ACCENTS[i]} />
-          </motion.div>
-        ))}
-      </div>
-
-      {/* Recent surveys */}
-      <div style={S.sectionHead}>
-        <div style={S.sectionTitle}>Recent Surveys</div>
-        <Link to="/surveys" style={S.viewAll}
-          onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-          onMouseLeave={e => e.currentTarget.style.opacity = '0.55'}>
-          View all →
-        </Link>
-      </div>
-
-      {recent.length === 0 ? (
-        <div style={S.emptyState}>
-          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 72, color: 'rgba(22,15,8,0.06)', fontWeight: 900, marginBottom: 16, letterSpacing: -4 }}>Empty</div>
-          <h3 style={S.emptyTitle}>No surveys yet</h3>
-          <p style={S.emptyBody}>Your research journey starts here.<br />Create your first survey and see insights flow in.</p>
-          {hasPermission(profile?.role, 'create_survey') && (
-            <Link to="/surveys/new" style={S.cta}
-              onMouseEnter={e => e.currentTarget.style.background = 'var(--coral)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'var(--espresso)'}>
-              Create first survey
-            </Link>
-          )}
         </div>
-      ) : (
-        <div style={S.grid}>
-          {recent.map((sv, i) => (
-            <motion.div key={sv.id}
-              initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 + i * 0.05 }}
-              whileHover={{ y: -4, boxShadow: '0 24px 60px rgba(22,15,8,0.1)' }}>
-              <Link to={`/surveys/${sv.id}/edit`} style={S.surveyCard} className="survey-card-link">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: sv.theme_color || 'var(--coral)', boxShadow: `0 0 8px ${sv.theme_color || 'rgba(255,69,0,0.4)'}` }} />
-                  <span className={`p-badge ${SURVEY_STATUS[sv.status]?.class || 'p-badge-draft'}`} style={{ fontFamily: "'Syne', sans-serif" }}>
-                    {SURVEY_STATUS[sv.status]?.label || 'Draft'}
-                  </span>
-                </div>
-                <div style={S.cardTitle}>{sv.title}</div>
-                <div style={S.cardMeta}>{timeAgo(sv.created_at)} · {sv.creator?.full_name || '—'}</div>
-                <div style={S.cardFooter}>
-                  <span style={{ fontFamily: "'Syne', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.3)' }}>Open</span>
-                  <span style={{ color: 'rgba(22,15,8,0.25)', fontSize: 16 }}>→</span>
-                </div>
-              </Link>
+
+        {/* Stat cards */}
+        <div style={S.statsGrid} className="np-stats-grid">
+          {statItems.map((item, i) => (
+            <motion.div key={i}
+              initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.07, ease: [0.16, 1, 0.3, 1] }}
+              whileHover={{ y: -4, boxShadow: '0 24px 60px rgba(22,15,8,0.1)' }}
+              style={S.statCard(STAT_ACCENTS[i])}>
+              <AnimatedStat val={item.val} label={item.label} accent={STAT_ACCENTS[i]} />
             </motion.div>
           ))}
         </div>
+        
+        {/* Onboarding */}
+        <OnboardingChecklist surveyCount={stats.surveys} responseCount={stats.responses} teamCount={stats.team} />
+
+        {/* Recent surveys */}
+        <div style={S.sectionHead}>
+          <div style={S.sectionTitle}>Recent Surveys</div>
+          <Link to="/surveys" style={S.viewAll}
+            onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+            onMouseLeave={e => e.currentTarget.style.opacity = '0.55'}>
+            View all →
+          </Link>
+        </div>
+
+        {recent.length === 0 ? (
+          <div style={S.emptyState}>
+            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 72, color: 'rgba(22,15,8,0.06)', fontWeight: 900, marginBottom: 16, letterSpacing: -4 }}>Empty</div>
+            <h3 style={S.emptyTitle}>No surveys yet</h3>
+            <p style={S.emptyBody}>Your research journey starts here.<br />Create your first survey and see insights flow in.</p>
+            {hasPermission(profile?.role, 'create_survey') && (
+              <Link to="/surveys/new" style={S.cta}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--coral)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'var(--espresso)'}>
+                Create first survey
+              </Link>
+            )}
+          </div>
+        ) : (
+          <div style={S.grid}>
+            {recent.map((sv, i) => {
+              const isActive = sv.status === 'active';
+              const isPromptDraft = !isActive && sv.question_count === 0;
+
+              let targetPath = `/surveys/${sv.id}/edit`;
+              let label = 'Edit';
+
+              if (isActive) {
+                targetPath = `/surveys/${sv.id}/analytics`;
+                label = 'Analytics';
+              } else if (isPromptDraft) {
+                targetPath = `/surveys/new?draftId=${sv.id}`;
+                label = 'Resume';
+              }
+
+              return (
+                <motion.div key={sv.id}
+                  initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 + i * 0.05 }}
+                  whileHover={{ y: -4, boxShadow: '0 24px 60px rgba(22,15,8,0.1)' }}>
+                  <Link to={targetPath} style={S.surveyCard} className="survey-card-link">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                      <div style={{ width: 10, height: 10, borderRadius: '50%', background: sv.theme_color || 'var(--coral)', boxShadow: `0 0 8px ${sv.theme_color || 'rgba(255,69,0,0.4)'}` }} />
+                      <span className={`p-badge ${SURVEY_STATUS[sv.status]?.class || 'p-badge-draft'}`} style={{ fontFamily: "'Syne', sans-serif" }}>
+                        {isPromptDraft ? 'Prompting' : (SURVEY_STATUS[sv.status]?.label || 'Draft')}
+                      </span>
+                    </div>
+                    <div style={S.cardTitle}>{sv.title}</div>
+                    <div style={S.cardMeta}>{timeAgo(sv.created_at)} · {sv.creator?.full_name || '—'}</div>
+                    <div style={S.cardFooter}>
+                      <span style={{ fontFamily: "'Syne', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.3)' }}>
+                        {label}
+                      </span>
+                      <span style={{ color: 'rgba(22,15,8,0.25)', fontSize: 16 }}>→</span>
+                    </div>
+                  </Link>
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <aside className={`db-right-pane${isRightCollapsed ? ' collapsed' : ''}`}>
+        <DocumentFilesPane onCollapse={() => setIsRightCollapsed(true)} />
+      </aside>
+
+      {isRightCollapsed && (
+        <button
+          onClick={() => setIsRightCollapsed(false)}
+          className="right-expand-floating-btn"
+          title="Expand Files"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="11 17 6 12 11 7"/>
+            <polyline points="18 17 13 12 18 7"/>
+          </svg>
+        </button>
       )}
 
       <style>{`
+        .db-layout {
+          display: flex;
+          min-height: calc(100vh - 100px);
+          margin: -48px -48px -40px -48px;
+          overflow: hidden;
+          position: relative;
+        }
+        .db-main {
+          flex: 1;
+          padding: 48px;
+          overflow-y: auto;
+        }
+        .db-right-pane {
+          width: 240px;
+          position: sticky;
+          top: 0;
+          min-height: 100vh;
+          flex-shrink: 0;
+          background: var(--warm-white);
+          border-left: 1px solid rgba(22,15,8,0.07);
+          transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .db-right-pane.collapsed {
+          transform: translateX(240px);
+        }
+        .right-expand-floating-btn {
+          position: absolute;
+          right: 20px;
+          top: 24px;
+          z-index: 295;
+          width: 32px;
+          height: 32px;
+          border-radius: 10px;
+          border: 1px solid rgba(255, 69, 0, 0.25);
+          background: var(--warm-white);
+          color: var(--espresso);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          box-shadow: 0 4px 14px rgba(22,15,8,0.08);
+          transition: all 0.2s ease;
+        }
+        .right-expand-floating-btn:hover {
+          color: var(--coral);
+          border-color: var(--coral);
+          background: rgba(255, 69, 0, 0.05);
+          transform: scale(1.05);
+        }
         .survey-card-link:hover .card-title { color: var(--coral) !important; }
+
+        @media (max-width: 1200px) {
+          .db-layout { flex-direction: column; overflow: visible; }
+          .db-right-pane { width: 100%; position: static; height: auto; border-left: none; border-top: 1px solid rgba(22,15,8,0.07); }
+          .db-right-pane.collapsed { transform: none; }
+          .right-expand-floating-btn { display: none; }
+        }
       `}</style>
     </div>
   );

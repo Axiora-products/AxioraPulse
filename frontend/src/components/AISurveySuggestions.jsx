@@ -33,6 +33,9 @@ const SUGGESTION_TYPES = {
   ranking:         { label: 'Ranking',      emoji: '↕️' },
   slider:          { label: 'Slider',       emoji: '↔️' },
   matrix:          { label: 'Matrix',       emoji: '⊞'  },
+  emoji_reaction:  { label: 'Emoji',        emoji: '🙂' },
+  swipe_choice:    { label: 'Swipe',        emoji: '↔️' },
+  visual_choice:   { label: 'Visual',       emoji: '🖼️' },
 };
 
 export default function AISurveySuggestions({ survey, questions = [], onAdd, tc = '#FF4500', aiContext = '' }) {

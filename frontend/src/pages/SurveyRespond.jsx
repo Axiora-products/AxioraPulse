@@ -23,6 +23,11 @@ function parseOpts(raw) {
   return raw;
 }
 
+function optionList(raw) {
+  const parsed = parseOpts(raw);
+  return Array.isArray(parsed) ? parsed : [];
+}
+
 // ─── Inline SVG icons — no emojis, no icon libraries ─────────────────────────
 const Icons = {
   Arrow: ({ d = 'M5 12h14M12 5l7 7-7 7', ...p }) => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" {...p}><path d={d} /></svg>,
@@ -797,7 +802,7 @@ export default function SurveyRespond() {
   const line = dark ? 'rgba(237,232,223,0.07)' : 'rgba(22,15,8,0.07)';
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: bg, transition: 'background 0.5s' }}>
+    <div className="np-respond-shell" style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: bg, transition: 'background 0.5s' }}>
 
       {/* ── Progress line ── */}
       {step >= 0 && sv?.show_progress_bar !== false && (
@@ -808,7 +813,7 @@ export default function SurveyRespond() {
       )}
 
       {/* ── Header ── */}
-      <header style={{ flexShrink: 0, height: 58, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px', position: 'relative', zIndex: 20 }}>
+      <header className="np-respond-header" style={{ flexShrink: 0, height: 58, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px', position: 'relative', zIndex: 20 }}>
         {/* Axiora Pulse logo with coral dot */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 0, lineHeight: 1 }}>
@@ -868,7 +873,7 @@ export default function SurveyRespond() {
 
           {/* WELCOME */}
           {step === -1 && (
-            <motion.div key="welcome" custom={dir} variants={variants} initial="enter" animate="show" exit="exit" transition={spring}
+            <motion.div className="np-welcome-stage" key="welcome" custom={dir} variants={variants} initial="enter" animate="show" exit="exit" transition={spring}
               style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px 40px' }}>
               <div aria-hidden style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
                 {/* Grain texture */}
@@ -925,10 +930,10 @@ export default function SurveyRespond() {
 
           {/* QUESTION */}
           {step >= 0 && step < qs.length && q && (
-            <motion.div key={q.id} custom={dir} variants={variants} initial="enter" animate="show" exit="exit" transition={spring}
+            <motion.div className="np-question-stage" key={q.id} custom={dir} variants={variants} initial="enter" animate="show" exit="exit" transition={spring}
               style={{ position: 'absolute', inset: 0, overflowY: 'auto', overflowX: 'hidden' }}>
-              <div style={{ minHeight: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px 40px' }}>
-                <div style={{ width: '100%', maxWidth: 680, position: 'relative' }}>
+              <div className="np-question-wrap" style={{ minHeight: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px 40px' }}>
+                <div className="np-question-panel" style={{ width: '100%', maxWidth: 680, position: 'relative' }}>
                   {/* Ghost question number */}
                   <div aria-hidden style={{ position: 'absolute', right: -8, top: -16, fontFamily: "'Playfair Display',serif", fontWeight: 900, fontSize: 'clamp(80px,13vw,130px)', color: 'rgba(22,15,8,0.032)', lineHeight: 1, letterSpacing: '-5px', userSelect: 'none', pointerEvents: 'none', zIndex: 0 }}>
                     {String(visPos).padStart(2, '0')}
@@ -966,7 +971,7 @@ export default function SurveyRespond() {
                   </motion.div>
 
                   {/* Nav */}
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.38 }}
+                  <motion.div className="np-question-nav" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.38 }}
                     style={{ marginTop: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <button onClick={goBack} disabled={!canBack}
                       style={{ display: 'flex', alignItems: 'center', gap: 7, fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: sub, background: 'none', border: 'none', cursor: canBack ? 'pointer' : 'default', opacity: canBack ? 1 : 0, padding: '8px 0', transition: 'color 0.2s' }}
@@ -999,7 +1004,7 @@ export default function SurveyRespond() {
                           {busy ? 'Submitting…' : <><span>Submit</span><Icons.Check style={{ color: 'currentColor' }} /></>}
                         </motion.button>
                       )}
-                      <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.16)' }}>
+                      <span className="np-enter-hint" style={{ fontFamily: 'Syne,sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.16)' }}>
                         or press Enter ↵
                       </span>
                     </div>
@@ -1073,10 +1078,43 @@ export default function SurveyRespond() {
         .qsc { flex:1; height:54px; border-radius:14px; border:1.5px solid rgba(22,15,8,0.08); background:rgba(253,245,232,0.5); font-family:'Syne',sans-serif; font-weight:700; font-size:14px; color:rgba(22,15,8,0.38); cursor:pointer; transition:all 0.25s; }
         .qsc:hover { border-color:rgba(22,15,8,0.2); transform:translateY(-4px); color:#160F08; background:white; box-shadow:0 6px 20px rgba(22,15,8,0.08); }
         .qsc.on { color:white; transform:translateY(-4px); box-shadow:0 8px 28px rgba(22,15,8,0.15); }
+        .qc, .qsc, .qdot, button { -webkit-tap-highlight-color:transparent; }
+        @media (max-width: 640px) {
+          .np-respond-shell { height:100dvh !important; }
+          .np-respond-header { height:52px !important; padding:0 16px !important; }
+          .np-respond-header > div:last-child { gap:12px !important; }
+          .np-respond-header > div:last-child > div:first-child { display:none !important; }
+          .np-welcome-stage { padding:24px 18px !important; align-items:flex-start !important; padding-top:12vh !important; }
+          .np-question-wrap { align-items:flex-start !important; padding:24px 18px 18px !important; }
+          .np-question-panel { max-width:100% !important; }
+          .np-question-panel h2 { font-size:clamp(25px,8vw,34px) !important; line-height:1.12 !important; letter-spacing:-0.8px !important; }
+          .np-question-panel p { font-size:15px !important; line-height:1.55 !important; }
+          .np-question-nav { margin-top:34px !important; align-items:stretch !important; gap:14px !important; }
+          .np-question-nav > div { width:100% !important; }
+          .np-question-nav button { min-height:48px !important; justify-content:center !important; }
+          .np-enter-hint, .np-respond-footer { display:none !important; }
+          .qt { font-size:22px !important; padding-bottom:14px !important; }
+          .qc { min-height:56px !important; padding:14px 16px !important; border-radius:16px !important; gap:12px !important; }
+          .qc:hover { transform:none !important; box-shadow:none !important; }
+          .qlbl { font-size:15px !important; }
+          .qkey { display:none !important; }
+          .qsc { min-width:38px !important; height:48px !important; border-radius:12px !important; }
+        }
+        @media (hover:none) {
+          .qc:hover, .qsc:hover { transform:none !important; box-shadow:none !important; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .np-respond-shell *, .np-respond-shell *::before, .np-respond-shell *::after {
+            animation-duration:0.001ms !important;
+            animation-iteration-count:1 !important;
+            transition-duration:0.001ms !important;
+            scroll-behavior:auto !important;
+          }
+        }
       `}</style>
 
       {/* ── Footer ── */}
-      <footer style={{ flexShrink: 0, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 32px', borderTop: `1px solid ${line}` }}>
+      <footer className="np-respond-footer" style={{ flexShrink: 0, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 32px', borderTop: `1px solid ${line}` }}>
         <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: dark ? 'rgba(237,232,223,0.15)' : 'rgba(22,15,8,0.2)' }}>
           © {new Date().getFullYear()} Axiora Pulse · All rights reserved
         </span>
@@ -1171,6 +1209,27 @@ function QInput({ q, val, set, tc, fg, sub }) {
           <Icons.Chevron style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'rgba(22,15,8,0.3)' }} />
         </div>
       );
+
+    case 'emoji_reaction': {
+      const opts = optionList(q.options);
+      const choices = opts.length ? opts : [
+        { label: '😞', value: 'negative' },
+        { label: '😐', value: 'neutral' },
+        { label: '🙂', value: 'positive' },
+        { label: '😍', value: 'delighted' },
+      ];
+      return <EmojiReactionInput opts={choices} val={val} set={set} tc={tc} />;
+    }
+
+    case 'swipe_choice': {
+      const opts = optionList(q.options);
+      return <SwipeChoiceInput opts={opts} val={val} set={set} tc={tc} sub={sub} />;
+    }
+
+    case 'visual_choice': {
+      const opts = optionList(q.options);
+      return <VisualChoiceInput opts={opts} val={val} set={set} tc={tc} sub={sub} />;
+    }
 
     case 'rating': {
       const r = parseInt(val) || 0;
@@ -1293,6 +1352,73 @@ function RankInput({ opts, val, set, tc }) {
 }
 
 // ─── SliderInput — fully custom pointer drag ──────────────────────────────────
+function EmojiReactionInput({ opts, val, set, tc }) {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, maxWidth: 560 }}>
+      {opts.map((o, i) => {
+        const on = val === o.value;
+        return (
+          <motion.button key={o.value || i} whileHover={{ y: -5, scale: 1.04 }} whileTap={{ scale: 0.92 }} onClick={() => set(o.value)}
+            aria-pressed={on}
+            style={{ minWidth: 84, minHeight: 84, borderRadius: 22, border: `1.5px solid ${on ? tc : 'rgba(22,15,8,0.08)'}`, background: on ? `${tc}12` : 'rgba(255,255,255,0.68)', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: on ? `0 12px 30px ${tc}25` : 'none', transition: 'border-color 0.2s, background 0.2s, box-shadow 0.2s' }}>
+            <span style={{ fontSize: 34, lineHeight: 1 }}>{o.label}</span>
+            {o.description && <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: on ? tc : 'rgba(22,15,8,0.35)' }}>{o.description}</span>}
+          </motion.button>
+        );
+      })}
+    </div>
+  );
+}
+
+function SwipeChoiceInput({ opts, val, set, tc, sub }) {
+  if (!opts.length) return <div style={{ fontFamily: 'Fraunces,serif', fontSize: 15, color: sub, padding: '16px 0' }}>No swipe options for this question.</div>;
+  const current = opts.find(o => o.value === val) || opts[0];
+  const idx = Math.max(0, opts.findIndex(o => o.value === current.value));
+  const choose = delta => {
+    const next = opts[Math.max(0, Math.min(opts.length - 1, idx + delta))];
+    if (next) set(next.value);
+  };
+  return (
+    <div style={{ maxWidth: 420 }}>
+      <motion.div key={current.value} drag="x" dragConstraints={{ left: 0, right: 0 }} dragElastic={0.35}
+        onDragEnd={(_, info) => { if (info.offset.x > 70) choose(-1); if (info.offset.x < -70) choose(1); }}
+        whileTap={{ cursor: 'grabbing' }}
+        style={{ minHeight: 190, borderRadius: 26, border: `1.5px solid ${tc}35`, background: `linear-gradient(135deg, rgba(255,255,255,0.92), ${tc}10)`, boxShadow: `0 18px 50px ${tc}18`, cursor: 'grab', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 28, textAlign: 'center', touchAction: 'pan-y' }}>
+        <div>
+          <div style={{ fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: 28, color: '#160F08', lineHeight: 1.15, marginBottom: 10 }}>{current.label}</div>
+          {current.description && <div style={{ fontFamily: 'Fraunces,serif', fontSize: 14, color: 'rgba(22,15,8,0.46)', lineHeight: 1.5 }}>{current.description}</div>}
+        </div>
+      </motion.div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 }}>
+        <button onClick={() => choose(-1)} disabled={idx === 0} style={{ border: 'none', background: 'transparent', color: idx === 0 ? 'rgba(22,15,8,0.18)' : tc, fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: idx === 0 ? 'default' : 'pointer' }}>← Previous</button>
+        <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: sub }}>Swipe or tap</span>
+        <button onClick={() => choose(1)} disabled={idx === opts.length - 1} style={{ border: 'none', background: 'transparent', color: idx === opts.length - 1 ? 'rgba(22,15,8,0.18)' : tc, fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: idx === opts.length - 1 ? 'default' : 'pointer' }}>Next →</button>
+      </div>
+    </div>
+  );
+}
+
+function VisualChoiceInput({ opts, val, set, tc, sub }) {
+  if (!opts.length) return <div style={{ fontFamily: 'Fraunces,serif', fontSize: 15, color: sub, padding: '16px 0' }}>No visual options for this question.</div>;
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 12, maxWidth: 620 }}>
+      {opts.map((o, i) => {
+        const on = val === o.value;
+        return (
+          <motion.button key={o.value || i} whileHover={{ y: -4 }} whileTap={{ scale: 0.97 }} onClick={() => set(o.value)}
+            style={{ border: `1.5px solid ${on ? tc : 'rgba(22,15,8,0.08)'}`, background: on ? `${tc}10` : 'rgba(255,255,255,0.7)', borderRadius: 20, padding: 8, cursor: 'pointer', textAlign: 'left', boxShadow: on ? `0 12px 34px ${tc}24` : 'none', overflow: 'hidden' }}>
+            {o.image_url ? <img src={o.image_url} alt="" style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', borderRadius: 14, display: 'block', marginBottom: 10 }} /> : <div style={{ width: '100%', aspectRatio: '4/3', borderRadius: 14, background: `${tc}14`, marginBottom: 10 }} />}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 4px 4px' }}>
+              <div style={{ width: 16, height: 16, borderRadius: '50%', border: `2px solid ${on ? tc : 'rgba(22,15,8,0.18)'}`, background: on ? tc : 'transparent', flexShrink: 0 }} />
+              <span style={{ fontFamily: 'Fraunces,serif', fontSize: 14, color: '#160F08', lineHeight: 1.25 }}>{o.label}</span>
+            </div>
+          </motion.button>
+        );
+      })}
+    </div>
+  );
+}
+
 function SliderInput({ val, set, tc, min, max, step, minLabel, maxLabel }) {
   const trackRef = useRef(null);
   const dragging = useRef(false);

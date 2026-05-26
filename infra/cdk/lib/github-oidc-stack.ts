@@ -18,26 +18,31 @@ export class GitHubOidcStack extends cdk.Stack {
 
     // 1. Create the GitHub Deployer Role
     const githubDeployerRole = new iam.Role(this, 'GitHubDeployerRole', {
-      roleName: 'GitHubActionDeployerRole',
-      assumedBy: new iam.FederatedPrincipal(
-        githubProviderArn,
-        {
-          StringLike: {
-            'token.actions.githubusercontent.com:sub': props.repositoryConfig.map(
-              (config) => `repo:${config.owner}/${config.repo}:${config.filter ?? '*'}`
-            ),
+      roleName: 'GitHubActionsDeployerRole',
+      assumedBy: new iam.CompositePrincipal(
+        new iam.FederatedPrincipal(
+          githubProviderArn,
+          {
+            StringLike: {
+              'token.actions.githubusercontent.com:sub': props.repositoryConfig.map(
+                (config) => `repo:${config.owner}/${config.repo}:${config.filter ?? '*'}`
+              ),
+            },
+            StringEquals: {
+              'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
+            },
           },
-          StringEquals: {
-            'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
-          },
-        },
-        'sts:AssumeRoleWithWebIdentity'
+          'sts:AssumeRoleWithWebIdentity'
+        ),
+        new iam.ServicePrincipal('ecs-tasks.amazonaws.com')
       ),
-      description: 'Role assumed by GitHub Actions for OIDC-based deployments',
+      description: 'Role assumed by GitHub Actions for OIDC-based deployments and used as ECS Task/Execution role',
       maxSessionDuration: cdk.Duration.hours(1),
     });
 
     // 2. Add Permissions for ECR
+    githubDeployerRole.addManagedPolicy(iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AmazonECSTaskExecutionRolePolicy'));
+    githubDeployerRole.addManagedPolicy(iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonSSMReadOnlyAccess'));
     githubDeployerRole.addToPolicy(new iam.PolicyStatement({
       actions: [
         'ecr:GetAuthorizationToken',
@@ -75,8 +80,9 @@ export class GitHubOidcStack extends cdk.Stack {
     githubDeployerRole.addToPolicy(new iam.PolicyStatement({
       actions: ['iam:PassRole'],
       resources: [
-        `arn:aws:iam::${this.account}:role/ecsTaskExecutionRole`,
-        `arn:aws:iam::${this.account}:role/ecsTaskRole`,
+        githubDeployerRole.roleArn,
+        `arn:aws:iam::${this.account}:role/ecsTaskExecutionRole*`,
+        `arn:aws:iam::${this.account}:role/ecsTaskRole*`,
       ],
       conditions: {
         StringEquals: {

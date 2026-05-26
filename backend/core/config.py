@@ -17,6 +17,8 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "")  # e.g. https://app.axiorapulse.com
 RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID", "")
 RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET", "")
 
+DISABLE_PAYMENTS = os.getenv("DISABLE_PAYMENTS", "false").lower() == "true"
+
 
 if not DATABASE_URL:
     raise Exception("DATABASE_URL is missing")

@@ -20,11 +20,8 @@ concurrency:
 
 env:
   AWS_REGION:       ap-south-1
-  ECR_REGISTRY:     217757579310.dkr.ecr.ap-south-1.amazonaws.com
   ECR_REPOSITORY:   axiora/pulse-fastapi
-  ECS_CLUSTER:      axiora-pulse-cluster
-  ECS_SERVICE:      pulse-backend-service
-  CONTAINER_NAME:   pulse-backend
+  CONTAINER_NAME:   BackendContainer
 
 jobs:
   build-and-deploy:
@@ -51,12 +48,19 @@ jobs:
 
       - name: Build and push backend image
         id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
         run: |
-          IMAGE_URI=${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}
-          docker build --platform linux/amd64 -f backend/Dockerfile.prod -t $IMAGE_URI:latest -t $IMAGE_URI:${{ github.sha }} ./backend
+          IMAGE_URI=$ECR_REGISTRY/${{ env.ECR_REPOSITORY }}
+          docker build --platform linux/amd64 -f backend/Dockerfile.prod -t $IMAGE_URI:latest -t $IMAGE_URI:$IMAGE_TAG ./backend
           docker push $IMAGE_URI:latest
-          docker push $IMAGE_URI:${{ github.sha }}
-          echo "image=$IMAGE_URI:${{ github.sha }}" >> $GITHUB_OUTPUT
+          docker push $IMAGE_URI:$IMAGE_TAG
+          echo "image=$IMAGE_URI:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Logout of Amazon ECR
+        if: always()
+        run: docker logout ${{ steps.login-ecr.outputs.registry }}
 
       - name: Update ECS task definition with new image
         id: task-def
@@ -70,6 +74,6 @@ jobs:
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition:          ${{ steps.task-def.outputs.task-definition }}
-          service:                  ${{ env.ECS_SERVICE }}
-          cluster:                  ${{ env.ECS_CLUSTER }}
+          service:                  pulse-backend-service-production
+          cluster:                  axiora-pulse-cluster-production
           wait-for-service-stability: true

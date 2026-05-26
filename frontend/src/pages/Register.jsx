@@ -22,6 +22,7 @@ export default function Register() {
     fullName: '', 
     email: location.state?.email || '', 
     password: '', 
+    accountType: 'organization',
     tenantName: '', 
     tenantSlug: '' 
   });
@@ -41,13 +42,24 @@ export default function Register() {
   const s = (k, v) => sf(p => {
     const n = { ...p, [k]: v };
     if (k === 'tenantName') n.tenantSlug = v.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    if (k === 'accountType' && v === 'personal') {
+      n.tenantName = '';
+      n.tenantSlug = '';
+    }
     return n;
   });
+
+  const personalWorkspaceSlug = () => {
+    const localPart = f.email.split('@')[0] || 'personal';
+    const base = localPart.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'personal';
+    return `${base}-${Date.now().toString(36)}`;
+  };
 
   // Step 1: sign up with Cognito → sends verification email
   const go = async (e) => {
     e.preventDefault();
-    if (!f.fullName || !f.email || !f.password || !f.tenantName) return toast.error('Fill all fields');
+    if (!f.fullName || !f.email || !f.password) return toast.error('Fill all fields');
+    if (f.accountType === 'organization' && !f.tenantName) return toast.error('Organisation is required');
     if (f.password.length < 8) return toast.error('Password needs 8+ characters');
     setBusy(true);
     try {
@@ -128,9 +140,15 @@ export default function Register() {
       const session = await cognitoSignIn(f.email, f.password);
       localStorage.setItem('token', session.getIdToken().getJwtToken());
 
+      const isOrganization = f.accountType === 'organization';
+      const tenantName = isOrganization ? f.tenantName : `${f.fullName}'s workspace`;
+      const tenantSlug = isOrganization
+        ? (f.tenantSlug || f.tenantName.toLowerCase().replace(/[^a-z0-9]+/g, '-'))
+        : personalWorkspaceSlug();
+
       await initialize(true, {
-        tenant_name: f.tenantName,
-        tenant_slug: f.tenantSlug || f.tenantName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        tenant_name: tenantName,
+        tenant_slug: tenantSlug,
       });
       toast.success('Welcome to Axiora Pulse!');
       nav('/dashboard');
@@ -147,6 +165,17 @@ export default function Register() {
 
   const inputStyle = { width: '100%', boxSizing: 'border-box', padding: '0 0 12px', background: 'transparent', border: 'none', borderBottom: '2px solid rgba(22,15,8,0.12)', fontFamily: 'Fraunces, serif', fontSize: 16, color: 'var(--espresso)', outline: 'none', transition: 'border-color 0.2s' };
   const labelStyle = { fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.4)', display: 'block', marginBottom: 10 };
+  const accountTypeStyle = (active) => ({
+    flex: 1,
+    padding: '14px 12px',
+    borderRadius: 14,
+    border: active ? '2px solid var(--coral)' : '2px solid rgba(22,15,8,0.12)',
+    background: active ? 'rgba(255,69,0,0.08)' : 'transparent',
+    cursor: 'pointer',
+    fontFamily: 'Fraunces, serif',
+    fontSize: 14,
+    color: 'var(--espresso)',
+  });
 
   return (
     <div className="auth-grid" style={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: '1fr 480px' }}>
@@ -227,14 +256,13 @@ export default function Register() {
           ) : (
             <>
           <h2 style={{ fontFamily: 'Playfair Display, serif', fontWeight: 900, fontSize: 30, letterSpacing: '-1px', color: 'var(--espresso)', marginBottom: 6 }}>Create workspace</h2>
-          <p style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 15, color: 'rgba(22,15,8,0.45)', marginBottom: 36 }}>Set up your team's survey platform</p>
+          <p style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 15, color: 'rgba(22,15,8,0.45)', marginBottom: 36 }}>Set up your survey platform</p>
 
           <form onSubmit={go} style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             {[
               { label: 'Your name', key: 'fullName', type: 'text', ph: 'Jane Smith' },
               { label: 'Work email', key: 'email', type: 'email', ph: 'jane@company.com' },
               { label: 'Password', key: 'password', type: 'password', ph: 'Min 6 characters' },
-              { label: 'Organisation', key: 'tenantName', type: 'text', ph: 'Acme Research' },
             ].map(field => (
               <div key={field.key}>
                 <label style={labelStyle}>{field.label}</label>
@@ -247,17 +275,58 @@ export default function Register() {
             ))}
 
             <div>
-              <label style={labelStyle}>Workspace URL</label>
-              <div style={{ display: 'flex', alignItems: 'baseline', borderBottom: '2px solid rgba(22,15,8,0.12)', transition: 'border-color 0.2s' }}
-                onFocusCapture={e => e.currentTarget.style.borderBottomColor = 'var(--coral)'}
-                onBlurCapture={e => e.currentTarget.style.borderBottomColor = 'rgba(22,15,8,0.12)'}>
-                <input value={f.tenantSlug} onChange={e => s('tenantSlug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-                  placeholder="acme"
-                  style={{ ...inputStyle, flex: 1, border: 'none', borderBottom: 'none', fontFamily: 'Fraunces, serif' }}
-                />
-                <span style={{ fontFamily: 'Syne, sans-serif', fontSize: 11, color: 'rgba(22,15,8,0.3)', paddingBottom: 12, whiteSpace: 'nowrap' }}>.Axiora.io</span>
+              <label style={labelStyle}>Account type</label>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <label style={accountTypeStyle(f.accountType === 'organization')}>
+                  <input
+                    type="radio"
+                    name="accountType"
+                    value="organization"
+                    checked={f.accountType === 'organization'}
+                    onChange={e => s('accountType', e.target.value)}
+                    style={{ marginRight: 8 }}
+                  />
+                  Organisation
+                </label>
+                <label style={accountTypeStyle(f.accountType === 'personal')}>
+                  <input
+                    type="radio"
+                    name="accountType"
+                    value="personal"
+                    checked={f.accountType === 'personal'}
+                    onChange={e => s('accountType', e.target.value)}
+                    style={{ marginRight: 8 }}
+                  />
+                  Personal
+                </label>
               </div>
             </div>
+
+            {f.accountType === 'organization' && (
+              <div>
+                <label style={labelStyle}>Organisation</label>
+                <input type="text" value={f.tenantName} onChange={e => s('tenantName', e.target.value)} placeholder="Acme Research"
+                  style={inputStyle}
+                  onFocus={e => e.target.style.borderBottomColor = 'var(--coral)'}
+                  onBlur={e => e.target.style.borderBottomColor = 'rgba(22,15,8,0.12)'}
+                />
+              </div>
+            )}
+
+            {f.accountType === 'organization' && (
+              <div>
+                <label style={labelStyle}>Workspace URL</label>
+                <div style={{ display: 'flex', alignItems: 'baseline', borderBottom: '2px solid rgba(22,15,8,0.12)', transition: 'border-color 0.2s' }}
+                  onFocusCapture={e => e.currentTarget.style.borderBottomColor = 'var(--coral)'}
+                  onBlurCapture={e => e.currentTarget.style.borderBottomColor = 'rgba(22,15,8,0.12)'}>
+                  <input value={f.tenantSlug} onChange={e => s('tenantSlug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                    placeholder="acme"
+                    style={{ ...inputStyle, flex: 1, border: 'none', borderBottom: 'none', fontFamily: 'Fraunces, serif' }}
+                  />
+                  <span style={{ fontFamily: 'Syne, sans-serif', fontSize: 11, color: 'rgba(22,15,8,0.3)', paddingBottom: 12, whiteSpace: 'nowrap' }}>.Axiora.io</span>
+                </div>
+              </div>
+            )}
 
             <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }}
               type="submit" disabled={busy}

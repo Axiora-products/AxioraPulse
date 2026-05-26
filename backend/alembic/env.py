@@ -24,6 +24,7 @@ from db.models import (  # noqa: F401 — imported so Alembic detects all tables
     SurveyResponse,
     SurveyShare,
     Tenant,
+    UploadedFile,
     UserProfile,
 )
 
@@ -36,7 +37,7 @@ if config.config_file_name is not None:
 DATABASE_URL = os.getenv(
     "DATABASE_URL", "postgresql://postgres:root@localhost:5432/nexpulse"
 )
-config.set_main_option("sqlalchemy.url", DATABASE_URL)
+config.set_main_option("sqlalchemy.url", DATABASE_URL.replace("%", "%%"))
 
 target_metadata = Base.metadata
 

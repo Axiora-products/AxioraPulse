@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from core.rate_limiter import limiter
 from db.database import get_db
-from db.models import Survey, SurveyResponse, UserProfile, ResponseStatusEnum, SurveyStatusEnum
+from db.models import Survey, SurveyResponse, UserProfile, ResponseStatusEnum, SurveyStatusEnum , SurveyQuestion
 from schemas import DashboardStats, RecentSurvey
 from dependencies import get_current_user
 from fastapi import Request
@@ -103,6 +103,10 @@ def recent_surveys(
             .filter(SurveyResponse.survey_id == sv.id)
             .scalar() or 0
         )
+        # Using a join or subquery would be more efficient, but keeping it simple for now
+        
+        q_count = db.query(func.count(SurveyQuestion.id)).filter(SurveyQuestion.survey_id == sv.id).scalar() or 0
+        
         result.append({
             "id": sv.id,
             "title": sv.title,
@@ -112,6 +116,7 @@ def recent_surveys(
             "creator": {"full_name": sv.creator.full_name} if sv.creator else None,
             "created_at": sv.created_at,
             "response_count": count,
+            "question_count": q_count,
         })
 
     return result

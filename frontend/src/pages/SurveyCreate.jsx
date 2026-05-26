@@ -1,17 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import API from '../api/axios';
 import AISurveySuggestions from '../components/AISurveySuggestions';
+import SurveyPromptScreen, { SURVEY_MODES, getSurveyModeLabel } from '../components/SurveyPromptScreen';
 import useAuthStore from '../hooks/useAuth';
-import { QUESTION_TYPES, isExpired } from '../lib/constants';
+import { QUESTION_TYPES, SHORT_SURVEY_RULES, estimateSurveyMinutes, getFormatDiversityScore, getQuestionWordCount, isExpired } from '../lib/constants';
 import { Reorder, useDragControls, motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { useLoading } from '../context/LoadingContext';
+import { TRUST_SCREEN_COPY } from '../config/trustScreen';
 
 const newQ = () => ({ _id: Math.random().toString(36).slice(2), question_text: '', question_type: 'short_text', options: [], is_required: false, description: '' });
-const hasO = t => ['single_choice', 'multiple_choice', 'dropdown', 'ranking'].includes(t);
+const hasO = t => ['single_choice', 'multiple_choice', 'dropdown', 'ranking', 'emoji_reaction', 'swipe_choice', 'visual_choice'].includes(t);
 const isMx = t => t === 'matrix';
-const estTime = qs => `~${Math.max(1, Math.ceil(qs.length * 0.4))} min`;
+const estTime = qs => `~${estimateSurveyMinutes(qs)} min`;
 
 const fi = e => { e.target.style.borderColor = 'var(--coral)'; e.target.style.boxShadow = '0 0 0 3px rgba(255,69,0,0.08)'; };
 const fo = e => { e.target.style.borderColor = 'rgba(22,15,8,0.1)'; e.target.style.boxShadow = 'none'; };
@@ -125,6 +127,9 @@ function QCardCreate({ q, i, tc, qs, sQ, delQ, moveQ, addOpt, sOpt, delOpt }) {
                   </div>
                 ))}
               </div>
+              {q.question_type === 'visual_choice' && (q.options || []).map((o, j) => (
+                <input key={`img-${j}`} value={o.image_url || ''} onChange={e => sOpt(q._id, j, o.label, e.target.value)} placeholder={`Image URL for option ${j + 1}`} style={{ ...INP, marginTop: 8, padding: '9px 13px', fontSize: 12, borderRadius: 12 }} onFocus={fi} onBlur={fo} />
+              ))}
               <button onClick={() => addOpt(q._id)} style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: "'Syne',sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: tc, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', transition: 'opacity 0.15s' }}>
                 <span style={{ width: 18, height: 18, borderRadius: 6, background: `${tc}14`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>+</span>
                 Add option
@@ -168,8 +173,13 @@ export default function SurveyCreate() {
   const { profile } = useAuthStore();
   const { stopLoading } = useLoading();
   const nav = useNavigate();
+  const [searchParams] = useSearchParams();
+  const resumeDraftId = searchParams.get('draftId');
   useEffect(() => { stopLoading(); }, [stopLoading]);
 
+  const [trustAccepted, setTrustAccepted] = useState(() => Boolean(resumeDraftId));
+  const [trustLeaving, setTrustLeaving] = useState(false);
+  const [phase, setPhase] = useState('prompt'); // 'prompt' | 'builder'
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState('details');
   const [f, sf] = useState({ 
@@ -182,12 +192,16 @@ export default function SurveyCreate() {
     allow_anonymous: true, 
     require_email: false, 
     show_progress_bar: true,
-    ai_context: ''
+    ai_context: '',
+    ai_mode: 'conversational',
+    ai_custom_instruction: ''
   });
   const [qs, sQs] = useState([newQ()]);
   const [dirty, setDirty] = useState(false);
   const [aiGenerating, setAiGenerating] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [modeOpen, setModeOpen] = useState(false);
+  const modeRef = useRef(null);
   const [pendingGen, setPendingGen] = useState(null);
   const [showTemplates, setShowTemplates] = useState(false);
   const [tmplTab, setTmplTab] = useState('gallery');
@@ -203,6 +217,14 @@ export default function SurveyCreate() {
   });
 
   const persistCustom = list => { setCustomTemplates(list); localStorage.setItem('np-custom-templates', JSON.stringify(list)); };
+  const selectedAIMode = SURVEY_MODES.find(m => m.id === f.ai_mode) || SURVEY_MODES[0];
+
+  useEffect(() => {
+    if (!modeOpen) return;
+    const handler = e => { if (modeRef.current && !modeRef.current.contains(e.target)) setModeOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [modeOpen]);
 
   function saveAsTemplate() {
     if (!tmplName.trim()) return toast.error('Template name required');
@@ -242,13 +264,13 @@ export default function SurveyCreate() {
   }, [dirty]);
 
   const s = (k, v) => { sf(p => ({ ...p, [k]: v })); setDirty(true); };
-  const sQ = (id, k, v) => sQs(a => a.map(q => q._id === id ? { ...q, [k]: v } : q));
-  const addQ = () => { sQs(a => [...a, newQ()]); };
+  const sQ = (id, k, v) => { sQs(a => a.map(q => q._id === id ? { ...q, [k]: v } : q)); setDirty(true); };
+  const addQ = () => { sQs(a => [...a, newQ()]); setDirty(true); };
   const delQ = id => { if (qs.length <= 1) return toast.error('Need at least 1 question'); sQs(a => a.filter(q => q._id !== id)); };
-  const moveQ = (id, d) => sQs(a => { const i = a.findIndex(q => q._id === id); if ((d===-1&&i===0)||(d===1&&i===a.length-1)) return a; const b=[...a]; [b[i],b[i+d]]=[b[i+d],b[i]]; return b; });
-  const addOpt = id => sQs(a => a.map(q => q._id===id ? { ...q, options:[...(q.options||[]),{label:'',value:''}] } : q));
-  const sOpt = (id, i, v) => sQs(a => a.map(q => { if (q._id!==id) return q; const o=[...(q.options||[])]; o[i]={label:v,value:v.toLowerCase().replace(/\s+/g,'_')}; return {...q,options:o}; }));
-  const delOpt = (id, i) => sQs(a => a.map(q => q._id!==id ? q : { ...q, options:q.options.filter((_,j)=>j!==i) }));
+  const moveQ = (id, d) => { sQs(a => { const i = a.findIndex(q => q._id === id); if ((d===-1&&i===0)||(d===1&&i===a.length-1)) return a; const b=[...a]; [b[i],b[i+d]]=[b[i+d],b[i]]; return b; }); setDirty(true); };
+  const addOpt = id => { sQs(a => a.map(q => q._id===id ? { ...q, options:[...(q.options||[]),{label:'',value:''}] } : q)); setDirty(true); };
+  const sOpt = (id, i, v, imageUrl) => { sQs(a => a.map(q => { if (q._id!==id) return q; const o=[...(q.options||[])]; o[i]={...o[i],label:v,value:v.toLowerCase().replace(/\s+/g,'_'),...(imageUrl !== undefined ? { image_url:imageUrl } : {})}; return {...q,options:o}; })); setDirty(true); };
+  const delOpt = (id, i) => { sQs(a => a.map(q => q._id!==id ? q : { ...q, options:q.options.filter((_,j)=>j!==i) })); setDirty(true); };
 
   const applyAIGeneration = (data) => {
     sf(p => ({
@@ -275,9 +297,14 @@ export default function SurveyCreate() {
 
   const handleAIGenerate = async () => {
     if (!f.ai_context.trim()) return toast.error('Please describe your survey first');
+    if (f.ai_mode === 'custom' && !f.ai_custom_instruction.trim()) return toast.error('Add custom mode instructions first');
     setAiGenerating(true);
     try {
-      const { data } = await API.post('/ai/generate', { aiContext: f.ai_context });
+      const { data } = await API.post('/ai/generate', {
+        aiContext: f.ai_context,
+        mode: f.ai_mode,
+        customInstruction: f.ai_custom_instruction || null,
+      });
       if (f.title || qs.length > 1 || (qs.length === 1 && qs[0].question_text)) {
         setPendingGen(data);
         setShowConfirm(true);
@@ -290,6 +317,36 @@ export default function SurveyCreate() {
     } finally {
       setAiGenerating(false);
     }
+  };
+
+  // ── Prompt Screen Handlers ──
+  const handlePromptGenerate = async (promptText, rawPrompt, mode, fileContext, audioContext, customInstruction) => {
+    s('ai_context', promptText);
+    s('ai_mode', mode || 'conversational');
+    s('ai_custom_instruction', customInstruction || '');
+    setAiGenerating(true);
+    try {
+      const { data } = await API.post('/ai/generate', {
+        aiContext: promptText,
+        mode: mode || 'conversational',
+        fileContext: fileContext || null,
+        audioContext: audioContext || null,
+        customInstruction: customInstruction || null,
+      });
+      applyAIGeneration(data);
+      setPhase('builder');
+      setTab('questions');
+    } catch (e) {
+      toast.error('Failed to generate survey');
+      console.error(e);
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
+  const handlePromptTemplate = (tmpl) => {
+    loadTemplate(tmpl);
+    setPhase('builder');
   };
 
   async function save(status = 'draft') {
@@ -337,13 +394,18 @@ export default function SurveyCreate() {
 
   const tc = f.theme_color || '#FF4500';
   const reqCount = qs.filter(q => q.is_required).length;
+  const estimatedMinutes = estimateSurveyMinutes(qs);
+  const conciseQuestionCount = qs.filter(q => getQuestionWordCount(q) <= SHORT_SURVEY_RULES.maxHighSignalWords).length;
+  const hasAdaptiveFormats = getFormatDiversityScore(qs) >= 3;
   const healthChecks = [
     f.title.trim(), 
     f.description.trim(), 
     f.welcome_message.trim(), 
-    qs.length >= 2, 
-    qs.length > 0 && reqCount <= 5, // Only counts if there are questions
-    qs.some(q => q.question_type !== 'short_text'), 
+    qs.length > 0 && qs.length <= SHORT_SURVEY_RULES.defaultQuestionCount, 
+    qs.length > 0 && reqCount <= SHORT_SURVEY_RULES.preferredRequiredQuestionLimit,
+    hasAdaptiveFormats,
+    estimatedMinutes <= SHORT_SURVEY_RULES.targetCompletionMinutes,
+    qs.length > 0 && conciseQuestionCount === qs.length,
     f.expires_at
   ];
   // Filter out checks that shouldn't contribute to 0% state
@@ -361,8 +423,96 @@ export default function SurveyCreate() {
   const ARC_CIRC = 2 * Math.PI * ARC_R;
   const arcOffset = ARC_CIRC - (health / 100) * ARC_CIRC;
 
+  const [initialDraftData, setInitialDraftData] = useState(null);
+
+  useEffect(() => {
+    if (resumeDraftId) {
+      const loadDraft = async () => {
+        try {
+          const { data } = await API.get(`/surveys/${resumeDraftId}`);
+          // welcome_message might contain JSON meta
+          let mode = 'conversational';
+          let customInstruction = '';
+          let attachments = [];
+          if (data.welcome_message && data.welcome_message.startsWith('{')) {
+            try {
+              const meta = JSON.parse(data.welcome_message);
+              mode = meta.mode || 'conversational';
+              customInstruction = meta.custom_instruction || meta.customInstruction || '';
+              attachments = meta.attachments || [];
+            } catch (e) {
+              console.warn('Failed to parse draft meta', e);
+            }
+          }
+          setInitialDraftData({
+            id: data.id,
+            prompt: data.description || '',
+            mode: mode,
+            customInstruction: customInstruction,
+            attachments: attachments
+          });
+          setPhase('prompt');
+        } catch (e) {
+          console.error('Failed to load draft', e);
+          toast.error('Could not resume draft');
+        }
+      };
+      loadDraft();
+    }
+  }, [resumeDraftId]);
+
+  // ── Prompt Phase ──
+  if (!trustAccepted) {
+    return (
+      <div className="trust-screen-shell">
+        <motion.div
+          className="trust-screen-panel"
+          initial={{ opacity: 0, y: 18, scale: 0.985 }}
+          animate={trustLeaving ? { opacity: 0, y: -10, scale: 0.985 } : { opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.36, ease: [0.16, 1, 0.3, 1] }}
+        >
+          <div className="trust-screen-kicker">Idea Protection</div>
+          <h1>{TRUST_SCREEN_COPY.title}</h1>
+          <p>
+            {TRUST_SCREEN_COPY.subheading.split('\n').map((line, index) => (
+              <React.Fragment key={line}>
+                {index > 0 && <br />}
+                {line}
+              </React.Fragment>
+            ))}
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setTrustLeaving(true);
+              window.setTimeout(() => setTrustAccepted(true), 220);
+            }}
+          >
+            {TRUST_SCREEN_COPY.continueLabel}
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
+
+  if (phase === 'prompt') {
+    return (
+      <SurveyPromptScreen
+        onGenerate={handlePromptGenerate}
+        onSkip={() => setPhase('builder')}
+        onLoadTemplate={handlePromptTemplate}
+        galleryTemplates={GALLERY_TEMPLATES}
+        aiGenerating={aiGenerating}
+        initialData={initialDraftData}
+      />
+    );
+  }
+
+  // ── Builder Phase ──
   return (
     <div>
+      <div className="idea-protection-badge">Confidentiality Protected by Axiora Pulse</div>
+
       <style>{`
         @keyframes qCardIn { from { opacity:0; transform:translateY(16px) scale(0.985); } to { opacity:1; transform:translateY(0) scale(1); } }
         @keyframes pulseRing { 0%,100%{transform:translate(-50%,-50%) scale(1);opacity:0.6} 50%{transform:translate(-50%,-50%) scale(1.8);opacity:0} }
@@ -543,23 +693,18 @@ export default function SurveyCreate() {
         {/* Bottom separator */}
         <div style={{ position:'absolute',bottom:0,left:0,right:0,height:'1px',background:'linear-gradient(90deg,transparent,rgba(22,15,8,0.08) 30%,rgba(22,15,8,0.08) 70%,transparent)' }}/>
 
-        <div style={{ position:'relative',zIndex:1,display:'flex',alignItems:'flex-end',justifyContent:'space-between',flexWrap:'wrap',gap:20 }}>
-          <div>
-            <div style={{ display:'flex',alignItems:'center',gap:10,marginBottom:14 }}>
-              <div style={{ width:28,height:1.5,background:'var(--coral)',borderRadius:1 }}/>
-              <span style={{ fontFamily:"'Syne',sans-serif",fontSize:9,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:'var(--coral)' }}>Research Studio</span>
-            </div>
-            <h1 style={{ fontFamily:"'Playfair Display', serif",fontWeight:900,fontSize:'clamp(38px,4.5vw,60px)',letterSpacing:'-2.5px',color:'var(--espresso)',margin:0,lineHeight:0.95 }}>
-              New <em style={{ fontStyle:'italic',color:tc }}>Survey</em>
-            </h1>
+        <div style={{ position:'relative',zIndex:1,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:16 }}>
+          <div style={{ display:'flex',alignItems:'center',gap:6 }}>
+            <div style={{ width:28,height:1.5,background:'var(--coral)',borderRadius:1 }}/>
+            <span style={{ fontFamily:"'Syne',sans-serif",fontSize:9,fontWeight:700,letterSpacing:'0.22em',textTransform:'uppercase',color:'var(--coral)' }}>Research Studio</span>
             {dirty && (
-              <div style={{ display:'flex',alignItems:'center',gap:7,marginTop:14 }}>
-                <div style={{ width:6,height:6,borderRadius:'50%',background:'var(--saffron)',boxShadow:'0 0 10px rgba(255,184,0,0.6)' }}/>
-                <span style={{ fontFamily:"'Syne',sans-serif",fontSize:9,fontWeight:700,letterSpacing:'0.14em',textTransform:'uppercase',color:'#A07000' }}>Unsaved changes</span>
+              <div style={{ display:'flex',alignItems:'center',gap:5,padding:'4px 10px',borderRadius:999,background:'rgba(255,184,0,0.12)',marginLeft:4 }}>
+                <div style={{ width:5,height:5,borderRadius:'50%',background:'var(--saffron)',boxShadow:'0 0 8px rgba(255,184,0,0.5)' }}/>
+                <span style={{ fontFamily:"'Syne',sans-serif",fontSize:8,fontWeight:700,letterSpacing:'0.14em',textTransform:'uppercase',color:'#A07000' }}>Unsaved changes</span>
               </div>
             )}
           </div>
-          <div style={{ display:'flex',gap:8,flexShrink:0 }}>
+          <div style={{ display:'flex',gap:8,flexShrink:0,flexWrap:'wrap' }}>
             <button onClick={() => setShowTemplates(true)} style={{ display:'flex',alignItems:'center',gap:8,padding:'11px 20px',borderRadius:999,border:'1.5px solid rgba(22,15,8,0.12)',background:'rgba(255,255,255,0.6)',backdropFilter:'blur(8px)',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:10,letterSpacing:'0.12em',textTransform:'uppercase',color:'rgba(22,15,8,0.5)',cursor:'pointer',transition:'all 0.2s' }}
               onMouseEnter={e=>{e.currentTarget.style.borderColor='rgba(22,15,8,0.25)';e.currentTarget.style.color='var(--espresso)';e.currentTarget.style.background='rgba(255,255,255,0.9)';}}
               onMouseLeave={e=>{e.currentTarget.style.borderColor='rgba(22,15,8,0.12)';e.currentTarget.style.color='rgba(22,15,8,0.5)';e.currentTarget.style.background='rgba(255,255,255,0.6)';}}>
@@ -611,6 +756,45 @@ export default function SurveyCreate() {
                   <h3 style={{ margin: 0, fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 18, color: 'var(--espresso)' }}>AI Survey Generator</h3>
                 </div>
                 <label style={LBL}>Describe your survey</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
+                  <div className="cp-mode-selector" ref={modeRef}>
+                    <button
+                      type="button"
+                      className={`cp-mode-pill${modeOpen ? ' open' : ''}`}
+                      onClick={() => setModeOpen(o => !o)}
+                    >
+                      <span>{selectedAIMode.icon}</span>
+                      <span>{getSurveyModeLabel(selectedAIMode)}</span>
+                      <svg className="cp-chevron" width="8" height="5" viewBox="0 0 8 5" fill="currentColor">
+                        <path d="M0 0l4 5 4-5z" />
+                      </svg>
+                    </button>
+
+                    {modeOpen && (
+                      <div className="cp-mode-dropdown" style={{ bottom: 'auto', top: 'calc(100% + 8px)' }}>
+                        {SURVEY_MODES.map(mode => (
+                          <button
+                            key={mode.id}
+                            type="button"
+                            className={`cp-mode-option${f.ai_mode === mode.id ? ' active' : ''}`}
+                            onClick={() => { s('ai_mode', mode.id); setModeOpen(false); }}
+                          >
+                            <div className="cp-mode-icon">{mode.icon}</div>
+                            <div className="cp-mode-option-text">
+                              <div>{getSurveyModeLabel(mode)}</div>
+                              <div className="cp-mode-option-desc">{mode.desc}</div>
+                            </div>
+                            {f.ai_mode === mode.id && (
+                              <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="var(--coral)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M2 6l3 3 5-5" />
+                              </svg>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
                 <textarea 
                   value={f.ai_context} 
                   onChange={e => s('ai_context', e.target.value)} 
@@ -620,6 +804,17 @@ export default function SurveyCreate() {
                   onFocus={fi} 
                   onBlur={fo}
                 />
+                {f.ai_mode === 'custom' && (
+                  <textarea
+                    value={f.ai_custom_instruction}
+                    onChange={e => s('ai_custom_instruction', e.target.value)}
+                    placeholder="Custom survey mode instructions: tone, depth, question style, engagement level, structure..."
+                    rows={2}
+                    style={{...INP, borderRadius: 16, marginBottom: 16, background: 'var(--warm-white)'}}
+                    onFocus={fi}
+                    onBlur={fo}
+                  />
+                )}
                 <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                   <button 
                     onClick={handleAIGenerate} 
@@ -687,6 +882,19 @@ export default function SurveyCreate() {
           {/* ── QUESTIONS TAB ── */}
           {tab === 'questions' && (
             <div style={{ display:'flex',flexDirection:'column',gap:16 }}>
+              <div style={{ display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))',gap:10 }}>
+                {[
+                  [`${SHORT_SURVEY_RULES.defaultQuestionCount}`, 'default questions'],
+                  [`${SHORT_SURVEY_RULES.targetCompletionMinutes} min`, 'target time'],
+                  [`${conciseQuestionCount}/${qs.length}`, 'concise'],
+                  [hasAdaptiveFormats ? 'Balanced' : 'Mix formats', 'adaptive flow'],
+                ].map(([value, label]) => (
+                  <div key={label} style={{ background:'var(--warm-white)',border:'1.5px solid rgba(22,15,8,0.07)',borderRadius:18,padding:'14px 16px' }}>
+                    <div style={{ fontFamily:"'Playfair Display',serif",fontWeight:900,fontSize:20,color:tc,lineHeight:1 }}>{value}</div>
+                    <div style={{ fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:8,letterSpacing:'0.12em',textTransform:'uppercase',color:'rgba(22,15,8,0.32)',marginTop:6 }}>{label}</div>
+                  </div>
+                ))}
+              </div>
               <Reorder.Group axis="y" values={qs} onReorder={sQs} style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
                 {qs.map((q, i) => (
                   <QCardCreate key={q._id} q={q} i={i} tc={tc} qs={qs}
@@ -707,7 +915,7 @@ export default function SurveyCreate() {
               </button>
 
               <AISurveySuggestions survey={f} questions={qs} tc={tc} aiContext={f.ai_context}
-                onAdd={q => sQs(a => [...a, { ...newQ(), ...q, _id:'new_'+Math.random().toString(36).slice(2) }])} />
+                onAdd={q => { sQs(a => [...a, { ...newQ(), ...q, _id:'new_'+Math.random().toString(36).slice(2) }]); setDirty(true); }} />
             </div>
           )}
 
@@ -793,7 +1001,10 @@ export default function SurveyCreate() {
                   [f.title.trim(),'Add a title'],
                   [f.description.trim(),'Add a description'],
                   [f.welcome_message.trim(),'Welcome message'],
-                  [qs.length >= 2,'At least 2 questions'],
+                  [qs.length > 0 && qs.length <= SHORT_SURVEY_RULES.defaultQuestionCount,`${SHORT_SURVEY_RULES.defaultQuestionCount}-question target`],
+                  [estimatedMinutes <= SHORT_SURVEY_RULES.targetCompletionMinutes,`${SHORT_SURVEY_RULES.targetCompletionMinutes} min target`],
+                  [conciseQuestionCount === qs.length,'Concise wording'],
+                  [hasAdaptiveFormats,'Adaptive formats'],
                   [f.expires_at,'Set expiry date'],
                 ].map(([done,tip]) => (
                   <div key={tip} style={{ display:'flex',alignItems:'center',gap:7 }}>

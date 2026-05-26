@@ -14,6 +14,7 @@ Usage in a route:
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from core import config
 from db.database import get_db
 from db.models import UserProfile, Subscription, Plan, Survey, UserProfile
 from dependencies import get_current_user
@@ -28,7 +29,7 @@ class _FeatureChecker:
         current_user: UserProfile = Depends(get_current_user),
         db: Session = Depends(get_db),
     ) -> None:
-        if current_user.is_internal:
+        if config.DISABLE_PAYMENTS or current_user.is_internal:
             return
 
         sub = (
