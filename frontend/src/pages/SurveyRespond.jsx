@@ -47,11 +47,22 @@ const variants = {
 };
 const spring = { duration: 0.55, ease: [0.16, 1, 0.3, 1] };
 
+// ─── Read googtrans cookie ────────────────────────────────────────────────────
+function getLanguageFromCookie() {
+  const match = document.cookie.match(/googtrans=\/en\/([^;]+)/);
+  if (match && match[1]) {
+    return match[1];
+  }
+  return 'en';
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 export default function SurveyRespond() {
   const { slug } = useParams();
   const [sv, setSv] = useState(null);
   const [qs, setQs] = useState([]);
+  const [showLangPopup, setShowLangPopup] = useState(false);
+  const [currentLang, setCurrentLang] = useState(getLanguageFromCookie());
   const [ans, setAns] = useState({});
   const [step, setStep] = useState(-1);
   const [dir, setDir] = useState(1);
@@ -69,6 +80,93 @@ export default function SurveyRespond() {
   const [saved, setSaved] = useState(null);
   const [orgName, setOrgName] = useState('');
 
+  const [translatedData, setTranslatedData] = useState({});
+  const [translating, setTranslating] = useState(false);
+
+  const activeSv = (currentLang !== 'en' && translatedData[currentLang]?.sv) ? translatedData[currentLang].sv : sv;
+  const activeQs = (currentLang !== 'en' && translatedData[currentLang]?.qs) ? translatedData[currentLang].qs : qs;
+
+  const fetchTranslation = async (langCode) => {
+    if (langCode === 'en') return;
+    if (translatedData[langCode]) return;
+    
+    setTranslating(true);
+    try {
+      const payload = {
+        title: sv.title,
+        description: sv.description,
+        welcome_message: sv.welcome_message,
+        thank_you_message: sv.thank_you_message,
+        questions: qs.map(q => ({
+          id: q.id,
+          type: q.type,
+          question_text: q.question_text,
+          description: q.description,
+          options: q.options
+        })),
+        language: langCode
+      };
+      
+      const res = await API.post('/ai/translate-survey', payload);
+      const translated = res.data;
+      
+      const mergedQs = qs.map(originalQ => {
+        const transQ = (translated.questions || []).find(t => t.id === originalQ.id);
+        if (transQ) {
+          return {
+            ...originalQ,
+            question_text: transQ.question_text,
+            description: transQ.description,
+            options: transQ.options ?? originalQ.options
+          };
+        }
+        return originalQ;
+      });
+      
+      const mergedSv = {
+        ...sv,
+        title: translated.title,
+        description: translated.description,
+        welcome_message: translated.welcome_message,
+        thank_you_message: translated.thank_you_message
+      };
+      
+      setTranslatedData(prev => ({
+        ...prev,
+        [langCode]: { sv: mergedSv, qs: mergedQs }
+      }));
+    } catch (e) {
+      console.error('Failed to translate survey:', e);
+      toast.error('Failed to translate survey. Please try again.');
+    } finally {
+      setTranslating(false);
+    }
+  };
+
+  useEffect(() => {
+    if (sv && qs.length > 0 && currentLang !== 'en' && !translatedData[currentLang]) {
+      fetchTranslation(currentLang);
+    }
+  }, [sv, qs, currentLang]);
+
+  const changeLanguage = (langCode) => {
+    setCurrentLang(langCode);
+    
+    // Clear existing cookie
+    document.cookie = "googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+    document.cookie = "googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=" + window.location.hostname;
+    
+    // Set new cookie
+    if (langCode !== 'en') {
+      document.cookie = "googtrans=/en/" + langCode + "; path=/";
+      document.cookie = "googtrans=/en/" + langCode + "; path=/; domain=" + window.location.hostname;
+      
+      if (!translatedData[langCode]) {
+        fetchTranslation(langCode);
+      }
+    }
+  };
+
   const { stopLoading } = useLoading();
   const token = useRef(null);
   const timer = useRef(null);
@@ -77,7 +175,7 @@ export default function SurveyRespond() {
 
   const tracker = useResponseTracking(rId);
   useExitDetection(rId, tracker.onAbandon, done);
-  const { visibleQuestions, nextVisible, prevVisible, progressAt } = useConditionalLogic(qs, ans);
+  const { visibleQuestions, nextVisible, prevVisible, progressAt } = useConditionalLogic(activeQs, ans);
 
 
   // For demographic questions shown at end (if enabled in survey settings)
@@ -185,15 +283,15 @@ export default function SurveyRespond() {
   // ── Submit ────────────────────────────────────────────────────────────────
   async function submit() {
     for (const q of visibleQuestions) {
-      if (q.is_required && !ans[q.id]) { goTo(qs.indexOf(q)); return toast.error(`Please answer: "${q.question_text}"`); }
+      if (q.is_required && !ans[q.id]) { goTo(activeQs.indexOf(q)); return toast.error(`Please answer: "${q.question_text}"`); }
     }
     setBusy(true);
     try {
       const id = await ensureR();
-      const quality = await tracker.onSubmit(ans, qs);
+      const quality = await tracker.onSubmit(ans, activeQs);
       await autoSave(ans, id);
       // Update email if collected at end
-      if (sv?.require_email && email) {
+      if (activeSv?.require_email && email) {
         await API.patch(`/responses/${id}`, { respondent_email: email });
       }
       await API.post(`/responses/${id}/submit`, { metadata: { quality_score: quality } });
@@ -206,21 +304,21 @@ export default function SurveyRespond() {
   // ── Navigation ────────────────────────────────────────────────────────────
   function goTo(n) { setDir(n > step ? 1 : -1); setStep(n); }
   function goNext() {
-    const q = qs[step];
+    const q = activeQs[step];
     if (q?.is_required && !ans[q.id]) return toast.error('This question is required');
     if (q) tracker.onLeave(q.id);
     const next = nextVisible(step);
-    if (next !== null) { setDir(1); setStep(next); tracker.onEnter(qs[next]?.id); }
-    else { setDir(1); setStep(qs.length); }
+    if (next !== null) { setDir(1); setStep(next); tracker.onEnter(activeQs[next]?.id); }
+    else { setDir(1); setStep(activeQs.length); }
   }
   function goBack() {
-    if (step === qs.length) { setDir(-1); const last = prevVisible(qs.length - 1) ?? qs.length - 1; setStep(last); return; }
-    if (step >= 0 && qs[step]) tracker.onLeave(qs[step].id);
+    if (step === activeQs.length) { setDir(-1); const last = prevVisible(activeQs.length - 1) ?? activeQs.length - 1; setStep(last); return; }
+    if (step >= 0 && activeQs[step]) tracker.onLeave(activeQs[step].id);
     tracker.onBack();
     setDir(-1);
     const prev = prevVisible(step);
-    if (prev !== null) { setStep(prev); tracker.onEnter(qs[prev]?.id); }
-    else if (sv?.welcome_message) setStep(-1);
+    if (prev !== null) { setStep(prev); tracker.onEnter(activeQs[prev]?.id); }
+    else if (activeSv?.welcome_message) setStep(-1);
     else setStep(0);
   }
 
@@ -228,24 +326,24 @@ export default function SurveyRespond() {
   useEffect(() => {
     const onKey = e => {
       if (e.key !== 'Enter' || e.target.tagName === 'TEXTAREA') return;
-      if (step === qs.length && sv?.require_email) { if (email) submit(); return; }
-      if (step >= 0 && step < qs.length) { nextVisible(step) === null ? (sv?.require_email ? setStep(qs.length) : submit()) : goNext(); }
+      if (step === activeQs.length && activeSv?.require_email) { if (email) submit(); return; }
+      if (step >= 0 && step < activeQs.length) { nextVisible(step) === null ? (activeSv?.require_email ? setStep(activeQs.length) : submit()) : goNext(); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [step, qs, ans, email, sv]);
+  }, [step, activeQs, ans, email, activeSv]);
 
-  useEffect(() => { if (step >= 0 && qs[step]) tracker.onEnter(qs[step].id); }, []);
+  useEffect(() => { if (step >= 0 && activeQs[step]) tracker.onEnter(activeQs[step].id); }, []);
 
   // ── Derived ───────────────────────────────────────────────────────────────
-  const tc = sv?.theme_color || '#FF4500';
-  const q = qs[step];
+  const tc = activeSv?.theme_color || '#FF4500';
+  const q = activeQs[step];
   const onWelcome = step === -1;
   const pct = step >= 0 ? progressAt(step) : 0;
   const visPos = step >= 0 ? visibleQuestions.findIndex(vq => vq.id === q?.id) + 1 : 0;
   const visTotal = visibleQuestions.length;
-  const isLast = step >= 0 && step < qs.length && nextVisible(step) === null;
-  const canBack = step > 0 || (step === 0 && sv?.welcome_message) || step === qs.length;
+  const isLast = step >= 0 && step < activeQs.length && nextVisible(step) === null;
+  const canBack = step > 0 || (step === 0 && activeSv?.welcome_message) || step === activeQs.length;
   const remaining = useMemo(() => visibleQuestions.filter(vq => !ans[vq.id]), [visibleQuestions, ans]);
 
   // ── Error state ───────────────────────────────────────────────────────────
@@ -670,7 +768,7 @@ export default function SurveyRespond() {
 
         {/* ── Multi-step feedback ── */}
         {!fbDone ? (
-          <motion.div key={`fb-${fbStep}`}
+          <motion.div key={`fb-${fbStep}-${currentLang}`}
             initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
             style={{ position: 'relative', zIndex: 1, textAlign: 'center', maxWidth: 440, width: '100%' }}>
@@ -762,7 +860,7 @@ export default function SurveyRespond() {
         ) : (
 
           /* ── Thank-you screen ── */
-          <motion.div key="thankyou"
+          <motion.div key={`thankyou-${currentLang}`}
             initial={{ opacity: 0, scale: 0.92, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
             style={{ textAlign: 'center', maxWidth: 460, position: 'relative', zIndex: 1 }}>
             <motion.div initial={{ scale: 0, rotate: -20 }} animate={{ scale: 1, rotate: 0 }} transition={{ delay: 0.2, type: 'spring', stiffness: 180, damping: 16 }}
@@ -843,6 +941,32 @@ export default function SurveyRespond() {
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+          {/* Custom language selector button in header */}
+          <div style={{ position: 'relative' }}>
+            <button onClick={() => setShowLangPopup(true)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '6px 12px',
+                borderRadius: 99,
+                border: `1px solid ${dark ? 'rgba(237,232,223,0.15)' : 'rgba(22,15,8,0.12)'}`,
+                background: dark ? 'rgba(237,232,223,0.05)' : 'rgba(22,15,8,0.03)',
+                color: dark ? '#EDE8DF' : '#160F08',
+                fontFamily: 'Syne,sans-serif',
+                fontWeight: 700,
+                fontSize: 10,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+                transition: 'all 0.25s ease'
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = tc; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = dark ? 'rgba(237,232,223,0.15)' : 'rgba(22,15,8,0.12)'; }}
+            >
+              🌐 {currentLang === 'en' ? 'English' : currentLang === 'hi' ? 'हिंदी' : 'తెలుగు'}
+            </button>
+          </div>
           {/* Estimated time */}
           {!onWelcome && remaining.length > 1 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: sub }}>
@@ -873,7 +997,7 @@ export default function SurveyRespond() {
 
           {/* WELCOME */}
           {step === -1 && (
-            <motion.div className="np-welcome-stage" key="welcome" custom={dir} variants={variants} initial="enter" animate="show" exit="exit" transition={spring}
+            <motion.div className="np-welcome-stage" key={`welcome-${currentLang}`} custom={dir} variants={variants} initial="enter" animate="show" exit="exit" transition={spring}
               style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px 40px' }}>
               <div aria-hidden style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
                 {/* Grain texture */}
@@ -897,27 +1021,27 @@ export default function SurveyRespond() {
                 </motion.div>
                 <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18, duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
                   style={{ fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: 'clamp(32px,5.5vw,62px)', letterSpacing: '-2.5px', color: '#EDE8DF', lineHeight: 1.02, marginBottom: 20 }}>
-                  {sv.title}
+                  {activeSv.title}
                 </motion.h1>
-                {sv.description && (
+                {activeSv.description && (
                   <motion.p initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28 }}
                     style={{ fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 18, color: 'rgba(237,232,223,0.42)', lineHeight: 1.75, marginBottom: 8 }}>
-                    {sv.description}
+                    {activeSv.description}
                   </motion.p>
                 )}
-                {sv.welcome_message && (
+                {activeSv.welcome_message && (
                   <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.35 }}
                     style={{ fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 15, color: 'rgba(237,232,223,0.28)', lineHeight: 1.7, marginBottom: 0 }}>
-                    {sv.welcome_message}
+                    {activeSv.welcome_message}
                   </motion.p>
                 )}
                 <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.44 }} style={{ marginTop: 36 }}>
                   <motion.button whileHover={{ scale: 1.02, y: -2 }} whileTap={{ scale: 0.97 }}
                     onClick={() => {
                       setDir(1);
-                      const first = qs.findIndex(q => visibleQuestions.some(vq => vq.id === q.id));
+                      const first = activeQs.findIndex(q => visibleQuestions.some(vq => vq.id === q.id));
                       const idx = first >= 0 ? first : 0;
-                      setStep(idx); tracker.onEnter(qs[idx]?.id);
+                      setStep(idx); tracker.onEnter(activeQs[idx]?.id);
                     }}
                     style={{ display: 'inline-flex', alignItems: 'center', gap: 10, padding: '15px 44px', borderRadius: 999, border: 'none', background: tc, color: '#fff', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 12, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', boxShadow: `0 8px 40px ${tc}40` }}>
                     Begin
@@ -930,7 +1054,7 @@ export default function SurveyRespond() {
 
           {/* QUESTION */}
           {step >= 0 && step < qs.length && q && (
-            <motion.div className="np-question-stage" key={q.id} custom={dir} variants={variants} initial="enter" animate="show" exit="exit" transition={spring}
+            <motion.div className="np-question-stage" key={`${q.id}-${currentLang}`} custom={dir} variants={variants} initial="enter" animate="show" exit="exit" transition={spring}
               style={{ position: 'absolute', inset: 0, overflowY: 'auto', overflowX: 'hidden' }}>
               <div className="np-question-wrap" style={{ minHeight: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px 40px' }}>
                 <div className="np-question-panel" style={{ width: '100%', maxWidth: 680, position: 'relative' }}>
@@ -989,9 +1113,9 @@ export default function SurveyRespond() {
                           Continue
                           <Icons.Arrow style={{ color: 'currentColor' }} />
                         </motion.button>
-                      ) : sv?.require_email ? (
+                      ) : activeSv?.require_email ? (
                         <motion.button whileHover={{ scale: 1.02, y: -1 }} whileTap={{ scale: 0.97 }}
-                          onClick={() => { if (q?.is_required && !ans[q.id]) return toast.error('This question is required'); setDir(1); setStep(qs.length); }}
+                          onClick={() => { if (q?.is_required && !ans[q.id]) return toast.error('This question is required'); setDir(1); setStep(activeQs.length); }}
                           style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 36px', borderRadius: 999, border: 'none', background: fg, color: dark ? '#100B05' : '#F7F5F0', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', transition: 'background 0.25s, box-shadow 0.25s' }}
                           onMouseEnter={e => { e.currentTarget.style.background = tc; e.currentTarget.style.color = '#fff'; e.currentTarget.style.boxShadow = `0 8px 32px ${tc}40`; }}
                           onMouseLeave={e => { e.currentTarget.style.background = fg; e.currentTarget.style.color = dark ? '#100B05' : '#F7F5F0'; e.currentTarget.style.boxShadow = 'none'; }}>
@@ -1015,8 +1139,8 @@ export default function SurveyRespond() {
           )}
 
           {/* EMAIL COLLECTION (if required, shown after last question) */}
-          {step === qs.length && sv?.require_email && (
-            <motion.div key="email-gate" custom={dir} variants={variants} initial="enter" animate="show" exit="exit" transition={spring}
+          {step === activeQs.length && activeSv?.require_email && (
+            <motion.div key={`email-gate-${currentLang}`} custom={dir} variants={variants} initial="enter" animate="show" exit="exit" transition={spring}
               style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px 40px' }}>
               <div style={{ width: '100%', maxWidth: 520, textAlign: 'center' }}>
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
@@ -1035,15 +1159,15 @@ export default function SurveyRespond() {
                 </motion.p>
                 <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28 }}>
                   <input
-                    type="email"
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter' && email) submit(); }}
-                    placeholder="you@company.com"
-                    autoFocus
-                    style={{ width: '100%', boxSizing: 'border-box', padding: '18px 24px', background: 'rgba(22,15,8,0.04)', border: `1.5px solid rgba(22,15,8,0.12)`, borderRadius: 18, fontFamily: 'Fraunces,serif', fontSize: 20, fontWeight: 300, color: fg, outline: 'none', textAlign: 'center', transition: 'border-color 0.2s, box-shadow 0.2s', marginBottom: 20 }}
-                    onFocus={e => { e.target.style.borderColor = tc; e.target.style.boxShadow = `0 0 0 4px ${tc}14`; }}
-                    onBlur={e => { e.target.style.borderColor = 'rgba(22,15,8,0.12)'; e.target.style.boxShadow = 'none'; }}
+                     type="email"
+                     value={email}
+                     onChange={e => setEmail(e.target.value)}
+                     onKeyDown={e => { if (e.key === 'Enter' && email) submit(); }}
+                     placeholder="you@company.com"
+                     autoFocus
+                     style={{ width: '100%', boxSizing: 'border-box', padding: '18px 24px', background: 'rgba(22,15,8,0.04)', border: `1.5px solid rgba(22,15,8,0.12)`, borderRadius: 18, fontFamily: 'Fraunces,serif', fontSize: 20, fontWeight: 300, color: fg, outline: 'none', textAlign: 'center', transition: 'border-color 0.2s, box-shadow 0.2s', marginBottom: 20 }}
+                     onFocus={e => { e.target.style.borderColor = tc; e.target.style.boxShadow = `0 0 0 4px ${tc}14`; }}
+                     onBlur={e => { e.target.style.borderColor = 'rgba(22,15,8,0.12)'; e.target.style.boxShadow = 'none'; }}
                   />
                   <div style={{ display: 'flex', gap: 12, justifyContent: 'center', alignItems: 'center' }}>
                     <motion.button whileHover={{ scale: 1.02, y: -1 }} whileTap={{ scale: 0.97 }}
@@ -1060,8 +1184,189 @@ export default function SurveyRespond() {
         </AnimatePresence>
       </div>
 
+      {/* Dynamic AI Translation Loader */}
+      {translating && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(14,5,1,0.85)', backdropFilter: 'blur(16px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 99999, color: '#FFFBF4' }}>
+          <div style={{ width: 48, height: 48, borderRadius: '50%', border: `3px solid rgba(255,69,0,0.15)`, borderTopColor: tc, animation: 'np-spin 1s linear infinite' }} />
+          <style>{`
+            @keyframes np-spin {
+              to { transform: rotate(360deg); }
+            }
+          `}</style>
+          <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 13, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: tc, marginTop: 24 }}>
+            Translating survey to {currentLang === 'hi' ? 'हिंदी' : 'తెలుగు'}...
+          </span>
+        </div>
+      )}
+
+      {/* ── Language translation initial pop-up modal ── */}
+      <AnimatePresence>
+        {showLangPopup && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 9999,
+              background: 'rgba(16,11,5,0.78)',
+              backdropFilter: 'blur(16px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 24,
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.94, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.94, y: 20 }}
+              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+              style={{
+                width: '100%',
+                maxWidth: 440,
+                background: '#FFFBF4', // Warm white card background
+                borderRadius: 24,
+                border: '1.5px solid rgba(22,15,8,0.08)',
+                padding: '36px 32px',
+                boxShadow: '0 24px 60px rgba(0,0,0,0.3)',
+                textAlign: 'center',
+                position: 'relative',
+              }}
+            >
+              {/* Close Button */}
+              <button 
+                onClick={() => setShowLangPopup(false)}
+                style={{
+                  position: 'absolute',
+                  top: 20,
+                  right: 20,
+                  background: 'none',
+                  border: 'none',
+                  color: 'rgba(22,15,8,0.3)',
+                  cursor: 'pointer',
+                  padding: 4,
+                  transition: 'color 0.2s'
+                }}
+                onMouseEnter={e => e.currentTarget.style.color = '#160F08'}
+                onMouseLeave={e => e.currentTarget.style.color = 'rgba(22,15,8,0.3)'}
+              >
+                <Icons.X style={{ width: 16, height: 16 }} />
+              </button>
+
+              <div style={{ width: 56, height: 56, borderRadius: 16, background: `${tc}12`, display: 'flex', alignItems: 'center', justifycontent: 'center', margin: '0 auto 20px', fontSize: 24 }}>
+                🌐
+              </div>
+
+              <h2 style={{ fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: 26, letterSpacing: '-0.8px', color: '#160F08', marginBottom: 6, lineHeight: 1.2 }}>
+                Select Language
+              </h2>
+              <p style={{ fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 13, color: 'rgba(22,15,8,0.5)', lineHeight: 1.5, marginBottom: 28 }}>
+                Choose your preferred language for the survey. You can change this at any time from the top menu.
+              </p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <button
+                  onClick={() => { changeLanguage('en'); setShowLangPopup(false); }}
+                  style={{
+                    width: '100%',
+                    padding: '14px 20px',
+                    borderRadius: 14,
+                    border: currentLang === 'en' ? `2px solid ${tc}` : '1.5px solid rgba(22,15,8,0.08)',
+                    background: currentLang === 'en' ? `${tc}06` : 'white',
+                    color: '#160F08',
+                    fontFamily: 'Syne,sans-serif',
+                    fontWeight: 700,
+                    fontSize: 14,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    textAlign: 'left',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                  }}
+                  onMouseEnter={e => { if (currentLang !== 'en') e.currentTarget.style.borderColor = tc; }}
+                  onMouseLeave={e => { if (currentLang !== 'en') e.currentTarget.style.borderColor = 'rgba(22,15,8,0.08)'; }}
+                >
+                  <span>🇺🇸 English (Default)</span>
+                  {currentLang === 'en' && <span style={{ color: tc }}>✓</span>}
+                </button>
+
+                <button
+                  onClick={() => { changeLanguage('hi'); setShowLangPopup(false); }}
+                  style={{
+                    width: '100%',
+                    padding: '14px 20px',
+                    borderRadius: 14,
+                    border: currentLang === 'hi' ? `2px solid ${tc}` : '1.5px solid rgba(22,15,8,0.08)',
+                    background: currentLang === 'hi' ? `${tc}06` : 'white',
+                    color: '#160F08',
+                    fontFamily: 'Syne,sans-serif',
+                    fontWeight: 700,
+                    fontSize: 14,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    textAlign: 'left',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                  }}
+                  onMouseEnter={e => { if (currentLang !== 'hi') e.currentTarget.style.borderColor = tc; }}
+                  onMouseLeave={e => { if (currentLang !== 'hi') e.currentTarget.style.borderColor = 'rgba(22,15,8,0.08)'; }}
+                >
+                  <span>🇮🇳 हिंदी (Hindi)</span>
+                  {currentLang === 'hi' && <span style={{ color: tc }}>✓</span>}
+                </button>
+
+                <button
+                  onClick={() => { changeLanguage('te'); setShowLangPopup(false); }}
+                  style={{
+                    width: '100%',
+                    padding: '14px 20px',
+                    borderRadius: 14,
+                    border: currentLang === 'te' ? `2px solid ${tc}` : '1.5px solid rgba(22,15,8,0.08)',
+                    background: currentLang === 'te' ? `${tc}06` : 'white',
+                    color: '#160F08',
+                    fontFamily: 'Syne,sans-serif',
+                    fontWeight: 700,
+                    fontSize: 14,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    textAlign: 'left',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                  }}
+                  onMouseEnter={e => { if (currentLang !== 'te') e.currentTarget.style.borderColor = tc; }}
+                  onMouseLeave={e => { if (currentLang !== 'te') e.currentTarget.style.borderColor = 'rgba(22,15,8,0.08)'; }}
+                >
+                  <span>🇮🇳 తెలుగు (Telugu)</span>
+                  {currentLang === 'te' && <span style={{ color: tc }}>✓</span>}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Global scoped CSS */}
       <style>{`
+        /* Hide default Google Translate bar and iframe completely */
+        .goog-te-banner-frame,
+        .goog-te-banner-frame.skiptranslate,
+        iframe.goog-te-banner-frame,
+        .goog-te-balloon-frame,
+        #goog-gt-tt {
+          display: none !important;
+        }
+        body {
+          top: 0 !important;
+        }
+        .goog-text-highlight {
+          background-color: transparent !important;
+          box-shadow: none !important;
+        }
         .qt { width:100%; box-sizing:border-box; background:transparent; border:none; border-bottom:2px solid rgba(22,15,8,0.09); font-family:'Fraunces',serif; font-size:clamp(20px,3vw,30px); font-weight:300; color:#160F08; outline:none; padding:6px 0 16px; transition:border-color 0.25s; resize:none; }
         .qt:focus { border-bottom-color:var(--qt-tc); }
         .qt::placeholder { color:rgba(22,15,8,0.12); }
