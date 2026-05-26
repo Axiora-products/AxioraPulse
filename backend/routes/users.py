@@ -28,7 +28,7 @@ from schemas import (
 )
 from auth_utils import hash_password
 from dependencies import get_current_user
-from cognito_utils import get_cognito_client, COGNITO_USER_POOL_ID
+from cognito_utils import get_cognito_client, COGNITO_USER_POOL_ID, admin_delete_user
 
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
 
@@ -353,6 +353,10 @@ def delete_user(
     if str(user.id) == str(current_user.id):
         raise HTTPException(status_code=400, detail="Cannot delete your own account")
 
+    # Delete from Cognito first if they have a registered email
+    if user.email:
+        admin_delete_user(user.email)
+
     db.delete(user)
     db.commit()
     return {"message": "User deleted successfully"}
@@ -387,14 +391,28 @@ def accept_invite(
     if COGNITO_USER_POOL_ID:
         try:
             client = get_cognito_client()
+            cognito_sub = None
             try:
-                client.admin_create_user(
+                resp = client.admin_create_user(
                     UserPoolId=COGNITO_USER_POOL_ID,
                     Username=user.email,
                     MessageAction='SUPPRESS',
                 )
+                cognito_sub = resp.get("User", {}).get("Username")
             except client.exceptions.UsernameExistsException:
-                pass
+                try:
+                    resp = client.admin_get_user(
+                        UserPoolId=COGNITO_USER_POOL_ID,
+                        Username=user.email
+                    )
+                    cognito_sub = next((attr["Value"] for attr in resp.get("UserAttributes", []) if attr["Name"] == "sub"), None)
+                except Exception:
+                    pass
+            
+            if cognito_sub:
+                user.cognito_sub = cognito_sub
+                db.commit()
+
             client.admin_set_user_password(
                 UserPoolId=COGNITO_USER_POOL_ID,
                 Username=user.email,
