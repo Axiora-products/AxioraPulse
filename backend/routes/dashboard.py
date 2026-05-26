@@ -87,8 +87,23 @@ def recent_surveys(
     """
     tid = current_user.tenant_id
 
-    surveys = (
-        db.query(Survey)
+    # Use correlated subqueries to fetch counts in a single database round-trip
+    response_count_subquery = (
+        db.query(func.count(SurveyResponse.id))
+        .filter(SurveyResponse.survey_id == Survey.id)
+        .correlate(Survey)
+        .as_scalar()
+    )
+
+    question_count_subquery = (
+        db.query(func.count(SurveyQuestion.id))
+        .filter(SurveyQuestion.survey_id == Survey.id)
+        .correlate(Survey)
+        .as_scalar()
+    )
+
+    surveys_data = (
+        db.query(Survey, response_count_subquery, question_count_subquery)
         .options(joinedload(Survey.creator))
         .filter(Survey.tenant_id == tid)
         .order_by(Survey.created_at.desc())
@@ -97,16 +112,7 @@ def recent_surveys(
     )
 
     result = []
-    for sv in surveys:
-        count = (
-            db.query(func.count(SurveyResponse.id))
-            .filter(SurveyResponse.survey_id == sv.id)
-            .scalar() or 0
-        )
-        # Using a join or subquery would be more efficient, but keeping it simple for now
-        
-        q_count = db.query(func.count(SurveyQuestion.id)).filter(SurveyQuestion.survey_id == sv.id).scalar() or 0
-        
+    for sv, resp_count, q_count in surveys_data:
         result.append({
             "id": sv.id,
             "title": sv.title,
@@ -115,8 +121,8 @@ def recent_surveys(
             "theme_color": sv.theme_color,
             "creator": {"full_name": sv.creator.full_name} if sv.creator else None,
             "created_at": sv.created_at,
-            "response_count": count,
-            "question_count": q_count,
+            "response_count": resp_count or 0,
+            "question_count": q_count or 0,
         })
 
     return result
