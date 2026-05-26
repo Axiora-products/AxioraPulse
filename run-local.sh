@@ -146,7 +146,7 @@ echo "📥 Pulling global secrets from AWS SSM Parameter Store (axiorapulse)..."
 rm -f .env.pulled.global .env.pulled.env .env.pulled .chamber.global.err .chamber.env.err
 set +e
 
-docker run --rm \
+MSYS_NO_PATHCONV=1 docker run --rm \
   $AWS_MOUNT_ARGS \
   $AWS_ENV_ARGS \
   -e HOME=/root \
@@ -157,7 +157,7 @@ docker run --rm \
 GLOBAL_STATUS=$?
 
 echo "📥 Pulling environment-specific secrets from AWS SSM Parameter Store (axiorapulse/$ENV)..."
-docker run --rm \
+MSYS_NO_PATHCONV=1 docker run --rm \
   $AWS_MOUNT_ARGS \
   $AWS_ENV_ARGS \
   -e HOME=/root \
