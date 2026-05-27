@@ -141,12 +141,6 @@ docker-compose up
 - Data persists in `postgres_data` volume
 - Schema auto-created on startup
 
-### Production (Aurora RDS)
-- Managed AWS database (PostgreSQL 16+)
-- Backend connects via connection string in SSM
-- Migrations run automatically in ECS task
-- Automated backups and high availability
-
 ---
 
 ## ⚙️ LOCAL ENVIRONMENT & RUNNER
