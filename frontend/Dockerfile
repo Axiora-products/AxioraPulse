@@ -7,11 +7,9 @@ WORKDIR /app
 ARG VITE_COGNITO_USER_POOL_ID
 ARG VITE_COGNITO_APP_CLIENT_ID
 ARG VITE_FRONTEND_URL
-ARG VITE_API_BASE_URL
 ENV VITE_COGNITO_USER_POOL_ID=$VITE_COGNITO_USER_POOL_ID
 ENV VITE_COGNITO_APP_CLIENT_ID=$VITE_COGNITO_APP_CLIENT_ID
 ENV VITE_FRONTEND_URL=$VITE_FRONTEND_URL
-ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 
 COPY package*.json ./
 RUN npm ci --ignore-scripts
@@ -31,5 +29,3 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD wget -qO- http://localhost:80/ || exit 1
 
 CMD ["nginx", "-g", "daemon off;"]
-
-# Trigger QA pipeline
