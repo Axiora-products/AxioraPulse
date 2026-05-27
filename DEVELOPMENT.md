@@ -53,17 +53,7 @@ The orchestrator automatically maps branches to target profiles and SSM credenti
 > - **Only one active release at a time**: Since we share a single AWS QA environment, only one release branch should be actively tested on QA at a time.
 > - **Git Bash for Windows**: Run `./run-local.sh` using **Git Bash** for local execution.
 
-### 2. Backend & DB Standalone Startup
-If you only want to spin up the backend and database without the orchestrator:
-```bash
-docker-compose up
-```
-*Note: This relies on local `.env` files and does not fetch configuration from AWS SSM.*
-
-- **Database**: Started automatically with the backend container.
-- **Migrations**: Alembic migrations run automatically on container startup via `entrypoint.sh`.
-
-### 3. Troubleshooting Local Environment
+### 2. Troubleshooting Local Environment
 * **Expired AWS Session**: If you are using AWS SSO, your session likely expired. Refresh it by running:
   ```bash
   aws sso login --profile <profile>
