@@ -203,7 +203,10 @@ def mock_login(body: dict, db: Session = Depends(get_db)):
     if not email:
         raise HTTPException(400, "Email is required")
 
-    name = body.get("name", email.split("@")[0].title())
+    name = body.get("name")
+    if not name:
+        # Split by @, then take the first part, split by dot, and take first part (e.g. roopsai.work -> Roopsai)
+        name = email.split("@")[0].split(".")[0].title()
 
     # Check if user already exists to reuse sub
     user = db.query(UserProfile).filter(UserProfile.email == email).first()
