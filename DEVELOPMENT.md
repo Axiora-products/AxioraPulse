@@ -92,6 +92,15 @@ docker-compose up
 ## 🔄 GIT WORKFLOW & TEAM GUIDELINES
 
 ### 1. Branch Roles
+
+```text
+                  ┌─► [feature/*] ──┐
+                  │                 ▼
+[main] ◄── [release/v1.2.0] ◄── [develop]
+  │               │
+  └─► [hotfix/*] ─┴───────────────► (Merged to both)
+```
+
 - **`develop`**: The primary integration branch. All active development is merged here first.
 - **`feature/*`** or **`bugfix/*`**: Short-lived branches for development. Always branch off `develop` and target `develop` in PRs.
 - **`release/vX.Y.Z`** (e.g., `release/v1.0.0`): Cut from `develop` when staging a release. Triggers deployment to the AWS QA environment.
