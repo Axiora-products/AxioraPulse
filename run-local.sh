@@ -31,7 +31,7 @@ Options:
 
 Branch-to-Environment Mappings (Default):
   main                 --> AWS Profile: default | SSM: production
-  staging              --> AWS Profile: qa      | SSM: staging
+  staging|release/*    --> AWS Profile: qa      | SSM: staging
   develop (or others)  --> AWS Profile: dev     | SSM: dev
 EOF
 }
@@ -89,7 +89,7 @@ case "$BRANCH" in
     DEFAULT_PROFILE="default"
     DEFAULT_ENV="production"
     ;;
-  staging)
+  staging|release/*)
     DEFAULT_PROFILE="qa"
     DEFAULT_ENV="staging"
     ;;
