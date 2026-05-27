@@ -151,30 +151,6 @@ docker-compose up
 
 ---
 
-## 🐛 DEBUGGING
-
-### Local: View backend logs
-```bash
-docker-compose logs -f backend
-```
-
-### Local: Access database
-```bash
-psql postgresql://postgres:root@localhost:5432/nexpulse
-```
-
-### Production: CloudWatch logs
-```bash
-aws logs tail /ecs/pulse-backend --follow
-```
-
-### Health check
-```bash
-curl https://api.axiorapulse.com/health
-```
-
----
-
 ## 📝 DATABASE NOTES
 
 ### Local Development
