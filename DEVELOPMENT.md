@@ -42,7 +42,15 @@ Once active, the local stack exposes:
 - **API Swagger Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
 - **Local PostgreSQL DB**: `localhost:5432` (`nexpulse` / `postgres` / `root`)
 
+#### Branch-to-Environment Mappings for `./run-local.sh`
+The orchestrator automatically maps branches to target profiles and SSM credentials:
+- **`main`** branch → AWS profile: `default` | SSM env: `production`
+- **`release/*`** branches → AWS profile: `qa` | SSM env: `staging`
+- **`develop`** or others → AWS profile: `dev` | SSM env: `dev`
 
+> [!IMPORTANT]
+> - **Only one active release at a time**: Since we share a single AWS QA environment, only one release branch should be actively tested on QA at a time.
+> - **Git Bash for Windows**: Run `./run-local.sh` using **Git Bash** for local execution.
 
 ### 2. Backend & DB Standalone Startup
 If you only want to spin up the backend and database without the orchestrator:
@@ -141,18 +149,6 @@ docker-compose up
 - Data persists in `postgres_data` volume
 - Schema auto-created on startup
 
----
 
-## ⚙️ LOCAL ENVIRONMENT & RUNNER
-
-### Branch-to-Environment Mappings for `./run-local.sh`
-The orchestrator automatically maps branches to target profiles and SSM credentials:
-- **`main`** branch → AWS profile: `default` | SSM env: `production`
-- **`release/*`** branches → AWS profile: `qa` | SSM env: `staging`
-- **`develop`** or others → AWS profile: `dev` | SSM env: `dev`
-
-> [!IMPORTANT]
-> - **Only one active release at a time**: Since we share a single AWS QA environment, only one release branch should be actively tested on QA at a time.
-> - **Git Bash for Windows**: Run `./run-local.sh` using **Git Bash** for local execution.
 
 
