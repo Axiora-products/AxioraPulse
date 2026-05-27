@@ -89,57 +89,6 @@ docker-compose up
 
 ---
 
-## 🏗️ PRODUCTION BUILD (ECR + ECS + Aurora RDS)
-
-### Build for Production
-```bash
-# Build using optimized multi-stage Dockerfile
-docker build -f backend/Dockerfile.prod -t pulse-backend:latest ./backend
-
-# Run locally to test (requires Aurora RDS DATABASE_URL set)
-docker run -e DATABASE_URL="postgresql://..." pulse-backend:latest
-```
-
-### Deploy to ECR
-```bash
-# 1. Authenticate with ECR (use correct profile: default for prod, dev for dev)
-AWS_ACCOUNT_ID=$(aws sts get-caller-identity --profile [profile] --query Account --output text)
-aws ecr get-login-password --region ap-south-1 --profile [profile] | \
-  docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.ap-south-1.amazonaws.com
-
-# 2. Tag image
-docker tag pulse-backend:latest \
-  ${AWS_ACCOUNT_ID}.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-fastapi:latest
-
-# 3. Push to ECR
-docker push ${AWS_ACCOUNT_ID}.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-fastapi:latest
-```
-
-# 4. Update ECS (auto-deploy via CI/CD in main branch)
-```
-
----
-
-## 📊 ENVIRONMENT SETUP
-
-### Local Development (.env.local)
-```bash
-DATABASE_URL=postgresql://postgres:root@db:5432/nexpulse
-SECRET_KEY=dev-key-change-in-prod
-ENVIRONMENT=development
-```
-
-### Production (AWS SSM Parameter Store)
-```bash
-DATABASE_URL=postgresql://postgres:PASSWORD@axiorapulse-db.xxxx.ap-south-1.rds.amazonaws.com:5432/postgres
-SECRET_KEY=production-secret-key-min-32-chars
-ENVIRONMENT=production
-```
-
-**Never commit production secrets!**
-
----
-
 ## 🔄 GIT WORKFLOW & TEAM GUIDELINES
 
 ### 1. Branch Roles
