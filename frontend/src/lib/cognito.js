@@ -6,8 +6,10 @@ import {
 } from 'amazon-cognito-identity-js';
 
 let _userPool = null;
+const isMock = import.meta.env.VITE_MOCK_COGNITO === 'true';
 
 function getUserPool() {
+  if (isMock) return null;
   if (!_userPool) {
     const id = import.meta.env.VITE_COGNITO_USER_POOL_ID;
     const clientId = import.meta.env.VITE_COGNITO_APP_CLIENT_ID;
@@ -18,6 +20,51 @@ function getUserPool() {
 }
 
 export function cognitoSignIn(email, password) {
+  if (isMock) {
+    return new Promise(async (resolve, reject) => {
+      try {
+        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+        const name = localStorage.getItem(`mock_name_${email}`) || undefined;
+        
+        const response = await fetch(`${baseUrl}/auth/mock-login`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email, name }),
+        });
+
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.detail || 'Mock login failed');
+        }
+
+        const data = await response.json();
+
+        // Clean up the name from localStorage
+        localStorage.removeItem(`mock_name_${email}`);
+
+        const mockSession = {
+          getIdToken: () => ({
+            getJwtToken: () => data.id_token,
+          }),
+          getAccessToken: () => ({
+            getJwtToken: () => 'mock-access-token',
+          }),
+          getRefreshToken: () => ({
+            getToken: () => 'mock-refresh-token',
+          }),
+          isValid: () => true,
+        };
+
+        localStorage.setItem('token', data.id_token);
+        resolve(mockSession);
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
   return new Promise((resolve, reject) => {
     const pool = getUserPool();
     const authDetails = new AuthenticationDetails({ Username: email, Password: password });
@@ -31,6 +78,17 @@ export function cognitoSignIn(email, password) {
 }
 
 export function cognitoSignUp(email, password, name) {
+  if (isMock) {
+    // Preserve full name locally for immediate mock-login / sync
+    localStorage.setItem(`mock_name_${email}`, name);
+    return Promise.resolve({
+      user: {
+        getUsername: () => email,
+      },
+      userConfirmed: true,
+    });
+  }
+
   return new Promise((resolve, reject) => {
     const attrs = [
       new CognitoUserAttribute({ Name: 'email', Value: email }),
@@ -44,6 +102,10 @@ export function cognitoSignUp(email, password, name) {
 }
 
 export function cognitoConfirmSignUp(email, code) {
+  if (isMock) {
+    return Promise.resolve('SUCCESS');
+  }
+
   return new Promise((resolve, reject) => {
     const cognitoUser = new CognitoUser({ Username: email, Pool: getUserPool() });
     cognitoUser.confirmRegistration(code, true, (err, result) => {
@@ -54,6 +116,10 @@ export function cognitoConfirmSignUp(email, code) {
 }
 
 export function cognitoResendCode(email) {
+  if (isMock) {
+    return Promise.resolve('SUCCESS');
+  }
+
   return new Promise((resolve, reject) => {
     const cognitoUser = new CognitoUser({ Username: email, Pool: getUserPool() });
     cognitoUser.resendConfirmationCode((err, result) => {
@@ -64,6 +130,10 @@ export function cognitoResendCode(email) {
 }
 
 export function cognitoForgotPassword(email) {
+  if (isMock) {
+    return Promise.resolve('SUCCESS');
+  }
+
   return new Promise((resolve, reject) => {
     const cognitoUser = new CognitoUser({ Username: email, Pool: getUserPool() });
     cognitoUser.forgotPassword({
@@ -75,6 +145,10 @@ export function cognitoForgotPassword(email) {
 }
 
 export function cognitoConfirmPassword(email, code, newPassword) {
+  if (isMock) {
+    return Promise.resolve('SUCCESS');
+  }
+
   return new Promise((resolve, reject) => {
     const cognitoUser = new CognitoUser({ Username: email, Pool: getUserPool() });
     cognitoUser.confirmPassword(code, newPassword, {
@@ -85,6 +159,28 @@ export function cognitoConfirmPassword(email, code, newPassword) {
 }
 
 export function cognitoGetCurrentSession() {
+  if (isMock) {
+    return new Promise((resolve, reject) => {
+      const token = localStorage.getItem('token');
+      if (!token) return reject(new Error('No authenticated user'));
+
+      const mockSession = {
+        getIdToken: () => ({
+          getJwtToken: () => token,
+        }),
+        getAccessToken: () => ({
+          getJwtToken: () => 'mock-access-token',
+        }),
+        getRefreshToken: () => ({
+          getToken: () => 'mock-refresh-token',
+        }),
+        isValid: () => true,
+      };
+
+      resolve(mockSession);
+    });
+  }
+
   return new Promise((resolve, reject) => {
     const user = getUserPool().getCurrentUser();
     if (!user) return reject(new Error('No authenticated user'));
@@ -96,6 +192,11 @@ export function cognitoGetCurrentSession() {
 }
 
 export function cognitoSignOut() {
+  if (isMock) {
+    localStorage.removeItem('token');
+    return;
+  }
+
   try {
     const user = getUserPool().getCurrentUser();
     if (user) user.signOut();
