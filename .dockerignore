@@ -7,8 +7,7 @@
 **/__pycache__/
 *.pyc
 
-# Exclude dev-tools
-dev-tools/
+
 dev_params.json
 qa_params.json
 survey_export_raw.json
