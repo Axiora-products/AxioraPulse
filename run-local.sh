@@ -135,7 +135,7 @@ fi
 
 AWS_MOUNT_ARGS=""
 if [ -d "$HOME/.aws" ]; then
-  AWS_MOUNT_ARGS="-v $HOME/.aws:/root/.aws:ro"
+  AWS_MOUNT_ARGS=(-v "$HOME/.aws:/root/.aws:ro")
 fi
 
 # --- Pull Secrets via Chamber ---
@@ -158,7 +158,7 @@ GLOBAL_STATUS=$?
 
 echo "📥 Pulling environment-specific secrets from AWS SSM Parameter Store (axiorapulse/$ENV)..."
 MSYS_NO_PATHCONV=1 docker run --rm \
-  $AWS_MOUNT_ARGS \
+  "${AWS_MOUNT_ARGS[@]}" \
   $AWS_ENV_ARGS \
   -e HOME=/root \
   -e AWS_PROFILE="$AWS_PROFILE" \
@@ -217,7 +217,7 @@ while IFS= read -r line || [ -n "$line" ]; do
   if [[ "$line" =~ ^# ]] || [[ -z "$line" ]]; then
     continue
   fi
-  
+
   # Forward any existing VITE_ prefix variables
   if [[ "$line" =~ ^VITE_ ]]; then
     echo "$line" >> frontend/.env.local
