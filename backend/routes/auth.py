@@ -105,31 +105,52 @@ def sync(
             tenant=TenantOut.model_validate(tenant) if tenant else None,
         )
 
-    # Brand new user — create tenant + profile
-    if not body.tenant_name:
-        raise HTTPException(400, "tenant_name is required for new users")
+    # Auto-derive tenant name from email domain if not provided (handles local dev with fresh DB)
+    derived_tenant_name = body.tenant_name or email.split('@')[1].split('.')[0].title() if email else 'My Organisation'
+    derived_tenant_slug = body.tenant_slug or _slugify(derived_tenant_name)
 
-    tenant = Tenant(
-        id=uuid.uuid4(),
-        name=body.tenant_name,
-        slug=_slugify(body.tenant_slug or body.tenant_name),
-    )
-    db.add(tenant)
-    db.flush()
+    # Check if a tenant with this slug already exists — reuse it instead of crashing
+    tenant = db.query(Tenant).filter(Tenant.slug == derived_tenant_slug).first()
+    if not tenant:
+        try:
+            tenant = Tenant(
+                id=uuid.uuid4(),
+                name=derived_tenant_name,
+                slug=derived_tenant_slug,
+            )
+            db.add(tenant)
+            db.flush()
+        except Exception:
+            db.rollback()
+            # Race condition: another request created this tenant simultaneously
+            tenant = db.query(Tenant).filter(Tenant.slug == derived_tenant_slug).first()
+            if not tenant:
+                raise HTTPException(500, "Failed to create or find tenant")
 
-    user = UserProfile(
-        id=uuid.uuid4(),
-        email=email,
-        full_name=name,
-        cognito_sub=cognito_sub,
-        role=RoleEnum.super_admin,
-        tenant_id=tenant.id,
-        is_active=True,
-        account_status="active",
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
+    try:
+        user = UserProfile(
+            id=uuid.uuid4(),
+            email=email,
+            full_name=name,
+            cognito_sub=cognito_sub,
+            role=RoleEnum.super_admin,
+            tenant_id=tenant.id,
+            is_active=True,
+            account_status="active",
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    except Exception:
+        db.rollback()
+        # Race condition: another request created this user simultaneously — fetch and reuse
+        user = db.query(UserProfile).filter(UserProfile.cognito_sub == cognito_sub).first()
+        if not user:
+            user = db.query(UserProfile).filter(UserProfile.email == email).first()
+        if not user:
+            raise HTTPException(500, "Failed to create or find user")
+        
+        tenant = db.query(Tenant).filter(Tenant.id == user.tenant_id).first()
 
     return SyncResponse(
         user=UserProfileOut.model_validate(user),
