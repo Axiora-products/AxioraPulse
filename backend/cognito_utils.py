@@ -20,6 +20,9 @@ COGNITO_REGION = os.getenv("COGNITO_REGION", "ap-south-1")
 COGNITO_USER_POOL_ID = os.getenv("COGNITO_USER_POOL_ID")
 COGNITO_APP_CLIENT_ID = os.getenv("COGNITO_APP_CLIENT_ID")
 
+MOCK_COGNITO = os.getenv("MOCK_COGNITO", "false").lower() == "true"
+MOCK_COGNITO_SECRET = os.getenv("MOCK_COGNITO_SECRET", "mock-secret-key-1234567890")
+
 
 @lru_cache(maxsize=1)
 def get_cognito_client():
@@ -28,6 +31,22 @@ def get_cognito_client():
 
 def admin_get_user_status(email: str) -> str | None:
     """Returns 'UNCONFIRMED', 'CONFIRMED', etc. or None if user doesn't exist."""
+    if MOCK_COGNITO:
+        try:
+            from db.database import SessionLocal
+            from db.models import UserProfile
+            db = SessionLocal()
+            try:
+                user = db.query(UserProfile).filter(UserProfile.email == email).first()
+                if user:
+                    return "CONFIRMED"
+                return None
+            finally:
+                db.close()
+        except Exception as e:
+            print(f"MOCK COGNITO ERROR (get_status): {str(e)}")
+            return None
+
     client = get_cognito_client()
     try:
         resp = client.admin_get_user(
@@ -44,6 +63,9 @@ def admin_get_user_status(email: str) -> str | None:
 
 def admin_delete_user(email: str) -> bool:
     """Force delete a user. Returns True if successful."""
+    if MOCK_COGNITO:
+        return True
+
     client = get_cognito_client()
     try:
         client.admin_delete_user(
@@ -72,6 +94,22 @@ def verify_cognito_token(token: str) -> dict | None:
     Decode and verify a Cognito ID token.
     Returns the payload dict or None on any failure.
     """
+    if MOCK_COGNITO:
+        try:
+            # Under mock mode, tokens are self-signed locally using HS256
+            payload = jwt.decode(
+                token,
+                MOCK_COGNITO_SECRET,
+                algorithms=["HS256"],
+                audience=COGNITO_APP_CLIENT_ID or "mock-client-id"
+            )
+            if payload.get("token_use") != "id":
+                return None
+            return payload
+        except Exception as e:
+            print(f"MOCK COGNITO VERIFICATION ERROR: {str(e)}")
+            return None
+
     try:
         # Find the matching public key by kid
         headers = jwt.get_unverified_headers(token)
