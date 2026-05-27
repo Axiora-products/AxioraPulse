@@ -14,7 +14,7 @@ concurrency:
 
 env:
   AWS_REGION:       ap-south-1
-  AWS_ACCOUNT_ID:   079975324160
+  AWS_ACCOUNT_ID:   "079975324160"
   ENVIRONMENT_NAME: dev
   # Using the actual DEV registry
   ECR_REGISTRY:     079975324160.dkr.ecr.ap-south-1.amazonaws.com
