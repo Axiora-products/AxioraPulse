@@ -161,12 +161,4 @@ The orchestrator automatically maps branches to target profiles and SSM credenti
 > - **Only one active release at a time**: Since we share a single AWS QA environment, only one release branch should be actively tested on QA at a time.
 > - **Git Bash for Windows**: Run `./run-local.sh` using **Git Bash** for local execution.
 
----
 
-## ⚠️ IMPORTANT
-
-- **Never** commit `.env.production.example` with real values
-- Use AWS Secrets Manager for all production secrets
-- Keep `docker-compose.yml` for local dev only
-- Use `docker-compose.prod.yml` reference (not needed locally)
-- Database separation complete: local DB != production DB
