@@ -205,6 +205,8 @@ echo "# Local Container Overrides" >> backend/.env.docker
 echo "DATABASE_URL=postgresql://postgres:root@pulse-db:5432/nexpulse" >> backend/.env.docker
 echo "FRONTEND_URL=http://localhost:5173" >> backend/.env.docker
 echo "ENVIRONMENT=development" >> backend/.env.docker
+echo "MOCK_COGNITO=true" >> backend/.env.docker
+echo "MOCK_COGNITO_SECRET=mock-secret-key-1234567890" >> backend/.env.docker
 
 # 2. Generate Frontend env
 echo "# ======================================================================" > frontend/.env.local
@@ -230,6 +232,7 @@ done < .env.pulled
 echo "" >> frontend/.env.local
 echo "# Local Container Overrides" >> frontend/.env.local
 echo "VITE_API_BASE_URL=http://localhost:8000" >> frontend/.env.local
+echo "VITE_MOCK_COGNITO=true" >> frontend/.env.local
 
 rm -f .env.pulled
 

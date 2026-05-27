@@ -188,3 +188,39 @@ def cleanup_unconfirmed(body: CleanupRequest):
         return {"deleted": success, "email": body.email}
 
     return {"deleted": False, "status": status}
+
+
+@router.post("/mock-login")
+def mock_login(body: dict, db: Session = Depends(get_db)):
+    """
+    Generate a self-signed JWT token for a local developer.
+    Only available when MOCK_COGNITO=true.
+    """
+    if not os.getenv("MOCK_COGNITO", "false").lower() == "true":
+        raise HTTPException(400, "Mock Cognito is not enabled in this environment")
+
+    email = body.get("email")
+    if not email:
+        raise HTTPException(400, "Email is required")
+
+    name = body.get("name", email.split("@")[0].title())
+
+    # Check if user already exists to reuse sub
+    user = db.query(UserProfile).filter(UserProfile.email == email).first()
+    sub = user.cognito_sub if (user and user.cognito_sub) else f"mock-sub-{uuid.uuid4()}"
+
+    from jose import jwt
+    payload = {
+        "sub": sub,
+        "email": email,
+        "name": name,
+        "token_use": "id",
+        "aud": os.getenv("COGNITO_APP_CLIENT_ID") or "mock-client-id",
+        "iss": f"https://cognito-idp.{os.getenv('COGNITO_REGION', 'ap-south-1')}.amazonaws.com/{os.getenv('COGNITO_USER_POOL_ID') or 'mock-user-pool-id'}"
+    }
+
+    secret = os.getenv("MOCK_COGNITO_SECRET", "mock-secret-key-1234567890")
+    token = jwt.encode(payload, secret, algorithm="HS256")
+
+    return {"id_token": token}
+
