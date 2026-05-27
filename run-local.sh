@@ -116,24 +116,24 @@ echo "   SSM Namespace: axiorapulse/$ENV"
 echo "========================================================================"
 
 # --- Build AWS CLI Credentials Arguments for Container ---
-AWS_ENV_ARGS=""
+AWS_ENV_ARGS=()
 if [ -n "$AWS_ACCESS_KEY_ID" ]; then
-  AWS_ENV_ARGS="$AWS_ENV_ARGS -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID"
+  AWS_ENV_ARGS+=(-e "AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID")
 fi
 if [ -n "$AWS_SECRET_ACCESS_KEY" ]; then
-  AWS_ENV_ARGS="$AWS_ENV_ARGS -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY"
+  AWS_ENV_ARGS+=(-e "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY")
 fi
 if [ -n "$AWS_SESSION_TOKEN" ]; then
-  AWS_ENV_ARGS="$AWS_ENV_ARGS -e AWS_SESSION_TOKEN=$AWS_SESSION_TOKEN"
+  AWS_ENV_ARGS+=(-e "AWS_SESSION_TOKEN=$AWS_SESSION_TOKEN")
 fi
 if [ -n "$AWS_REGION" ]; then
-  AWS_ENV_ARGS="$AWS_ENV_ARGS -e AWS_REGION=$AWS_REGION"
+  AWS_ENV_ARGS+=(-e "AWS_REGION=$AWS_REGION")
 fi
 if [ -n "$AWS_DEFAULT_REGION" ]; then
-  AWS_ENV_ARGS="$AWS_ENV_ARGS -e AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION"
+  AWS_ENV_ARGS+=(-e "AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION")
 fi
 
-AWS_MOUNT_ARGS=""
+AWS_MOUNT_ARGS=()
 if [ -d "$HOME/.aws" ]; then
   AWS_MOUNT_ARGS=(-v "$HOME/.aws:/root/.aws:ro")
 fi
@@ -147,8 +147,8 @@ rm -f .env.pulled.global .env.pulled.env .env.pulled .chamber.global.err .chambe
 set +e
 
 MSYS_NO_PATHCONV=1 docker run --rm \
-  $AWS_MOUNT_ARGS \
-  $AWS_ENV_ARGS \
+  "${AWS_MOUNT_ARGS[@]}" \
+  "${AWS_ENV_ARGS[@]}" \
   -e HOME=/root \
   -e AWS_PROFILE="$AWS_PROFILE" \
   -e AWS_REGION="ap-south-1" \
@@ -159,7 +159,7 @@ GLOBAL_STATUS=$?
 echo "📥 Pulling environment-specific secrets from AWS SSM Parameter Store (axiorapulse/$ENV)..."
 MSYS_NO_PATHCONV=1 docker run --rm \
   "${AWS_MOUNT_ARGS[@]}" \
-  $AWS_ENV_ARGS \
+  "${AWS_ENV_ARGS[@]}" \
   -e HOME=/root \
   -e AWS_PROFILE="$AWS_PROFILE" \
   -e AWS_REGION="ap-south-1" \
