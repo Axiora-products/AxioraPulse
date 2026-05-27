@@ -3,7 +3,7 @@ name: Deploy Backend to ECS (QA)
 on:
   push:
     branches:
-      - staging
+      - 'release/**'
     paths:
       - 'backend/**'
   workflow_dispatch:
