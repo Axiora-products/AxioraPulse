@@ -18,7 +18,7 @@ Project context and conventions for Antigravity developer sessions.
 
 * **Branch Naming**: `feature/<name>` or `fix/<name>`
 * **Commit Style**: `feat: <message> #<issue>` or `fix: <message> #<issue>`
-* **Author**: Always commit using your user-id (`roopsai-axiora`)
+* **Author**: Use the name configured in your local git config (`user.name`)
 * **Pull Request Workflow**: Merges directly into `develop` are protected; changes must be submitted via Pull Requests.
 
 ---
