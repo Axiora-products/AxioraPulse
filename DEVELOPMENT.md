@@ -140,14 +140,7 @@ docker-compose up
    git push origin develop
    ```
 
----
 
-## 📝 DATABASE NOTES
-
-### Local Development
-- Database runs in Docker
-- Data persists in `postgres_data` volume
-- Schema auto-created on startup
 
 
 
