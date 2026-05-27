@@ -20,6 +20,9 @@ concurrency:
 
 env:
   AWS_REGION:       ap-south-1
+  AWS_ACCOUNT_ID:   217757579310
+  ENVIRONMENT_NAME: production
+  SHORT_ENVIRONMENT_NAME: prod
   ECR_REPOSITORY:   axiora/pulse-fastapi
   CONTAINER_NAME:   BackendContainer
 
@@ -61,6 +64,14 @@ jobs:
       - name: Logout of Amazon ECR
         if: always()
         run: docker logout ${{ steps.login-ecr.outputs.registry }}
+
+      - name: Prep task definition for Production
+        run: |
+          sed -i "s/079975324160/${{ env.AWS_ACCOUNT_ID }}/g" backend/ecs-task-def.json
+          sed -i "s/axiorapulse\/dev/axiorapulse\/${{ env.SHORT_ENVIRONMENT_NAME }}/g" backend/ecs-task-def.json
+          sed -i "s/pulse-backend-dev/pulse-backend-${{ env.ENVIRONMENT_NAME }}/g" backend/ecs-task-def.json
+          sed -i "s/\"value\": \"dev\"/\"value\": \"${{ env.SHORT_ENVIRONMENT_NAME }}\"/g" backend/ecs-task-def.json
+          sed -i "s/\"family\": \"pulse-backend\"/\"family\": \"pulse-backend-${{ env.ENVIRONMENT_NAME }}\"/g" backend/ecs-task-def.json
 
       - name: Update ECS task definition with new image
         id: task-def
