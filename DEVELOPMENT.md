@@ -2,20 +2,39 @@
 
 ## 🚀 LOCAL DEVELOPMENT
 
-### Start everything (Backend + Database)
+### 1. Full Stack Orchestrator (Recommended)
+For full-stack local development (Frontend, Backend, and Database) with AWS SSM Parameter Store integrations and automated secrets mapping, use the orchestrator script:
+
+```bash
+# Start all services with automated secrets pulling & configuration setup
+./run-local.sh
+
+# Rebuild containers and clear anonymous volumes
+./run-local.sh --rebuild
+
+# Stop the container stack
+./run-local.sh --down
+```
+
+See the [Local Development Orchestrator Guide](file:///Users/roopsaisurampudi/projects/AxioraPulse/docs/run-local.md) for full prerequisites, configurations, and troubleshooting info.
+
+### 2. Backend & DB Standalone Startup
+If you only want to spin up the backend and database without the orchestrator:
 ```bash
 docker-compose up
 ```
 
 **Available:**
+- Frontend UI: http://localhost:5173 (if run manually via `npm run dev` in `frontend/`)
 - Backend API: http://localhost:8000
 - API Docs (Swagger): http://localhost:8000/docs
 - Database: postgresql://postgres:root@localhost:5432/nexpulse
 
 ### Environment
-- Uses `docker-compose.yml`
-- Database automatically started with the backend
-- Migrations run automatically in entrypoint
+- Uses `docker-compose.local.yml` (via `run-local.sh`) for the full stack, or `docker-compose.yml` for backend/db only.
+- Database automatically started with the backend.
+- Migrations run automatically in entrypoint.
+
 
 ---
 
