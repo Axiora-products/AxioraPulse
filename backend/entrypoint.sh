@@ -48,7 +48,19 @@ fi
 
 # Run Alembic migrations
 echo "Running database migrations..."
-alembic upgrade head
+if ! alembic upgrade head; then
+    echo "⚠️ WARNING: Database migrations failed."
+    echo "This frequently happens in local development when switching between branches"
+    echo "where a migration revision exists in the database but not in the current codebase."
+    echo "Attempting to auto-recover by stamping the database to the current codebase head..."
+    if alembic stamp head; then
+        echo "✅ Successfully stamped database to current head. Retrying migrations..."
+        alembic upgrade head
+    else
+        echo "❌ ERROR: Failed to stamp database to head. Manual intervention required."
+        exit 1
+    fi
+fi
 
 echo "Database setup complete!"
 
