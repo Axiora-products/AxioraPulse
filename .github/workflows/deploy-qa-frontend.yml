@@ -3,7 +3,7 @@ name: Deploy Frontend to ECS (QA)
 on:
   push:
     branches:
-      - staging
+      - 'release/**'
     paths:
       - 'frontend/**'
   workflow_dispatch:
