@@ -89,26 +89,56 @@ ENVIRONMENT=production
 
 ---
 
-## 🔄 GIT WORKFLOW (for team)
+## 🔄 GIT WORKFLOW & TEAM GUIDELINES
 
-### Branch naming
-- Feature: `feature/feature-name`
-- Backend: `backend/feature-name`  
-- Frontend: `frontend/feature-name`
-- Bug fix: `bugfix/issue-name`
+### 1. Branch Roles
+- **`develop`**: The primary integration branch. All active development is merged here first.
+- **`feature/*`** or **`bugfix/*`**: Short-lived branches for development. Always branch off `develop` and target `develop` in PRs.
+- **`release/vX.Y.Z`** (e.g., `release/v1.0.0`): Cut from `develop` when staging a release. Triggers deployment to the AWS QA environment.
+- **`main`**: Reflects production. Merged from `release/*` on approval. Triggers production deployment.
+- **`hotfix/*`**: Cut from `main` to address critical production issues, merged to both `main` and `develop`.
 
-### Deploy to Production
-1. Create feature branch from `staging`
-2. Open PR to `staging`
-3. Code review + merge
-4. QA validates on staging
-5. Merge `staging` → `main` (triggers auto-deploy)
+### 2. Daily Best Practices (How to Avoid Merge Conflicts)
+- **Sync Before You Start**: Always pull the latest `develop` branch before cutting a new branch:
+  ```bash
+  git checkout develop
+  git pull origin develop
+  git checkout -b feature/my-cool-feature
+  ```
+- **Pull Daily**: Keep your feature branch fresh. Pull/rebase `develop` into your branch daily:
+  ```bash
+  git checkout feature/my-cool-feature
+  git pull origin develop
+  ```
+- **Keep Branches Short-Lived**: Break down features into small, manageable pull requests. Resolving minor conflicts early prevents complex merge headaches later.
 
-### CI/CD Pipeline
-- Push to `main` → GitHub Actions builds
-- Docker image pushed to ECR
-- ECS updates service automatically
-- No manual deployment needed!
+### 3. Step-by-Step Release Process
+1. **Cut Release Branch**:
+   ```bash
+   git checkout develop
+   git pull origin develop
+   git checkout -b release/v1.0.0
+   git push origin release/v1.0.0
+   ```
+   > [!NOTE]
+   > Pushing to `release/**` automatically triggers the **QA Deployment** CI/CD pipeline.
+2. **QA & Hardening**: Fix bugs directly on the `release/v1.0.0` branch. Pushes redeploy to QA automatically.
+3. **Deploy to Production**:
+   - Open a PR to merge `release/v1.0.0` into `main`.
+   - Merge the PR (triggers production deployment).
+   - Tag the release:
+     ```bash
+     git checkout main
+     git pull origin main
+     git tag -a v1.0.0 -m "Release v1.0.0"
+     git push origin v1.0.0
+     ```
+4. **Sync Back**: Merge `release/v1.0.0` back into `develop`:
+   ```bash
+   git checkout develop
+   git merge release/v1.0.0
+   git push origin develop
+   ```
 
 ---
 
@@ -151,24 +181,17 @@ curl https://api.axiorapulse.com/health
 
 ---
 
-## 👥 FOR TEAM MEMBERS
+## ⚙️ LOCAL ENVIRONMENT & RUNNER
 
-### Backend Developer
-- Clone repo → `git checkout main`
-- Make changes in `feature/feature-name` branch
-- Test locally: `docker-compose up`
-- Push and open PR to `main`
+### Branch-to-Environment Mappings for `./run-local.sh`
+The orchestrator automatically maps branches to target profiles and SSM credentials:
+- **`main`** branch → AWS profile: `default` | SSM env: `production`
+- **`release/*`** branches → AWS profile: `qa` | SSM env: `staging`
+- **`develop`** or others → AWS profile: `dev` | SSM env: `dev`
 
-### Frontend Developer
-- Uses `vite.config.js` for dev server
-- Backend API available at http://localhost:8000
-- Can run independently or with `docker-compose up`
-
-### DevOps/Deployment
-- Secrets managed in SSM Parameter Store
-- ECS task definitions in `backend/ecs-task-def.json`
-- Rollback: Revert commit to `main`, push again
-- Scale: Adjust desired count in ECS service
+> [!IMPORTANT]
+> - **Only one active release at a time**: Since we share a single AWS QA environment, only one release branch should be actively tested on QA at a time.
+> - **Git Bash for Windows**: Run `./run-local.sh` using **Git Bash** for local execution.
 
 ---
 
