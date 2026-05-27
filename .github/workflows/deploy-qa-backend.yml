@@ -14,6 +14,8 @@ concurrency:
 
 env:
   AWS_REGION:       ap-south-1
+  AWS_ACCOUNT_ID:   681816818894
+  ENVIRONMENT_NAME: qa
   # Using the actual QA registry
   ECR_REGISTRY:     681816818894.dkr.ecr.ap-south-1.amazonaws.com
   ECR_REPOSITORY:   axiora/pulse-fastapi-qa
@@ -53,12 +55,18 @@ jobs:
           docker push $IMAGE_URI:dev-${{ github.sha }}
           echo "image=$IMAGE_URI:dev-${{ github.sha }}" >> $GITHUB_OUTPUT
 
+      - name: Prep task definition for QA
+        run: |
+          sed -i "s/079975324160/${{ env.AWS_ACCOUNT_ID }}/g" backend/ecs-task-def.json
+          sed -i "s/axiorapulse\/dev/axiorapulse\/${{ env.ENVIRONMENT_NAME }}/g" backend/ecs-task-def.json
+          sed -i "s/pulse-backend-dev/pulse-backend-${{ env.ENVIRONMENT_NAME }}/g" backend/ecs-task-def.json
+          sed -i "s/\"value\": \"dev\"/\"value\": \"${{ env.ENVIRONMENT_NAME }}\"/g" backend/ecs-task-def.json
+          sed -i "s/\"family\": \"pulse-backend\"/\"family\": \"pulse-backend-${{ env.ENVIRONMENT_NAME }}\"/g" backend/ecs-task-def.json
+
       - name: Update ECS task definition with new image
         id: task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          # We need a way to handle task definitions for different environments
-          # For now, we use a placeholder or assume the family name handles it
           task-definition: backend/ecs-task-def.json
           container-name:  ${{ env.CONTAINER_NAME }}
           image:           ${{ steps.build-image.outputs.image }}
