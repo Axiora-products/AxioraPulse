@@ -24,12 +24,14 @@ export function cognitoSignIn(email, password) {
     return new Promise(async (resolve, reject) => {
       try {
         const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+        const name = localStorage.getItem(`mock_name_${email}`) || undefined;
+        
         const response = await fetch(`${baseUrl}/auth/mock-login`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ email }),
+          body: JSON.stringify({ email, name }),
         });
 
         if (!response.ok) {
@@ -38,6 +40,9 @@ export function cognitoSignIn(email, password) {
         }
 
         const data = await response.json();
+
+        // Clean up the name from localStorage
+        localStorage.removeItem(`mock_name_${email}`);
 
         const mockSession = {
           getIdToken: () => ({
@@ -74,6 +79,8 @@ export function cognitoSignIn(email, password) {
 
 export function cognitoSignUp(email, password, name) {
   if (isMock) {
+    // Preserve full name locally for immediate mock-login / sync
+    localStorage.setItem(`mock_name_${email}`, name);
     return Promise.resolve({
       user: {
         getUsername: () => email,
