@@ -11,11 +11,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the application
 COPY . .
 
-# Make entrypoint executable
-RUN chmod +x entrypoint.sh
+# Normalize Windows line endings and keep the entrypoint outside mounted source
+RUN sed -i 's/\r$//' entrypoint.sh \
+    && cp entrypoint.sh /usr/local/bin/axiorapulse-entrypoint.sh \
+    && chmod +x /usr/local/bin/axiorapulse-entrypoint.sh
 
 # Expose port 8000
 EXPOSE 8000
 
 # Set entrypoint
-ENTRYPOINT ["./entrypoint.sh"]
+ENTRYPOINT ["/usr/local/bin/axiorapulse-entrypoint.sh"]
