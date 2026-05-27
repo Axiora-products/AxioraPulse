@@ -45,7 +45,7 @@ By default, `run-local.sh` dynamically chooses your configuration based on the G
 | Active Git Branch | Default AWS Profile | Target SSM Environment | Resolved SSM Namespace |
 | :--- | :--- | :--- | :--- |
 | `main` | `default` | `production` | `/axiorapulse/production` & `/axiorapulse` |
-| `staging` | `qa` | `staging` | `/axiorapulse/staging` & `/axiorapulse` |
+| `release/*` | `qa` | `staging` | `/axiorapulse/staging` & `/axiorapulse` |
 | `develop` / Others | `dev` | `dev` | `/axiorapulse/dev` & `/axiorapulse` |
 
 > [!NOTE]
