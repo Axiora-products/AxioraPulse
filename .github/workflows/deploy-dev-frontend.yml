@@ -14,6 +14,8 @@ concurrency:
 
 env:
   AWS_REGION:       ap-south-1
+  AWS_ACCOUNT_ID:   079975324160
+  ENVIRONMENT_NAME: dev
   ECR_REGISTRY:     079975324160.dkr.ecr.ap-south-1.amazonaws.com
   ECR_REPOSITORY:   axiora/pulse-frontend
   ECS_CLUSTER:      axiora-pulse-cluster-dev
@@ -58,6 +60,12 @@ jobs:
           docker push $IMAGE_URI:dev-latest
           docker push $IMAGE_URI:dev-${{ github.sha }}
           echo "image=$IMAGE_URI:dev-${{ github.sha }}" >> $GITHUB_OUTPUT
+
+      - name: Prep task definition for DEV
+        run: |
+          sed -i "s/079975324160/${{ env.AWS_ACCOUNT_ID }}/g" frontend/ecs-task-def.json
+          sed -i "s/pulse-frontend-dev/pulse-frontend-${{ env.ENVIRONMENT_NAME }}/g" frontend/ecs-task-def.json
+          sed -i "s/\"family\": \"pulse-frontend\"/\"family\": \"pulse-frontend-${{ env.ENVIRONMENT_NAME }}\"/g" frontend/ecs-task-def.json
 
       - name: Update ECS task definition with new image
         id: task-def
