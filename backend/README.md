@@ -14,11 +14,7 @@ CREATE DATABASE nexpulse;
 ```
 
 ### 2. Configure environment
-```bash
-# Copy the example env file
-copy .env.example .env
-# Edit .env and set your DATABASE_URL and SECRET_KEY
-```
+The environment variables are managed dynamically via the root-level orchestrator (`./run-local.sh`). If running standalone, create a `.env` file manually.
 
 ### 3. Create & activate a virtual environment
 ```bash
@@ -62,7 +58,6 @@ backend/
 ├── auth_utils.py                ← JWT encode/decode, password hashing
 ├── dependencies.py      ← get_db, get_current_user FastAPI dependencies
 ├── .env                 ← Local environment config (not committed)
-├── .env.example         ← Template
 └── requirements.txt
 ```
 
