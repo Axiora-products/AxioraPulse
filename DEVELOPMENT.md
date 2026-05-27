@@ -7,7 +7,7 @@ For full-stack local development (Frontend, Backend, and Database) with AWS SSM 
 
 #### Prerequisites
 * **Docker & Docker Compose**: Ensure Docker Desktop (macOS/Windows) or Daemon (Linux) is running.
-* **AWS Local Profile**: Every developer **must** have a configured AWS profile named `dev` in their local system (in `~/.aws/config`). If this profile is missing, contact the DevOps Engineer representing the Dev Environment to configure access.
+* **AWS Local Profile**: Every developer **must** have a configured AWS profile named `dev` in their local system. If this profile is missing, contact the DevOps Engineer representing the Dev Environment to configure access.
 * **AWS Session**: Ensure your AWS CLI session is active with permissions to access SSM Parameter Store (`ap-south-1`). If using AWS SSO, run:
   ```bash
   aws sso login --profile dev
