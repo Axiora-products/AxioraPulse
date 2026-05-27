@@ -3,38 +3,89 @@
 ## 🚀 LOCAL DEVELOPMENT
 
 ### 1. Full Stack Orchestrator (Recommended)
-For full-stack local development (Frontend, Backend, and Database) with AWS SSM Parameter Store integrations and automated secrets mapping, use the orchestrator script:
+For full-stack local development (Frontend, Backend, and Database) with AWS SSM Parameter Store integrations and automated secrets mapping, use the orchestrator script `./run-local.sh`.
 
+#### Prerequisites
+* **Docker & Docker Compose**: Ensure Docker Desktop (macOS/Windows) or Daemon (Linux) is running.
+* **AWS Session**: Ensure your AWS CLI session is active with permissions to access SSM Parameter Store (`ap-south-1`). If using AWS SSO, run:
+  ```bash
+  aws sso login --profile <profile-name>
+  ```
+  Or verify standard env variables (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, etc.).
+
+#### Usage & Common Options
 ```bash
-# Start all services with automated secrets pulling & configuration setup
+# Standard startup (pulls dev secrets and starts stack)
 ./run-local.sh
 
-# Rebuild containers and clear anonymous volumes
+# Rebuild containers & clear volumes (use after dependency changes)
 ./run-local.sh --rebuild
 
-# Stop the container stack
+# Stop and teardown the containers
 ./run-local.sh --down
+
+# Override AWS Profile or SSM environment manually
+./run-local.sh -p custom-profile -e staging
 ```
 
-See the [Local Development Orchestrator Guide](file:///Users/roopsaisurampudi/projects/AxioraPulse/docs/run-local.md) for full prerequisites, configurations, and troubleshooting info.
+| Option | Flag | Description |
+| :--- | :--- | :--- |
+| `-r` | `--rebuild` | Force rebuilds frontend/backend images and recreates anonymous volumes. |
+| `-d` | `--down` | Stops and tears down the active local container stack. |
+| `-p [profile]` | `--profile [profile]` | Overrides the target AWS profile. |
+| `-e [env]` | `--env [env]` | Overrides the target SSM Parameter Store environment (e.g. `dev`, `staging`, `production`). |
+
+#### Reached Ports & Services
+Once active, the local stack exposes:
+- **Frontend UI**: [http://localhost:5173](http://localhost:5173) (Vite dev server with hot reloading)
+- **Backend API**: [http://localhost:8000](http://localhost:8000)
+- **API Swagger Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
+- **Local PostgreSQL DB**: `localhost:5432` (`nexpulse` / `postgres` / `root`)
+
+#### How It Works (Under the Hood)
+```mermaid
+graph TD
+    A[Read Git Branch / Parse Option Overrides] --> B[Run Chamber docker container to pull SSM secrets]
+    B --> C{Success?}
+    C -- No --> D[Print Troubleshooting info & Exit]
+    C -- Yes --> E[Merge global and env-specific secrets]
+    E --> F[Generate backend/.env.docker]
+    E --> G[Generate frontend/.env.local & Map COGNITO_ -> VITE_COGNITO_]
+    F --> H[docker compose -f docker-compose.local.yml up -d]
+    G --> H
+    H --> I[Execute backend/entrypoint.sh inside container: wait for DB -> run Alembic migrations]
+    I --> J[Stack Active and Ready]
+```
+
+1. **Secret Resolution**: Runs `segment/chamber` image inside Docker twice to pull root parameters and environment-specific parameters.
+2. **Configuration Generation**: Writes variables to `backend/.env.docker` and `frontend/.env.local` (prefixed with `VITE_` or `VITE_COGNITO_` where needed).
+3. **Orchestration**: Runs `docker compose -f docker-compose.local.yml up -d` with volume mounts to support live-reloading.
 
 ### 2. Backend & DB Standalone Startup
 If you only want to spin up the backend and database without the orchestrator:
 ```bash
 docker-compose up
 ```
+*Note: This relies on local `.env` files and does not fetch configuration from AWS SSM.*
 
-**Available:**
-- Frontend UI: http://localhost:5173 (if run manually via `npm run dev` in `frontend/`)
-- Backend API: http://localhost:8000
-- API Docs (Swagger): http://localhost:8000/docs
-- Database: postgresql://postgres:root@localhost:5432/nexpulse
+- **Database**: Started automatically with the backend container.
+- **Migrations**: Alembic migrations run automatically on container startup via `entrypoint.sh`.
 
-### Environment
-- Uses `docker-compose.local.yml` (via `run-local.sh`) for the full stack, or `docker-compose.yml` for backend/db only.
-- Database automatically started with the backend.
-- Migrations run automatically in entrypoint.
-
+### 3. Troubleshooting Local Environment
+* **Expired AWS Session**: If you are using AWS SSO, your session likely expired. Refresh it by running:
+  ```bash
+  aws sso login --profile <profile>
+  ```
+* **Missing ~/.aws Directory**: Verify your AWS credentials directory exists. Chamber mounts `$HOME/.aws` to load profiles.
+* **SSM Parameter Namespace**: Make sure the target SSM namespace (e.g. `/axiorapulse/dev`) exists in the `ap-south-1` region and your credentials have permission to read from it.
+* **Database Migrations Failing**: If you get warnings about Alembic migrations failing because of database mismatch when switching branches:
+  * The backend container automatically attempts to self-recover by running `alembic stamp head` and reapplying migrations.
+  * If it fails, you can force-recreate your database storage volume:
+    ```bash
+    docker compose -f docker-compose.local.yml down -v
+    ./run-local.sh --rebuild
+    ```
+    *(Note: This resets your local database contents).*
 
 ---
 
