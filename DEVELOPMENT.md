@@ -42,24 +42,7 @@ Once active, the local stack exposes:
 - **API Swagger Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
 - **Local PostgreSQL DB**: `localhost:5432` (`nexpulse` / `postgres` / `root`)
 
-#### How It Works (Under the Hood)
-```mermaid
-graph TD
-    A[Read Git Branch / Parse Option Overrides] --> B[Run Chamber docker container to pull SSM secrets]
-    B --> C{Success?}
-    C -- No --> D[Print Troubleshooting info & Exit]
-    C -- Yes --> E[Merge global and env-specific secrets]
-    E --> F[Generate backend/.env.docker]
-    E --> G[Generate frontend/.env.local & Map COGNITO_ -> VITE_COGNITO_]
-    F --> H[docker compose -f docker-compose.local.yml up -d]
-    G --> H
-    H --> I[Execute backend/entrypoint.sh inside container: wait for DB -> run Alembic migrations]
-    I --> J[Stack Active and Ready]
-```
 
-1. **Secret Resolution**: Runs `segment/chamber` image inside Docker twice to pull root parameters and environment-specific parameters.
-2. **Configuration Generation**: Writes variables to `backend/.env.docker` and `frontend/.env.local` (prefixed with `VITE_` or `VITE_COGNITO_` where needed).
-3. **Orchestration**: Runs `docker compose -f docker-compose.local.yml up -d` with volume mounts to support live-reloading.
 
 ### 2. Backend & DB Standalone Startup
 If you only want to spin up the backend and database without the orchestrator:
