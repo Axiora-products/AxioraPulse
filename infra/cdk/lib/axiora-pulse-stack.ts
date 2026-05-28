@@ -193,6 +193,8 @@ export class AxioraPulseStack extends cdk.Stack {
       environment: {
         'ENVIRONMENT': envName,
         'COGNITO_REGION': this.region,
+        'COGNITO_USER_POOL_ID': userPool.userPoolId,
+        'COGNITO_APP_CLIENT_ID': userPoolClient.userPoolClientId,
       },
       secrets: {
         'SECRET_KEY': ecs.Secret.fromSsmParameter(ssm.StringParameter.fromSecureStringParameterAttributes(this, 'SecretKeyParam', {

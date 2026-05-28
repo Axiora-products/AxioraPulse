@@ -24,8 +24,14 @@ const useAuthStore = create((set, get) => ({
       const { user, profile, tenant } = res.data;
       set({ user, profile, tenant, loading: false, initialized: true });
     } catch (err) {
+      if (err?.message !== 'No authenticated user') {
+        console.error("Auth session initialization failed:", err);
+      }
       const status = err?.response?.status;
-      if (!status || status === 401 || status === 403) {
+      const isAxiosError = !!err?.config;
+      // Nuke session only for local Cognito failures or explicit 401/403 auth errors.
+      // Do not nuke for aborted requests (like page navigation unloads), network drops, or 500s.
+      if (!isAxiosError || status === 401 || status === 403) {
         cognitoSignOut();
         localStorage.removeItem('token');
       }
@@ -45,8 +51,14 @@ const useAuthStore = create((set, get) => ({
       set({ user, profile, tenant, loading: false, initialized: true });
       return true;
     } catch (err) {
+      if (err?.message !== 'No authenticated user') {
+        console.error("Session check failed:", err);
+      }
       const status = err?.response?.status;
-      if (!status || status === 401 || status === 403) {
+      const isAxiosError = !!err?.config;
+      // Nuke session only for local Cognito failures or explicit 401/403 auth errors.
+      // Do not nuke for aborted requests (like page navigation unloads), network drops, or 500s.
+      if (!isAxiosError || status === 401 || status === 403) {
         cognitoSignOut();
         localStorage.removeItem('token');
         set({ user: null, profile: null, tenant: null, loading: false });

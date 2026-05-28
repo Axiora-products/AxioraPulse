@@ -150,6 +150,10 @@ export default function Register() {
         tenant_name: tenantName,
         tenant_slug: tenantSlug,
       });
+      const storeUser = useAuthStore.getState().user;
+      if (!storeUser) {
+        throw new Error('Failed to synchronize user session with the backend. Please try again.');
+      }
       toast.success('Welcome to Axiora Pulse!');
       nav('/dashboard');
     } catch (err) {

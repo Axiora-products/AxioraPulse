@@ -107,6 +107,13 @@ esac
 AWS_PROFILE="${OVERRIDE_PROFILE:-$DEFAULT_PROFILE}"
 ENV="${OVERRIDE_ENV:-$DEFAULT_ENV}"
 
+export AWS_PROFILE
+export AWS_ACCESS_KEY_ID
+export AWS_SECRET_ACCESS_KEY
+export AWS_SESSION_TOKEN
+export AWS_REGION="${AWS_REGION:-ap-south-1}"
+export AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-ap-south-1}"
+
 echo "========================================================================"
 echo "🚀 Preparing Local Container Environment"
 echo "========================================================================"
@@ -205,8 +212,7 @@ echo "# Local Container Overrides" >> backend/.env.docker
 echo "DATABASE_URL=postgresql://postgres:root@pulse-db:5432/nexpulse" >> backend/.env.docker
 echo "FRONTEND_URL=http://localhost:5173" >> backend/.env.docker
 echo "ENVIRONMENT=development" >> backend/.env.docker
-echo "MOCK_COGNITO=true" >> backend/.env.docker
-echo "MOCK_COGNITO_SECRET=mock-secret-key-1234567890" >> backend/.env.docker
+echo "MOCK_COGNITO=false" >> backend/.env.docker
 
 # 2. Generate Frontend env
 echo "# ======================================================================" > frontend/.env.local
@@ -232,7 +238,7 @@ done < .env.pulled
 echo "" >> frontend/.env.local
 echo "# Local Container Overrides" >> frontend/.env.local
 echo "VITE_API_BASE_URL=http://localhost:8000" >> frontend/.env.local
-echo "VITE_MOCK_COGNITO=true" >> frontend/.env.local
+echo "VITE_MOCK_COGNITO=false" >> frontend/.env.local
 
 rm -f .env.pulled
 
@@ -244,6 +250,116 @@ if [ "$REBUILD" = "true" ]; then
   docker compose -f docker-compose.local.yml up --build -d -V
 else
   docker compose -f docker-compose.local.yml up -d
+fi
+
+# --- Wait for Backend to be Healthy & Seed Users ---
+echo "⏳ Waiting for backend container to be healthy and start server..."
+attempts=0
+max_attempts=30
+backend_ready=false
+while [ $attempts -lt $max_attempts ]; do
+  if curl -s http://localhost:8000/health >/dev/null 2>&1; then
+    backend_ready=true
+    break
+  fi
+  sleep 1
+  attempts=$((attempts+1))
+done
+
+if [ "$backend_ready" = "true" ]; then
+  echo "🌱 Idempotently seeding Cognito users into the local PostgreSQL database..."
+  docker exec -i pulse-backend python -c '
+import os, uuid, boto3
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from db.models import Tenant, UserProfile, RoleEnum
+
+user_pool_id = os.getenv("COGNITO_USER_POOL_ID")
+region = os.getenv("COGNITO_REGION", "ap-south-1")
+if not user_pool_id:
+    print("⚠️ COGNITO_USER_POOL_ID not set. Skipping user seeding.")
+    exit(0)
+
+print(f"Connecting to Cognito User Pool: {user_pool_id} ({region})...")
+try:
+    client = boto3.client("cognito-idp", region_name=region)
+    paginator = client.get_paginator("list_users")
+    users = []
+    for page in paginator.paginate(UserPoolId=user_pool_id):
+        users.extend(page.get("Users", []))
+    print(f"Found {len(users)} users in dev Cognito pool.")
+except Exception as e:
+    print(f"❌ Failed to fetch users from Cognito: {str(e)}")
+    print("Make sure you are logged in to AWS (e.g. \"aws sso login --profile dev\") and your session is active.")
+    exit(0)
+
+db_url = os.getenv("DATABASE_URL")
+engine = create_engine(db_url)
+Session = sessionmaker(bind=engine)
+db = Session()
+
+def _slugify(text: str) -> str:
+    import re
+    text = text.lower()
+    text = re.sub(r"[^a-z0-9\-]", "-", text)
+    text = re.sub(r"-+", "-", text)
+    return text.strip("-")
+
+try:
+    for u in users:
+        email = next((a["Value"] for a in u["Attributes"] if a["Name"] == "email"), None)
+        sub = next((a["Value"] for a in u["Attributes"] if a["Name"] == "sub"), None)
+        name = next((a["Value"] for a in u["Attributes"] if a["Name"] == "name"), None) or (email.split("@")[0].title() if email else "User")
+        if not email or not sub:
+            continue
+
+        usr = db.query(UserProfile).filter((UserProfile.cognito_sub == sub) | (UserProfile.email == email)).first()
+        if usr:
+            if not usr.cognito_sub:
+                usr.cognito_sub = sub
+                db.commit()
+                print(f"Linked existing user: {email} to sub: {sub}")
+            continue
+
+        # Create Tenant & User
+        dom = email.split("@")[1].split(".")[0].title() if email else "Organisation"
+        slug = _slugify(dom)
+        t = db.query(Tenant).filter(Tenant.slug == slug).first()
+        if not t:
+            t = Tenant(
+                id=uuid.uuid4(),
+                name=f"{dom} Workspace",
+                slug=slug,
+                plan="pro"
+            )
+            db.add(t)
+            db.commit()
+            db.refresh(t)
+            print(f"Created Tenant: {t.name} for {email}")
+
+        usr = UserProfile(
+            id=uuid.uuid4(),
+            email=email,
+            full_name=name,
+            cognito_sub=sub,
+            role=RoleEnum.admin,
+            tenant_id=t.id,
+            is_active=True,
+            is_internal=True,
+            account_status="active"
+        )
+        db.add(usr)
+        db.commit()
+        print(f"Seeded UserProfile: {email}")
+    print("🎉 Idempotent Cognito user seeding complete!")
+except Exception as e:
+    db.rollback()
+    print(f"❌ Database error: {str(e)}")
+finally:
+    db.close()
+' || echo "⚠️ User seeding script failed to execute."
+else
+  echo "⚠️ Backend did not become healthy in time. Skipping Cognito user seeding."
 fi
 
 echo "========================================================================"
