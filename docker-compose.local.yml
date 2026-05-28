@@ -32,8 +32,15 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:root@pulse-db:5432/nexpulse
       - FRONTEND_URL=http://localhost:5173
+      - AWS_PROFILE
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AWS_SESSION_TOKEN
+      - AWS_REGION
+      - AWS_DEFAULT_REGION
     volumes:
       - ./backend:/app
+      - ${HOME}/.aws:/root/.aws:ro
     depends_on:
       pulse-db:
         condition: service_healthy

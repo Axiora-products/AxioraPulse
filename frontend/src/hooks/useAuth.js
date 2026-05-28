@@ -24,6 +24,7 @@ const useAuthStore = create((set, get) => ({
       const { user, profile, tenant } = res.data;
       set({ user, profile, tenant, loading: false, initialized: true });
     } catch (err) {
+      console.error("Auth session initialization failed:", err);
       const status = err?.response?.status;
       if (!status || status === 401 || status === 403) {
         cognitoSignOut();
@@ -45,6 +46,7 @@ const useAuthStore = create((set, get) => ({
       set({ user, profile, tenant, loading: false, initialized: true });
       return true;
     } catch (err) {
+      console.error("Session check failed:", err);
       const status = err?.response?.status;
       if (!status || status === 401 || status === 403) {
         cognitoSignOut();

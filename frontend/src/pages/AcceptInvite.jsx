@@ -85,6 +85,10 @@ export default function AcceptInvite() {
       // 2. Sign in via Cognito and initialise session
       await cognitoSignIn(inviteInfo.email, f.password);
       await useAuthStore.getState().initialize(true);
+      const storeUser = useAuthStore.getState().user;
+      if (!storeUser) {
+        throw new Error('Failed to synchronize user session with the backend. Please try again.');
+      }
 
       toast.success('Account set up! Welcome to Axiora Pulse.');
       nav('/dashboard');
