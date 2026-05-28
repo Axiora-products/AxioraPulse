@@ -24,8 +24,10 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Copy application code
 COPY . .
 
-# Make entrypoint executable
-RUN chmod +x entrypoint.sh
+# Normalize Windows line endings, install entrypoint, and make it executable
+RUN sed -i 's/\r$//' entrypoint.sh \
+    && cp entrypoint.sh /usr/local/bin/axiorapulse-entrypoint.sh \
+    && chmod +x /usr/local/bin/axiorapulse-entrypoint.sh
 
 # Expose port 8000
 EXPOSE 8000
@@ -35,6 +37,6 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD python -c "import requests; requests.get('http://localhost:8000/health')" || exit 1
 
 # Set entrypoint
-ENTRYPOINT ["./entrypoint.sh"]
+ENTRYPOINT ["/usr/local/bin/axiorapulse-entrypoint.sh"]
 
 # Trigger QA pipeline
