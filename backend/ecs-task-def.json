@@ -50,6 +50,14 @@
         {
           "name": "RAZORPAY_KEY_SECRET",
           "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/dev/RAZORPAY_KEY_SECRET"
+        },
+        {
+          "name": "COGNITO_USER_POOL_ID",
+          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/COGNITO_USER_POOL_ID"
+        },
+        {
+          "name": "COGNITO_APP_CLIENT_ID",
+          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/COGNITO_APP_CLIENT_ID"
         }
       ],
       "logConfiguration": {

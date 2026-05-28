@@ -173,19 +173,12 @@ export default function Login() {
       localStorage.setItem('token', idToken);
 
       await initialize(true);
-      toast.success('Welcome back!');
-
-      // Robust redirect: check if Zustand store has user set after initialize.
-      // Use window.location.href as the primary redirect mechanism to guarantee
-      // a full navigation cycle, avoiding React re-render race conditions
-      // where nav('/dashboard') fires before the route guard sees the new user state.
       const storeUser = useAuthStore.getState().user;
-      if (storeUser) {
-        window.location.href = '/dashboard';
-      } else {
-        // Fallback: force navigate even if store seems empty (token is valid)
-        window.location.href = '/dashboard';
+      if (!storeUser) {
+        throw new Error('Failed to synchronize user session with the backend. Please try again.');
       }
+      toast.success('Welcome back!');
+      window.location.href = '/dashboard';
     } catch (err) {
       if (err.code === 'UserNotConfirmedException') {
         toast.error('Email not verified. Redirecting to verification...');
