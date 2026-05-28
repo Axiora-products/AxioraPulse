@@ -28,7 +28,10 @@ const useAuthStore = create((set, get) => ({
         console.error("Auth session initialization failed:", err);
       }
       const status = err?.response?.status;
-      if (!status || status === 401 || status === 403) {
+      const isAxiosError = !!err?.config;
+      // Nuke session only for local Cognito failures or explicit 401/403 auth errors.
+      // Do not nuke for aborted requests (like page navigation unloads), network drops, or 500s.
+      if (!isAxiosError || status === 401 || status === 403) {
         cognitoSignOut();
         localStorage.removeItem('token');
       }
@@ -52,7 +55,10 @@ const useAuthStore = create((set, get) => ({
         console.error("Session check failed:", err);
       }
       const status = err?.response?.status;
-      if (!status || status === 401 || status === 403) {
+      const isAxiosError = !!err?.config;
+      // Nuke session only for local Cognito failures or explicit 401/403 auth errors.
+      // Do not nuke for aborted requests (like page navigation unloads), network drops, or 500s.
+      if (!isAxiosError || status === 401 || status === 403) {
         cognitoSignOut();
         localStorage.removeItem('token');
         set({ user: null, profile: null, tenant: null, loading: false });
