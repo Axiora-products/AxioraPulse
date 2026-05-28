@@ -24,7 +24,7 @@ function clearAllSeen() {
   try { localStorage.removeItem(SEEN_KEY); } catch { }
 }
 
-export default function NotificationFeed() {
+export default function NotificationFeed({ placement = 'bottom' }) {
   const [open, setOpen] = useState(false);
   const [events, setEvents] = useState([]);
   const [unread, setUnread] = useState(0);
@@ -207,29 +207,24 @@ export default function NotificationFeed() {
                 damping: 20
               }}
               style={{
-                position: 'fixed',
-
-                left: 26,
-                bottom: 96,
-
-                zIndex: 99999,
-
-                width: 340,
-
-                background:
-                  'linear-gradient(180deg,#1A0D05 0%, #120803 100%)',
-
-                borderRadius: 22,
-
-                boxShadow:
-                  '0 32px 90px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.03)',
-
-                border:
-                  '1px solid rgba(255,255,255,0.06)',
-
-                overflow: 'hidden',
-
-                backdropFilter: 'blur(18px)'
+                position: 'absolute',
+                top: -2,
+                right: -2,
+                minWidth: 16,
+                height: 16,
+                background: 'var(--coral)',
+                borderRadius: 999,
+                border: placement === 'top' ? '2px solid var(--espresso)' : '2px solid var(--cream)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontFamily: 'Syne, sans-serif',
+                fontWeight: 700,
+                fontSize: 8,
+                color: '#fff',
+                lineHeight: 1,
+                padding: '0 3px',
+                zIndex: 10
               }}
             >
               {unread > 9 ? '9+' : unread}
@@ -242,15 +237,38 @@ export default function NotificationFeed() {
       <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ opacity: 0, y: 16, scale: 0.97 }}
+            initial={{
+              opacity: 0,
+              y: placement === 'top' ? 12 : 16,
+              scale: 0.97
+            }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.97 }}
+            exit={{
+              opacity: 0,
+              y: placement === 'top' ? 8 : 10,
+              scale: 0.97
+            }}
             transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
             className="np-notif-dropdown"
-            style={{ position: 'absolute', right: 0, top: 100, zIndex: 500, width: 340, background: 'var(--warm-white)', borderRadius: 20, boxShadow: '0 32px 80px rgba(22,15,8,0.2), 0 2px 8px rgba(22,15,8,0.06)', border: '1px solid rgba(22,15,8,0.07)', overflow: 'hidden' }}
+            style={{
+              position: placement === 'top' ? 'fixed' : 'absolute',
+              right: placement === 'bottom' ? 0 : 'auto',
+              left: placement === 'top' ? 16 : 'auto',
+              top: placement === 'bottom' ? 'calc(100% + 6px)' : 'auto',
+              bottom: placement === 'top' ? 70 : 'auto',
+              zIndex: 500,
+              width: placement === 'top' ? 260 : 280,
+              background: 'var(--warm-white)',
+              borderRadius: 20,
+              boxShadow: placement === 'top'
+                ? '0 -32px 80px rgba(22,15,8,0.2), 0 -2px 8px rgba(22,15,8,0.06)'
+                : '0 32px 80px rgba(22,15,8,0.2), 0 2px 8px rgba(22,15,8,0.06)',
+              border: '1px solid rgba(22,15,8,0.07)',
+              overflow: 'hidden'
+            }}
           >
             {/* Header */}
-            <div style={{ padding: '14px 18px 12px', borderBottom: '1px solid rgba(22,15,8,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid rgba(22,15,8,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontFamily: 'Syne, sans-serif', fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--espresso)' }}>Activity</span>
                 {unread > 0 && (
@@ -280,7 +298,7 @@ export default function NotificationFeed() {
                 <div style={{ padding: 24, textAlign: 'center', fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 13, color: 'rgba(22,15,8,0.35)' }}>Loading…</div>
               )}
               {!loading && events.length === 0 && (
-                <div style={{ padding: '36px 24px', textAlign: 'center' }}>
+                <div style={{ padding: '24px 16px', textAlign: 'center' }}>
                   <div style={{ marginBottom: 10, display: 'flex', justifyContent: 'center', color: 'rgba(22,15,8,0.15)' }}>
                     <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12" /><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 17.24 4H6.76a2 2 0 0 0-1.79 1.11z" /></svg>
                   </div>
@@ -293,13 +311,13 @@ export default function NotificationFeed() {
                 return (
                   <button key={ev.id}
                     onClick={() => { nav(ev.to); setOpen(false); markSeen([ev.id]); }}
-                    style={{ width: '100%', display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 18px', background: isNew ? 'rgba(255,69,0,0.03)' : 'none', border: 'none', borderBottom: '1px solid rgba(22,15,8,0.045)', cursor: 'pointer', textAlign: 'left', transition: 'background 0.15s', position: 'relative' }}
+                    style={{ width: '100%', display: 'flex', alignItems: 'flex-start', gap: 10, padding: '6px 12px', background: isNew ? 'rgba(255,69,0,0.03)' : 'none', border: 'none', borderBottom: '1px solid rgba(22,15,8,0.045)', cursor: 'pointer', textAlign: 'left', transition: 'background 0.15s', position: 'relative' }}
                     onMouseEnter={e => e.currentTarget.style.background = 'rgba(22,15,8,0.03)'}
                     onMouseLeave={e => e.currentTarget.style.background = isNew ? 'rgba(255,69,0,0.03)' : 'none'}
                   >
                     <span style={{ width: 28, height: 28, borderRadius: 8, background: isNew ? 'rgba(255,69,0,0.1)' : 'rgba(22,15,8,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1, color: isNew ? 'var(--coral)' : 'rgba(22,15,8,0.4)', transition: 'all 0.2s' }}>{iconEl(ev.icon)}</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontFamily: 'Fraunces, serif', fontWeight: isNew ? 400 : 300, fontSize: 13, color: 'var(--espresso)', margin: '0 0 4px', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.text}</p>
+                      <p style={{ fontFamily: 'Fraunces, serif', fontWeight: isNew ? 400 : 300, fontSize: 13, color: 'var(--espresso)', margin: 0, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.text}</p>
                       <span style={{ fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 600, letterSpacing: '0.08em', color: 'rgba(22,15,8,0.3)' }}>{timeAgo(ev.time)}</span>
                     </div>
                     {isNew && <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--coral)', flexShrink: 0, marginTop: 8, boxShadow: '0 0 4px rgba(255,69,0,0.4)' }} />}
@@ -310,7 +328,7 @@ export default function NotificationFeed() {
 
             {/* Footer */}
             {events.length > 0 && (
-              <div style={{ padding: '10px 18px', borderTop: '1px solid rgba(22,15,8,0.06)', display: 'flex', justifyContent: 'center' }}>
+              <div style={{ padding: '6px 14px', borderTop: '1px solid rgba(22,15,8,0.06)', display: 'flex', justifyContent: 'center' }}>
                 <button onClick={handleClear}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.3)', transition: 'color 0.2s', padding: '4px 12px', borderRadius: 6 }}
                   onMouseEnter={e => { e.currentTarget.style.color = 'var(--espresso)'; e.currentTarget.style.background = 'rgba(22,15,8,0.04)'; }}

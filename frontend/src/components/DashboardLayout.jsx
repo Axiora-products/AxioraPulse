@@ -379,7 +379,7 @@ export default function DashboardLayout() {
           </button>
 
           {/* Notifications */}
-          <NotificationFeed />
+          <NotificationFeed placement="top" />
 
           {/* User dropdown menu */}
           <AnimatePresence>
