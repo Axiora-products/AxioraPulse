@@ -10,6 +10,7 @@ import { useLoading } from '../context/LoadingContext';
 import { Reorder, useDragControls } from 'framer-motion';
 import ConfirmModal from '../components/ConfirmModal';
 import HelpTip from '../components/HelpTip';
+import PitchInvestorReadinessPanel from '../pitch-investor-readiness';
 
 const hasO = t => ['single_choice', 'multiple_choice', 'dropdown', 'ranking', 'emoji_reaction', 'swipe_choice', 'visual_choice'].includes(t);
 const isMx = t => t === 'matrix';
@@ -76,6 +77,7 @@ export default function SurveyEdit() {
   const [aiIntelError, setAiIntelError] = useState(null);
   const [locationCountry, setLocationCountry] = useState('');
   const [locationState, setLocationState] = useState('');
+  const [locationDistrict, setLocationDistrict] = useState('');
   const [locationSubmitted, setLocationSubmitted] = useState(false);
 
   const toggleSetting = async (k, v) => {
@@ -187,7 +189,7 @@ export default function SurveyEdit() {
     setTimeout(() => w.print(), 600);
   };
 
-  const fetchAIIntelligence = async (force = false) => {
+  const fetchAIIntelligence = async (force = false, country = locationCountry, state = locationState, district = locationDistrict) => {
     if (aiIntelLoading) return;
     if (aiIntel && !force) return;
     setAiIntelLoading(true);
@@ -198,9 +200,20 @@ export default function SurveyEdit() {
         description: sv?.description || '',
         welcome_message: sv?.welcome_message || '',
         questions: (qs || []).map(q => ({ text: q.question_text, type: q.question_type })),
+        location_country: country,
+        location_state: state,
+        location_district: district,
       };
       const res = await API.post('/ai/survey-intelligence', payload);
-      setAiIntel(res.data);
+      const intelligenceData = {
+        ...res.data,
+        location_country: country,
+        location_state: state,
+        location_district: district,
+      };
+      // Persist the generated intelligence to the DB via PATCH update
+      await API.patch(`/surveys/${id}`, { ai_intelligence: intelligenceData });
+      setAiIntel(intelligenceData);
     } catch (err) {
       console.error('[AI Intel]', err);
       setAiIntelError(err.response?.data?.detail || 'Failed to generate intelligence. Please try again.');
@@ -221,7 +234,14 @@ export default function SurveyEdit() {
       ]);
       setSv({ ...s, expires_at: s.expires_at ? new Date(s.expires_at).toISOString().slice(0, 16) : '' });
       setIsEditing(s.status === 'draft');
-      sQs((q || []).map(x => {
+      if (s.ai_intelligence) {
+        setAiIntel(s.ai_intelligence);
+        setLocationSubmitted(true);
+        setLocationCountry(s.ai_intelligence.location_country || '');
+        setLocationState(s.ai_intelligence.location_state || '');
+        setLocationDistrict(s.ai_intelligence.location_district || '');
+      }
+      sQs((q||[]).map(x => {
         const opts = isMx(x.question_type) ? parseOpts(x.options, true) : hasO(x.question_type) ? parseOpts(x.options) : x.options;
         return { ...x, _id: x.id, options: opts };
       }));
@@ -916,27 +936,9 @@ export default function SurveyEdit() {
 
           {/* ── EXECUTE TAB ── */}
           {tab === 'execute' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
-              {/* PDF report card */}
-              <div className="q-card" style={{ background: 'var(--espresso)', color: 'var(--cream)', borderRadius: 24, padding: 32, position: 'relative', overflow: 'hidden', boxShadow: '0 16px 40px rgba(22,15,8,0.15)' }}>
-                <div style={{ position: 'absolute', right: -40, top: -40, width: 180, height: 180, borderRadius: '50%', background: `radial-gradient(circle,${tc}35,transparent 70%)`, pointerEvents: 'none' }} />
-                <div style={{ position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
-                  <div style={{ flex: 1 }}>
-                    <span style={{ fontFamily: "'Syne',sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: tc, marginBottom: 8, display: 'block' }}>Fundraising Prep</span>
-                    <h2 style={{ fontFamily: "'Playfair Display',serif", fontWeight: 900, fontSize: 26, lineHeight: 1.15, marginBottom: 8 }}>Investor Readiness Report</h2>
-                    <p style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 14, color: 'rgba(255,251,244,0.65)', lineHeight: 1.6, margin: 0, maxWidth: 520 }}>
-                      Export a comprehensive AI-powered investment memo containing your competitor landscape, target customer personas, and strategic roadmap formatted specifically for early-stage venture capital review.
-                    </p>
-                  </div>
-                  <button onClick={generatePDF}
-                    style={{ padding: '14px 28px', borderRadius: 999, background: '#fff', border: 'none', color: 'var(--espresso)', fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 4px 18px rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 8 }}
-                    onMouseEnter={e => { e.currentTarget.style.background = tc; e.currentTarget.style.color = '#fff'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = 'var(--espresso)'; }}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
-                    Download PDF
-                  </button>
-                </div>
-              </div>
+            <div style={{ display:'flex',flexDirection:'column',gap:32 }}>
+              {/* Premium Pitch & Investor Readiness Dashboard */}
+              <PitchInvestorReadinessPanel survey={sv} />
 
               {/* Mentorship / Contact a Mentor */}
               <div style={{ background: 'var(--warm-white)', borderRadius: 22, border: '1.5px solid rgba(22,15,8,0.07)', padding: 32 }}>
@@ -1087,36 +1089,36 @@ export default function SurveyEdit() {
 
             if (!locationSubmitted) {
               return (
-                <div style={{ background: 'var(--warm-white)', borderRadius: 22, border: '1.5px solid rgba(22,15,8,0.07)', padding: 40, textAlign: 'center', boxShadow: '0 8px 32px rgba(22,15,8,0.03)' }}>
-                  <div style={{ width: 56, height: 56, borderRadius: 16, background: 'rgba(255,184,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', fontSize: 24, color: 'var(--saffron)' }}>📍</div>
-                  <h2 style={{ fontFamily: "'Playfair Display',serif", fontWeight: 900, fontSize: 24, color: 'var(--espresso)', marginBottom: 8 }}>Define Target Market Geography</h2>
-                  <p style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 14, color: 'rgba(22,15,8,0.5)', lineHeight: 1.6, maxWidth: 420, margin: '0 auto 32px' }}>
-                    Specify the country and state/region to analyze competitors, localized target customer personas, and strategic milestone steps.
+                <div style={{ background:'var(--warm-white)',borderRadius:22,border:'1.5px solid rgba(22,15,8,0.07)',padding:40,textAlign:'center',boxShadow:'0 8px 32px rgba(22,15,8,0.03)' }}>
+                  <div style={{ width:56,height:56,borderRadius:16,background:'rgba(255,184,0,0.1)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 24px',fontSize:24,color:'var(--saffron)' }}>📍</div>
+                  <h2 style={{ fontFamily:"'Playfair Display',serif",fontWeight:900,fontSize:24,color:'var(--espresso)',marginBottom:8 }}>Define Target Market Geography</h2>
+                  <p style={{ fontFamily:"'Fraunces',serif",fontWeight:300,fontSize:14,color:'rgba(22,15,8,0.5)',lineHeight:1.6,maxWidth:420,margin:'0 auto 32px' }}>
+                    Specify the geographic scale to analyze competitors, localized target customer personas, and strategic milestone steps. Leave inputs blank to analyze at a broader level.
                   </p>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 18, maxWidth: 400, margin: '0 auto 32px', textAlign: 'left' }}>
                     <div>
-                      <label style={LBL}>Target Country</label>
-                      <input type="text" placeholder="e.g. United States, India, Germany" value={locationCountry} onChange={e => setLocationCountry(e.target.value)} style={INP} onFocus={fi} onBlur={fo} />
+                      <label style={LBL}>Target Country (Leave blank for Global)</label>
+                      <input type="text" placeholder="e.g. United States, India, Germany" value={locationCountry} onChange={e=>setLocationCountry(e.target.value)} style={INP} onFocus={fi} onBlur={fo}/>
                     </div>
                     <div>
-                      <label style={LBL}>Target State / Region</label>
-                      <input type="text" placeholder="e.g. California, Telangana, Bavaria" value={locationState} onChange={e => setLocationState(e.target.value)} style={INP} onFocus={fi} onBlur={fo} />
+                      <label style={LBL}>Target State / Region (Leave blank for National)</label>
+                      <input type="text" placeholder="e.g. California, Telangana, Bavaria" value={locationState} onChange={e=>setLocationState(e.target.value)} style={INP} onFocus={fi} onBlur={fo}/>
+                    </div>
+                    <div>
+                      <label style={LBL}>Target District / City (Leave blank for State-level)</label>
+                      <input type="text" placeholder="e.g. Los Angeles, Hyderabad, Munich" value={locationDistrict} onChange={e=>setLocationDistrict(e.target.value)} style={INP} onFocus={fi} onBlur={fo}/>
                     </div>
                   </div>
 
                   <button onClick={() => {
-                    if (!locationCountry.trim() || !locationState.trim()) {
-                      toast.error('Please fill in both Country and State/Region.');
-                      return;
-                    }
                     setLocationSubmitted(true);
-                    fetchAIIntelligence(true, locationCountry, locationState);
+                    fetchAIIntelligence(true, locationCountry, locationState, locationDistrict);
                   }}
-                    style={{ padding: '14px 32px', borderRadius: 999, background: 'var(--espresso)', color: 'var(--cream)', fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', border: 'none', cursor: 'pointer', transition: 'all 0.25s', boxShadow: '0 6px 20px rgba(22,15,8,0.15)' }}
-                    onMouseEnter={e => { e.currentTarget.style.background = tc; e.currentTarget.style.boxShadow = `0 10px 30px ${tc}40`; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = 'var(--espresso)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(22,15,8,0.15)'; }}>
-                    ✦ Generate Localized Market Intel
+                    style={{ padding:'14px 32px',borderRadius:999,background:'var(--espresso)',color:'var(--cream)',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:11,letterSpacing:'0.12em',textTransform:'uppercase',border:'none',cursor:'pointer',transition:'all 0.25s',boxShadow:'0 6px 20px rgba(22,15,8,0.15)' }}
+                    onMouseEnter={e=>{e.currentTarget.style.background=tc;e.currentTarget.style.boxShadow=`0 10px 30px ${tc}40`;}}
+                    onMouseLeave={e=>{e.currentTarget.style.background='var(--espresso)';e.currentTarget.style.boxShadow='0 6px 20px rgba(22,15,8,0.15)';}}>
+                    ✦ Generate Market Intelligence
                   </button>
                 </div>
               );
@@ -1132,9 +1134,9 @@ export default function SurveyEdit() {
                       <div style={{ fontFamily: "'Playfair Display',serif", fontWeight: 700, fontSize: 18, color: 'var(--espresso)', marginBottom: 4 }}>
                         {aiIntel ? `Intelligence Classification: ${aiIntel.category}` : 'AI Market Intelligence'}
                       </div>
-                      <div style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 13, color: 'rgba(22,15,8,0.6)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                        <span>Target Market: <strong>${locationState}, ${locationCountry}</strong></span>
-                        <button onClick={() => setLocationSubmitted(false)} style={{ background: 'none', border: 'none', color: tc, fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 9, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>✎ Change</button>
+                      <div style={{ fontFamily:"'Fraunces',serif",fontWeight:300,fontSize:13,color:'rgba(22,15,8,0.6)',display:'flex',alignItems:'center',gap:8,flexWrap:'wrap' }}>
+                        <span>Target Market: <strong>{locationDistrict ? `${locationDistrict}, ` : ''}{locationState ? `${locationState}, ` : ''}{locationCountry || 'Global'}</strong></span>
+                        <button onClick={() => setLocationSubmitted(false)} style={{ background:'none',border:'none',color:tc,fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:9,letterSpacing:'0.05em',textTransform:'uppercase',cursor:'pointer',padding:0,textDecoration:'underline' }}>✎ Change</button>
                       </div>
                     </div>
                   </div>
@@ -1243,36 +1245,36 @@ export default function SurveyEdit() {
 
             if (!locationSubmitted) {
               return (
-                <div style={{ background: 'var(--warm-white)', borderRadius: 22, border: '1.5px solid rgba(22,15,8,0.07)', padding: 40, textAlign: 'center', boxShadow: '0 8px 32px rgba(22,15,8,0.03)' }}>
-                  <div style={{ width: 56, height: 56, borderRadius: 16, background: 'rgba(255,184,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', fontSize: 24, color: 'var(--saffron)' }}>📍</div>
-                  <h2 style={{ fontFamily: "'Playfair Display',serif", fontWeight: 900, fontSize: 24, color: 'var(--espresso)', marginBottom: 8 }}>Define Target Market Geography</h2>
-                  <p style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 14, color: 'rgba(22,15,8,0.5)', lineHeight: 1.6, maxWidth: 420, margin: '0 auto 32px' }}>
-                    Specify the country and state/region to analyze competitors, localized target customer personas, and strategic milestone steps.
+                <div style={{ background:'var(--warm-white)',borderRadius:22,border:'1.5px solid rgba(22,15,8,0.07)',padding:40,textAlign:'center',boxShadow:'0 8px 32px rgba(22,15,8,0.03)' }}>
+                  <div style={{ width:56,height:56,borderRadius:16,background:'rgba(255,184,0,0.1)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 24px',fontSize:24,color:'var(--saffron)' }}>📍</div>
+                  <h2 style={{ fontFamily:"'Playfair Display',serif",fontWeight:900,fontSize:24,color:'var(--espresso)',marginBottom:8 }}>Define Target Market Geography</h2>
+                  <p style={{ fontFamily:"'Fraunces',serif",fontWeight:300,fontSize:14,color:'rgba(22,15,8,0.5)',lineHeight:1.6,maxWidth:420,margin:'0 auto 32px' }}>
+                    Specify the geographic scale to analyze competitors, localized target customer personas, and strategic milestone steps. Leave inputs blank to analyze at a broader level.
                   </p>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 18, maxWidth: 400, margin: '0 auto 32px', textAlign: 'left' }}>
                     <div>
-                      <label style={LBL}>Target Country</label>
-                      <input type="text" placeholder="e.g. United States, India, Germany" value={locationCountry} onChange={e => setLocationCountry(e.target.value)} style={INP} onFocus={fi} onBlur={fo} />
+                      <label style={LBL}>Target Country (Leave blank for Global)</label>
+                      <input type="text" placeholder="e.g. United States, India, Germany" value={locationCountry} onChange={e=>setLocationCountry(e.target.value)} style={INP} onFocus={fi} onBlur={fo}/>
                     </div>
                     <div>
-                      <label style={LBL}>Target State / Region</label>
-                      <input type="text" placeholder="e.g. California, Telangana, Bavaria" value={locationState} onChange={e => setLocationState(e.target.value)} style={INP} onFocus={fi} onBlur={fo} />
+                      <label style={LBL}>Target State / Region (Leave blank for National)</label>
+                      <input type="text" placeholder="e.g. California, Telangana, Bavaria" value={locationState} onChange={e=>setLocationState(e.target.value)} style={INP} onFocus={fi} onBlur={fo}/>
+                    </div>
+                    <div>
+                      <label style={LBL}>Target District / City (Leave blank for State-level)</label>
+                      <input type="text" placeholder="e.g. Los Angeles, Hyderabad, Munich" value={locationDistrict} onChange={e=>setLocationDistrict(e.target.value)} style={INP} onFocus={fi} onBlur={fo}/>
                     </div>
                   </div>
 
                   <button onClick={() => {
-                    if (!locationCountry.trim() || !locationState.trim()) {
-                      toast.error('Please fill in both Country and State/Region.');
-                      return;
-                    }
                     setLocationSubmitted(true);
-                    fetchAIIntelligence(true, locationCountry, locationState);
+                    fetchAIIntelligence(true, locationCountry, locationState, locationDistrict);
                   }}
-                    style={{ padding: '14px 32px', borderRadius: 999, background: 'var(--espresso)', color: 'var(--cream)', fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', border: 'none', cursor: 'pointer', transition: 'all 0.25s', boxShadow: '0 6px 20px rgba(22,15,8,0.15)' }}
-                    onMouseEnter={e => { e.currentTarget.style.background = tc; e.currentTarget.style.boxShadow = `0 10px 30px ${tc}40`; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = 'var(--espresso)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(22,15,8,0.15)'; }}>
-                    ✦ Generate Localized Market Intel
+                    style={{ padding:'14px 32px',borderRadius:999,background:'var(--espresso)',color:'var(--cream)',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:11,letterSpacing:'0.12em',textTransform:'uppercase',border:'none',cursor:'pointer',transition:'all 0.25s',boxShadow:'0 6px 20px rgba(22,15,8,0.15)' }}
+                    onMouseEnter={e=>{e.currentTarget.style.background=tc;e.currentTarget.style.boxShadow=`0 10px 30px ${tc}40`;}}
+                    onMouseLeave={e=>{e.currentTarget.style.background='var(--espresso)';e.currentTarget.style.boxShadow='0 6px 20px rgba(22,15,8,0.15)';}}>
+                    ✦ Generate Market Intelligence
                   </button>
                 </div>
               );
@@ -1285,10 +1287,10 @@ export default function SurveyEdit() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
                     <div style={{ width: 48, height: 48, borderRadius: 14, background: tc, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 20 }}>🚀</div>
                     <div>
-                      <div style={{ fontFamily: "'Playfair Display',serif", fontWeight: 700, fontSize: 18, color: 'var(--espresso)', marginBottom: 4 }}>Adaptive Development Roadmap</div>
-                      <div style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 13, color: 'rgba(22,15,8,0.6)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                        <span>Target Market: <strong>${locationState}, ${locationCountry}</strong></span>
-                        <button onClick={() => setLocationSubmitted(false)} style={{ background: 'none', border: 'none', color: tc, fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 9, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>✎ Change</button>
+                      <div style={{ fontFamily:"'Playfair Display',serif",fontWeight:700,fontSize:18,color:'var(--espresso)',marginBottom:4 }}>Adaptive Development Roadmap</div>
+                      <div style={{ fontFamily:"'Fraunces',serif",fontWeight:300,fontSize:13,color:'rgba(22,15,8,0.6)',display:'flex',alignItems:'center',gap:8,flexWrap:'wrap' }}>
+                        <span>Target Market: <strong>{locationDistrict ? `${locationDistrict}, ` : ''}{locationState ? `${locationState}, ` : ''}{locationCountry || 'Global'}</strong></span>
+                        <button onClick={() => setLocationSubmitted(false)} style={{ background:'none',border:'none',color:tc,fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:9,letterSpacing:'0.05em',textTransform:'uppercase',cursor:'pointer',padding:0,textDecoration:'underline' }}>✎ Change</button>
                       </div>
                     </div>
                   </div>
