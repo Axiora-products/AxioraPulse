@@ -19,7 +19,7 @@ def get_ssm_parameter(name: str):
 DATABASE_URL = os.getenv("DATABASE_URL")
 SECRET_KEY = os.getenv("SECRET_KEY")
 ANTHROPIC_KEY = os.getenv("ANTHROPIC_KEY")
-FRONTEND_URL = os.getenv("FRONTEND_URL", "").rstrip("/")  # e.g. https://app.axiorapulse.com
+FRONTEND_URL = os.getenv("FRONTEND_URL", "").rstrip("/")  # e.g. https://axiorapulse.com
 
 RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID", "")
 RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET", "")
