@@ -112,6 +112,10 @@ app.add_middleware(
     allow_origins=[
         *([config.FRONTEND_URL] if config.FRONTEND_URL else []),
         *([config.FRONTEND_URL + "/"] if config.FRONTEND_URL else []),
+        "https://www.axiorapulse.com",
+        "https://axiorapulse.com",
+        "https://www.axiorapulse.com/",
+        "https://axiorapulse.com/",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
         "http://localhost:3000",
