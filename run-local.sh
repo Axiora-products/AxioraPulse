@@ -122,125 +122,32 @@ echo "   AWS Profile:  $AWS_PROFILE"
 echo "   SSM Namespace: axiorapulse/$ENV"
 echo "========================================================================"
 
-# --- Build AWS CLI Credentials Arguments for Container ---
-AWS_ENV_ARGS=()
-if [ -n "$AWS_ACCESS_KEY_ID" ]; then
-  AWS_ENV_ARGS+=(-e "AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID")
-fi
-if [ -n "$AWS_SECRET_ACCESS_KEY" ]; then
-  AWS_ENV_ARGS+=(-e "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY")
-fi
-if [ -n "$AWS_SESSION_TOKEN" ]; then
-  AWS_ENV_ARGS+=(-e "AWS_SESSION_TOKEN=$AWS_SESSION_TOKEN")
-fi
-if [ -n "$AWS_REGION" ]; then
-  AWS_ENV_ARGS+=(-e "AWS_REGION=$AWS_REGION")
-fi
-if [ -n "$AWS_DEFAULT_REGION" ]; then
-  AWS_ENV_ARGS+=(-e "AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION")
-fi
+# --- Generate Dummy Environment Files (to prevent Docker Compose startup error) ---
+echo "⚙️  Preparing local environment files..."
+mkdir -p backend frontend
+touch backend/.env.docker
+touch frontend/.env.local
 
-AWS_MOUNT_ARGS=()
-if [ -d "$HOME/.aws" ]; then
-  AWS_MOUNT_ARGS=(-v "$HOME/.aws:/root/.aws:ro")
-fi
+# --- Startup Moto & Database First ---
+echo "🌐 Spinning up Moto Server and Database containers..."
+docker compose -f docker-compose.local.yml up -d pulse-moto pulse-db
 
-# --- Pull Secrets via Chamber ---
-# To support global parameters (like COGNITO_ at the root level /axiorapulse/)
-# and environment-specific parameters (like DATABASE_URL under /axiorapulse/dev/),
-# we run Chamber twice and merge the results.
-echo "📥 Pulling global secrets from AWS SSM Parameter Store (axiorapulse)..."
-rm -f .env.pulled.global .env.pulled.env .env.pulled .chamber.global.err .chamber.env.err
-set +e
+# --- Build Backend Container to run Moto seed script ---
+echo "📦 Building backend container..."
+docker compose -f docker-compose.local.yml build pulse-backend
 
-MSYS_NO_PATHCONV=1 docker run --rm \
-  "${AWS_MOUNT_ARGS[@]}" \
-  "${AWS_ENV_ARGS[@]}" \
-  -e HOME=/root \
-  -e AWS_PROFILE="$AWS_PROFILE" \
-  -e AWS_REGION="ap-south-1" \
-  -e AWS_DEFAULT_REGION="ap-south-1" \
-  segment/chamber:3 export --format dotenv axiorapulse > .env.pulled.global 2> .chamber.global.err
-GLOBAL_STATUS=$?
+# --- Seed Moto Server (SSM & Cognito) ---
+echo "🌱 Initializing local mock AWS resources (Moto)..."
+docker compose -f docker-compose.local.yml run --rm --entrypoint python pulse-backend /app/init_local_aws.py
 
-echo "📥 Pulling environment-specific secrets from AWS SSM Parameter Store (axiorapulse/$ENV)..."
-MSYS_NO_PATHCONV=1 docker run --rm \
-  "${AWS_MOUNT_ARGS[@]}" \
-  "${AWS_ENV_ARGS[@]}" \
-  -e HOME=/root \
-  -e AWS_PROFILE="$AWS_PROFILE" \
-  -e AWS_REGION="ap-south-1" \
-  -e AWS_DEFAULT_REGION="ap-south-1" \
-  segment/chamber:3 export --format dotenv axiorapulse/"$ENV" > .env.pulled.env 2> .chamber.env.err
-ENV_STATUS=$?
-set -e
-
-if [ $ENV_STATUS -ne 0 ]; then
-  echo "❌ Error: Failed to pull environment-specific secrets using Chamber."
-  echo "----------------------------------------------------"
-  cat .chamber.env.err || echo "No error log available"
-  echo "----------------------------------------------------"
-  echo "Please verify:"
-  echo "  1. Docker has permission to mount $HOME/.aws."
-  echo "  2. Your AWS SSO session or access keys for profile '$AWS_PROFILE' are active."
-  echo "     Run 'aws sso login --profile $AWS_PROFILE' if your SSO session expired."
-  echo "  3. The SSM namespace '/axiorapulse/$ENV' exists in your ap-south-1 region."
-  rm -f .env.pulled.global .env.pulled.env .chamber.global.err .chamber.env.err
+# --- Move generated Frontend env file ---
+if [ -f backend/.env.local ]; then
+  mv backend/.env.local frontend/.env.local
+  echo "✅ Mapped generated Cognito credentials to frontend."
+else
+  echo "❌ Error: backend/.env.local not found. Moto initialization failed."
   exit 1
 fi
-
-if [ $GLOBAL_STATUS -ne 0 ]; then
-  echo "⚠️ Warning: Failed to pull global secrets (axiorapulse)."
-  echo "   Cognito configuration might not be set in SSM root namespace."
-  cat .chamber.global.err || true
-fi
-
-# Combine pulled secrets
-cat .env.pulled.global .env.pulled.env > .env.pulled 2>/dev/null || true
-rm -f .env.pulled.global .env.pulled.env .chamber.global.err .chamber.env.err
-
-# --- Generate Environment Files ---
-echo "⚙️  Generating containerized configuration overrides..."
-
-# 1. Generate Backend env
-echo "# ======================================================================" > backend/.env.docker
-echo "# Generated from AWS SSM (axiorapulse/$ENV) via Chamber" >> backend/.env.docker
-echo "# ======================================================================" >> backend/.env.docker
-cat .env.pulled >> backend/.env.docker
-echo "" >> backend/.env.docker
-echo "# Local Container Overrides" >> backend/.env.docker
-echo "DATABASE_URL=postgresql://postgres:root@pulse-db:5432/nexpulse" >> backend/.env.docker
-echo "FRONTEND_URL=http://localhost:5173" >> backend/.env.docker
-echo "ENVIRONMENT=development" >> backend/.env.docker
-echo "MOCK_COGNITO=false" >> backend/.env.docker
-
-# 2. Generate Frontend env
-echo "# ======================================================================" > frontend/.env.local
-echo "# Generated from AWS SSM (axiorapulse/$ENV) via Chamber" >> frontend/.env.local
-echo "# ======================================================================" >> frontend/.env.local
-
-# Loop through pulled parameters to extract VITE_ vars and map COGNITO_ vars
-while IFS= read -r line || [ -n "$line" ]; do
-  # Skip comments and empty lines
-  if [[ "$line" =~ ^# ]] || [[ -z "$line" ]]; then
-    continue
-  fi
-
-  # Forward any existing VITE_ prefix variables
-  if [[ "$line" =~ ^VITE_ ]]; then
-    echo "$line" >> frontend/.env.local
-  # Map Cognito parameters to their Vite equivalents
-  elif [[ "$line" =~ ^COGNITO_ ]]; then
-    echo "VITE_$line" >> frontend/.env.local
-  fi
-done < .env.pulled
-
-echo "" >> frontend/.env.local
-echo "# Local Container Overrides" >> frontend/.env.local
-echo "VITE_API_BASE_URL=http://localhost:8000" >> frontend/.env.local
-echo "VITE_MOCK_COGNITO=false" >> frontend/.env.local
-
-rm -f .env.pulled
 
 # --- Startup Services ---
 echo "🌐 Initializing Docker network & persistent storage..."
@@ -290,7 +197,7 @@ try:
     print(f"Found {len(users)} users in dev Cognito pool.")
 except Exception as e:
     print(f"❌ Failed to fetch users from Cognito: {str(e)}")
-    print("Make sure you are logged in to AWS (e.g. \"aws sso login --profile dev\") and your session is active.")
+    print("Make sure the local Moto Server container is running and healthy.")
     exit(0)
 
 db_url = os.getenv("DATABASE_URL")
