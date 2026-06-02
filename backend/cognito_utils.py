@@ -80,10 +80,14 @@ def admin_delete_user(email: str) -> bool:
 
 @lru_cache(maxsize=1)
 def _get_jwks() -> list:
-    url = (
-        f"https://cognito-idp.{COGNITO_REGION}.amazonaws.com"
-        f"/{COGNITO_USER_POOL_ID}/.well-known/jwks.json"
-    )
+    endpoint_url = os.getenv("AWS_ENDPOINT_URL")
+    if endpoint_url:
+        url = f"{endpoint_url.rstrip('/')}/{COGNITO_USER_POOL_ID}/.well-known/jwks.json"
+    else:
+        url = (
+            f"https://cognito-idp.{COGNITO_REGION}.amazonaws.com"
+            f"/{COGNITO_USER_POOL_ID}/.well-known/jwks.json"
+        )
     resp = requests.get(url, timeout=5)
     resp.raise_for_status()
     return resp.json()["keys"]
