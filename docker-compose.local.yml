@@ -20,6 +20,14 @@ services:
       timeout: 5s
       retries: 5
 
+  pulse-moto:
+    image: motoserver/moto:latest
+    container_name: pulse-moto
+    ports:
+      - "5001:5000"
+    networks:
+      - pulse-network
+
   pulse-backend:
     build:
       context: ./backend
@@ -32,18 +40,18 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:root@pulse-db:5432/nexpulse
       - FRONTEND_URL=http://localhost:5173
-      - AWS_PROFILE
-      - AWS_ACCESS_KEY_ID
-      - AWS_SECRET_ACCESS_KEY
-      - AWS_SESSION_TOKEN
-      - AWS_REGION
-      - AWS_DEFAULT_REGION
+      - AWS_ENDPOINT_URL=http://pulse-moto:5000
+      - AWS_ACCESS_KEY_ID=mock
+      - AWS_SECRET_ACCESS_KEY=mock
+      - AWS_REGION=ap-south-1
+      - AWS_DEFAULT_REGION=ap-south-1
     volumes:
       - ./backend:/app
-      - ${HOME}/.aws:/root/.aws:ro
     depends_on:
       pulse-db:
         condition: service_healthy
+      pulse-moto:
+        condition: service_started
     networks:
       - pulse-network
 
