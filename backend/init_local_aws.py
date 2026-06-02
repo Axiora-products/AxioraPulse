@@ -189,6 +189,7 @@ def generate_env_files(pool_id, client_id, ssm_params):
         f.write(f"VITE_COGNITO_USER_POOL_ID={pool_id}\n")
         f.write(f"VITE_COGNITO_APP_CLIENT_ID={client_id}\n")
         f.write(f"VITE_COGNITO_REGION={REGION}\n")
+        f.write("VITE_COGNITO_ENDPOINT=http://localhost:5001\n")
         f.write("VITE_API_BASE_URL=http://localhost:8000\n")
         f.write("VITE_MOCK_COGNITO=false\n")  # Use real Cognito SDK flow pointing to local Moto
 
