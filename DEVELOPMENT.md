@@ -7,12 +7,11 @@ For full-stack local development (Frontend, Backend, and Database) with AWS SSM 
 
 #### Prerequisites
 * **Docker & Docker Compose**: Ensure Docker Desktop (macOS/Windows) or Daemon (Linux) is running.
-* **AWS Local Profile**: Every developer **must** have a configured AWS profile named `dev` in their local system. If this profile is missing, contact the DevOps Engineer representing the Dev Environment to configure access.
-* **AWS Session**: Ensure your AWS CLI session is active with permissions to access SSM Parameter Store (`ap-south-1`). If using AWS SSO, run:
+* **Local Mock Environment (Moto)**: Since we use Moto Server to mock AWS services (SSM Parameter Store, Cognito User Pool, etc.) locally, you do **not** need an active AWS session or real AWS credentials to run the development environment.
+* **AWS QA/Prod Access (Only for Deployment/Staging)**: If you need to deploy, test against the QA/Staging environment, or interact with real AWS accounts, ensure you have the appropriate AWS profiles (`qa` or `default`) configured and log in via AWS SSO:
   ```bash
-  aws sso login --profile dev
+  aws sso login --profile qa
   ```
-  Or verify standard env variables (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, etc.).
 
 #### Usage & Common Options
 ```bash
@@ -45,21 +44,16 @@ Once active, the local stack exposes:
 
 #### Branch-to-Environment Mappings for `./run-local.sh`
 The orchestrator automatically maps branches to target profiles and SSM credentials:
-- **`main`** branch → AWS profile: `default` | SSM env: `production`
-- **`release/*`** branches → AWS profile: `qa` | SSM env: `staging`
-- **`develop`** or others → AWS profile: `dev` | SSM env: `dev`
+- **`main`** branch → AWS profile: `default` | SSM env: `production` (Requires real AWS credentials if accessing production)
+- **`release/*`** branches → AWS profile: `qa` | SSM env: `staging` (Requires real AWS credentials if accessing staging)
+- **`develop`** or others → Maps to local Moto mock environment. No real AWS profile or credentials are required.
 
 > [!IMPORTANT]
 > - **Only one active release at a time**: Since we share a single AWS QA environment, only one release branch should be actively tested on QA at a time.
 > - **Git Bash for Windows**: Run `./run-local.sh` using **Git Bash** for local execution.
 
 ### 2. Troubleshooting Local Environment
-* **Expired AWS Session**: If you are using AWS SSO, your session likely expired. Refresh it by running:
-  ```bash
-  aws sso login --profile <profile>
-  ```
-* **Missing ~/.aws Directory**: Verify your AWS credentials directory exists. Chamber mounts `$HOME/.aws` to load profiles.
-* **SSM Parameter Namespace**: Make sure the target SSM namespace (e.g. `/axiorapulse/dev`) exists in the `ap-south-1` region and your credentials have permission to read from it.
+* **SSM Parameter Namespace (Staging/Production overrides only)**: If you are overriding the local environment to pull from real AWS SSM Parameter Store (e.g. using `-e staging`), make sure your AWS CLI session is active (`aws sso login --profile qa`) and Chamber has access to the target SSM namespace.
 * **Database Migrations Failing**: If you get warnings about Alembic migrations failing because of database mismatch when switching branches:
   * The backend container automatically attempts to self-recover by running `alembic stamp head` and reapplying migrations.
   * If it fails, you can force-recreate your database storage volume:
