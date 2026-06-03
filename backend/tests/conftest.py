@@ -12,8 +12,8 @@ def mock_verify_cognito_token(monkeypatch):
         if token == TEST_TOKEN:
             return {
                 "sub": "f1d3ad6a-5031-70d5-9d6a-5013ed87e8d2",
-                "email": "deepthiupadhyayula@gmail.com",
-                "name": "deepthi",
+                "email": "dev@axiorapulse.com",
+                "name": "Developer User",
                 "token_use": "id"
             }
         elif token == "invalidtoken":

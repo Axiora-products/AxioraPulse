@@ -138,7 +138,7 @@ docker compose -f docker-compose.local.yml build pulse-backend
 
 # --- Seed Moto Server (SSM & Cognito) ---
 echo "🌱 Initializing local mock AWS resources (Moto)..."
-docker compose -f docker-compose.local.yml run --rm --entrypoint python pulse-backend /app/init_local_aws.py
+docker compose -f docker-compose.local.yml run --rm --entrypoint python pulse-backend init_local_aws.py
 
 # --- Move generated Frontend env file ---
 if [ -f backend/.env.local ]; then
