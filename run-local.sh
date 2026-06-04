@@ -81,6 +81,58 @@ if ! docker info >/dev/null 2>&1; then
   exit 1
 fi
 
+# --- Architecture & Platform Check ---
+HOST_ARCH=$(uname -m | tr '[:upper:]' '[:lower:]')
+TARGET_PLATFORM=""
+
+case "$HOST_ARCH" in
+  x86_64|amd64)
+    TARGET_PLATFORM="linux/amd64"
+    ;;
+  arm64|aarch64)
+    TARGET_PLATFORM="linux/arm64"
+    ;;
+  *)
+    TARGET_PLATFORM=""
+    ;;
+esac
+
+if [ -n "$TARGET_PLATFORM" ]; then
+  # 1. Clean up DOCKER_DEFAULT_PLATFORM if it conflicts with host architecture
+  if [ -n "$DOCKER_DEFAULT_PLATFORM" ] && [ "$DOCKER_DEFAULT_PLATFORM" != "$TARGET_PLATFORM" ]; then
+    echo "⚠️  Warning: DOCKER_DEFAULT_PLATFORM is set to '$DOCKER_DEFAULT_PLATFORM', but your host architecture is $HOST_ARCH ($TARGET_PLATFORM)."
+    echo "   Clearing DOCKER_DEFAULT_PLATFORM for this session to prevent 'exec format error'..."
+    unset DOCKER_DEFAULT_PLATFORM
+  fi
+
+  # 2. Check for cached images with mismatched architectures
+  # Official and custom build images
+  for img in "postgres:17" "motoserver/moto:latest" "axiorapulse-pulse-backend" "axiorapulse-pulse-frontend"; do
+    if docker image inspect "$img" >/dev/null 2>&1; then
+      IMG_ARCH=$(docker inspect "$img" --format '{{.Architecture}}' 2>/dev/null | tr '[:upper:]' '[:lower:]')
+      if [ -n "$IMG_ARCH" ]; then
+        EXPECTED_ARCH=""
+        if [ "$TARGET_PLATFORM" = "linux/amd64" ]; then
+          EXPECTED_ARCH="amd64"
+        elif [ "$TARGET_PLATFORM" = "linux/arm64" ]; then
+          EXPECTED_ARCH="arm64"
+        fi
+
+        if [ -n "$EXPECTED_ARCH" ] && [ "$IMG_ARCH" != "$EXPECTED_ARCH" ]; then
+          echo "🔄 Mismatched architecture detected for image '$img' (cached: $IMG_ARCH, host: $EXPECTED_ARCH)."
+          if [[ "$img" == *"pulse-backend"* || "$img" == *"pulse-frontend"* ]]; then
+            echo "   Forcing rebuild of local service image..."
+            REBUILD="true"
+          else
+            echo "   Pulling the correct $TARGET_PLATFORM image..."
+            docker pull --platform "$TARGET_PLATFORM" "$img"
+          fi
+        fi
+      fi
+    fi
+  done
+fi
+
 # --- Git Branch & Profile Mapping ---
 BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "develop")
 
