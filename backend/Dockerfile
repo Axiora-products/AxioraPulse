@@ -11,6 +11,8 @@ WORKDIR /app
 
 # Copy requirements and install dependencies
 COPY requirements.txt .
+ARG PIP_EXTRA_INDEX_URL=""
+ENV PIP_EXTRA_INDEX_URL=$PIP_EXTRA_INDEX_URL
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of the application
