@@ -3,7 +3,9 @@
 ## 🚀 LOCAL DEVELOPMENT
 
 ### 1. Full Stack Orchestrator (Recommended)
-For full-stack local development (Frontend, Backend, and Database) with AWS SSM Parameter Store integrations and automated secrets mapping, use the orchestrator script `./run-local.sh`.
+For full-stack local development (Frontend, Backend, and Database) with AWS SSM Parameter Store integrations and automated secrets mapping, use the orchestrator script:
+* **Bash (macOS/Linux/Git Bash)**: `./run-local.sh`
+* **PowerShell (Windows)**: `.\run-local.ps1`
 
 #### Prerequisites
 * **Docker & Docker Compose**: Ensure Docker Desktop (macOS/Windows) or Daemon (Linux) is running.
@@ -14,6 +16,8 @@ For full-stack local development (Frontend, Backend, and Database) with AWS SSM 
   ```
 
 #### Usage & Common Options
+
+**Using Bash (macOS/Linux/Git Bash):**
 ```bash
 # Standard startup (pulls dev secrets and starts stack)
 ./run-local.sh
@@ -26,6 +30,21 @@ For full-stack local development (Frontend, Backend, and Database) with AWS SSM 
 
 # Override AWS Profile or SSM environment manually
 ./run-local.sh -p custom-profile -e staging
+```
+
+**Using PowerShell (Windows):**
+```powershell
+# Standard startup (pulls dev secrets and starts stack)
+.\run-local.ps1
+
+# Rebuild containers & clear volumes (use after dependency changes)
+.\run-local.ps1 -Rebuild
+
+# Stop and teardown the containers
+.\run-local.ps1 -Down
+
+# Override AWS Profile or SSM environment manually
+.\run-local.ps1 -Profile custom-profile -EnvName staging
 ```
 
 | Option | Flag | Description |
@@ -50,7 +69,7 @@ The orchestrator automatically maps branches to target profiles and SSM credenti
 
 > [!IMPORTANT]
 > - **Only one active release at a time**: Since we share a single AWS QA environment, only one release branch should be actively tested on QA at a time.
-> - **Git Bash for Windows**: Run `./run-local.sh` using **Git Bash** for local execution.
+> - **Windows Shells**: You can run `.\run-local.ps1` directly in **PowerShell**, or run `./run-local.sh` using **Git Bash**.
 
 ### 2. Troubleshooting Local Environment
 * **SSM Parameter Namespace (Staging/Production overrides only)**: If you are overriding the local environment to pull from real AWS SSM Parameter Store (e.g. using `-e staging`), make sure your AWS CLI session is active (`aws sso login --profile qa`) and Chamber has access to the target SSM namespace.
