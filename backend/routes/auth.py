@@ -94,16 +94,17 @@ def sync(
         )
 
     # Existing user migrated from Supabase — link cognito_sub by email
-    existing = db.query(UserProfile).filter(UserProfile.email == email).first()
-    if existing:
-        existing.cognito_sub = cognito_sub
-        db.commit()
-        db.refresh(existing)
-        tenant = db.query(Tenant).filter(Tenant.id == existing.tenant_id).first()
-        return SyncResponse(
-            user=UserProfileOut.model_validate(existing),
-            tenant=TenantOut.model_validate(tenant) if tenant else None,
-        )
+    if email:
+        existing = db.query(UserProfile).filter(UserProfile.email == email).first()
+        if existing:
+            existing.cognito_sub = cognito_sub
+            db.commit()
+            db.refresh(existing)
+            tenant = db.query(Tenant).filter(Tenant.id == existing.tenant_id).first()
+            return SyncResponse(
+                user=UserProfileOut.model_validate(existing),
+                tenant=TenantOut.model_validate(tenant) if tenant else None,
+            )
 
     # Brand new user — create tenant + profile
     # Auto-derive tenant name from email domain if not provided (handles local dev with fresh DB)
