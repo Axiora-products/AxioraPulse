@@ -111,7 +111,7 @@ def seed_cognito():
         # Seed initial developer users
         dev_users = [
             {"email": "dev@axiorapulse.com", "name": "Developer User"},
-            {"email": "admin@axiorapulse.com", "name": "Admin User"}
+            {"email": "admin@axioraadmin.com", "name": "Admin User"}
         ]
 
         for u in dev_users:
