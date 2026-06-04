@@ -67,18 +67,41 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# --- Check Container Engine Status (Docker or Podman) ---
+DOCKER_CMD="docker"
+if ! docker info >/dev/null 2>&1; then
+  if podman info >/dev/null 2>&1; then
+    DOCKER_CMD="podman"
+    echo "🐳 Docker is not active, but Podman is running. Using Podman as the container engine."
+  else
+    echo "❌ Error: Neither Docker nor Podman is active."
+    if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
+      if [ -f "/c/Program Files/Docker/Docker/Docker Desktop.exe" ]; then
+        echo "💡 Docker Desktop is installed but not running. You can launch it using Git Bash:"
+        echo '   "/c/Program Files/Docker/Docker/Docker Desktop.exe" &'
+      else
+        echo "   Please start Docker Desktop or your Podman machine."
+      fi
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
+      if [ -d "/Applications/Docker.app" ]; then
+        echo "💡 Docker Desktop is installed but not running. You can launch it using:"
+        echo "   open -a Docker"
+      else
+        echo "   Please start Docker Desktop or your Podman machine."
+      fi
+    else
+      echo "   Please start the docker service (e.g., 'sudo systemctl start docker') or your Podman service."
+    fi
+    exit 1
+  fi
+fi
+
 # --- Handle Tear Down ---
 if [ "$DOWN" = "true" ]; then
   echo "🛑 Stopping and tearing down the container stack..."
-  docker compose -f docker-compose.local.yml down
+  $DOCKER_CMD compose -f docker-compose.local.yml down
   echo "✨ System stopped."
   exit 0
-fi
-
-# --- Check Docker Status ---
-if ! docker info >/dev/null 2>&1; then
-  echo "❌ Error: Docker is not running. Please launch Docker Desktop or the Docker daemon."
-  exit 1
 fi
 
 # --- Architecture & Platform Check ---
@@ -108,8 +131,8 @@ if [ -n "$TARGET_PLATFORM" ]; then
   # 2. Check for cached images with mismatched architectures
   # Official and custom build images
   for img in "postgres:17" "motoserver/moto:latest" "axiorapulse-pulse-backend" "axiorapulse-pulse-frontend"; do
-    if docker image inspect "$img" >/dev/null 2>&1; then
-      IMG_ARCH=$(docker inspect "$img" --format '{{.Architecture}}' 2>/dev/null | tr '[:upper:]' '[:lower:]')
+    if $DOCKER_CMD image inspect "$img" >/dev/null 2>&1; then
+      IMG_ARCH=$($DOCKER_CMD inspect "$img" --format '{{.Architecture}}' 2>/dev/null | tr '[:upper:]' '[:lower:]')
       if [ -n "$IMG_ARCH" ]; then
         EXPECTED_ARCH=""
         if [ "$TARGET_PLATFORM" = "linux/amd64" ]; then
@@ -125,7 +148,7 @@ if [ -n "$TARGET_PLATFORM" ]; then
             REBUILD="true"
           else
             echo "   Pulling the correct $TARGET_PLATFORM image..."
-            docker pull --platform "$TARGET_PLATFORM" "$img"
+            $DOCKER_CMD pull --platform "$TARGET_PLATFORM" "$img"
           fi
         fi
       fi
@@ -182,15 +205,15 @@ touch frontend/.env.local
 
 # --- Startup Moto & Database First ---
 echo "🌐 Spinning up Moto Server and Database containers..."
-docker compose -f docker-compose.local.yml up -d pulse-moto pulse-db
+$DOCKER_CMD compose -f docker-compose.local.yml up -d pulse-moto pulse-db
 
 # --- Build Backend Container to run Moto seed script ---
 echo "📦 Building backend container..."
-docker compose -f docker-compose.local.yml build pulse-backend
+$DOCKER_CMD compose -f docker-compose.local.yml build pulse-backend
 
 # --- Seed Moto Server (SSM & Cognito) ---
 echo "🌱 Initializing local mock AWS resources (Moto)..."
-docker compose -f docker-compose.local.yml run --rm --entrypoint python pulse-backend init_local_aws.py
+$DOCKER_CMD compose -f docker-compose.local.yml run --rm --entrypoint python pulse-backend init_local_aws.py
 
 # --- Move generated Frontend env file ---
 if [ -f backend/.env.local ]; then
@@ -206,9 +229,9 @@ echo "🌐 Initializing Docker network & persistent storage..."
 echo "🚀 Spining up local development container stack..."
 
 if [ "$REBUILD" = "true" ]; then
-  docker compose -f docker-compose.local.yml up --build -d -V --force-recreate pulse-backend pulse-frontend
+  $DOCKER_CMD compose -f docker-compose.local.yml up --build -d -V --force-recreate pulse-backend pulse-frontend
 else
-  docker compose -f docker-compose.local.yml up -d --force-recreate pulse-backend pulse-frontend
+  $DOCKER_CMD compose -f docker-compose.local.yml up -d --force-recreate pulse-backend pulse-frontend
 fi
 
 # --- Wait for Backend to be Healthy & Seed Users ---
@@ -227,7 +250,7 @@ done
 
 if [ "$backend_ready" = "true" ]; then
   echo "🌱 Idempotently seeding Cognito users into the local PostgreSQL database..."
-  docker exec -i pulse-backend python -c '
+  $DOCKER_CMD exec -i pulse-backend python -c '
 import os, uuid, boto3
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -330,7 +353,7 @@ echo "   📖 API Swagger Docs: http://localhost:8000/docs"
 echo "   🗄️  Local DB Port:  5432 (Persistent)"
 echo "========================================================================"
 echo "💡 To monitor container logs, run:"
-echo "   docker compose -f docker-compose.local.yml logs -f"
+echo "   $DOCKER_CMD compose -f docker-compose.local.yml logs -f"
 echo ""
 echo "💡 To shutdown the container network, run:"
 echo "   ./run-local.sh --down"
