@@ -7,16 +7,21 @@ import os
 import uuid
 import tempfile
 import traceback
+import io
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request, Form
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
 
 from db.database import get_db
 from db.models import UserProfile, UploadedFile
 from dependencies import get_current_user
 from core.rate_limiter import limiter
 
-import whisper
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseDownload
+from fastapi.concurrency import run_in_threadpool
 
 router = APIRouter(prefix="/uploads", tags=["uploads"])
 
@@ -61,7 +66,18 @@ LANGUAGE_MAP = {
     "te": "te",
 }
 
-whisper_model = whisper.load_model("base")
+WHISPER_CACHE_DIR = os.path.join(UPLOAD_DIR, "whisper_cache")
+os.makedirs(WHISPER_CACHE_DIR, exist_ok=True)
+
+_whisper_model = None
+
+def get_whisper_model():
+    global _whisper_model
+    if _whisper_model is None:
+        import whisper
+        # Cache the Whisper model weights in the mounted uploads store so they persist across container rebuilds
+        _whisper_model = whisper.load_model("base", download_root=WHISPER_CACHE_DIR)
+    return _whisper_model
 
 
 def _extract_text_from_file(filepath: str, content_type: str) -> str:
@@ -104,8 +120,9 @@ def _extract_text_from_file(filepath: str, content_type: str) -> str:
 
 def _transcribe_with_whisper(audio_path: str, language: str = "auto") -> dict:
     lang_code = LANGUAGE_MAP.get((language or "auto").lower(), None)
+    model = get_whisper_model()
 
-    result = whisper_model.transcribe(
+    result = model.transcribe(
         audio_path,
         language=lang_code,
         task="transcribe",
@@ -173,6 +190,97 @@ async def upload_file(
     }
 
 
+class DriveUploadRequest(BaseModel):
+    fileId: str
+    accessToken: str
+    filename: str
+    mimeType: str
+
+
+@router.post("/drive")
+@limiter.limit("10/minute")
+async def upload_from_drive(
+    request: Request,
+    body: DriveUploadRequest,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(get_current_user),
+):
+    """
+    Downloads a file from Google Drive and processes it like a normal upload.
+    """
+    try:
+        creds = Credentials(token=body.accessToken)
+        service = build("drive", "v3", credentials=creds)
+
+        # Handle Google Docs formats by exporting them as PDF
+        is_google_doc = body.mimeType.startswith("application/vnd.google-apps.")
+        
+        file_id = str(uuid.uuid4())
+        ext = os.path.splitext(body.filename)[1]
+        
+        # If it's a Google Doc (Doc, Sheet, Slide), export as PDF
+        content_type = body.mimeType
+        if is_google_doc:
+            if "spreadsheet" in body.mimeType:
+                export_mime = "application/pdf"
+            elif "presentation" in body.mimeType:
+                export_mime = "application/pdf"
+            else:
+                export_mime = "application/pdf"
+            
+            drive_request = service.files().export_media(fileId=body.fileId, mimeType=export_mime)
+            ext = ".pdf"
+            content_type = "application/pdf"
+        else:
+            drive_request = service.files().get_media(fileId=body.fileId)
+
+        stored_name = f"{file_id}{ext}"
+        filepath = os.path.join(UPLOAD_DIR, stored_name)
+
+        fh = io.BytesIO()
+        downloader = MediaIoBaseDownload(fh, drive_request)
+        done = False
+        while done is False:
+            status, done = downloader.next_chunk()
+        
+        contents = fh.getvalue()
+        if len(contents) > 15 * 1024 * 1024:  # 15 MB limit for Drive
+            raise HTTPException(status_code=400, detail="File too large (max 15 MB)")
+
+        with open(filepath, "wb") as f:
+            f.write(contents)
+
+        # Extract text using existing logic
+        extracted = _extract_text_from_file(filepath, content_type)
+
+        # Save to DB
+        db_file = UploadedFile(
+            filename=body.filename,
+            content_type=content_type,
+            file_size=len(contents),
+            extracted_text=extracted,
+            upload_type="file",
+            tenant_id=current_user.tenant_id,
+            created_by=current_user.id,
+        )
+        db.add(db_file)
+        db.commit()
+        db.refresh(db_file)
+
+        return {
+            "id": str(db_file.id),
+            "filename": db_file.filename,
+            "content_type": db_file.content_type,
+            "file_size": db_file.file_size,
+            "extracted_text": extracted,
+            "upload_type": "file",
+        }
+
+    except Exception as e:
+        print(f"Drive upload error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Google Drive error: {str(e)}")
+
+
 @router.post("/audio")
 @limiter.limit("5/minute")
 async def upload_audio(
@@ -201,7 +309,7 @@ async def upload_audio(
         f.write(contents)
 
     try:
-        result = _transcribe_with_whisper(filepath, language)
+        result = await run_in_threadpool(_transcribe_with_whisper, filepath, language)
         transcript = result["text"]
         detected_language = result["language"]
 
@@ -239,9 +347,12 @@ async def upload_audio(
 
 
 @router.post("/audio/transcribe")
+@limiter.limit("5/minute")
 async def transcribe_audio(
+    request: Request,
     audio: UploadFile = File(...),
     language: str = Form("auto"),
+    current_user: UserProfile = Depends(get_current_user),
 ):
     contents = await audio.read()
 
@@ -256,7 +367,7 @@ async def transcribe_audio(
             temp.write(contents)
             temp_path = temp.name
 
-        result = _transcribe_with_whisper(temp_path, language)
+        result = await run_in_threadpool(_transcribe_with_whisper, temp_path, language)
 
         return {
             "text": result["text"],
