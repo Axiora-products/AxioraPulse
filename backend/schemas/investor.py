@@ -1,6 +1,6 @@
 # backend/schemas/investor.py
 from pydantic import BaseModel, Field
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 
 class CompetitorEntry(BaseModel):
     name: str = Field(..., description="Name of the competitor")
