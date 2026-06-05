@@ -23,3 +23,4 @@ def test_authorized_access(auth_headers):
     response = client.get("/dashboard/stats", headers=auth_headers)
 
     assert response.status_code == 200
+# dummy comment for cache test
