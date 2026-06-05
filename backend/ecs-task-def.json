@@ -36,6 +36,14 @@
           "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/dev/ANTHROPIC_KEY"
         },
         {
+          "name": "GEMINI_KEY",
+          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/dev/GEMINI_KEY"
+        },
+        {
+          "name": "OPENAI_KEY",
+          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/dev/OPENAI_KEY"
+        },
+        {
           "name": "EMAIL_FROM",
           "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/dev/EMAIL_FROM"
         },

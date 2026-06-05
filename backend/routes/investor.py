@@ -1,7 +1,5 @@
 # backend/routes/investor.py
-import os
 import json
-import requests
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
@@ -10,6 +8,7 @@ from db.models import UserProfile, Survey, SurveyQuestion, SurveyResponse, Surve
 from schemas.investor import InvestorReadinessReportResponse, InvestorReadinessInitRequest
 from dependencies import get_current_user
 from core.rate_limiter import limiter
+from services.ai_provider import call_ai_sync
 
 router = APIRouter(prefix="/investor", tags=["investor"])
 
@@ -31,57 +30,14 @@ def _get_currency_config(country: str) -> dict:
     
     return {"symbol": "$", "code": "USD", "rate": 1.0}
 
-MODEL = "gemini-2.5-flash"
-
-def _get_client() -> str:
-    api_key = os.getenv("GEMINI_KEY")
-    if not api_key:
-        api_key = os.getenv("ANTHROPIC_KEY")
-    if not api_key:
-        raise HTTPException(status_code=500, detail="Gemini/Claude API key not configured on server")
-    return api_key
-
-def _call_gemini(api_key: str, prompt: str, max_tokens: int = 4096) -> str:
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent?key={api_key}"
-    headers = {"Content-Type": "application/json"}
-    payload = {
-        "contents": [
-            {
-                "parts": [
-                    {
-                        "text": prompt
-                    }
-                ]
-            }
-        ],
-        "systemInstruction": {
-            "parts": [
-                {
-                    "text": "You are an elite, venture-capital investment committee partner and startup mentor. Your goal is to review a startup's survey validation data, market context, and roadmap to produce a highly detailed, data-grounded, professional Investor Readiness Report. Always respond with valid raw JSON only — no markdown, no conversational commentary, no text wrapping outside the JSON structure."
-                }
-            ]
-        },
-        "generationConfig": {
-            "responseMimeType": "application/json",
-            "maxOutputTokens": max_tokens
-        }
-    }
-    
-    response = requests.post(url, headers=headers, json=payload, timeout=90)
-    response.raise_for_status()
-    result = response.json()
-    
-    try:
-        text = result["candidates"][0]["content"]["parts"][0]["text"].strip()
-    except (KeyError, IndexError, TypeError) as e:
-        print(f"[AI] Error parsing Gemini response: {e}")
-        raise ValueError("Failed to parse response structure from Gemini API")
-        
-    if text.startswith("```"):
-        text = text.split("\n", 1)[-1]
-        if text.endswith("```"):
-            text = text[: text.rfind("```")]
-    return text.strip()
+# Investor-specific system instruction for AI calls
+_INVESTOR_SYSTEM_INSTRUCTION = (
+    "You are an elite, venture-capital investment committee partner and startup mentor. "
+    "Your goal is to review a startup's survey validation data, market context, and roadmap "
+    "to produce a highly detailed, data-grounded, professional Investor Readiness Report. "
+    "Always respond with valid raw JSON only — no markdown, no conversational commentary, "
+    "no text wrapping outside the JSON structure."
+)
 
 @router.post("/surveys/{survey_id}/readiness", response_model=InvestorReadinessReportResponse)
 @limiter.limit("3/minute")
@@ -333,8 +289,9 @@ Produce ONLY a raw JSON structure matching this exact shape:
 """
 
     try:
-        api_key = _get_client()
-        response_text = await run_in_threadpool(_call_gemini, api_key, prompt, 4096)
+        response_text = await run_in_threadpool(
+            call_ai_sync, prompt, 4096, _INVESTOR_SYSTEM_INSTRUCTION
+        )
         report_data = json.loads(response_text)
         return InvestorReadinessReportResponse(**report_data)
     except Exception as e:

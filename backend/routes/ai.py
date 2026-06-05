@@ -1,17 +1,13 @@
 """
 routes/ai.py
 ────────────
-AI-powered survey insights using Anthropic Claude.
+AI-powered survey insights with multi-provider failover
+(Gemini → OpenAI → Anthropic).
 """
 
-from ast import Return
-import os
 import json
 import re
-import requests
 from fastapi import Request, APIRouter, Depends, HTTPException
-
-import anthropic
 
 from pydantic import ValidationError
 from starlette.concurrency import run_in_threadpool
@@ -23,10 +19,9 @@ from db.models import UserProfile, Survey, SurveyQuestion, SurveyResponse, Surve
 from schemas import AIInsightsRequest, AIInsightsResponse, AISuggestionsRequest, AISuggestionsResponse, AIGenerateRequest, AIGenerateResponse, IdeaProtectionMetadata, SurveyIntelligenceResponse
 from dependencies import get_current_user
 from services.feature_gate import require_feature
+from services.ai_provider import call_ai_sync
 
 router = APIRouter(prefix="/ai", tags=["ai"])
-
-MODEL = "gemini-2.5-flash"
 SHORT_SURVEY_DEFAULT_QUESTIONS = 12
 SHORT_SURVEY_TARGET_MINUTES = 3
 SHORT_SURVEY_MAX_WORDS = 18
@@ -127,7 +122,7 @@ def _normalize_option_list(options):
     return normalized
 
 
-def _infer_best_format(text: str, current_type: str, mode: str, index: int, total: int, context: str = "") -> str:
+def _infer_best_format(text: str, current_type: str, mode: str, index: int, total: int, context: str = "", has_options: bool = False) -> str:
     lower = (text or "").lower()
     ctx = (context or "").lower()
     if current_type in ALLOWED_QUESTION_TYPES:
@@ -135,12 +130,33 @@ def _infer_best_format(text: str, current_type: str, mode: str, index: int, tota
     else:
         q_type = "short_text"
 
+    # Hard structural types — always keep
     if q_type in {"email", "number", "date"}:
         return q_type
+    # Last question should be open-ended
     if index == total - 1:
         return "long_text"
+    # Don't allow long_text too early
     if q_type == "long_text" and index < total - 2:
         return "short_text"
+
+    # ── If the AI chose a specific interactive type, trust it ──────────────────
+    # Prevents destructive overrides like single_choice (with good options) → yes_no
+    _AI_INTERACTIVE_TYPES = {
+        "single_choice", "multiple_choice", "dropdown", "ranking",
+        "emoji_reaction", "swipe_choice", "visual_choice",
+        "rating", "scale", "slider", "matrix", "yes_no",
+    }
+    if q_type in _AI_INTERACTIVE_TYPES:
+        # For option-bearing types, trust the AI when it provided valid options
+        if q_type in OPTION_TYPES and has_options:
+            return q_type
+        # For non-option types (rating, scale, yes_no, slider), trust directly
+        if q_type not in OPTION_TYPES:
+            return q_type
+
+    # ── Only for generic types (short_text) or option types without valid
+    #    options, infer a better format from keywords ──────────────────────────
     if any(k in lower for k in ["feel", "emotion", "mood", "reaction", "sentiment"]):
         return "emoji_reaction"
     if any(k in lower for k in ["prefer", "choose", "which option", "pick", "tradeoff"]):
@@ -151,7 +167,11 @@ def _infer_best_format(text: str, current_type: str, mode: str, index: int, tota
         return "scale"
     if any(k in lower for k in ["image", "visual", "design", "look", "concept"]):
         return "visual_choice"
-    if any(k in lower for k in ["yes or no", "do you", "did you", "are you", "have you"]):
+    # Only match genuine polar yes/no questions — not mid-sentence "do you"
+    # like "how do you" or "what do you" which are NOT polar questions
+    if "yes or no" in lower:
+        return "yes_no"
+    if re.match(r"^(do you|did you|are you|have you|is there|was there|will you|would you)\b", lower):
         return "yes_no"
     if any(k in ctx for k in ["busy", "mobile", "quick", "consumer", "customer"]) and current_type == "long_text":
         return "short_text"
@@ -190,11 +210,17 @@ def _optimize_generated_survey(result_json: dict, body: AIGenerateRequest) -> di
         text = _shorten_question(str(raw.get("text") or raw.get("question") or "").strip())
         if not text:
             continue
-        q_type = _infer_best_format(text, str(raw.get("type") or "short_text"), mode, i, len(raw_questions), context)
+        raw_type = str(raw.get("type") or "short_text")
+        raw_options = raw.get("options")
+        has_options = (
+            (isinstance(raw_options, list) and len(raw_options) >= 2)
+            or (isinstance(raw_options, dict) and bool(raw_options))
+        )
+        q_type = _infer_best_format(text, raw_type, mode, i, len(raw_questions), context, has_options)
         questions.append({
             "text": text,
             "type": q_type,
-            "options": _normalize_options(q_type, raw.get("options")),
+            "options": _normalize_options(q_type, raw_options),
             "_original_index": i,
         })
 
@@ -231,59 +257,7 @@ def _optimize_generated_survey(result_json: dict, body: AIGenerateRequest) -> di
     }
 
 
-def _get_client() -> str:
-    api_key = os.getenv("GEMINI_KEY")
-    if not api_key:
-        api_key = os.getenv("ANTHROPIC_KEY")
-    if not api_key:
-        raise HTTPException(status_code=500, detail="Gemini API key not configured on server")
-    return api_key
-
-
-def _call_gemini(api_key: str, prompt: str, max_tokens: int = 2048) -> str:
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent?key={api_key}"
-    headers = {
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "contents": [
-            {
-                "parts": [
-                    {
-                        "text": prompt
-                    }
-                ]
-            }
-        ],
-        "systemInstruction": {
-            "parts": [
-                {
-                    "text": "You are a helpful AI assistant. Always respond with valid JSON only — no markdown, no explanation."
-                }
-            ]
-        },
-        "generationConfig": {
-            "responseMimeType": "application/json",
-            "maxOutputTokens": max_tokens
-        }
-    }
-    
-    response = requests.post(url, headers=headers, json=payload, timeout=60)
-    response.raise_for_status()
-    result = response.json()
-    
-    try:
-        text = result["candidates"][0]["content"]["parts"][0]["text"].strip()
-    except (KeyError, IndexError, TypeError) as e:
-        print(f"[AI] Error parsing Gemini response: {e}, Response: {result}")
-        raise ValueError("Failed to parse response structure from Gemini API")
-        
-    # Strip markdown code fences if Gemini wraps the JSON despite instructions
-    if text.startswith("```"):
-        text = text.split("\n", 1)[-1]
-        if text.endswith("```"):
-            text = text[: text.rfind("```")]
-    return text.strip()
+# _get_client() and _call_gemini() removed — now using services.ai_provider.call_ai_sync
 
 
 SENSITIVE_CATEGORY_LABELS = {
@@ -420,7 +394,7 @@ def _fallback_protect_context(original_context: str) -> dict:
     }
 
 
-def protect_idea_context(client: str, original_context: str) -> dict:
+def protect_idea_context(original_context: str) -> dict:
     """
     Idea-protection intelligence layer.
     Runs before final survey generation so public-facing questions validate the market
@@ -465,7 +439,7 @@ Protection rules:
 - If no sensitive details are present, return the original intent in protected_context and set protection_applied to false."""
 
     try:
-        text = _call_gemini(client, prompt, 1200)
+        text = call_ai_sync(prompt, 1200)
         result = json.loads(text)
         protected_context = str(result.get("protected_context") or "").strip()
         detected = result.get("detected_sensitive_categories") or []
@@ -646,7 +620,7 @@ async def generate_insights(
     current_user: UserProfile = Depends(get_current_user),
     _gate: None = Depends(require_feature("ai_insights")),
 ):
-    client = _get_client()
+    # AI provider is resolved automatically by call_ai_sync
 
     prompt = f"""Analyze the following survey data and provide structured insights.
 
@@ -677,12 +651,14 @@ Return a JSON object with this exact structure:
 }}"""
 
     try:
-        text = await run_in_threadpool(_call_gemini, client, prompt, 2048)
+        text = await run_in_threadpool(call_ai_sync, prompt, 2048)
         result_json = json.loads(text)
         return AIInsightsResponse(**result_json)
     except ValidationError as ve:
         print(f"[AI] Insights validation error: {ve}")
-        raise HTTPException(status_code=500, detail="Gemini returned an invalid data structure")
+        raise HTTPException(status_code=500, detail="AI provider returned an invalid data structure")
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"[AI] Insights error: {e}")
         if "rate" in str(e).lower() or "429" in str(e):
@@ -697,7 +673,7 @@ async def generate_survey(
     body: AIGenerateRequest,
     current_user: UserProfile = Depends(get_current_user),
 ):
-    client = _get_client()
+    # AI provider is resolved automatically by call_ai_sync
 
     # ── Mode-specific system instructions ─────────────────────────────────
     MODE_PROMPTS = {
@@ -762,7 +738,7 @@ async def generate_survey(
     # The idea-protection layer runs before final survey generation. The original
     # owner prompt stays internal to this request; the question generator receives
     # only the protected, generalized validation brief below.
-    protection_result = await run_in_threadpool(protect_idea_context, client, original_owner_context)
+    protection_result = await run_in_threadpool(protect_idea_context, original_owner_context)
     protected_context = protection_result["protected_context"]
     protection_metadata = IdeaProtectionMetadata(
         protection_applied=protection_result["protection_applied"],
@@ -770,9 +746,7 @@ async def generate_survey(
         protected_context_summary=protection_result.get("protected_context_summary"),
     )
 
-    prompt = f"""{system_instruction}
-
-Generate a complete survey based on the following protected validation brief.
+    prompt = f"""Generate a complete survey based on the following protected validation brief.
 
 Protected validation brief: {protected_context}
 Target audience: {body.targetAudience or "Infer from the protected validation brief"}
@@ -816,10 +790,17 @@ Rules:
 - For visual_choice options, include image_url when a concrete image URL is available; otherwise use clear labels.
 - For emoji_reaction options, use emoji characters as labels and stable lowercase values.
 - Make questions clear, unbiased, engaging, and fatigue-resistant.
-- Adapt tone and depth based on the survey style described above"""
+- Adapt tone and depth based on the survey style described above.
+- CRITICAL: Every question MUST be directly relevant to the validation brief topic. Do not generate generic filler questions unrelated to the domain.
+- CRITICAL: Question type MUST semantically match the question content. Never assign yes_no to questions starting with "how", "what", "which", "where", or "why" — use single_choice or multiple_choice with relevant answer options instead.
+- CRITICAL: Options for choice-type questions MUST be contextually meaningful answers to the specific question. Generic "Yes/No" options must ONLY appear on genuine polar yes/no questions. A question like "How do you acquire X?" must have options like specific methods, channels, or approaches — never Yes/No.
+- For each single_choice, multiple_choice, or dropdown question, provide 3-6 specific, meaningful options that directly address the question asked."""
 
     try:
-        text = await run_in_threadpool(_call_gemini, client, prompt, 8192)
+        text = await run_in_threadpool(
+            call_ai_sync, prompt, 8192,
+            system_instruction + " Always respond with valid JSON only — no markdown, no explanation.",
+        )
         result_json = json.loads(text)
         result_json = _optimize_generated_survey(result_json, body)
         if _contains_leak(result_json, leak_terms):
@@ -829,7 +810,9 @@ Rules:
         return AIGenerateResponse(**result_json)
     except ValidationError as ve:
         print(f"[AI] Generate validation error: {ve}")
-        raise HTTPException(status_code=500, detail="Gemini returned an invalid survey structure")
+        raise HTTPException(status_code=500, detail="AI provider returned an invalid survey structure")
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"[AI] Generate error: {e}")
         if "rate" in str(e).lower() or "429" in str(e):
@@ -844,7 +827,7 @@ async def generate_suggestions(
     body: AISuggestionsRequest,
     current_user: UserProfile = Depends(get_current_user),
 ):
-    client = _get_client()
+    # AI provider is resolved automatically by call_ai_sync
 
     prompt = f"""Based on the following survey title and existing questions, suggest 3-5 relevant follow-up questions.
 
@@ -874,12 +857,14 @@ Rules:
 - Only include "options" for single_choice, multiple_choice, dropdown, ranking, matrix, emoji_reaction, swipe_choice, and visual_choice types."""
 
     try:
-        text = await run_in_threadpool(_call_gemini, client, prompt, 1024)
+        text = await run_in_threadpool(call_ai_sync, prompt, 1024)
         result_json = json.loads(text)
         return AISuggestionsResponse(**result_json)
     except ValidationError as ve:
         print(f"[AI] Suggestions validation error: {ve}")
-        raise HTTPException(status_code=500, detail="Gemini returned an invalid suggestion structure")
+        raise HTTPException(status_code=500, detail="AI provider returned an invalid suggestion structure")
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"[AI] Suggestions error: {e}")
         if "rate" in str(e).lower() or "429" in str(e):
@@ -901,7 +886,7 @@ async def generate_survey_intelligence(
     viability score, and development roadmap — all contextually aligned with the
     survey idea, title, description, and questions.
     """
-    client = _get_client()
+    # AI provider is resolved automatically by call_ai_sync
 
     title = body.get("title", "")
     description = body.get("description", "")
@@ -1032,9 +1017,11 @@ Return this exact JSON structure:
 }}"""
 
     try:
-        text = await run_in_threadpool(_call_gemini, client, prompt, 4096)
+        text = await run_in_threadpool(call_ai_sync, prompt, 8192)
         result_json = json.loads(text)
         return SurveyIntelligenceResponse(**result_json)
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"[AI] Survey intelligence error: {e}")
         if "rate" in str(e).lower() or "429" in str(e):
@@ -1054,7 +1041,7 @@ class AITranslateRequest(BaseModel):
 
 @router.post("/translate-survey")
 async def translate_survey(body: AITranslateRequest):
-    client = _get_client()
+    # AI provider is resolved automatically by call_ai_sync
     
     lang_name = "Hindi" if body.language == "hi" else "Telugu" if body.language == "te" else body.language
     
@@ -1102,7 +1089,7 @@ Original Survey JSON:
 {json.dumps(survey_data, ensure_ascii=False)}"""
 
     try:
-        text = await run_in_threadpool(_call_gemini, client, prompt, 4096)
+        text = await run_in_threadpool(call_ai_sync, prompt, 4096)
         result_json = json.loads(text)
         return result_json
     except Exception as e:
