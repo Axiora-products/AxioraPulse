@@ -47,6 +47,7 @@ def _razorpay_client() -> razorpay.Client:
 
 # ── Plans ─────────────────────────────────────────────────────────────────────
 
+
 @router.get("/plans", response_model=List[PlanOut])
 def list_plans(db: Session = Depends(get_db)):
     """Return all active plans. Used by the pricing page (no auth required)."""
@@ -55,6 +56,7 @@ def list_plans(db: Session = Depends(get_db)):
 
 
 # ── Create order ──────────────────────────────────────────────────────────────
+
 
 @router.post("/create-order", response_model=CreateOrderResponse)
 def create_order(
@@ -110,6 +112,7 @@ def create_order(
 
 # ── Verify payment ────────────────────────────────────────────────────────────
 
+
 @router.post("/verify")
 def verify_payment(
     body: VerifyPaymentRequest,
@@ -151,11 +154,7 @@ def verify_payment(
     payment.status = "paid"
 
     # 4. Upsert subscription
-    sub = (
-        db.query(Subscription)
-        .filter(Subscription.tenant_id == current_user.tenant_id)
-        .first()
-    )
+    sub = db.query(Subscription).filter(Subscription.tenant_id == current_user.tenant_id).first()
     if sub:
         sub.plan_id = plan.id
         sub.status = "active"
@@ -182,6 +181,7 @@ def verify_payment(
 
 
 # ── Webhook ───────────────────────────────────────────────────────────────────
+
 
 @router.post("/webhook", status_code=200)
 async def razorpay_webhook(request: Request, db: Session = Depends(get_db)):
@@ -224,9 +224,7 @@ async def razorpay_webhook(request: Request, db: Session = Depends(get_db)):
     elif event == "subscription.cancelled":
         rzp_sub_id = payload.get("payload", {}).get("subscription", {}).get("entity", {}).get("id")
         if rzp_sub_id:
-            sub = db.query(Subscription).filter(
-                Subscription.razorpay_subscription_id == rzp_sub_id
-            ).first()
+            sub = db.query(Subscription).filter(Subscription.razorpay_subscription_id == rzp_sub_id).first()
             if sub:
                 sub.status = "cancelled"
                 db.commit()
@@ -236,6 +234,7 @@ async def razorpay_webhook(request: Request, db: Session = Depends(get_db)):
 
 
 # ── Current subscription ───────────────────────────────────────────────────────
+
 
 @router.get("/subscription", response_model=SubscriptionOut)
 def get_subscription(
@@ -256,16 +255,16 @@ def get_subscription(
                 currency="INR",
                 billing_period="monthly",
                 ai_insights_enabled=True,
-                is_active=True
+                is_active=True,
             )
-        
+
         return SubscriptionOut(
             id=uuid.uuid4(),
             tenant_id=current_user.tenant_id,
             plan=PlanOut.model_validate(pro_plan),
             status="active",
             cancel_at_period_end=False,
-            created_at=datetime.utcnow()
+            created_at=datetime.utcnow(),
         )
 
     sub = (

@@ -31,14 +31,31 @@ from fastapi import Query
 
 from db.database import get_db
 from db.models import (
-    UserProfile, Survey, SurveyQuestion, SurveyStatusEnum, QuestionTypeEnum,
-    SurveyShare, SharePermissionEnum, Tenant, SurveyResponse, SurveyAnswer,
-    SurveyFeedback
+    UserProfile,
+    Survey,
+    SurveyQuestion,
+    SurveyStatusEnum,
+    QuestionTypeEnum,
+    SurveyShare,
+    SharePermissionEnum,
+    Tenant,
+    SurveyResponse,
+    SurveyAnswer,
+    SurveyFeedback,
 )
 from schemas import (
-    SurveyCreate, SurveyUpdate, SurveyOut, SurveyStatusUpdate,
-    QuestionIn, QuestionOut, SurveyShareCreate, SurveyShareOut, MessageResponse,
-    ResponseOut, AnswerOut, FeedbackOut,
+    SurveyCreate,
+    SurveyUpdate,
+    SurveyOut,
+    SurveyStatusUpdate,
+    QuestionIn,
+    QuestionOut,
+    SurveyShareCreate,
+    SurveyShareOut,
+    MessageResponse,
+    ResponseOut,
+    AnswerOut,
+    FeedbackOut,
 )
 from dependencies import get_current_user
 from services.feature_gate import require_feature
@@ -106,6 +123,7 @@ def _upsert_questions(survey_id: uuid.UUID, questions: List[QuestionIn], db: Ses
 
 # ── Auto-save draft ──────────────────────────────────────────────────────────
 
+
 @router.patch("/draft/auto-save")
 @limiter.limit("10/minute")
 def auto_save_draft(
@@ -129,11 +147,15 @@ def auto_save_draft(
     if draft_id:
         # Update existing draft
         try:
-            survey = db.query(Survey).filter(
-                Survey.id == draft_id,
-                Survey.tenant_id == current_user.tenant_id,
-                Survey.status == SurveyStatusEnum.draft,
-            ).first()
+            survey = (
+                db.query(Survey)
+                .filter(
+                    Survey.id == draft_id,
+                    Survey.tenant_id == current_user.tenant_id,
+                    Survey.status == SurveyStatusEnum.draft,
+                )
+                .first()
+            )
         except Exception:
             survey = None
 
@@ -155,7 +177,9 @@ def auto_save_draft(
         id=uuid.uuid4(),
         title="Untitled Draft",
         description=prompt_text,
-        welcome_message=json.dumps({"mode": mode, "custom_instruction": custom_instruction, "attachments": attachments}),
+        welcome_message=json.dumps(
+            {"mode": mode, "custom_instruction": custom_instruction, "attachments": attachments}
+        ),
         slug=slug,
         status=SurveyStatusEnum.draft,
         tenant_id=current_user.tenant_id,
@@ -172,6 +196,7 @@ def auto_save_draft(
 
 
 # ── List ──────────────────────────────────────────────────────────────────────
+
 
 @router.get("/", response_model=List[SurveyOut])
 @limiter.limit("20/minute")
@@ -192,35 +217,20 @@ def list_surveys(
     )
 
     if q:
-        query = query.filter(
-            Survey.title.ilike(f"%{q}%")
-        )
+        query = query.filter(Survey.title.ilike(f"%{q}%"))
 
-    surveys = (
-        query
-        .order_by(Survey.created_at.desc())
-        .offset(skip)
-        .limit(limit)
-        .all()
-    )
+    surveys = query.order_by(Survey.created_at.desc()).offset(skip).limit(limit).all()
 
-    return [
-        SurveyOut.model_validate(s)
-        for s in surveys
-    ]
+    return [SurveyOut.model_validate(s) for s in surveys]
 
 
 # ── Public: fetch by slug (no auth required — SurveyRespond.jsx) ─────────────
 
+
 @router.get("/slug/{slug}", response_model=SurveyOut)
 @limiter.limit("20/minute")
-def get_survey_by_slug( request: Request, slug: str, db: Session = Depends(get_db)):
-    survey = (
-        db.query(Survey)
-        .options(joinedload(Survey.questions))
-        .filter(Survey.slug == slug)
-        .first()
-    )
+def get_survey_by_slug(request: Request, slug: str, db: Session = Depends(get_db)):
+    survey = db.query(Survey).options(joinedload(Survey.questions)).filter(Survey.slug == slug).first()
     if not survey:
         raise HTTPException(status_code=404, detail="Survey not found")
     out = SurveyOut.model_validate(survey)
@@ -233,6 +243,7 @@ def get_survey_by_slug( request: Request, slug: str, db: Session = Depends(get_d
 
 
 # ── Create ────────────────────────────────────────────────────────────────────
+
 
 @router.post("/", response_model=SurveyOut, status_code=status.HTTP_201_CREATED)
 @limiter.limit("5/minute")
@@ -264,7 +275,7 @@ def create_survey(
             exp = exp.replace(tzinfo=timezone.utc)
         else:
             exp = exp.astimezone(timezone.utc)
-        
+
         if exp < datetime.now(timezone.utc):
             raise HTTPException(status_code=400, detail="Expiry date cannot be in the past for active surveys")
 
@@ -299,6 +310,7 @@ def create_survey(
 
 # ── Get single ────────────────────────────────────────────────────────────────
 
+
 @router.get("/{survey_id}", response_model=SurveyOut)
 @limiter.limit("20/minute")
 def get_survey(
@@ -320,6 +332,7 @@ def get_survey(
 
 # ── Update metadata ───────────────────────────────────────────────────────────
 
+
 @router.patch("/{survey_id}", response_model=SurveyOut)
 def update_survey(
     survey_id: uuid.UUID,
@@ -328,9 +341,7 @@ def update_survey(
     db: Session = Depends(get_db),
 ):
     _require_creator(current_user)
-    survey = db.query(Survey).filter(
-        Survey.id == survey_id, Survey.tenant_id == current_user.tenant_id
-    ).first()
+    survey = db.query(Survey).filter(Survey.id == survey_id, Survey.tenant_id == current_user.tenant_id).first()
     if not survey:
         raise HTTPException(status_code=404, detail="Survey not found")
 
@@ -343,19 +354,22 @@ def update_survey(
                 q_count = db.query(SurveyQuestion).filter(SurveyQuestion.survey_id == survey_id).count()
                 if q_count < 2:
                     raise HTTPException(status_code=400, detail="At least 2 questions are required to publish")
-                
+
                 # Check expiry date
                 exp = update_data.get("expires_at", survey.expires_at)
                 if exp:
-                    if isinstance(exp, str): exp = datetime.fromisoformat(exp.replace('Z', '+00:00'))
+                    if isinstance(exp, str):
+                        exp = datetime.fromisoformat(exp.replace("Z", "+00:00"))
                     if exp.tzinfo is None:
                         exp = exp.replace(tzinfo=timezone.utc)
                     else:
                         exp = exp.astimezone(timezone.utc)
-                        
+
                     if exp < datetime.now(timezone.utc):
-                        raise HTTPException(status_code=400, detail="Expiry date cannot be in the past for active surveys")
-            
+                        raise HTTPException(
+                            status_code=400, detail="Expiry date cannot be in the past for active surveys"
+                        )
+
             update_data["status"] = new_status
         except ValueError:
             del update_data["status"]
@@ -374,6 +388,7 @@ def update_survey(
 
 # ── Status ────────────────────────────────────────────────────────────────────
 
+
 @router.patch("/{survey_id}/status", response_model=SurveyOut)
 def update_survey_status(
     survey_id: uuid.UUID,
@@ -382,9 +397,7 @@ def update_survey_status(
     db: Session = Depends(get_db),
 ):
     _require_creator(current_user)
-    survey = db.query(Survey).filter(
-        Survey.id == survey_id, Survey.tenant_id == current_user.tenant_id
-    ).first()
+    survey = db.query(Survey).filter(Survey.id == survey_id, Survey.tenant_id == current_user.tenant_id).first()
     if not survey:
         raise HTTPException(status_code=404, detail="Survey not found")
 
@@ -394,17 +407,17 @@ def update_survey_status(
             q_count = db.query(SurveyQuestion).filter(SurveyQuestion.survey_id == survey_id).count()
             if q_count < 2:
                 raise HTTPException(status_code=400, detail="At least 2 questions are required to publish")
-            
+
             exp = survey.expires_at
             if exp:
                 if exp.tzinfo is None:
                     exp = exp.replace(tzinfo=timezone.utc)
                 else:
                     exp = exp.astimezone(timezone.utc)
-                
+
                 if exp < datetime.now(timezone.utc):
                     raise HTTPException(status_code=400, detail="Expiry date cannot be in the past for active surveys")
-        
+
         survey.status = new_status
     except ValueError:
         raise HTTPException(status_code=422, detail=f"Invalid status: {body.status}")
@@ -417,6 +430,7 @@ def update_survey_status(
 
 # ── Delete ────────────────────────────────────────────────────────────────────
 
+
 @router.delete("/{survey_id}", response_model=MessageResponse)
 def delete_survey(
     survey_id: uuid.UUID,
@@ -424,9 +438,7 @@ def delete_survey(
     db: Session = Depends(get_db),
 ):
     _require_creator(current_user)
-    survey = db.query(Survey).filter(
-        Survey.id == survey_id, Survey.tenant_id == current_user.tenant_id
-    ).first()
+    survey = db.query(Survey).filter(Survey.id == survey_id, Survey.tenant_id == current_user.tenant_id).first()
     if not survey:
         raise HTTPException(status_code=404, detail="Survey not found")
 
@@ -437,22 +449,18 @@ def delete_survey(
 
 # ── Questions ─────────────────────────────────────────────────────────────────
 
+
 @router.get("/{survey_id}/questions", response_model=List[QuestionOut])
 def get_questions(
     survey_id: uuid.UUID,
     current_user: UserProfile = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    survey = db.query(Survey).filter(
-        Survey.id == survey_id, Survey.tenant_id == current_user.tenant_id
-    ).first()
+    survey = db.query(Survey).filter(Survey.id == survey_id, Survey.tenant_id == current_user.tenant_id).first()
     if not survey:
         raise HTTPException(status_code=404, detail="Survey not found")
     questions = (
-        db.query(SurveyQuestion)
-        .filter(SurveyQuestion.survey_id == survey_id)
-        .order_by(SurveyQuestion.sort_order)
-        .all()
+        db.query(SurveyQuestion).filter(SurveyQuestion.survey_id == survey_id).order_by(SurveyQuestion.sort_order).all()
     )
     return [QuestionOut.model_validate(q) for q in questions]
 
@@ -466,9 +474,7 @@ def replace_questions(
 ):
     """Replace ALL questions for a survey (SurveyCreate/SurveyEdit save flow)."""
     _require_creator(current_user)
-    survey = db.query(Survey).filter(
-        Survey.id == survey_id, Survey.tenant_id == current_user.tenant_id
-    ).first()
+    survey = db.query(Survey).filter(Survey.id == survey_id, Survey.tenant_id == current_user.tenant_id).first()
     if not survey:
         raise HTTPException(status_code=404, detail="Survey not found")
 
@@ -476,15 +482,13 @@ def replace_questions(
     db.commit()
 
     rows = (
-        db.query(SurveyQuestion)
-        .filter(SurveyQuestion.survey_id == survey_id)
-        .order_by(SurveyQuestion.sort_order)
-        .all()
+        db.query(SurveyQuestion).filter(SurveyQuestion.survey_id == survey_id).order_by(SurveyQuestion.sort_order).all()
     )
     return [QuestionOut.model_validate(q) for q in rows]
 
 
 # ── Duplicate ─────────────────────────────────────────────────────────────────
+
 
 @router.post("/{survey_id}/duplicate", response_model=SurveyOut, status_code=status.HTTP_201_CREATED)
 def duplicate_survey(
@@ -524,17 +528,19 @@ def duplicate_survey(
     db.flush()
 
     for q in original.questions:
-        db.add(SurveyQuestion(
-            id=uuid.uuid4(),
-            survey_id=copy.id,
-            question_text=q.question_text,
-            question_type=q.question_type,
-            options=q.options,
-            is_required=q.is_required,
-            description=q.description,
-            sort_order=q.sort_order,
-            validation_rules=q.validation_rules,
-        ))
+        db.add(
+            SurveyQuestion(
+                id=uuid.uuid4(),
+                survey_id=copy.id,
+                question_text=q.question_text,
+                question_type=q.question_type,
+                options=q.options,
+                is_required=q.is_required,
+                description=q.description,
+                sort_order=q.sort_order,
+                validation_rules=q.validation_rules,
+            )
+        )
 
     db.commit()
     db.refresh(copy)
@@ -544,6 +550,7 @@ def duplicate_survey(
 
 # ── Sharing ───────────────────────────────────────────────────────────────────
 
+
 @router.get("/{survey_id}/shares", response_model=List[SurveyShareOut])
 def get_survey_shares(
     survey_id: uuid.UUID,
@@ -551,17 +558,12 @@ def get_survey_shares(
     db: Session = Depends(get_db),
 ):
     """List all team members this survey has been shared with."""
-    survey = db.query(Survey).filter(
-        Survey.id == survey_id, Survey.tenant_id == current_user.tenant_id
-    ).first()
+    survey = db.query(Survey).filter(Survey.id == survey_id, Survey.tenant_id == current_user.tenant_id).first()
     if not survey:
         raise HTTPException(status_code=404, detail="Survey not found")
 
     shares = (
-        db.query(SurveyShare)
-        .options(joinedload(SurveyShare.user))
-        .filter(SurveyShare.survey_id == survey_id)
-        .all()
+        db.query(SurveyShare).options(joinedload(SurveyShare.user)).filter(SurveyShare.survey_id == survey_id).all()
     )
     return [SurveyShareOut.model_validate(s) for s in shares]
 
@@ -575,23 +577,25 @@ def share_survey(
 ):
     """Share a survey with another team member."""
     _require_creator(current_user)
-    survey = db.query(Survey).filter(
-        Survey.id == survey_id, Survey.tenant_id == current_user.tenant_id
-    ).first()
+    survey = db.query(Survey).filter(Survey.id == survey_id, Survey.tenant_id == current_user.tenant_id).first()
     if not survey:
         raise HTTPException(status_code=404, detail="Survey not found")
 
     # Ensure recipient belongs to the same tenant
-    target_user = db.query(UserProfile).filter(
-        UserProfile.id == body.shared_with, UserProfile.tenant_id == current_user.tenant_id
-    ).first()
+    target_user = (
+        db.query(UserProfile)
+        .filter(UserProfile.id == body.shared_with, UserProfile.tenant_id == current_user.tenant_id)
+        .first()
+    )
     if not target_user:
         raise HTTPException(status_code=400, detail="User not found in your team")
 
     # Check if already shared
-    existing = db.query(SurveyShare).filter(
-        SurveyShare.survey_id == survey_id, SurveyShare.shared_with == body.shared_with
-    ).first()
+    existing = (
+        db.query(SurveyShare)
+        .filter(SurveyShare.survey_id == survey_id, SurveyShare.shared_with == body.shared_with)
+        .first()
+    )
     if existing:
         raise HTTPException(status_code=400, detail="Already shared with this user")
 
@@ -599,15 +603,13 @@ def share_survey(
         id=uuid.uuid4(),
         survey_id=survey_id,
         shared_with=body.shared_with,
-        permission=SharePermissionEnum(body.permission)
+        permission=SharePermissionEnum(body.permission),
     )
     db.add(share)
     db.commit()
     db.refresh(share)
     # Reload with user relationship
     share = db.query(SurveyShare).options(joinedload(SurveyShare.user)).filter(SurveyShare.id == share.id).first()
-
-
 
     return SurveyShareOut.model_validate(share)
 
@@ -621,9 +623,7 @@ def revoke_share(
 ):
     """Remove a team member's access to a survey."""
     _require_creator(current_user)
-    share = db.query(SurveyShare).filter(
-        SurveyShare.id == share_id, SurveyShare.survey_id == survey_id
-    ).first()
+    share = db.query(SurveyShare).filter(SurveyShare.id == share_id, SurveyShare.survey_id == survey_id).first()
     if not share:
         raise HTTPException(status_code=404, detail="Share record not found")
 
@@ -634,18 +634,18 @@ def revoke_share(
 
 # ── Responses for a survey ────────────────────────────────────────────────────
 
+
 @router.get("/{survey_id}/responses", response_model=List[ResponseOut])
 @limiter.limit("10/minute")
 def get_survey_responses(
-    request: Request,  
+    request: Request,
     survey_id: uuid.UUID,
-    skip: int = 0, limit: int = Query(10, le=100),
+    skip: int = 0,
+    limit: int = Query(10, le=100),
     current_user: UserProfile = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    survey = db.query(Survey).filter(
-        Survey.id == survey_id, Survey.tenant_id == current_user.tenant_id
-    ).first()
+    survey = db.query(Survey).filter(Survey.id == survey_id, Survey.tenant_id == current_user.tenant_id).first()
     if not survey:
         raise HTTPException(status_code=404, detail="Survey not found")
 
@@ -657,7 +657,6 @@ def get_survey_responses(
         .offset(skip)
         .limit(limit)
         .all()
-
     )
 
     return [ResponseOut.model_validate(r) for r in responses]
@@ -665,17 +664,16 @@ def get_survey_responses(
 
 # ── Answers for a survey (flat list for analytics) ────────────────────────────
 
+
 @router.get("/{survey_id}/answers", response_model=List[AnswerOut])
 @limiter.limit("10/minute")
 def get_survey_answers(
-     request: Request,  
+    request: Request,
     survey_id: uuid.UUID,
     current_user: UserProfile = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    survey = db.query(Survey).filter(
-        Survey.id == survey_id, Survey.tenant_id == current_user.tenant_id
-    ).first()
+    survey = db.query(Survey).filter(Survey.id == survey_id, Survey.tenant_id == current_user.tenant_id).first()
     if not survey:
         raise HTTPException(status_code=404, detail="Survey not found")
 
@@ -690,6 +688,7 @@ def get_survey_answers(
 
 # ── Feedback for a survey ─────────────────────────────────────────────────────
 
+
 @router.get("/{survey_id}/feedback", response_model=List[FeedbackOut])
 @limiter.limit("10/minute")
 def get_survey_feedback(
@@ -698,9 +697,7 @@ def get_survey_feedback(
     current_user: UserProfile = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    survey = db.query(Survey).filter(
-        Survey.id == survey_id, Survey.tenant_id == current_user.tenant_id
-    ).first()
+    survey = db.query(Survey).filter(Survey.id == survey_id, Survey.tenant_id == current_user.tenant_id).first()
     if not survey:
         raise HTTPException(status_code=404, detail="Survey not found")
 
@@ -711,7 +708,7 @@ def get_survey_feedback(
 @router.post("/{survey_id}/feedback")
 @limiter.limit("5/minute")
 def create_survey_feedback(
-     request: Request, 
+    request: Request,
     survey_id: uuid.UUID,
     body: dict,
     db: Session = Depends(get_db),
