@@ -21,8 +21,36 @@ permissions:
   pull-requests: write
 
 jobs:
+  changes:
+    name: Detect Changed Paths
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      cdk: ${{ steps.filter.outputs.cdk }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      - name: Detect Changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+              - 'ruff.toml'
+              - '.github/workflows/pipeline.yml'
+            frontend:
+              - 'frontend/**'
+              - '.github/workflows/pipeline.yml'
+            cdk:
+              - 'infra/**'
+              - '.github/workflows/pipeline.yml'
+
   backend-lint-and-test:
     name: Backend Lint & Test
+    needs: changes
+    if: ${{ needs.changes.outputs.backend == 'true' }}
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: postgresql://postgres:root@localhost:5432/nexpulse
@@ -107,6 +135,8 @@ jobs:
 
   frontend-build:
     name: Frontend Build
+    needs: changes
+    if: ${{ needs.changes.outputs.frontend == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -129,6 +159,8 @@ jobs:
 
   cdk-test-and-synth:
     name: CDK Test & Synth
+    needs: changes
+    if: ${{ needs.changes.outputs.cdk == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
