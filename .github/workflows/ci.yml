@@ -16,5 +16,18 @@ jobs:
   quality-gate:
     runs-on: ubuntu-latest
     steps:
-      - name: Simple Check
-        run: echo "Quality Gate Check for Backend=${{ inputs.check_backend }} Frontend=${{ inputs.check_frontend }}"
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Backend Checks
+      - name: Set up Python
+        if: inputs.check_backend
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Static Analysis (Ruff)
+        if: inputs.check_backend
+        run: |
+          pip install ruff
+          ruff check backend/ --output-format=github
