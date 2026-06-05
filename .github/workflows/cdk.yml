@@ -5,7 +5,7 @@ on:
     inputs:
       environment:
         required: true
-        type: string # 'qa' or 'prod'
+        type: string
       aws_region:
         required: false
         type: string
@@ -18,10 +18,6 @@ jobs:
   deploy-infra:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
-    permissions:
-      contents: read
-      id-token: write
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -49,7 +45,5 @@ jobs:
           CDK_PROD_ENABLED: ${{ inputs.environment == 'prod' && 'true' || 'false' }}
         run: |
           cd infra/cdk
-          # Determine stack name based on environment
-          # AxioraPulseStackQa or AxioraPulseStackProd
           STACK_SUFFIX=$(echo "${{ inputs.environment }}" | awk '{print toupper(substr($0,1,1))tolower(substr($0,2))}')
           npx cdk deploy AxioraPulseStack${STACK_SUFFIX} --require-approval never
