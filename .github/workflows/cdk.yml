@@ -18,9 +18,32 @@ jobs:
   deploy-infra:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
-    permissions:
-      contents: read
-      id-token: write
     steps:
-      - name: Simple Check
-        run: echo "CDK Deploy for ${{ inputs.environment }}"
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ inputs.aws_region }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: infra/cdk/package-lock.json
+
+      - name: Install CDK Dependencies
+        run: |
+          cd infra/cdk
+          npm ci
+
+      - name: CDK Deploy
+        env:
+          CDK_PROD_ENABLED: ${{ inputs.environment == 'prod' && 'true' || 'false' }}
+        run: |
+          cd infra/cdk
+          STACK_SUFFIX=$(echo "${{ inputs.environment }}" | awk '{print toupper(substr($0,1,1))tolower(substr($0,2))}')
+          npx cdk deploy AxioraPulseStack${STACK_SUFFIX} --require-approval never
