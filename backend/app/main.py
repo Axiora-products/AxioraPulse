@@ -47,6 +47,7 @@ from routes.demo import router as demo_router
 from core import config
 from core.rate_limiter import limiter
 
+
 # ── Create tables ─────────────────────────────────────────────────────────────
 # In production, replace this with Alembic migrations.
 
@@ -97,6 +98,7 @@ app.include_router(uploads_router)
 app.include_router(demo_router)
 app.include_router(public_router)
 app.include_router(investor_router)
+
 
 
 

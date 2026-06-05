@@ -101,7 +101,9 @@ def seed_cognito():
         client = cognito_client.create_user_pool_client(
             UserPoolId=pool_id,
             ClientName="AxioraPulseClient-dev",
-            ExplicitAuthFlows=["USER_PASSWORD_AUTH", "USER_SRP_AUTH"]
+            ExplicitAuthFlows=["USER_PASSWORD_AUTH", "USER_SRP_AUTH"],
+            ReadAttributes=["email", "name"],
+            WriteAttributes=["email", "name"]
         )
         client_id = client["UserPoolClient"]["ClientId"]
 
@@ -111,7 +113,7 @@ def seed_cognito():
         # Seed initial developer users
         dev_users = [
             {"email": "dev@axiorapulse.com", "name": "Developer User"},
-            {"email": "admin@axiorapulse.com", "name": "Admin User"}
+            {"email": "admin@axioraadmin.com", "name": "Admin User"}
         ]
 
         for u in dev_users:
