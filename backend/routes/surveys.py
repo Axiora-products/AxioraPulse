@@ -21,7 +21,6 @@ import re
 import json
 import random
 import string
-import os
 from datetime import datetime, timezone
 from typing import List
 from core.rate_limiter import limiter

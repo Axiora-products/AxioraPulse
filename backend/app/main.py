@@ -22,7 +22,7 @@ load_dotenv()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from db.database import engine, Base
+from db.database import engine
 from db import models  # noqa: F401 — needed so Base.metadata is populated
 from routes.demo import router as demo_router
 from routes.auth      import router as auth_router
@@ -42,9 +42,6 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
-from db.database import engine
-from routes.demo import router as demo_router
-from core import config
 from core.rate_limiter import limiter
 
 

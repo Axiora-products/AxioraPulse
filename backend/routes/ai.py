@@ -4,14 +4,12 @@ routes/ai.py
 AI-powered survey insights using Anthropic Claude.
 """
 
-from ast import Return
 import os
 import json
 import re
 import requests
 from fastapi import Request, APIRouter, Depends, HTTPException
 
-import anthropic
 
 from pydantic import ValidationError
 from starlette.concurrency import run_in_threadpool
@@ -19,7 +17,7 @@ from core.rate_limiter import limiter
 
 from sqlalchemy.orm import Session, joinedload
 from db.database import get_db
-from db.models import UserProfile, Survey, SurveyQuestion, SurveyResponse, SurveyAnswer, ResponseStatusEnum
+from db.models import UserProfile, Survey, SurveyResponse, ResponseStatusEnum
 from schemas import AIInsightsRequest, AIInsightsResponse, AISuggestionsRequest, AISuggestionsResponse, AIGenerateRequest, AIGenerateResponse, IdeaProtectionMetadata, SurveyIntelligenceResponse
 from dependencies import get_current_user
 from services.feature_gate import require_feature
