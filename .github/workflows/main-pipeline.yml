@@ -9,6 +9,12 @@ on:
       - 'backend/**'
       - 'frontend/**'
       - 'infra/cdk/**'
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'infra/cdk/**'
   workflow_dispatch:
     inputs:
       target_env:
@@ -28,11 +34,20 @@ jobs:
       check_backend: true
       check_frontend: true
 
-  # 2. Deploy to QA
-  # Automatically runs if push is to 'main' or 'develop', or if manually requested for 'qa'
+  # 2. CDK Diff as a Gate (For Pull Requests)
+  cdk-diff-qa:
+    needs: ci-quality-gate
+    if: github.event_name == 'pull_request'
+    uses: ./.github/workflows/templates/cdk-diff.yml
+    with:
+      environment: qa
+    secrets:
+      AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+
+  # 3. Deploy to QA (Auto-deploy on push to develop/main)
   deploy-qa-infra:
     needs: ci-quality-gate
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || inputs.target_env == 'qa'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     uses: ./.github/workflows/templates/cdk-deploy.yml
     with:
       environment: qa
@@ -55,12 +70,10 @@ jobs:
       component: frontend
     secrets: inherit
 
-  # 3. Deploy to PROD
-  # Requires manual approval via GitHub Environment 'production'
-  # Only runs on 'main' branch or manual request for 'prod'
+  # 4. Deploy to PROD (Requires Manual Approval via GitHub Environment)
   deploy-prod-infra:
     needs: [deploy-qa-backend, deploy-qa-frontend]
-    if: github.ref == 'refs/heads/main' || inputs.target_env == 'prod'
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.target_env == 'prod')
     uses: ./.github/workflows/templates/cdk-deploy.yml
     with:
       environment: prod
