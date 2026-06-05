@@ -18,6 +18,9 @@ jobs:
   deploy-infra:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - name: Simple Check
         run: echo "CDK Deploy for ${{ inputs.environment }}"
