@@ -76,6 +76,7 @@ jobs:
           AWS_DEFAULT_REGION: ap-south-1
           AWS_ACCESS_KEY_ID: mock
           AWS_SECRET_ACCESS_KEY: mock
+          PYTHONPATH: backend
         run: |
           pytest backend/tests
 
