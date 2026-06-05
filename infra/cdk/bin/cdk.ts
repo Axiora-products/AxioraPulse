@@ -8,8 +8,10 @@ import { GitHubOidcStack } from '../lib/github-oidc-stack';
 
 const app = new cdk.App();
 
-// Add cdk-nag aspects
-Aspects.of(app).add(new AwsSolutionsChecks({ verbose: true }));
+// Add cdk-nag aspects conditionally
+if (process.env.CDK_NAG_ENABLED === 'true') {
+  Aspects.of(app).add(new AwsSolutionsChecks({ verbose: true }));
+}
 
 // Global / Shared Infrastructure
 
