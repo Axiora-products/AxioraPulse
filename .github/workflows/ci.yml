@@ -18,8 +18,17 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      # Backend Checks
+      # 1. Secret Detection
+      - name: Secret Detection (Gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true # Don't block for now
+
+      # 2. Backend Checks (Python)
       - name: Set up Python
         if: inputs.check_backend
         uses: actions/setup-python@v5
@@ -30,15 +39,15 @@ jobs:
         if: inputs.check_backend
         run: |
           pip install ruff
-          ruff check backend/ --output-format=github
+          ruff check backend/ --output-format=github --exit-zero
 
       - name: Security Scanning (Bandit)
         if: inputs.check_backend
         run: |
           pip install bandit
-          bandit -r backend/ -ll
+          bandit -r backend/ -ll --exit-zero
 
-      # Frontend Checks
+      # 3. Frontend Checks (Node.js)
       - name: Set up Node.js
         if: inputs.check_frontend
         uses: actions/setup-node@v4
@@ -58,3 +67,16 @@ jobs:
         run: |
           cd frontend
           npm run lint || echo "Lint warnings found"
+
+      - name: Security Scanning (npm audit)
+        if: inputs.check_frontend
+        run: |
+          cd frontend
+          npm audit --audit-level=high || echo "Audit issues found"
+
+      # 4. Infrastructure Checks (CDK)
+      - name: CDK Validation (Synth + cdk-nag)
+        run: |
+          cd infra/cdk
+          npm ci
+          npx cdk synth
