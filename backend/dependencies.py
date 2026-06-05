@@ -7,12 +7,12 @@ Reusable FastAPI dependencies:
 """
 
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
+from cognito_utils import verify_cognito_token
 from db.database import get_db
 from db.models import UserProfile
-from cognito_utils import verify_cognito_token
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -47,7 +47,7 @@ def get_current_user(
         # Self-healing on-the-fly user synchronization
         email = payload.get("email", "")
         name = payload.get("name", "")
-        
+
         if email:
             # 1. Existing user migrated or invited - link by email
             existing = db.query(UserProfile).filter(UserProfile.email == email).first()
@@ -59,9 +59,10 @@ def get_current_user(
 
         if user is None:
             # 2. Brand new user - create tenant + profile
-            import uuid
             import re
-            from db.models import Tenant, RoleEnum
+            import uuid
+
+            from db.models import RoleEnum, Tenant
 
             def _slugify(text: str) -> str:
                 text = text.lower().strip()
@@ -69,7 +70,7 @@ def get_current_user(
                 text = re.sub(r"[\s_-]+", "-", text)
                 return text.strip("-") or "org"
 
-            derived_tenant_name = email.split('@')[1].split('.')[0].title() if email else 'My Organisation'
+            derived_tenant_name = email.split("@")[1].split(".")[0].title() if email else "My Organisation"
             derived_tenant_slug = _slugify(derived_tenant_name)
 
             # Check if a tenant with this slug already exists — reuse it or find a fallback

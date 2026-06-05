@@ -1,0 +1,35 @@
+name: Quality Gates
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+  pull_request:
+    branches:
+      - develop
+      - main
+
+concurrency:
+  group: quality-gates-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  run-quality-gates:
+    name: Run Quality Gates
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Compose
+        run: |
+          docker --version
+          docker compose version
+
+      - name: Make run-local.sh executable
+        run: chmod +x run-local.sh
+
+      - name: Run Quality Gates
+        run: ./run-local.sh --check

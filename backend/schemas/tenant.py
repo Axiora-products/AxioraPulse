@@ -1,8 +1,11 @@
 from __future__ import annotations
+
 from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
+
 from pydantic import BaseModel
+
 
 class TenantOut(BaseModel):
     id: UUID
@@ -14,6 +17,7 @@ class TenantOut(BaseModel):
     created_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
+
 
 class TenantUpdate(BaseModel):
     name: Optional[str] = None

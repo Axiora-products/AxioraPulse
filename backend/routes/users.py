@@ -10,25 +10,35 @@ PATCH  /users/{id}/accept-invite — Set password + activate invited user
 GET    /users/{id}      — Get single user profile
 """
 
-import uuid
-import secrets
 import os
-from schemas import BulkInviteRequest
-from fastapi import APIRouter, Depends, HTTPException, status
+import re
+import secrets
+import time
+import uuid
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session, joinedload
-from services.email_service import send_email
-from slowapi.util import get_remote_address
-from fastapi import Request
+
+from auth_utils import hash_password
+from cognito_utils import COGNITO_USER_POOL_ID, admin_delete_user, get_cognito_client
 from core.rate_limiter import limiter
 from db.database import get_db
-from db.models import UserProfile, RoleEnum
-from schemas import (
-    UserProfileOut, InviteRequest, UserRoleUpdate,
-    UserStatusUpdate, AcceptInviteRequest, MessageResponse,
-)
-from auth_utils import hash_password
+from db.models import RoleEnum, UserProfile
 from dependencies import get_current_user
-from cognito_utils import get_cognito_client, COGNITO_USER_POOL_ID, admin_delete_user
+from schemas import (
+    AcceptInviteRequest,
+    BulkInviteRequest,
+    InviteRequest,
+    MessageResponse,
+    UserProfileOut,
+    UserRoleUpdate,
+    UserStatusUpdate,
+)
+from services.email_service import send_email
 
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
 
@@ -64,13 +74,18 @@ def get_user(
     current_user: UserProfile = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    user = db.query(UserProfile).filter(
-        UserProfile.id == user_id,
-        UserProfile.tenant_id == current_user.tenant_id,
-    ).first()
+    user = (
+        db.query(UserProfile)
+        .filter(
+            UserProfile.id == user_id,
+            UserProfile.tenant_id == current_user.tenant_id,
+        )
+        .first()
+    )
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return UserProfileOut.model_validate(user)
+
 
 @router.post("/invite", response_model=UserProfileOut, status_code=status.HTTP_200_OK)
 @limiter.limit("3/minute")
@@ -90,10 +105,14 @@ def invite_user(
     _require_manager(current_user)
 
     # 🔍 Check if user already exists
-    existing = db.query(UserProfile).filter(
-        UserProfile.email == body.email,
-        UserProfile.tenant_id == current_user.tenant_id,
-    ).first()
+    existing = (
+        db.query(UserProfile)
+        .filter(
+            UserProfile.email == body.email,
+            UserProfile.tenant_id == current_user.tenant_id,
+        )
+        .first()
+    )
 
     # 🟡 CASE 1: Already exists
     if existing:
@@ -116,7 +135,7 @@ def invite_user(
                     <p>This is a reminder to join Axiora Pulse.</p>
                     <p>Click below to accept your invite:</p>
                     <a href="{invite_link}">Accept Invite</a>
-                    """
+                    """,
                 )
             except Exception as e:
                 print("Email failed:", str(e))
@@ -125,10 +144,7 @@ def invite_user(
 
         else:
             # 🔴 Already active user
-            raise HTTPException(
-                status_code=400,
-                detail="User already exists in your team"
-            )
+            raise HTTPException(status_code=400, detail="User already exists in your team")
 
     # 🟢 CASE 2: New user → create
     try:
@@ -172,14 +188,13 @@ def invite_user(
                     <a href="{invite_link}" style="color: #FF4500;">{invite_link}</a>
                 </p>
             </div>
-            """
+            """,
         )
     except Exception as e:
         print("Email failed:", str(e))
 
     return UserProfileOut.model_validate(new_user)
 
-import time
 
 @router.post("/bulk-invite")
 @limiter.limit("2/minute")
@@ -195,10 +210,14 @@ def bulk_invite(
     tenant_name = current_user.tenant.name if current_user.tenant else "Axiora Pulse"
 
     for email in body.emails:
-        existing = db.query(UserProfile).filter(
-            UserProfile.email == email,
-            UserProfile.tenant_id == current_user.tenant_id,
-        ).first()
+        existing = (
+            db.query(UserProfile)
+            .filter(
+                UserProfile.email == email,
+                UserProfile.tenant_id == current_user.tenant_id,
+            )
+            .first()
+        )
 
         # 🔁 Already invited → resend
         if existing and existing.account_status == "invited":
@@ -222,7 +241,7 @@ def bulk_invite(
                             <a href="{invite_link}" style="background-color: #FF4500; color: white; padding: 12px 24px; text-decoration: none; border-radius: 999px; font-weight: bold;">Accept Invitation</a>
                         </p>
                     </div>
-                    """
+                    """,
                 )
                 results.append({"email": email, "status": "resent"})
             except Exception:
@@ -269,7 +288,7 @@ def bulk_invite(
                         <a href="{invite_link}" style="background-color: #FF4500; color: white; padding: 12px 24px; text-decoration: none; border-radius: 999px; font-weight: bold;">Accept Invitation</a>
                     </p>
                 </div>
-                """
+                """,
             )
             results.append({"email": email, "status": "sent"})
         except Exception:
@@ -278,6 +297,7 @@ def bulk_invite(
         time.sleep(0.5)
 
     return {"results": results}
+
 
 @router.patch("/{user_id}/role", response_model=UserProfileOut)
 def update_role(
@@ -289,10 +309,14 @@ def update_role(
     """Update a user's role (TeamManagement.jsx)."""
     _require_manager(current_user)
 
-    user = db.query(UserProfile).filter(
-        UserProfile.id == user_id,
-        UserProfile.tenant_id == current_user.tenant_id,
-    ).first()
+    user = (
+        db.query(UserProfile)
+        .filter(
+            UserProfile.id == user_id,
+            UserProfile.tenant_id == current_user.tenant_id,
+        )
+        .first()
+    )
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -316,10 +340,14 @@ def update_status(
     """Activate or deactivate a user (TeamManagement.jsx)."""
     _require_manager(current_user)
 
-    user = db.query(UserProfile).filter(
-        UserProfile.id == user_id,
-        UserProfile.tenant_id == current_user.tenant_id,
-    ).first()
+    user = (
+        db.query(UserProfile)
+        .filter(
+            UserProfile.id == user_id,
+            UserProfile.tenant_id == current_user.tenant_id,
+        )
+        .first()
+    )
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -342,10 +370,14 @@ def delete_user(
     if current_user.role != RoleEnum.super_admin:
         raise HTTPException(status_code=403, detail="Only super_admin can delete users")
 
-    user = db.query(UserProfile).filter(
-        UserProfile.id == user_id,
-        UserProfile.tenant_id == current_user.tenant_id,
-    ).first()
+    user = (
+        db.query(UserProfile)
+        .filter(
+            UserProfile.id == user_id,
+            UserProfile.tenant_id == current_user.tenant_id,
+        )
+        .first()
+    )
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -375,11 +407,12 @@ def accept_invite(
     user = db.query(UserProfile).filter(UserProfile.invite_token == token).first()
     if not user:
         raise HTTPException(status_code=404, detail="Invalid or expired invitation token")
-    
+
     if user.account_status != "invited":
         raise HTTPException(status_code=400, detail="User is already active")
 
     from datetime import datetime, timezone
+
     user.full_name = body.full_name.strip()
     user.password_hash = hash_password(body.password)
     user.account_status = "active"
@@ -396,19 +429,19 @@ def accept_invite(
                 resp = client.admin_create_user(
                     UserPoolId=COGNITO_USER_POOL_ID,
                     Username=user.email,
-                    MessageAction='SUPPRESS',
+                    MessageAction="SUPPRESS",
                 )
                 cognito_sub = resp.get("User", {}).get("Username")
             except client.exceptions.UsernameExistsException:
                 try:
-                    resp = client.admin_get_user(
-                        UserPoolId=COGNITO_USER_POOL_ID,
-                        Username=user.email
+                    resp = client.admin_get_user(UserPoolId=COGNITO_USER_POOL_ID, Username=user.email)
+                    cognito_sub = next(
+                        (attr["Value"] for attr in resp.get("UserAttributes", []) if attr["Name"] == "sub"),
+                        None,
                     )
-                    cognito_sub = next((attr["Value"] for attr in resp.get("UserAttributes", []) if attr["Name"] == "sub"), None)
                 except Exception:
                     pass
-            
+
             if cognito_sub:
                 user.cognito_sub = cognito_sub
                 db.commit()
@@ -435,10 +468,7 @@ def get_invite_info(
     Used by AcceptInvite.jsx to show "Join Organisation" details.
     """
     user = (
-        db.query(UserProfile)
-        .options(joinedload(UserProfile.tenant))
-        .filter(UserProfile.invite_token == token)
-        .first()
+        db.query(UserProfile).options(joinedload(UserProfile.tenant)).filter(UserProfile.invite_token == token).first()
     )
     if not user or user.account_status != "invited":
         raise HTTPException(status_code=404, detail="Invalid or expired invitation token")
@@ -452,12 +482,6 @@ def get_invite_info(
 
 
 # ── Bulk Communication & Survey Sharing ──────────────────────────────────────
-from pydantic import BaseModel
-from typing import List, Optional
-from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
-import re
-
 class ShareSurveyRequest(BaseModel):
     email: str
     survey_link: str
@@ -465,12 +489,14 @@ class ShareSurveyRequest(BaseModel):
     subject: Optional[str] = None
     body: Optional[str] = None
 
+
 class BulkShareSurveyRequest(BaseModel):
     emails: List[str]
     survey_link: str
     survey_title: str
     subject: Optional[str] = None
     body: Optional[str] = None
+
 
 class BulkShareWhatsAppRequest(BaseModel):
     numbers: List[str]
@@ -487,14 +513,14 @@ def _send_single_email_task(email: str, subject: str, body: str):
             "recipient": email,
             "status": "sent",
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "reason": None
+            "reason": None,
         }
     except Exception as e:
         return {
             "recipient": email,
             "status": "failed",
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "reason": str(e)
+            "reason": str(e),
         }
 
 
@@ -505,26 +531,27 @@ def _send_single_whatsapp_task(number: str, message: str, media_url: Optional[st
             "recipient": number,
             "status": "failed",
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "reason": "Invalid phone number format"
+            "reason": "Invalid phone number format",
         }
-    
+
     import time
+
     time.sleep(0.05)  # Simulate network latency
-    
+
     # Introduce a 5% realistic failure rate for phone numbers ending in 9
     if phone_clean.endswith("9"):
         return {
             "recipient": phone_clean,
             "status": "failed",
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "reason": "Delivery failed: Temporary routing failure or network congestion"
+            "reason": "Delivery failed: Temporary routing failure or network congestion",
         }
-        
+
     return {
         "recipient": phone_clean,
         "status": "sent",
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "reason": None
+        "reason": None,
     }
 
 
@@ -537,9 +564,11 @@ def share_survey(
     email_clean = body.email.strip()
     if not email_regex.match(email_clean):
         raise HTTPException(status_code=400, detail="Invalid email address format")
-        
+
     subject = body.subject or f"Invitation to complete survey: {body.survey_title}"
-    body_content = body.body or f"""
+    body_content = (
+        body.body
+        or f"""
     <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
         <h2 style="color: #160F08;">Survey Invitation</h2>
         <p style="font-size: 16px; color: #444; line-height: 1.6;">
@@ -554,7 +583,8 @@ def share_survey(
         </p>
     </div>
     """
-    
+    )
+
     try:
         send_email(to_email=email_clean, subject=subject, body=body_content)
         return {"message": f"Survey shared successfully with {email_clean}"}
@@ -570,26 +600,30 @@ def bulk_share_survey(
     results = []
     valid_emails = []
     email_regex = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
-    
+
     for email in body.emails:
         email_clean = email.strip()
         if not email_clean:
             continue
         if not email_regex.match(email_clean):
-            results.append({
-                "recipient": email_clean,
-                "status": "failed",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "reason": "Invalid email address format"
-            })
+            results.append(
+                {
+                    "recipient": email_clean,
+                    "status": "failed",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "reason": "Invalid email address format",
+                }
+            )
         else:
             valid_emails.append(email_clean)
-            
+
     # Deduplicate
     valid_emails = list(dict.fromkeys(valid_emails))
-    
+
     subject = body.subject or f"Invitation to complete survey: {body.survey_title}"
-    body_content = body.body or f"""
+    body_content = (
+        body.body
+        or f"""
     <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
         <h2 style="color: #160F08;">Survey Invitation</h2>
         <p style="font-size: 16px; color: #444; line-height: 1.6;">
@@ -604,24 +638,27 @@ def bulk_share_survey(
         </p>
     </div>
     """
-    
+    )
+
     if valid_emails:
         with ThreadPoolExecutor(max_workers=10) as executor:
-            task_results = list(executor.map(
-                lambda e: _send_single_email_task(e, subject, body_content),
-                valid_emails
-            ))
+            task_results = list(
+                executor.map(
+                    lambda e: _send_single_email_task(e, subject, body_content),
+                    valid_emails,
+                )
+            )
             results.extend(task_results)
-            
+
     total = len(body.emails)
     sent_count = sum(1 for r in results if r["status"] == "sent")
     failed_count = sum(1 for r in results if r["status"] == "failed")
-    
+
     return {
         "total": total,
         "sent": sent_count,
         "failed": failed_count,
-        "results": results
+        "results": results,
     }
 
 
@@ -632,25 +669,26 @@ def bulk_share_whatsapp(
 ):
     results = []
     unique_numbers = list(dict.fromkeys(body.numbers))
-    
+
     msg = body.message or f"Check this survey: {body.survey_title} - {body.survey_link}"
-    
+
     if unique_numbers:
         with ThreadPoolExecutor(max_workers=10) as executor:
-            task_results = list(executor.map(
-                lambda n: _send_single_whatsapp_task(n, msg, body.media_url),
-                unique_numbers
-            ))
+            task_results = list(
+                executor.map(
+                    lambda n: _send_single_whatsapp_task(n, msg, body.media_url),
+                    unique_numbers,
+                )
+            )
             results.extend(task_results)
-            
+
     total = len(body.numbers)
     sent_count = sum(1 for r in results if r["status"] == "sent")
     failed_count = sum(1 for r in results if r["status"] == "failed")
-    
+
     return {
         "total": total,
         "sent": sent_count,
         "failed": failed_count,
-        "results": results
+        "results": results,
     }
-

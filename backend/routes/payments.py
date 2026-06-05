@@ -13,6 +13,8 @@ GET  /payments/subscription        — current tenant subscription
 import hashlib
 import hmac
 import logging
+import uuid
+from datetime import datetime
 from typing import List
 
 import razorpay
@@ -47,14 +49,16 @@ def _razorpay_client() -> razorpay.Client:
 
 # ── Plans ─────────────────────────────────────────────────────────────────────
 
+
 @router.get("/plans", response_model=List[PlanOut])
 def list_plans(db: Session = Depends(get_db)):
     """Return all active plans. Used by the pricing page (no auth required)."""
-    plans = db.query(Plan).filter(Plan.is_active == True).order_by(Plan.price_paise).all()
+    plans = db.query(Plan).filter(Plan.is_active).order_by(Plan.price_paise).all()
     return [PlanOut.model_validate(p) for p in plans]
 
 
 # ── Create order ──────────────────────────────────────────────────────────────
+
 
 @router.post("/create-order", response_model=CreateOrderResponse)
 def create_order(
@@ -66,7 +70,7 @@ def create_order(
     Create a Razorpay order for the requested plan.
     Returns the order_id and key_id needed by the frontend Razorpay checkout widget.
     """
-    plan = db.query(Plan).filter(Plan.code == body.plan_code, Plan.is_active == True).first()
+    plan = db.query(Plan).filter(Plan.code == body.plan_code, Plan.is_active).first()
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
 
@@ -110,6 +114,7 @@ def create_order(
 
 # ── Verify payment ────────────────────────────────────────────────────────────
 
+
 @router.post("/verify")
 def verify_payment(
     body: VerifyPaymentRequest,
@@ -142,7 +147,7 @@ def verify_payment(
     if not payment:
         raise HTTPException(status_code=404, detail="Payment record not found")
 
-    plan = db.query(Plan).filter(Plan.code == body.plan_code, Plan.is_active == True).first()
+    plan = db.query(Plan).filter(Plan.code == body.plan_code, Plan.is_active).first()
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
 
@@ -151,11 +156,7 @@ def verify_payment(
     payment.status = "paid"
 
     # 4. Upsert subscription
-    sub = (
-        db.query(Subscription)
-        .filter(Subscription.tenant_id == current_user.tenant_id)
-        .first()
-    )
+    sub = db.query(Subscription).filter(Subscription.tenant_id == current_user.tenant_id).first()
     if sub:
         sub.plan_id = plan.id
         sub.status = "active"
@@ -183,6 +184,7 @@ def verify_payment(
 
 # ── Webhook ───────────────────────────────────────────────────────────────────
 
+
 @router.post("/webhook", status_code=200)
 async def razorpay_webhook(request: Request, db: Session = Depends(get_db)):
     """
@@ -208,7 +210,11 @@ async def razorpay_webhook(request: Request, db: Session = Depends(get_db)):
                 payment.method = entity.get("method")
                 payment.provider_payload = entity
                 db.commit()
-                logger.info("payment.captured processed: order=%s payment=%s", order_id, payment_id)
+                logger.info(
+                    "payment.captured processed: order=%s payment=%s",
+                    order_id,
+                    payment_id,
+                )
 
     elif event == "payment.failed":
         order_id = entity.get("order_id")
@@ -224,9 +230,7 @@ async def razorpay_webhook(request: Request, db: Session = Depends(get_db)):
     elif event == "subscription.cancelled":
         rzp_sub_id = payload.get("payload", {}).get("subscription", {}).get("entity", {}).get("id")
         if rzp_sub_id:
-            sub = db.query(Subscription).filter(
-                Subscription.razorpay_subscription_id == rzp_sub_id
-            ).first()
+            sub = db.query(Subscription).filter(Subscription.razorpay_subscription_id == rzp_sub_id).first()
             if sub:
                 sub.status = "cancelled"
                 db.commit()
@@ -236,6 +240,7 @@ async def razorpay_webhook(request: Request, db: Session = Depends(get_db)):
 
 
 # ── Current subscription ───────────────────────────────────────────────────────
+
 
 @router.get("/subscription", response_model=SubscriptionOut)
 def get_subscription(
@@ -256,16 +261,16 @@ def get_subscription(
                 currency="INR",
                 billing_period="monthly",
                 ai_insights_enabled=True,
-                is_active=True
+                is_active=True,
             )
-        
+
         return SubscriptionOut(
             id=uuid.uuid4(),
             tenant_id=current_user.tenant_id,
             plan=PlanOut.model_validate(pro_plan),
             status="active",
             cancel_at_period_end=False,
-            created_at=datetime.utcnow()
+            created_at=datetime.utcnow(),
         )
 
     sub = (

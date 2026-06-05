@@ -7,14 +7,15 @@ GET  /feedback/survey/{id} — Get feedback for a survey (SurveyAnalytics.jsx Fe
 
 import uuid
 from datetime import datetime, timezone
-from core.rate_limiter import limiter
-from fastapi import APIRouter, Depends, HTTPException
+
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
-from fastapi import Request
+
+from core.rate_limiter import limiter
 from db.database import get_db
-from db.models import SurveyFeedback, Survey, UserProfile
-from schemas import FeedbackCreate, FeedbackOut
+from db.models import Survey, SurveyFeedback, UserProfile
 from dependencies import get_current_user
+from schemas import FeedbackCreate, FeedbackOut
 
 router = APIRouter(prefix="/feedback", tags=["feedback"])
 
@@ -22,9 +23,9 @@ router = APIRouter(prefix="/feedback", tags=["feedback"])
 @router.post("/", response_model=FeedbackOut, status_code=201)
 @limiter.limit("5/minute")
 def create_feedback(
-    request: Request,   # ✅ ADD THIS
+    request: Request,  # ✅ ADD THIS
     body: FeedbackCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Public endpoint — no auth required.
@@ -46,15 +47,13 @@ def create_feedback(
 @router.get("/survey/{survey_id}")
 @limiter.limit("10/minute")
 def get_feedback(
-    request: Request,   # ✅ ADD THIS
+    request: Request,  # ✅ ADD THIS
     survey_id: uuid.UUID,
     current_user: UserProfile = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Return all feedback for a survey (analytics Feedback tab)."""
-    survey = db.query(Survey).filter(
-        Survey.id == survey_id, Survey.tenant_id == current_user.tenant_id
-    ).first()
+    survey = db.query(Survey).filter(Survey.id == survey_id, Survey.tenant_id == current_user.tenant_id).first()
     if not survey:
         raise HTTPException(status_code=404, detail="Survey not found")
 

@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     AxioraPulse — Local Development Container Orchestrator for PowerShell (Docker & Podman support)
 .DESCRIPTION
@@ -28,9 +28,13 @@ param (
     [Alias("e")]
     [String]$EnvName,
 
+    [Alias("c")]
+    [Switch]$Check,
+
     [Alias("h")]
     [Switch]$Help
 )
+
 
 # --- Print Help Menu ---
 if ($Help) {
@@ -39,7 +43,9 @@ if ($Help) {
     Write-Host "Usage: .\run-local.ps1 [options]"
     Write-Host ""
     Write-Host "Options:"
+    Write-Host "  -c, -Check          Run quality gates (linting, formatting, tests) inside the containers and exit."
     Write-Host "  -d, -Down           Stop and tear down the containers, networks, and keep volumes."
+
     Write-Host "  -r, -Rebuild        Force rebuild of Docker/Podman images during startup."
     Write-Host "  -p, -Profile [prof] Override the AWS profile to use."
     Write-Host "  -e, -EnvName [env]  Override the SSM Parameter Store environment (production/development/staging)."
@@ -349,6 +355,65 @@ finally:
 } else {
     Write-Host "⚠️ Backend did not become healthy in time. Skipping Cognito user seeding."
 }
+
+# --- Run Quality Gates ---
+if ($Check) {
+    Write-Host "========================================================================"
+    Write-Host "🛡️  Running Quality Gates"
+    Write-Host "========================================================================"
+
+    $Failed = $false
+
+    Write-Host "🐍 1. Running Python Linting (Ruff Check)..."
+    & $DockerCmd compose -f docker-compose.local.yml exec -T pulse-backend ruff check .
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "❌ Ruff linter found issues!"
+        $Failed = $true
+    } else {
+        Write-Host "✅ Ruff linter passed."
+    }
+
+    Write-Host "🐍 2. Running Python Formatting Check (Ruff Format)..."
+    & $DockerCmd compose -f docker-compose.local.yml exec -T pulse-backend ruff format --check .
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "❌ Ruff formatting check failed! Run 'ruff format .' inside backend container to fix."
+        $Failed = $true
+    } else {
+        Write-Host "✅ Ruff formatting check passed."
+    }
+
+    Write-Host "🐍 3. Running Backend Tests (pytest)..."
+    & $DockerCmd compose -f docker-compose.local.yml exec -T pulse-backend python -m pytest
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "❌ Backend tests failed!"
+        $Failed = $true
+    } else {
+        Write-Host "✅ Backend tests passed."
+    }
+
+    Write-Host "⚛️  4. Running Frontend Build Check..."
+    & $DockerCmd compose -f docker-compose.local.yml exec -T pulse-frontend npm run build
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "❌ Frontend build check failed!"
+        $Failed = $true
+    } else {
+        Write-Host "✅ Frontend build check passed."
+    }
+
+    Write-Host "========================================================================"
+    if ($Failed) {
+        Write-Host "❌ Quality Gates FAILED. Please resolve the issues above."
+        Write-Host "🛑 Tearing down containers..."
+        & $DockerCmd compose -f docker-compose.local.yml down
+        exit 1
+    } else {
+        Write-Host "✅ Quality Gates PASSED. All systems nominal!"
+        Write-Host "🛑 Tearing down containers..."
+        & $DockerCmd compose -f docker-compose.local.yml down
+        exit 0
+    }
+}
+
 
 Write-Host "========================================================================"
 Write-Host "✅ AxioraPulse container stack is up and active!"

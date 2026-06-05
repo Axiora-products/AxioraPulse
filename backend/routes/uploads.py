@@ -3,25 +3,24 @@ routes/uploads.py
 Whisper-only file and audio upload endpoints.
 """
 
+import io
 import os
-import uuid
 import tempfile
 import traceback
-import io
+import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request, Form
-from sqlalchemy.orm import Session
-from pydantic import BaseModel
-
-from db.database import get_db
-from db.models import UserProfile, UploadedFile
-from dependencies import get_current_user
-from core.rate_limiter import limiter
-
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
-from fastapi.concurrency import run_in_threadpool
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+from core.rate_limiter import limiter
+from db.database import get_db
+from db.models import UploadedFile, UserProfile
+from dependencies import get_current_user
 
 router = APIRouter(prefix="/uploads", tags=["uploads"])
 
@@ -71,10 +70,12 @@ os.makedirs(WHISPER_CACHE_DIR, exist_ok=True)
 
 _whisper_model = None
 
+
 def get_whisper_model():
     global _whisper_model
     if _whisper_model is None:
         import whisper
+
         # Cache the Whisper model weights in the mounted uploads store so they persist across container rebuilds
         _whisper_model = whisper.load_model("base", download_root=WHISPER_CACHE_DIR)
     return _whisper_model
@@ -214,10 +215,10 @@ async def upload_from_drive(
 
         # Handle Google Docs formats by exporting them as PDF
         is_google_doc = body.mimeType.startswith("application/vnd.google-apps.")
-        
+
         file_id = str(uuid.uuid4())
         ext = os.path.splitext(body.filename)[1]
-        
+
         # If it's a Google Doc (Doc, Sheet, Slide), export as PDF
         content_type = body.mimeType
         if is_google_doc:
@@ -227,7 +228,7 @@ async def upload_from_drive(
                 export_mime = "application/pdf"
             else:
                 export_mime = "application/pdf"
-            
+
             drive_request = service.files().export_media(fileId=body.fileId, mimeType=export_mime)
             ext = ".pdf"
             content_type = "application/pdf"
@@ -242,7 +243,7 @@ async def upload_from_drive(
         done = False
         while done is False:
             status, done = downloader.next_chunk()
-        
+
         contents = fh.getvalue()
         if len(contents) > 15 * 1024 * 1024:  # 15 MB limit for Drive
             raise HTTPException(status_code=400, detail="File too large (max 15 MB)")

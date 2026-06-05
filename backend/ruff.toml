@@ -1,0 +1,14 @@
+# Ruff configuration file for AxioraPulse Backend
+line-length = 120
+target-version = "py312"
+
+[lint]
+select = [
+    "F",   # Pyflakes (error detection)
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "I",   # isort (import sorting)
+]
+ignore = [
+    "E501", # Line too long (stylistic check, formatting covers standard code formatting)
+]

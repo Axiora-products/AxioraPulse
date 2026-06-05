@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from core import config
 from db.database import get_db
-from db.models import UserProfile, Subscription, Plan, Survey, UserProfile
+from db.models import Plan, Subscription, Survey, UserProfile
 from dependencies import get_current_user
 
 
@@ -52,11 +52,7 @@ class _FeatureChecker:
 
         elif self.feature == "create_survey":
             if plan and plan.max_surveys is not None:
-                count = (
-                    db.query(Survey)
-                    .filter(Survey.tenant_id == current_user.tenant_id)
-                    .count()
-                )
+                count = db.query(Survey).filter(Survey.tenant_id == current_user.tenant_id).count()
                 if count >= plan.max_surveys:
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
@@ -65,11 +61,7 @@ class _FeatureChecker:
 
         elif self.feature == "add_team_member":
             if plan and plan.max_team_members is not None:
-                count = (
-                    db.query(UserProfile)
-                    .filter(UserProfile.tenant_id == current_user.tenant_id)
-                    .count()
-                )
+                count = db.query(UserProfile).filter(UserProfile.tenant_id == current_user.tenant_id).count()
                 if count >= plan.max_team_members:
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,

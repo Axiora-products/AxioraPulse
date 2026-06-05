@@ -78,3 +78,6 @@ llvmlite==0.47.0
 more-itertools==11.1.0
 tqdm==4.67.3
 python-multipart==0.0.9
+pytest==8.2.2
+pytest-mock==3.14.0
+ruff==0.4.9

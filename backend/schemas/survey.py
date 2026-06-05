@@ -1,8 +1,11 @@
 from __future__ import annotations
+
 from datetime import datetime
 from typing import Any, List, Optional
 from uuid import UUID
+
 from pydantic import BaseModel
+
 
 class QuestionIn(BaseModel):
     id: Optional[UUID] = None
@@ -13,6 +16,7 @@ class QuestionIn(BaseModel):
     description: Optional[str] = None
     sort_order: int = 0
     validation_rules: Optional[Any] = None
+
 
 class QuestionOut(BaseModel):
     id: UUID
@@ -28,6 +32,7 @@ class QuestionOut(BaseModel):
 
     model_config = {"from_attributes": True}
 
+
 class SurveyCreate(BaseModel):
     title: str
     description: Optional[str] = None
@@ -41,6 +46,7 @@ class SurveyCreate(BaseModel):
     slug: Optional[str] = None
     status: str = "draft"
     questions: Optional[List[QuestionIn]] = []
+
 
 class SurveyUpdate(BaseModel):
     title: Optional[str] = None
@@ -56,13 +62,16 @@ class SurveyUpdate(BaseModel):
     status: Optional[str] = None
     ai_intelligence: Optional[Any] = None
 
+
 class SurveyStatusUpdate(BaseModel):
     status: str
 
+
 class SurveyCreator(BaseModel):
     full_name: Optional[str] = None
-    
+
     model_config = {"from_attributes": True}
+
 
 class SurveyOut(BaseModel):
     id: UUID

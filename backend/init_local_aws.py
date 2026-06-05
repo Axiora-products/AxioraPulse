@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+
 import boto3
 from botocore.exceptions import EndpointConnectionError
 
@@ -74,7 +75,7 @@ def seed_ssm():
                 Name=f"/axiorapulse/dev/{key}",
                 Value=val,
                 Type="SecureString" if "SECRET" in key or "KEY" in key else "String",
-                Overwrite=True
+                Overwrite=True,
             )
         except Exception as e:
             print(f"  ⚠️ Failed to seed SSM param {key}: {str(e)}")
@@ -93,7 +94,7 @@ def seed_cognito():
                 {"Name": "email", "AttributeDataType": "String", "Required": True},
                 {"Name": "name", "AttributeDataType": "String", "Required": False},
             ],
-            AutoVerifiedAttributes=["email"]
+            AutoVerifiedAttributes=["email"],
         )
         pool_id = pool["UserPool"]["Id"]
 
@@ -103,7 +104,7 @@ def seed_cognito():
             ClientName="AxioraPulseClient-dev",
             ExplicitAuthFlows=["USER_PASSWORD_AUTH", "USER_SRP_AUTH"],
             ReadAttributes=["email", "name"],
-            WriteAttributes=["email", "name"]
+            WriteAttributes=["email", "name"],
         )
         client_id = client["UserPoolClient"]["ClientId"]
 
@@ -113,7 +114,7 @@ def seed_cognito():
         # Seed initial developer users
         dev_users = [
             {"email": "dev@axiorapulse.com", "name": "Developer User"},
-            {"email": "admin@axioraadmin.com", "name": "Admin User"}
+            {"email": "admin@axioraadmin.com", "name": "Admin User"},
         ]
 
         for u in dev_users:
@@ -123,15 +124,15 @@ def seed_cognito():
                 UserAttributes=[
                     {"Name": "email", "Value": u["email"]},
                     {"Name": "email_verified", "Value": "true"},
-                    {"Name": "name", "Value": u["name"]}
+                    {"Name": "name", "Value": u["name"]},
                 ],
-                MessageAction="SUPPRESS"
+                MessageAction="SUPPRESS",
             )
             cognito_client.admin_set_user_password(
                 UserPoolId=pool_id,
                 Username=u["email"],
                 Password="Password123!",
-                Permanent=True
+                Permanent=True,
             )
             print(f"👤 Created user: {u['email']} (Password: Password123!)")
 
@@ -140,13 +141,13 @@ def seed_cognito():
             Name="/axiorapulse/dev/COGNITO_USER_POOL_ID",
             Value=pool_id,
             Type="String",
-            Overwrite=True
+            Overwrite=True,
         )
         ssm_client.put_parameter(
             Name="/axiorapulse/dev/COGNITO_APP_CLIENT_ID",
             Value=client_id,
             Type="String",
-            Overwrite=True
+            Overwrite=True,
         )
 
         return pool_id, client_id
@@ -157,7 +158,7 @@ def seed_cognito():
 
 def generate_env_files(pool_id, client_id, ssm_params):
     print("⚙️ Generating local environment files...")
-    
+
     # 1. Generate Backend env.docker
     backend_env_path = "/app/.env.docker"
     with open(backend_env_path, "w") as f:
@@ -186,7 +187,7 @@ def generate_env_files(pool_id, client_id, ssm_params):
         for k, v in ssm_params.items():
             if k.startswith("VITE_"):
                 f.write(f"{k}={v}\n")
-        
+
         f.write(f"VITE_COGNITO_USER_POOL_ID={pool_id}\n")
         f.write(f"VITE_COGNITO_APP_CLIENT_ID={client_id}\n")
         f.write(f"VITE_COGNITO_REGION={REGION}\n")

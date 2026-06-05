@@ -8,11 +8,12 @@ JWKS is cached for the process lifetime; Cognito rotates keys rarely.
 """
 
 import os
-import requests
-import boto3
 from functools import lru_cache
-from jose import jwt, JWTError
+
+import boto3
+import requests
 from dotenv import load_dotenv
+from jose import JWTError, jwt
 
 load_dotenv()
 
@@ -35,6 +36,7 @@ def admin_get_user_status(email: str) -> str | None:
         try:
             from db.database import SessionLocal
             from db.models import UserProfile
+
             db = SessionLocal()
             try:
                 user = db.query(UserProfile).filter(UserProfile.email == email).first()
@@ -49,10 +51,7 @@ def admin_get_user_status(email: str) -> str | None:
 
     client = get_cognito_client()
     try:
-        resp = client.admin_get_user(
-            UserPoolId=COGNITO_USER_POOL_ID,
-            Username=email
-        )
+        resp = client.admin_get_user(UserPoolId=COGNITO_USER_POOL_ID, Username=email)
         return resp.get("UserStatus")
     except client.exceptions.UserNotFoundException:
         return None
@@ -68,10 +67,7 @@ def admin_delete_user(email: str) -> bool:
 
     client = get_cognito_client()
     try:
-        client.admin_delete_user(
-            UserPoolId=COGNITO_USER_POOL_ID,
-            Username=email
-        )
+        client.admin_delete_user(UserPoolId=COGNITO_USER_POOL_ID, Username=email)
         return True
     except Exception as e:
         print(f"COGNITO ERROR (delete_user): {str(e)}")
@@ -84,10 +80,7 @@ def _get_jwks() -> list:
     if endpoint_url:
         url = f"{endpoint_url.rstrip('/')}/{COGNITO_USER_POOL_ID}/.well-known/jwks.json"
     else:
-        url = (
-            f"https://cognito-idp.{COGNITO_REGION}.amazonaws.com"
-            f"/{COGNITO_USER_POOL_ID}/.well-known/jwks.json"
-        )
+        url = f"https://cognito-idp.{COGNITO_REGION}.amazonaws.com" f"/{COGNITO_USER_POOL_ID}/.well-known/jwks.json"
     resp = requests.get(url, timeout=5)
     resp.raise_for_status()
     return resp.json()["keys"]
@@ -105,7 +98,7 @@ def verify_cognito_token(token: str) -> dict | None:
                 token,
                 MOCK_COGNITO_SECRET,
                 algorithms=["HS256"],
-                audience=COGNITO_APP_CLIENT_ID or "mock-client-id"
+                audience=COGNITO_APP_CLIENT_ID or "mock-client-id",
             )
             if payload.get("token_use") != "id":
                 return None

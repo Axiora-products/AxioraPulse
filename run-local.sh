@@ -14,6 +14,8 @@ REBUILD="false"
 OVERRIDE_PROFILE=""
 OVERRIDE_ENV=""
 DOWN="false"
+RUN_CHECKS="false"
+
 
 # --- Print Help Menu ---
 print_help() {
@@ -23,7 +25,9 @@ AxioraPulse Container Orchestrator
 Usage: ./run-local.sh [options]
 
 Options:
+  -c, --check          Run quality gates (linting, formatting, tests) inside the containers and exit.
   -d, --down           Stop and tear down the containers, networks, and keep volumes.
+
   -r, --rebuild        Force rebuild of Docker images during startup.
   -p, --profile [prof] Override the AWS profile to use.
   -e, --env [env]      Override the SSM Parameter Store environment (production/development/staging).
@@ -55,10 +59,15 @@ while [[ $# -gt 0 ]]; do
       OVERRIDE_ENV="$2"
       shift 2
       ;;
+    -c|--check)
+      RUN_CHECKS="true"
+      shift
+      ;;
     -h|--help)
       print_help
       exit 0
       ;;
+
     *)
       echo "❌ Unknown option: $1"
       print_help
@@ -343,6 +352,61 @@ finally:
 else
   echo "⚠️ Backend did not become healthy in time. Skipping Cognito user seeding."
 fi
+
+# --- Run Quality Gates ---
+if [ "$RUN_CHECKS" = "true" ]; then
+  echo "========================================================================"
+  echo "🛡️  Running Quality Gates"
+  echo "========================================================================"
+  
+  FAILED=0
+  
+  echo "🐍 1. Running Python Linting (Ruff Check)..."
+  if ! $DOCKER_CMD compose -f docker-compose.local.yml exec -T pulse-backend ruff check .; then
+    echo "❌ Ruff linter found issues!"
+    FAILED=1
+  else
+    echo "✅ Ruff linter passed."
+  fi
+  
+  echo "🐍 2. Running Python Formatting Check (Ruff Format)..."
+  if ! $DOCKER_CMD compose -f docker-compose.local.yml exec -T pulse-backend ruff format --check .; then
+    echo "❌ Ruff formatting check failed! Run 'ruff format .' inside backend container to fix."
+    FAILED=1
+  else
+    echo "✅ Ruff formatting check passed."
+  fi
+  
+  echo "🐍 3. Running Backend Tests (pytest)..."
+  if ! $DOCKER_CMD compose -f docker-compose.local.yml exec -T pulse-backend python -m pytest; then
+    echo "❌ Backend tests failed!"
+    FAILED=1
+  else
+    echo "✅ Backend tests passed."
+  fi
+  
+  echo "⚛️  4. Running Frontend Build Check..."
+  if ! $DOCKER_CMD compose -f docker-compose.local.yml exec -T pulse-frontend npm run build; then
+    echo "❌ Frontend build check failed!"
+    FAILED=1
+  else
+    echo "✅ Frontend build check passed."
+  fi
+  
+  echo "========================================================================"
+  if [ $FAILED -ne 0 ]; then
+    echo "❌ Quality Gates FAILED. Please resolve the issues above."
+    echo "🛑 Tearing down containers..."
+    $DOCKER_CMD compose -f docker-compose.local.yml down
+    exit 1
+  else
+    echo "✅ Quality Gates PASSED. All systems nominal!"
+    echo "🛑 Tearing down containers..."
+    $DOCKER_CMD compose -f docker-compose.local.yml down
+    exit 0
+  fi
+fi
+
 
 echo "========================================================================"
 echo "✅ AxioraPulse container stack is up and active!"

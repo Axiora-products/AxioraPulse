@@ -4,8 +4,11 @@ Revision ID: c3d4e5f6a7b8
 Revises: b2c3d4e5f6a7
 Create Date: 2026-05-16
 """
+
 from typing import Union
+
 import sqlalchemy as sa
+
 from alembic import op
 
 revision: str = "c3d4e5f6a7b8"

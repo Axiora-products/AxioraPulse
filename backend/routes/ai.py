@@ -4,24 +4,35 @@ routes/ai.py
 AI-powered survey insights using Anthropic Claude.
 """
 
-from ast import Return
-import os
 import json
+import os
 import re
+
 import requests
-from fastapi import Request, APIRouter, Depends, HTTPException
-
-import anthropic
-
-from pydantic import ValidationError
-from starlette.concurrency import run_in_threadpool
-from core.rate_limiter import limiter
-
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, ValidationError
 from sqlalchemy.orm import Session, joinedload
+from starlette.concurrency import run_in_threadpool
+
+from core.rate_limiter import limiter
 from db.database import get_db
-from db.models import UserProfile, Survey, SurveyQuestion, SurveyResponse, SurveyAnswer, ResponseStatusEnum
-from schemas import AIInsightsRequest, AIInsightsResponse, AISuggestionsRequest, AISuggestionsResponse, AIGenerateRequest, AIGenerateResponse, IdeaProtectionMetadata, SurveyIntelligenceResponse
+from db.models import (
+    ResponseStatusEnum,
+    Survey,
+    SurveyResponse,
+    UserProfile,
+)
 from dependencies import get_current_user
+from schemas import (
+    AIGenerateRequest,
+    AIGenerateResponse,
+    AIInsightsRequest,
+    AIInsightsResponse,
+    AISuggestionsRequest,
+    AISuggestionsResponse,
+    IdeaProtectionMetadata,
+    SurveyIntelligenceResponse,
+)
 from services.feature_gate import require_feature
 
 router = APIRouter(prefix="/ai", tags=["ai"])
@@ -36,10 +47,22 @@ ADAPTIVE_QUESTION_TYPES = (
 )
 ALLOWED_QUESTION_TYPES = set(ADAPTIVE_QUESTION_TYPES.split("|"))
 OPTION_TYPES = {
-    "single_choice", "multiple_choice", "dropdown", "ranking",
-    "emoji_reaction", "swipe_choice", "visual_choice",
+    "single_choice",
+    "multiple_choice",
+    "dropdown",
+    "ranking",
+    "emoji_reaction",
+    "swipe_choice",
+    "visual_choice",
 }
-FAST_MOBILE_TYPES = ["emoji_reaction", "rating", "scale", "yes_no", "single_choice", "slider"]
+FAST_MOBILE_TYPES = [
+    "emoji_reaction",
+    "rating",
+    "scale",
+    "yes_no",
+    "single_choice",
+    "slider",
+]
 DEEP_TYPES = {"long_text", "matrix", "ranking"}
 
 DEFAULT_OPTIONS = {
@@ -99,10 +122,19 @@ def _normalize_options(q_type: str, options):
             rows = options.get("rows") if isinstance(options.get("rows"), list) else []
             cols = options.get("columns") if isinstance(options.get("columns"), list) else []
             if rows and cols:
-                return {"rows": _normalize_option_list(rows), "columns": _normalize_option_list(cols)}
+                return {
+                    "rows": _normalize_option_list(rows),
+                    "columns": _normalize_option_list(cols),
+                }
         return {
-            "rows": [{"label": "Experience", "value": "experience"}, {"label": "Value", "value": "value"}],
-            "columns": [{"label": "Low", "value": "low"}, {"label": "High", "value": "high"}],
+            "rows": [
+                {"label": "Experience", "value": "experience"},
+                {"label": "Value", "value": "value"},
+            ],
+            "columns": [
+                {"label": "Low", "value": "low"},
+                {"label": "High", "value": "high"},
+            ],
         }
     if q_type not in OPTION_TYPES:
         return None
@@ -115,7 +147,10 @@ def _normalize_option_list(options):
     for i, opt in enumerate(options or []):
         if isinstance(opt, dict):
             label = str(opt.get("label") or opt.get("text") or opt.get("value") or f"Option {i + 1}").strip()
-            item = {"label": label, "value": str(opt.get("value") or _slug_value(label, f"option_{i + 1}"))}
+            item = {
+                "label": label,
+                "value": str(opt.get("value") or _slug_value(label, f"option_{i + 1}")),
+            }
             if opt.get("description"):
                 item["description"] = str(opt["description"])
             if opt.get("image_url"):
@@ -157,7 +192,10 @@ def _infer_best_format(text: str, current_type: str, mode: str, index: int, tota
         return "short_text"
     if any(k in ctx for k in ["employee", "team", "workplace"]) and index < 3:
         return "rating"
-    if any(k in ctx for k in ["design", "creative", "concept", "packaging", "ad creative"]) and q_type in {"single_choice", "short_text"}:
+    if any(k in ctx for k in ["design", "creative", "concept", "packaging", "ad creative"]) and q_type in {
+        "single_choice",
+        "short_text",
+    }:
         return "visual_choice"
     if mode in {"emotionally_triggering", "conversational"} and index == 0:
         return "emoji_reaction"
@@ -173,7 +211,14 @@ def _flow_bucket(question: dict, original_index: int, total: int) -> tuple:
         return (4, original_index)
     if q_type in {"emoji_reaction", "yes_no", "rating", "scale"}:
         return (0, original_index)
-    if q_type in {"single_choice", "multiple_choice", "dropdown", "swipe_choice", "visual_choice", "slider"}:
+    if q_type in {
+        "single_choice",
+        "multiple_choice",
+        "dropdown",
+        "swipe_choice",
+        "visual_choice",
+        "slider",
+    }:
         return (1, original_index)
     if any(k in text for k in ["why", "improve", "reason", "challenge", "frustrat"]):
         return (3, original_index)
@@ -190,13 +235,22 @@ def _optimize_generated_survey(result_json: dict, body: AIGenerateRequest) -> di
         text = _shorten_question(str(raw.get("text") or raw.get("question") or "").strip())
         if not text:
             continue
-        q_type = _infer_best_format(text, str(raw.get("type") or "short_text"), mode, i, len(raw_questions), context)
-        questions.append({
-            "text": text,
-            "type": q_type,
-            "options": _normalize_options(q_type, raw.get("options")),
-            "_original_index": i,
-        })
+        q_type = _infer_best_format(
+            text,
+            str(raw.get("type") or "short_text"),
+            mode,
+            i,
+            len(raw_questions),
+            context,
+        )
+        questions.append(
+            {
+                "text": text,
+                "type": q_type,
+                "options": _normalize_options(q_type, raw.get("options")),
+                "_original_index": i,
+            }
+        )
 
     questions.sort(key=lambda q: _flow_bucket(q, q["_original_index"], len(questions)))
 
@@ -242,19 +296,9 @@ def _get_client() -> str:
 
 def _call_gemini(api_key: str, prompt: str, max_tokens: int = 2048) -> str:
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent?key={api_key}"
-    headers = {
-        "Content-Type": "application/json"
-    }
+    headers = {"Content-Type": "application/json"}
     payload = {
-        "contents": [
-            {
-                "parts": [
-                    {
-                        "text": prompt
-                    }
-                ]
-            }
-        ],
+        "contents": [{"parts": [{"text": prompt}]}],
         "systemInstruction": {
             "parts": [
                 {
@@ -264,20 +308,20 @@ def _call_gemini(api_key: str, prompt: str, max_tokens: int = 2048) -> str:
         },
         "generationConfig": {
             "responseMimeType": "application/json",
-            "maxOutputTokens": max_tokens
-        }
+            "maxOutputTokens": max_tokens,
+        },
     }
-    
+
     response = requests.post(url, headers=headers, json=payload, timeout=60)
     response.raise_for_status()
     result = response.json()
-    
+
     try:
         text = result["candidates"][0]["content"]["parts"][0]["text"].strip()
     except (KeyError, IndexError, TypeError) as e:
         print(f"[AI] Error parsing Gemini response: {e}, Response: {result}")
         raise ValueError("Failed to parse response structure from Gemini API")
-        
+
     # Strip markdown code fences if Gemini wraps the JSON despite instructions
     if text.startswith("```"):
         text = text.split("\n", 1)[-1]
@@ -296,12 +340,66 @@ SENSITIVE_CATEGORY_LABELS = {
 }
 
 SENSITIVE_CATEGORY_KEYWORDS = {
-    "core_idea": ["building", "idea", "concept", "platform", "tool", "app", "product", "predicts", "prediction", "attrition"],
-    "business_model": ["pricing", "subscription", "revenue", "monetize", "buy", "sell", "business model", "gtm"],
-    "differentiators": ["unique", "differentiator", "competitive advantage", "moat", "unlike", "secret"],
-    "strategy": ["strategy", "roadmap", "launch", "go-to-market", "positioning", "targeting", "validate"],
-    "execution_details": ["using", "integrates", "slack", "microsoft teams", "algorithm", "model", "workflow", "implementation", "scoring"],
-    "proprietary_insights": ["proprietary", "insight", "internal", "trend", "behavior", "productivity", "data source", "signals"],
+    "core_idea": [
+        "building",
+        "idea",
+        "concept",
+        "platform",
+        "tool",
+        "app",
+        "product",
+        "predicts",
+        "prediction",
+        "attrition",
+    ],
+    "business_model": [
+        "pricing",
+        "subscription",
+        "revenue",
+        "monetize",
+        "buy",
+        "sell",
+        "business model",
+        "gtm",
+    ],
+    "differentiators": [
+        "unique",
+        "differentiator",
+        "competitive advantage",
+        "moat",
+        "unlike",
+        "secret",
+    ],
+    "strategy": [
+        "strategy",
+        "roadmap",
+        "launch",
+        "go-to-market",
+        "positioning",
+        "targeting",
+        "validate",
+    ],
+    "execution_details": [
+        "using",
+        "integrates",
+        "slack",
+        "microsoft teams",
+        "algorithm",
+        "model",
+        "workflow",
+        "implementation",
+        "scoring",
+    ],
+    "proprietary_insights": [
+        "proprietary",
+        "insight",
+        "internal",
+        "trend",
+        "behavior",
+        "productivity",
+        "data source",
+        "signals",
+    ],
 }
 
 SENSITIVE_REPLACEMENTS = [
@@ -310,10 +408,16 @@ SENSITIVE_REPLACEMENTS = [
     (r"\bemployee attrition\b|\battrition\b", "workforce retention risk"),
     (r"\bmanager feedback\b", "workforce signals"),
     (r"\bproductivity trends?\b", "workforce patterns"),
-    (r"\bbehavior tracking\b|\bbehaviour tracking\b|\bbehavior\b|\bbehaviour\b", "engagement patterns"),
+    (
+        r"\bbehavior tracking\b|\bbehaviour tracking\b|\bbehavior\b|\bbehaviour\b",
+        "engagement patterns",
+    ),
     (r"\bAI tool\b|\bAI platform\b|\bAI app\b", "analytics solution"),
     (r"\bAI\b", "advanced"),
-    (r"\bpredicts?\b|\bprediction\b|\bpredictive model\b", "identifies patterns related to"),
+    (
+        r"\bpredicts?\b|\bprediction\b|\bpredictive model\b",
+        "identifies patterns related to",
+    ),
     (r"\bscoring method\b|\binternal scoring\b|\bscore\b", "assessment approach"),
     (r"\balgorithm\b|\bmodel\b", "analytical method"),
 ]
@@ -431,9 +535,7 @@ def protect_idea_context(client: str, original_context: str) -> dict:
 
     classified = detect_sensitive_idea_info(original_context)
     llm_safe_context = (
-        _mask_context_before_llm(original_context)
-        if classified["protection_applied"]
-        else original_context
+        _mask_context_before_llm(original_context) if classified["protection_applied"] else original_context
     )
 
     prompt = f"""Analyze this private survey-owner prompt and protect the idea before public survey questions are generated.
@@ -471,17 +573,15 @@ Protection rules:
         detected = result.get("detected_sensitive_categories") or []
         if not protected_context:
             return _fallback_protect_context(original_context)
-        detected = [
-            SENSITIVE_CATEGORY_LABELS[c]
-            for c in detected
-            if c in SENSITIVE_CATEGORY_LABELS
-        ]
+        detected = [SENSITIVE_CATEGORY_LABELS[c] for c in detected if c in SENSITIVE_CATEGORY_LABELS]
         if not detected:
             detected = classified["detected_sensitive_categories"]
         return {
             "protected_context": protected_context,
             "detected_sensitive_categories": detected,
-            "protection_applied": bool(result.get("protection_applied") or detected or classified["protection_applied"]),
+            "protection_applied": bool(
+                result.get("protection_applied") or detected or classified["protection_applied"]
+            ),
             "protected_context_summary": result.get("protected_context_summary"),
         }
     except Exception as e:
@@ -492,7 +592,12 @@ Protection rules:
 def _sanitize_text_for_leaks(text: str, leak_terms: list[str]) -> str:
     sanitized = _apply_sensitive_replacements(text)
     for term in leak_terms:
-        sanitized = re.sub(re.escape(term), "generalized workforce signal", sanitized, flags=re.IGNORECASE)
+        sanitized = re.sub(
+            re.escape(term),
+            "generalized workforce signal",
+            sanitized,
+            flags=re.IGNORECASE,
+        )
     return sanitized
 
 
@@ -542,6 +647,7 @@ async def ping_ai(request: Request):
 
 
 # ── Internal Helpers ──────────────────────────────────────────────────────────
+
 
 def _build_survey_context(survey_id: str, db: Session) -> dict:
     """Fetch survey, questions, and responses to build context for AI."""
@@ -594,13 +700,15 @@ def _build_survey_context(survey_id: str, db: Session) -> dict:
                 elif ans.answer_json:
                     q_answers.append(ans.answer_json)
 
-        question_summaries.append({
-            "id": str(q.id),
-            "text": q.question_text,
-            "type": q.question_type.value,
-            "responseCount": len(q_answers),
-            "responses": q_answers[:50],
-        })
+        question_summaries.append(
+            {
+                "id": str(q.id),
+                "text": q.question_text,
+                "type": q.question_type.value,
+                "responseCount": len(q_answers),
+                "responses": q_answers[:50],
+            }
+        )
 
     return {
         "title": survey.title,
@@ -617,6 +725,7 @@ def _build_survey_context(survey_id: str, db: Session) -> dict:
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
+
 
 @router.get("/surveys/{survey_id}/insights")
 @limiter.limit("3/minute")
@@ -686,7 +795,10 @@ Return a JSON object with this exact structure:
     except Exception as e:
         print(f"[AI] Insights error: {e}")
         if "rate" in str(e).lower() or "429" in str(e):
-            raise HTTPException(status_code=429, detail="API rate limit reached, please try again shortly")
+            raise HTTPException(
+                status_code=429,
+                detail="API rate limit reached, please try again shortly",
+            )
         raise HTTPException(status_code=500, detail=f"Failed to generate insights: {str(e)}")
 
 
@@ -833,7 +945,10 @@ Rules:
     except Exception as e:
         print(f"[AI] Generate error: {e}")
         if "rate" in str(e).lower() or "429" in str(e):
-            raise HTTPException(status_code=429, detail="API rate limit reached, please try again shortly")
+            raise HTTPException(
+                status_code=429,
+                detail="API rate limit reached, please try again shortly",
+            )
         raise HTTPException(status_code=500, detail=f"Failed to generate survey: {str(e)}")
 
 
@@ -883,11 +998,15 @@ Rules:
     except Exception as e:
         print(f"[AI] Suggestions error: {e}")
         if "rate" in str(e).lower() or "429" in str(e):
-            raise HTTPException(status_code=429, detail="API rate limit reached, please try again shortly")
+            raise HTTPException(
+                status_code=429,
+                detail="API rate limit reached, please try again shortly",
+            )
         raise HTTPException(status_code=500, detail=f"Failed to generate suggestions: {str(e)}")
 
 
 # ── Survey Intelligence (Guidance + Roadmap) ──────────────────────────────────
+
 
 @router.post("/survey-intelligence")
 @limiter.limit("3/minute")
@@ -912,8 +1031,7 @@ async def generate_survey_intelligence(
     location_district = body.get("location_district", "")
 
     q_summary = "\n".join(
-        f"  - Q{i+1} ({q.get('type','text')}): {q.get('text','')}"
-        for i, q in enumerate(questions[:20])
+        f"  - Q{i+1} ({q.get('type','text')}): {q.get('text','')}" for i, q in enumerate(questions[:20])
     )
 
     location_section = ""
@@ -1038,11 +1156,12 @@ Return this exact JSON structure:
     except Exception as e:
         print(f"[AI] Survey intelligence error: {e}")
         if "rate" in str(e).lower() or "429" in str(e):
-            raise HTTPException(status_code=429, detail="API rate limit reached, please try again shortly")
+            raise HTTPException(
+                status_code=429,
+                detail="API rate limit reached, please try again shortly",
+            )
         raise HTTPException(status_code=500, detail=f"Failed to generate survey intelligence: {str(e)}")
 
-
-from pydantic import BaseModel
 
 class AITranslateRequest(BaseModel):
     title: str
@@ -1052,12 +1171,13 @@ class AITranslateRequest(BaseModel):
     questions: list[dict]
     language: str
 
+
 @router.post("/translate-survey")
 async def translate_survey(body: AITranslateRequest):
     client = _get_client()
-    
+
     lang_name = "Hindi" if body.language == "hi" else "Telugu" if body.language == "te" else body.language
-    
+
     # Extract only translatable parts from the input questions to make the payload smaller and extremely safe
     simple_questions = []
     for q in body.questions:
@@ -1070,8 +1190,10 @@ async def translate_survey(body: AITranslateRequest):
         if q.get("options") is not None:
             opts = q.get("options")
             if isinstance(opts, list):
-                sq["options"] = [{"label": o.get("label"), "value": o.get("value")} for o in opts if isinstance(o, dict)]
-            elif isinstance(opts, dict): # for matrix type
+                sq["options"] = [
+                    {"label": o.get("label"), "value": o.get("value")} for o in opts if isinstance(o, dict)
+                ]
+            elif isinstance(opts, dict):  # for matrix type
                 sq["options"] = opts
         simple_questions.append(sq)
 
@@ -1080,9 +1202,9 @@ async def translate_survey(body: AITranslateRequest):
         "description": body.description,
         "welcome_message": body.welcome_message,
         "thank_you_message": body.thank_you_message,
-        "questions": simple_questions
+        "questions": simple_questions,
     }
-    
+
     prompt = f"""You are an expert translator. Translate the following survey data into natural, fluent, and culturally appropriate {lang_name}.
 
 CRITICAL RULES:
