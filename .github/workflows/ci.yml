@@ -2,15 +2,6 @@ name: CI Quality Gate
 
 on:
   workflow_call:
-    inputs:
-      check_backend:
-        required: false
-        type: boolean
-        default: true
-      check_frontend:
-        required: false
-        type: boolean
-        default: true
 
 jobs:
   quality-gate:
