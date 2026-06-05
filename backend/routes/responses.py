@@ -23,8 +23,7 @@ from fastapi import Request
 from db.database import get_db
 from db.models import SurveyResponse, SurveyAnswer, ResponseStatusEnum
 from schemas import (
-    ResponseCreate, ResponseUpdate, AnswerIn, ResponseOut, AnswerOut,
-    MessageResponse,
+    ResponseCreate, ResponseUpdate, AnswerIn, ResponseOut,
 )
 
 router = APIRouter(prefix="/responses", tags=["responses"])

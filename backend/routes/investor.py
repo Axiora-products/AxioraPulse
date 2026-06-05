@@ -368,7 +368,7 @@ Produce ONLY a raw JSON structure matching this exact shape:
             "executive_summary": f"A highly-validated research initiative focusing on '{survey.title}'. Based on {total_responses} completed participant surveys with a solid positive response ratio of {positive_feedback_ratio}%, the venture exhibits robust customer pull, a mature validation footing, and a clear product-market fit trajectory targeting local demographics.",
             "problem_solution_narrative": {
                 "problem": f"Customers currently experience severe inefficiencies related to the survey domain. Pain point analysis validates that {positive_feedback_ratio}% of respondents report frustration with existing solutions.",
-                "solution": f"A tailored, digital service optimizing workflow. Mathematical analysis reveals high user willingness to try or pay for the solution."
+                "solution": "A tailored, digital service optimizing workflow. Mathematical analysis reveals high user willingness to try or pay for the solution."
             },
             "narrative_intelligence": f"Empowering standard operators with validated survey insights. Bridging the gap in competitor capabilities to unlock {fmt(15000000)} TAM.",
             "market_opportunity_framing": "The target market presents a significant transition towards digital automation. Location-specific growth is estimated at 12-15% annually.",

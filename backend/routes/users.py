@@ -17,7 +17,6 @@ from schemas import BulkInviteRequest
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 from services.email_service import send_email
-from slowapi.util import get_remote_address
 from fastapi import Request
 from core.rate_limiter import limiter
 from db.database import get_db
