@@ -926,10 +926,13 @@ export default function SurveyAnalytics() {
 
   function csv() {
     const h = ['#','Status','Email','Started','Completed',...qs.map(q=>q.question_text)];
+    const ansMap = {};
+    (ans || []).forEach(a => {
+      ansMap[`${a.response_id}::${a.question_id}`] = a;
+    });
     const rows = rs.map((r,i) => {
-      const ra = ans.filter(a=>a.response_id===r.id);
       return [i+1, r.status, r.respondent_email||'', r.started_at, r.completed_at||'',
-        ...qs.map(q=>{ const a=ra.find(x=>x.question_id===q.id); return a?.answer_value||(a?.answer_json?JSON.stringify(a.answer_json):''); })];
+        ...qs.map(q=>{ const a=ansMap[`${r.id}::${q.id}`]; return a?.answer_value||(a?.answer_json?JSON.stringify(a.answer_json):''); })];
     });
     const c = [h,...rows].map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
     const a = document.createElement('a');
@@ -1155,7 +1158,7 @@ export default function SurveyAnalytics() {
             onMouseEnter={e=>{ e.currentTarget.style.borderColor='var(--sage)'; e.currentTarget.style.color='var(--sage)'; }}
             onMouseLeave={e=>{ e.currentTarget.style.borderColor='rgba(22,15,8,0.12)'; e.currentTarget.style.color='rgba(22,15,8,0.55)'; }}>
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            XLS
+            XLSX
           </button>
 
           <button onClick={exportPDF} style={{ ...S.exportBtn, display: 'flex', alignItems: 'center', gap: 5 }}
