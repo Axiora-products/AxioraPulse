@@ -14,3 +14,12 @@ jobs:
     with:
       check_backend: true
       check_frontend: true
+
+  # 2. QA Environment Deployment
+  deploy-qa-infra:
+    needs: ci-quality-gate
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.target_env == 'qa')
+    uses: ./.github/workflows/cdk.yml
+    with:
+      environment: qa
+    secrets: inherit
