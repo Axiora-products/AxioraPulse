@@ -17,6 +17,7 @@ on:
 jobs:
   deploy-infra:
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
     steps:
       - name: Simple Check
         run: echo "CDK Deploy for ${{ inputs.environment }}"
