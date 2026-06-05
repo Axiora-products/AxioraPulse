@@ -5,18 +5,22 @@ on:
     branches:
       - main
       - develop
+      - fix/workflow-paths-syntax
     paths:
       - 'backend/**'
       - 'frontend/**'
       - 'infra/cdk/**'
+      - '.github/workflows/**'
   pull_request:
     branches:
       - main
       - develop
+      - fix/workflow-paths-syntax
     paths:
       - 'backend/**'
       - 'frontend/**'
       - 'infra/cdk/**'
+      - '.github/workflows/**'
   workflow_dispatch:
     inputs:
       target_env:
