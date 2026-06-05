@@ -73,7 +73,7 @@ def seed_test_data():
                 id=survey_id,
                 title="Test Survey",
                 slug="test-survey",
-                status=SurveyStatusEnum.published,
+                status=SurveyStatusEnum.active,
                 tenant_id=tenant.id,
                 created_by=user.id,
             )

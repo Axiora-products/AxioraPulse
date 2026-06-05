@@ -119,6 +119,8 @@ jobs:
           npm run test --prefix infra/cdk
 
       - name: Run CDK Synth
+        env:
+          CDK_PROD_ENABLED: "true"
         run: |
           cd infra/cdk
           npx cdk synth AxioraPulseStackQa
