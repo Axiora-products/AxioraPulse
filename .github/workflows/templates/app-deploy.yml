@@ -17,6 +17,9 @@ on:
         required: false
         type: string
         default: '217757579310.dkr.ecr.ap-south-1.amazonaws.com'
+      account_id:
+        required: false
+        type: string
     secrets:
       AWS_ROLE_TO_ASSUME:
         required: true
@@ -29,7 +32,7 @@ on:
 jobs:
   deploy-app:
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
+    environment: ${{ inputs.environment }} # Uses GitHub Environments for protection/gates
     permissions:
       contents: read
       id-token: write
