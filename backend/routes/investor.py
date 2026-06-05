@@ -13,11 +13,12 @@ from core.rate_limiter import limiter
 
 router = APIRouter(prefix="/investor", tags=["investor"])
 
+
 def _get_currency_config(country: str) -> dict:
     c = (country or "").strip().lower()
     if not c:
         return {"symbol": "$", "code": "USD", "rate": 1.0}
-    
+
     if any(k in c for k in ["india", "in", "ind", "rupee", "rupees"]):
         return {"symbol": "₹", "code": "INR", "rate": 83.0}
     elif any(k in c for k in ["uk", "united kingdom", "gb", "britain", "london", "pound", "pounds"]):
@@ -28,10 +29,12 @@ def _get_currency_config(country: str) -> dict:
         return {"symbol": "CA$", "code": "CAD", "rate": 1.36}
     elif any(k in c for k in ["australia", "au", "aud"]):
         return {"symbol": "A$", "code": "AUD", "rate": 1.5}
-    
+
     return {"symbol": "$", "code": "USD", "rate": 1.0}
 
+
 MODEL = "gemini-2.5-flash"
+
 
 def _get_client() -> str:
     api_key = os.getenv("GEMINI_KEY")
@@ -41,19 +44,12 @@ def _get_client() -> str:
         raise HTTPException(status_code=500, detail="Gemini/Claude API key not configured on server")
     return api_key
 
+
 def _call_gemini(api_key: str, prompt: str, max_tokens: int = 4096) -> str:
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent?key={api_key}"
     headers = {"Content-Type": "application/json"}
     payload = {
-        "contents": [
-            {
-                "parts": [
-                    {
-                        "text": prompt
-                    }
-                ]
-            }
-        ],
+        "contents": [{"parts": [{"text": prompt}]}],
         "systemInstruction": {
             "parts": [
                 {
@@ -61,27 +57,25 @@ def _call_gemini(api_key: str, prompt: str, max_tokens: int = 4096) -> str:
                 }
             ]
         },
-        "generationConfig": {
-            "responseMimeType": "application/json",
-            "maxOutputTokens": max_tokens
-        }
+        "generationConfig": {"responseMimeType": "application/json", "maxOutputTokens": max_tokens},
     }
-    
+
     response = requests.post(url, headers=headers, json=payload, timeout=90)
     response.raise_for_status()
     result = response.json()
-    
+
     try:
         text = result["candidates"][0]["content"]["parts"][0]["text"].strip()
     except (KeyError, IndexError, TypeError) as e:
         print(f"[AI] Error parsing Gemini response: {e}")
         raise ValueError("Failed to parse response structure from Gemini API")
-        
+
     if text.startswith("```"):
         text = text.split("\n", 1)[-1]
         if text.endswith("```"):
             text = text[: text.rfind("```")]
     return text.strip()
+
 
 @router.post("/surveys/{survey_id}/readiness", response_model=InvestorReadinessReportResponse)
 @limiter.limit("3/minute")
@@ -99,28 +93,21 @@ async def generate_investor_readiness_report(
     - Founder's context & target locations
     """
     # Verify survey ownership / tenant scoping
-    survey = db.query(Survey).filter(
-        Survey.id == survey_id,
-        Survey.tenant_id == current_user.tenant_id
-    ).first()
-    
+    survey = db.query(Survey).filter(Survey.id == survey_id, Survey.tenant_id == current_user.tenant_id).first()
+
     if not survey:
         raise HTTPException(status_code=404, detail="Survey not found")
 
     # ── MATH/SCORING ENGINE: Derive dynamic ground truth metrics ──
     # 1. Total survey responses count
-    total_responses = db.query(SurveyResponse).filter(
-        SurveyResponse.survey_id == survey_id
-    ).count()
+    total_responses = db.query(SurveyResponse).filter(SurveyResponse.survey_id == survey_id).count()
 
     # 2. Get questions and responses answers to compute positive feedback rates
-    questions = db.query(SurveyQuestion).filter(
-        SurveyQuestion.survey_id == survey_id
-    ).order_by(SurveyQuestion.sort_order).all()
+    questions = (
+        db.query(SurveyQuestion).filter(SurveyQuestion.survey_id == survey_id).order_by(SurveyQuestion.sort_order).all()
+    )
 
-    answers = db.query(SurveyAnswer).join(SurveyResponse).filter(
-        SurveyResponse.survey_id == survey_id
-    ).all()
+    answers = db.query(SurveyAnswer).join(SurveyResponse).filter(SurveyResponse.survey_id == survey_id).all()
 
     # Calculate actual positive ratio (answers like yes, higher ratings, scales, positive selections)
     positive_count = 0
@@ -132,7 +119,7 @@ async def generate_investor_readiness_report(
         val = (ans.answer_value or "").strip().lower()
         if not val:
             continue
-        
+
         analyzable_count += 1
         # Rating check
         if val.isdigit() and len(val) <= 2:
@@ -147,28 +134,25 @@ async def generate_investor_readiness_report(
         elif any(kw in val for kw in ["love", "great", "excellent", "definitely", "highly"]):
             positive_count += 1
 
-    positive_feedback_ratio = 78 # professional baseline fallback
+    positive_feedback_ratio = 78  # professional baseline fallback
     if analyzable_count > 0:
         positive_feedback_ratio = int((positive_count / analyzable_count) * 100)
-    
-    average_rating = 4.2 # professional baseline fallback
+
+    average_rating = 4.2  # professional baseline fallback
     if ratings_count > 0:
         average_rating = round(ratings_sum / ratings_count, 1)
 
     # Base quantitative scores computed directly from real survey data
     computed_validation_score = min(98, max(50, int(positive_feedback_ratio)))
     computed_traction_score = min(96, max(30, int(total_responses * 4 + 40)))
-    
+
     # Pricing defaults if none given
     cur = _get_currency_config(body.target_country)
     monetization = body.pricing_model or f"SaaS Subscription Model ({cur['symbol']} or equivalent)"
     geography = f"Country: {body.target_country or 'Global'}, State: {body.target_state or 'National'}, District: {body.target_district or 'State-level'} (Target Local Currency: {cur['code']} - symbol {cur['symbol']})"
 
     # Compile the questions list to send to Gemini
-    q_summary = "\n".join(
-        f"  - Q{i+1} ({q.question_type}): {q.question_text}"
-        for i, q in enumerate(questions[:20])
-    )
+    q_summary = "\n".join(f"  - Q{i + 1} ({q.question_type}): {q.question_text}" for i, q in enumerate(questions[:20]))
 
     # ── AI PROCESSING LAYER: Structured Gemini prompt ──
     prompt = f"""You are an elite VC Investment Partner. Generate a high-fidelity startup Investor Readiness Report based on this validated survey data:
@@ -197,7 +181,7 @@ Questions:
 
 == INSTRUCTIONS ==
 Generate a highly detailed, professional, structured Investor Readiness Report. Do NOT generate generic or placeholder text. All recommendations, financial models, and TAM calculations must be highly contextually aligned with the startup concept and geographic market specified.
-IMPORTANT: Use the currency {cur['code']} (symbol {cur['symbol']}) for all monetary figures throughout the report, including TAM/SAM/SOM, unit economics, competitors, projections, funding ask, average checks, etc.
+IMPORTANT: Use the currency {cur["code"]} (symbol {cur["symbol"]}) for all monetary figures throughout the report, including TAM/SAM/SOM, unit economics, competitors, projections, funding ask, average checks, etc.
 
 Produce ONLY a raw JSON structure matching this exact shape:
 {{
@@ -342,25 +326,25 @@ Produce ONLY a raw JSON structure matching this exact shape:
         # PROFESSIONAL FALLBACK DATA (GROUNDED IN SURVEY DATA)
         # Allows testing and graceful resilience even if the API Key is invalid or rate limited
         fallback_overall = int((computed_validation_score * 0.45) + (computed_traction_score * 0.55))
-        
+
         rate = cur["rate"]
         sym = cur["symbol"]
-        
+
         def fmt(usd_val: float) -> str:
             val = int(usd_val * rate)
             if sym == "₹":
                 if val >= 10_000_000:
-                    return f"₹{val/10_000_000:.2f} Crores"
+                    return f"₹{val / 10_000_000:.2f} Crores"
                 elif val >= 100_000:
-                    return f"₹{val/100_000:.2f} Lakhs"
+                    return f"₹{val / 100_000:.2f} Lakhs"
                 return f"₹{val:,}"
             else:
                 if val >= 1_000_000:
-                    return f"{sym}{val/1_000_000:.2f}M"
+                    return f"{sym}{val / 1_000_000:.2f}M"
                 elif val >= 1_000:
-                    return f"{sym}{val/1_000:.1f}k"
+                    return f"{sym}{val / 1_000:.1f}k"
                 return f"{sym}{val}"
-                
+
         fallback_data = {
             "survey_id": str(survey_id),
             "survey_title": survey.title,
@@ -368,7 +352,7 @@ Produce ONLY a raw JSON structure matching this exact shape:
             "executive_summary": f"A highly-validated research initiative focusing on '{survey.title}'. Based on {total_responses} completed participant surveys with a solid positive response ratio of {positive_feedback_ratio}%, the venture exhibits robust customer pull, a mature validation footing, and a clear product-market fit trajectory targeting local demographics.",
             "problem_solution_narrative": {
                 "problem": f"Customers currently experience severe inefficiencies related to the survey domain. Pain point analysis validates that {positive_feedback_ratio}% of respondents report frustration with existing solutions.",
-                "solution": "A tailored, digital service optimizing workflow. Mathematical analysis reveals high user willingness to try or pay for the solution."
+                "solution": "A tailored, digital service optimizing workflow. Mathematical analysis reveals high user willingness to try or pay for the solution.",
             },
             "narrative_intelligence": f"Empowering standard operators with validated survey insights. Bridging the gap in competitor capabilities to unlock {fmt(15000000)} TAM.",
             "market_opportunity_framing": "The target market presents a significant transition towards digital automation. Location-specific growth is estimated at 12-15% annually.",
@@ -376,7 +360,7 @@ Produce ONLY a raw JSON structure matching this exact shape:
                 "tam": f"{fmt(15000000)} (Based on country/industry profile)",
                 "sam": f"{fmt(4500000)} (Scoped to regional accessible audience)",
                 "som": f"{fmt(750000)} (15% penetration within Year 3)",
-                "data_source": "TAM calculated utilizing average target region demographic scale, survey positive validation ratios, and common SaaS model assumptions."
+                "data_source": "TAM calculated utilizing average target region demographic scale, survey positive validation ratios, and common SaaS model assumptions.",
             },
             "competitors": [
                 {
@@ -386,7 +370,7 @@ Produce ONLY a raw JSON structure matching this exact shape:
                     "strengths": "Established market presence, large support staff",
                     "weaknesses": "Clunky user experiences, slow product iterations",
                     "diff": "Highly tailored, localized features based on direct user surveys",
-                    "share": "45%"
+                    "share": "45%",
                 },
                 {
                     "name": "Niche Competitors Ltd.",
@@ -395,8 +379,8 @@ Produce ONLY a raw JSON structure matching this exact shape:
                     "strengths": "Low barrier to entry",
                     "weaknesses": "Inability to scale with enterprise clients",
                     "diff": "End-to-end integration and collaborative team support",
-                    "share": "12%"
-                }
+                    "share": "12%",
+                },
             ],
             "gtm_strategy": "Multi-channel B2B inbound strategy leveraging educational contents, industry partnerships, and direct customer email outreach based on initial survey profiles.",
             "unit_economics": {
@@ -404,18 +388,36 @@ Produce ONLY a raw JSON structure matching this exact shape:
                 "ltv": f"{fmt(1440)} lifetime customer value (12x CAC ratio)",
                 "margin": "85%",
                 "retention": "94%",
-                "payback_period": "6 months payback timeline"
+                "payback_period": "6 months payback timeline",
             },
             "financial_projections": [
-                { "year": "Year 1", "revenue": fmt(125000), "cost": fmt(95000), "hiring": "3 employees", "margin": "24%" },
-                { "year": "Year 2", "revenue": fmt(520000), "cost": fmt(380000), "hiring": "8 employees", "margin": "27%" },
-                { "year": "Year 3", "revenue": fmt(1850000), "cost": fmt(1050000), "hiring": "18 employees", "margin": "43%" }
+                {
+                    "year": "Year 1",
+                    "revenue": fmt(125000),
+                    "cost": fmt(95000),
+                    "hiring": "3 employees",
+                    "margin": "24%",
+                },
+                {
+                    "year": "Year 2",
+                    "revenue": fmt(520000),
+                    "cost": fmt(380000),
+                    "hiring": "8 employees",
+                    "margin": "27%",
+                },
+                {
+                    "year": "Year 3",
+                    "revenue": fmt(1850000),
+                    "cost": fmt(1050000),
+                    "hiring": "18 employees",
+                    "margin": "43%",
+                },
             ],
             "traction_evidence": {
                 "total_responses": total_responses,
                 "positive_validation_ratio": positive_feedback_ratio,
                 "average_rating": average_rating,
-                "market_validation_insight": f"Out of {total_responses} respondents, {positive_feedback_ratio}% verified critical pain points. The high engagement index confirms immediate interest in alternative market offerings."
+                "market_validation_insight": f"Out of {total_responses} respondents, {positive_feedback_ratio}% verified critical pain points. The high engagement index confirms immediate interest in alternative market offerings.",
             },
             "execution_roadmap": [
                 {
@@ -423,28 +425,28 @@ Produce ONLY a raw JSON structure matching this exact shape:
                     "milestone": "Publish survey results, build MVP, and secure first 10 enterprise pilot agreements",
                     "timeline": "Month 1 - 3",
                     "focus_area": "Product & Engineering",
-                    "funding_required": fmt(25000)
+                    "funding_required": fmt(25000),
                 },
                 {
                     "phase": "Phase 2: Commercial Launch",
                     "milestone": "Full public launch, hiring product marketer, scale conversion channels",
                     "timeline": "Month 4 - 9",
                     "focus_area": "Sales & GTM",
-                    "funding_required": fmt(50000)
+                    "funding_required": fmt(50000),
                 },
                 {
                     "phase": "Phase 3: Scaling & Integration",
                     "milestone": "Introduce API integrations, localized enterprise licensing",
                     "timeline": "Month 10 - 18",
                     "focus_area": "Scaling Operations",
-                    "funding_required": fmt(75000)
-                }
+                    "funding_required": fmt(75000),
+                },
             ],
             "objections": [
                 {
                     "objection": "Customer churn risk due to existing legacy habits",
                     "severity": "Medium",
-                    "suggested_response": f"Our survey validated that {positive_feedback_ratio}% of customers are highly dissatisfied with current alternatives. We address habits via frictionless import hooks."
+                    "suggested_response": f"Our survey validated that {positive_feedback_ratio}% of customers are highly dissatisfied with current alternatives. We address habits via frictionless import hooks.",
                 }
             ],
             "scoring": {
@@ -457,61 +459,68 @@ Produce ONLY a raw JSON structure matching this exact shape:
                     "weight": 0.20,
                     "status": "Strong",
                     "insights": "Solid revenue assumptions with standard SaaS profit margins.",
-                    "gaps": ["Lacks multi-year localized historical cost assumptions"]
+                    "gaps": ["Lacks multi-year localized historical cost assumptions"],
                 },
                 "product_readiness": {
                     "score": 82,
                     "weight": 0.20,
                     "status": "Strong",
                     "insights": "Clear solution alignment with validated pain points.",
-                    "gaps": ["Needs core API integration testing"]
+                    "gaps": ["Needs core API integration testing"],
                 },
                 "market_readiness": {
                     "score": computed_validation_score,
                     "weight": 0.25,
                     "status": "Excellent" if computed_validation_score >= 80 else "Strong",
                     "insights": f"High response rating ({positive_feedback_ratio}% positive ratio) confirms high market demand.",
-                    "gaps": []
+                    "gaps": [],
                 },
                 "team_readiness": {
                     "score": 80,
                     "weight": 0.15,
                     "status": "Strong",
                     "insights": "Competent technical vision outlined.",
-                    "gaps": ["Needs a full-time commercial lead"]
+                    "gaps": ["Needs a full-time commercial lead"],
                 },
                 "operational_maturity": {
                     "score": computed_traction_score,
                     "weight": 0.20,
                     "status": "Strong" if computed_traction_score >= 70 else "Emerging",
                     "insights": f"Validated validation size based on {total_responses} responses.",
-                    "gaps": ["Survey response count can be expanded for stronger statistical significance"]
+                    "gaps": ["Survey response count can be expanded for stronger statistical significance"],
                 },
                 "key_risks": [
-                    { "risk": "Incumbent response capability", "mitigation": "Agile software deployment and highly localized customer relationships" }
-                ]
+                    {
+                        "risk": "Incumbent response capability",
+                        "mitigation": "Agile software deployment and highly localized customer relationships",
+                    }
+                ],
             },
             "pitch_review": {
                 "overall_rating": "Pitch Prepared",
                 "strengths": ["Solid validation evidence index", "Clear unit-economic CAC target ratio"],
-                "improvements": ["Detail the target competitor replacement process"]
+                "improvements": ["Detail the target competitor replacement process"],
             },
             "target_investors": [
                 {
                     "investor_type": "Pre-Seed and Angel Syndicates",
                     "average_check": f"{fmt(50000)} - {fmt(150000)}",
-                    "key_criteria": ["Traction proof", "Calculated pain points validation", "Scalable customer acquisition"],
-                    "target_fit": f"Ideal match for our calculated {fallback_overall}/100 readiness profile."
+                    "key_criteria": [
+                        "Traction proof",
+                        "Calculated pain points validation",
+                        "Scalable customer acquisition",
+                    ],
+                    "target_fit": f"Ideal match for our calculated {fallback_overall}/100 readiness profile.",
                 }
             ],
             "funding_ask": {
                 "amount": fmt(150000),
                 "timeline_runway": "12-18 months",
                 "breakdown": [
-                    { "allocation": "Product & Engineering", "percentage": "50%" },
-                    { "allocation": "Marketing & GTM Sales", "percentage": "30%" },
-                    { "allocation": "Hiring & Operations", "percentage": "20%" }
-                ]
-            }
+                    {"allocation": "Product & Engineering", "percentage": "50%"},
+                    {"allocation": "Marketing & GTM Sales", "percentage": "30%"},
+                    {"allocation": "Hiring & Operations", "percentage": "20%"},
+                ],
+            },
         }
         return InvestorReadinessReportResponse(**fallback_data)

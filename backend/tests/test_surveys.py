@@ -6,9 +6,6 @@ client = TestClient(app)
 
 def test_list_surveys(auth_headers):
 
-    response = client.get(
-        "/surveys/",
-        headers=auth_headers
-    )
+    response = client.get("/surveys/", headers=auth_headers)
 
     assert response.status_code == 200

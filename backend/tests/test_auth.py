@@ -13,21 +13,13 @@ def test_unauthorized_access():
 
 def test_invalid_token():
 
-    response = client.get(
-        "/dashboard/stats",
-        headers={
-            "Authorization": "Bearer invalidtoken"
-        }
-    )
+    response = client.get("/dashboard/stats", headers={"Authorization": "Bearer invalidtoken"})
 
     assert response.status_code == 401
 
 
 def test_authorized_access(auth_headers):
 
-    response = client.get(
-        "/dashboard/stats",
-        headers=auth_headers
-    )
+    response = client.get("/dashboard/stats", headers=auth_headers)
 
     assert response.status_code == 200
