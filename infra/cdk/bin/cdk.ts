@@ -41,16 +41,13 @@ new AxioraPulseStack(app, 'AxioraPulseStackQa', {
   description: 'QA environment for AxioraPulse',
 });
 
-// Production (STRICTLY DISABLED)
-// To enable, uncomment and set prodOverride: true
-/*
+// Production
 new AxioraPulseStack(app, 'AxioraPulseStackProd', {
   environment: 'prod',
-  prodOverride: false, // Must be true to deploy
+  prodOverride: process.env.CDK_PROD_ENABLED === 'true', 
   env: { 
     account: '217757579310', 
     region: 'ap-south-1' 
   },
   description: 'Production environment for AxioraPulse',
 });
-*/
