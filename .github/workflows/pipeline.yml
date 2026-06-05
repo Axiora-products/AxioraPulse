@@ -93,7 +93,7 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           git fetch origin ${{ github.event.pull_request.base.ref }} --depth=1
-          diff-cover coverage.xml --compare-branch=origin/${{ github.event.pull_request.base.ref }} --markdown-file diff-coverage.md
+          diff-cover coverage.xml --compare-branch=origin/${{ github.event.pull_request.base.ref }} --format markdown > diff-coverage.md
 
       - name: Comment PR with Diff Coverage
         if: github.event_name == 'pull_request' && (success() || failure())
