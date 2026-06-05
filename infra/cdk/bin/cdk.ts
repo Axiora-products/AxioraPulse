@@ -1,10 +1,15 @@
 #!/usr/bin/env node
 import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
+import { Aspects } from 'aws-cdk-lib';
+import { AwsSolutionsChecks } from 'cdk-nag';
 import { AxioraPulseStack } from '../lib/axiora-pulse-stack';
 import { GitHubOidcStack } from '../lib/github-oidc-stack';
 
 const app = new cdk.App();
+
+// Add cdk-nag aspects
+Aspects.of(app).add(new AwsSolutionsChecks({ verbose: true }));
 
 // Global / Shared Infrastructure
 
