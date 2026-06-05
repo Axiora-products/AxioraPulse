@@ -2,10 +2,19 @@ name: CI Quality Gate
 
 on:
   workflow_call:
+    inputs:
+      check_backend:
+        required: false
+        type: boolean
+        default: true
+      check_frontend:
+        required: false
+        type: boolean
+        default: true
 
 jobs:
   quality-gate:
     runs-on: ubuntu-latest
     steps:
       - name: Simple Check
-        run: echo "Quality Gate Check"
+        run: echo "Quality Gate Check for Backend=${{ inputs.check_backend }} Frontend=${{ inputs.check_frontend }}"
