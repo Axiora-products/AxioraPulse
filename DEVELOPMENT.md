@@ -158,3 +158,4 @@ To catch linting and formatting issues locally before they reach the GitHub repo
    ```
 
 Now, every time you run `git commit`, Ruff will run automatically. If it finds any auto-fixable linting issues or formatting inconsistencies, it will fix them on the fly and prompt you to stage the changes and commit again.
+
