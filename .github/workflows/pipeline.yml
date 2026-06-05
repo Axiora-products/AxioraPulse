@@ -7,9 +7,13 @@ on:
       - 'feature/**'
       - 'fix/**'
       - 'hotfix/**'
+      - main
+      - 'release/**'
   pull_request:
     branches:
       - develop
+      - main
+      - 'release/**'
 
 permissions:
   id-token: write
@@ -121,6 +125,7 @@ jobs:
       - name: Run CDK Synth
         env:
           CDK_PROD_ENABLED: "true"
+          CDK_NAG_ENABLED: ${{ (github.ref_name == 'main' || startsWith(github.ref_name, 'release/')) && 'true' || 'false' }}
         run: |
           cd infra/cdk
           npx cdk synth AxioraPulseStackQa
