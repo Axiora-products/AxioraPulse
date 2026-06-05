@@ -16,6 +16,14 @@ jobs:
   lint-and-test:
     name: Lint & Test (Quality Gates)
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:root@localhost:5432/nexpulse
+      AWS_ENDPOINT_URL: http://localhost:5001
+      AWS_DEFAULT_REGION: ap-south-1
+      AWS_ACCESS_KEY_ID: mock
+      AWS_SECRET_ACCESS_KEY: mock
+      SECRET_KEY: mock_secret_key_for_testing_purposes_only
+      PYTHONPATH: backend
     
     services:
       postgres:
@@ -63,20 +71,11 @@ jobs:
           ruff format --check backend
 
       - name: Run Alembic Migrations on Test DB
-        env:
-          DATABASE_URL: postgresql://postgres:root@localhost:5432/nexpulse
         run: |
           cd backend
           alembic upgrade head
 
       - name: Run Backend Pytest
-        env:
-          DATABASE_URL: postgresql://postgres:root@localhost:5432/nexpulse
-          AWS_ENDPOINT_URL: http://localhost:5001
-          AWS_DEFAULT_REGION: ap-south-1
-          AWS_ACCESS_KEY_ID: mock
-          AWS_SECRET_ACCESS_KEY: mock
-          PYTHONPATH: backend
         run: |
           pytest backend/tests
 
