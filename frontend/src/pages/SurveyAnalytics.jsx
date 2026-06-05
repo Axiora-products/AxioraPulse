@@ -5,6 +5,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import * as XLSX from 'xlsx';
 import API from '../api/axios';
 import useAuthStore from '../hooks/useAuth';
 import { formatDateTime } from '../lib/constants';
@@ -980,6 +981,138 @@ export default function SurveyAnalytics() {
     setTimeout(() => w.print(), 600);
   }
 
+  function excel() {
+  try {
+    // ── Safe file name ──────────────────────────────────────────────────────
+    const safeFileName = (sv?.title || 'survey')
+      .replace(/[\\/:*?"<>|]/g, '')
+      .trim() || 'survey';
+
+    // ── Answer lookup map (O(1) vs O(n×m)) ─────────────────────────────────
+    const ansMap = {};
+    (ans || []).forEach(a => {
+      ansMap[`${a.response_id}::${a.question_id}`] = a;
+    });
+    const answerFor = (responseId, questionId) => {
+      const a = ansMap[`${responseId}::${questionId}`];
+      if (!a) return '';
+      return a.answer_value || (a.answer_json ? JSON.stringify(a.answer_json) : '');
+    };
+
+    // ── Analytics destructure with safe fallbacks ───────────────────────────
+    const {
+      total        = 0,
+      completedCount  = 0,
+      abandonedCount  = 0,
+      completionRate  = 0,
+      avgTimeMin      = null,
+      milestones      = { pct25: 0, pct50: 0, pct75: 0, pct100: 0 },
+    } = analytics || {};
+    const inProgress = Math.max(0, total - completedCount - abandonedCount);
+    const safeQs       = qs       || [];
+    const safeRs       = rs       || [];
+    const safeFeedback = feedback || [];
+    const safeQA       = analytics?.questionAnalytics || [];
+
+    // ── Build workbook ──────────────────────────────────────────────────────
+    const wb = XLSX.utils.book_new();
+
+    // Sheet 1 — Responses
+    const responseHeader = [
+      '#', 'Status', 'Email', 'Started', 'Completed',
+      ...safeQs.map(q => q.question_text),
+    ];
+    const responseRows = safeRs.map((r, i) => [
+      i + 1,
+      r.status || '',
+      r.respondent_email || '',
+      r.started_at  || '',
+      r.completed_at || '',
+      ...safeQs.map(q => answerFor(r.id, q.id)),
+    ]);
+    const responsesSheet = XLSX.utils.aoa_to_sheet([responseHeader, ...responseRows]);
+    responsesSheet['!cols'] = responseHeader.map((h, i) => ({
+      wch: i < 5 ? 18 : Math.min(Math.max(String(h).length + 4, 24), 55),
+    }));
+    XLSX.utils.book_append_sheet(wb, responsesSheet, 'Responses');
+
+    // Sheet 2 — Overview
+    const overviewSheet = XLSX.utils.aoa_to_sheet([
+      ['Survey',          sv?.title  || 'Survey'],
+      ['Status',          sv?.status || ''],
+      ['Created',         sv?.created_at  || ''],
+      ['Expires',         sv?.expires_at  || ''],
+      [],
+      ['Metric',          'Value'],
+      ['Total Responses', total],
+      ['Completed',       completedCount],
+      ['In Progress',     inProgress],
+      ['Abandoned',       abandonedCount],
+      ['Completion Rate', `${completionRate}%`],
+      ['Average Time',    avgTimeMin ? `${avgTimeMin}m` : '-'],
+    ]);
+    overviewSheet['!cols'] = [{ wch: 24 }, { wch: 36 }];
+    XLSX.utils.book_append_sheet(wb, overviewSheet, 'Overview');
+
+    // Sheet 3 — Milestones
+    const pctOf = n => total > 0 ? `${Math.round((n / total) * 100)}%` : '0%';
+    const milestonesSheet = XLSX.utils.aoa_to_sheet([
+      ['Milestone', 'Respondents', 'Percentage'],
+      ['25%',  milestones.pct25,  pctOf(milestones.pct25)],
+      ['50%',  milestones.pct50,  pctOf(milestones.pct50)],
+      ['75%',  milestones.pct75,  pctOf(milestones.pct75)],
+      ['100%', milestones.pct100, pctOf(milestones.pct100)],
+    ]);
+    milestonesSheet['!cols'] = [{ wch: 16 }, { wch: 18 }, { wch: 16 }];
+    XLSX.utils.book_append_sheet(wb, milestonesSheet, 'Milestones');
+
+    // Sheet 4 — Questions
+    const questionsSheet = XLSX.utils.aoa_to_sheet([
+      ['#', 'Question', 'Type', 'Responses'],
+      ...safeQs.map((q, i) => [
+        i + 1,
+        q.question_text || '',
+        (q.question_type || '').replace(/_/g, ' '),
+        safeQA[i]?.data?.total ?? 0,
+      ]),
+    ]);
+    questionsSheet['!cols'] = [{ wch: 8 }, { wch: 60 }, { wch: 22 }, { wch: 14 }];
+    XLSX.utils.book_append_sheet(wb, questionsSheet, 'Questions');
+
+    // Sheet 5 — Feedback
+    const feedbackSheet = XLSX.utils.aoa_to_sheet([
+      ['#', 'Rating', 'Comment'],
+      ...safeFeedback.map((f, i) => [i + 1, f.rating ?? '', f.comment || '']),
+    ]);
+    feedbackSheet['!cols'] = [{ wch: 8 }, { wch: 12 }, { wch: 60 }];
+    XLSX.utils.book_append_sheet(wb, feedbackSheet, 'Feedback');
+
+    // ── Download — works in all browsers, sandboxed iframes, mobile ─────────
+    const wbArray = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob    = new Blob([wbArray], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const url = URL.createObjectURL(blob);
+    const a   = document.createElement('a');
+    a.href     = url;
+    a.download = `${safeFileName}.xlsx`;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    // Small delay before cleanup — Safari needs the file to finish downloading
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    }, 250);
+
+  } catch (err) {
+    console.error('[Excel export failed]', err);
+    // Swap this for your toast/alert system if preferred
+    alert('Export failed — please try again.');
+  }
+}
+
+
   if (!sv) return (
     <div style={{ textAlign:'center', padding:'80px 0', fontFamily:'Fraunces,serif', color:'rgba(22,15,8,0.3)' }}>Survey not found</div>
   );
@@ -1017,6 +1150,14 @@ export default function SurveyAnalytics() {
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             CSV
           </button>
+
+          <button onClick={excel} style={{ ...S.exportBtn, display: 'flex', alignItems: 'center', gap: 5 }}
+            onMouseEnter={e=>{ e.currentTarget.style.borderColor='var(--sage)'; e.currentTarget.style.color='var(--sage)'; }}
+            onMouseLeave={e=>{ e.currentTarget.style.borderColor='rgba(22,15,8,0.12)'; e.currentTarget.style.color='rgba(22,15,8,0.55)'; }}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            XLS
+          </button>
+
           <button onClick={exportPDF} style={{ ...S.exportBtn, display: 'flex', alignItems: 'center', gap: 5 }}
             onMouseEnter={e=>{ e.currentTarget.style.borderColor='var(--coral)'; e.currentTarget.style.color='var(--coral)'; }}
             onMouseLeave={e=>{ e.currentTarget.style.borderColor='rgba(22,15,8,0.12)'; e.currentTarget.style.color='rgba(22,15,8,0.55)'; }}>
