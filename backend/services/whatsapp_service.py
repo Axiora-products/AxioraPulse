@@ -1,7 +1,7 @@
 import os
 import requests
 import re
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 
 # Twilio Credentials
 TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")

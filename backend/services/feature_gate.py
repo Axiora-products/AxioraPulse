@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from core import config
 from db.database import get_db
-from db.models import UserProfile, Subscription, Plan, Survey, UserProfile
+from db.models import Subscription, Plan, Survey, UserProfile
 from dependencies import get_current_user
 
 

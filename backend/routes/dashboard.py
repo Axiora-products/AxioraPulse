@@ -11,7 +11,7 @@ from sqlalchemy import func
 from core.rate_limiter import limiter
 from db.database import get_db
 from db.models import Survey, SurveyResponse, UserProfile, ResponseStatusEnum, SurveyStatusEnum , SurveyQuestion
-from schemas import DashboardStats, RecentSurvey
+from schemas import DashboardStats
 from dependencies import get_current_user
 from fastapi import Request
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -62,7 +62,7 @@ def dashboard_stats(
 
     team_members = (
         db.query(func.count(UserProfile.id))
-        .filter(UserProfile.tenant_id == tid, UserProfile.is_active == True)
+        .filter(UserProfile.tenant_id == tid, UserProfile.is_active)
         .scalar() or 0
     )
 
@@ -103,7 +103,6 @@ def recent_surveys(
             .filter(SurveyResponse.survey_id == sv.id)
             .scalar() or 0
         )
-        from db.models import SurveyQuestion
         q_count = db.query(func.count(SurveyQuestion.id)).filter(SurveyQuestion.survey_id == sv.id).scalar() or 0
         
         result.append({

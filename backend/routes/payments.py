@@ -50,7 +50,7 @@ def _razorpay_client() -> razorpay.Client:
 @router.get("/plans", response_model=List[PlanOut])
 def list_plans(db: Session = Depends(get_db)):
     """Return all active plans. Used by the pricing page (no auth required)."""
-    plans = db.query(Plan).filter(Plan.is_active == True).order_by(Plan.price_paise).all()
+    plans = db.query(Plan).filter(Plan.is_active).order_by(Plan.price_paise).all()
     return [PlanOut.model_validate(p) for p in plans]
 
 
@@ -66,7 +66,7 @@ def create_order(
     Create a Razorpay order for the requested plan.
     Returns the order_id and key_id needed by the frontend Razorpay checkout widget.
     """
-    plan = db.query(Plan).filter(Plan.code == body.plan_code, Plan.is_active == True).first()
+    plan = db.query(Plan).filter(Plan.code == body.plan_code, Plan.is_active).first()
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
 
@@ -142,7 +142,7 @@ def verify_payment(
     if not payment:
         raise HTTPException(status_code=404, detail="Payment record not found")
 
-    plan = db.query(Plan).filter(Plan.code == body.plan_code, Plan.is_active == True).first()
+    plan = db.query(Plan).filter(Plan.code == body.plan_code, Plan.is_active).first()
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
 
