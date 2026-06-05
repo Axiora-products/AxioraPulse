@@ -14,6 +14,8 @@ on:
       - main
       - develop
     paths:
+      - 'backend/**'
+      - 'frontend/**'
       - 'infra/cdk/**'
   workflow_dispatch:
     inputs:
@@ -29,68 +31,65 @@ on:
 jobs:
   # 1. Quality Gate
   ci-quality-gate:
-    uses: ./.github/workflows/templates/ci-quality-gate.yml
+    uses: ./.github/workflows/reusable-ci-quality-gate.yml
     with:
       check_backend: true
       check_frontend: true
 
-  # 2. CDK Diff as a Gate (For Pull Requests)
+  # 2. CDK Diff (For PRs or Manual Checks)
   cdk-diff-qa:
     needs: ci-quality-gate
     if: github.event_name == 'pull_request'
-    uses: ./.github/workflows/templates/cdk-diff.yml
+    uses: ./.github/workflows/reusable-cdk-diff.yml
     with:
       environment: qa
-    secrets:
-      AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+    secrets: inherit
 
-  # 3. Deploy to QA (Auto-deploy on push to develop/main)
+  # 3. QA Environment Deployment
   deploy-qa-infra:
     needs: ci-quality-gate
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-    uses: ./.github/workflows/templates/cdk-deploy.yml
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.target_env == 'qa')
+    uses: ./.github/workflows/reusable-cdk-deploy.yml
     with:
       environment: qa
-    secrets:
-      AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+    secrets: inherit
 
-  deploy-qa-backend:
+  deploy-qa-app-backend:
     needs: deploy-qa-infra
-    uses: ./.github/workflows/templates/app-deploy.yml
+    uses: ./.github/workflows/reusable-app-deploy.yml
     with:
       environment: qa
       component: backend
     secrets: inherit
 
-  deploy-qa-frontend:
+  deploy-qa-app-frontend:
     needs: deploy-qa-infra
-    uses: ./.github/workflows/templates/app-deploy.yml
+    uses: ./.github/workflows/reusable-app-deploy.yml
     with:
       environment: qa
       component: frontend
     secrets: inherit
 
-  # 4. Deploy to PROD (Requires Manual Approval via GitHub Environment)
+  # 4. Production Environment Deployment
   deploy-prod-infra:
-    needs: [deploy-qa-backend, deploy-qa-frontend]
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.target_env == 'prod')
-    uses: ./.github/workflows/templates/cdk-deploy.yml
+    needs: [deploy-qa-app-backend, deploy-qa-app-frontend]
+    if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && inputs.target_env == 'prod')
+    uses: ./.github/workflows/reusable-cdk-deploy.yml
     with:
       environment: prod
-    secrets:
-      AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+    secrets: inherit
 
-  deploy-prod-backend:
+  deploy-prod-app-backend:
     needs: deploy-prod-infra
-    uses: ./.github/workflows/templates/app-deploy.yml
+    uses: ./.github/workflows/reusable-app-deploy.yml
     with:
       environment: prod
       component: backend
     secrets: inherit
 
-  deploy-prod-frontend:
+  deploy-prod-app-frontend:
     needs: deploy-prod-infra
-    uses: ./.github/workflows/templates/app-deploy.yml
+    uses: ./.github/workflows/reusable-app-deploy.yml
     with:
       environment: prod
       component: frontend
