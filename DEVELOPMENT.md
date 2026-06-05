@@ -144,8 +144,17 @@ The orchestrator automatically maps branches to target profiles and SSM credenti
    git push origin develop
    ```
 
+### 4. Local Pre-Commit Hooks
+To catch linting and formatting issues locally before they reach the GitHub repository (saving pipeline minutes), you should enable the configured pre-commit hooks:
 
+1. **Install pre-commit**:
+   ```bash
+   pip install pre-commit
+   ```
+2. **Install the git hook**:
+   Run this from the root of the project:
+   ```bash
+   pre-commit install
+   ```
 
-
-
-
+Now, every time you run `git commit`, Ruff will run automatically. If it finds any auto-fixable linting issues or formatting inconsistencies, it will fix them on the fly and prompt you to stage the changes and commit again.
