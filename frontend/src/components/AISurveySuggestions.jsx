@@ -111,7 +111,7 @@ export default function AISurveySuggestions({ survey, questions = [], onAdd, tc 
     if (!survey?.title) return null;
     return (
       <div style={{ marginTop: 8, textAlign: 'center' }}>
-        <button onClick={fetchSuggestions} disabled={state === 'loading'}
+        <button id="ai-suggestions-trigger-btn" onClick={fetchSuggestions} disabled={state === 'loading'}
           style={{ fontFamily:'Syne,sans-serif', fontSize:9, fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase', color:'rgba(22,15,8,0.3)', background:'none', border:'none', cursor:'pointer', transition:'color 0.2s', padding:'6px 0', display:'inline-flex', alignItems:'center', gap:6 }}
           onMouseEnter={e=>e.currentTarget.style.color='var(--coral)'}
           onMouseLeave={e=>e.currentTarget.style.color='rgba(22,15,8,0.3)'}>
@@ -145,13 +145,13 @@ export default function AISurveySuggestions({ survey, questions = [], onAdd, tc 
             <span style={{ fontFamily:'Syne,sans-serif', fontWeight:700, fontSize:10, letterSpacing:'0.14em', textTransform:'uppercase', color:'var(--coral)' }}>AI Suggestions</span>
           </div>
           <div style={{ display:'flex', gap:10 }}>
-            <button onClick={fetchSuggestions}
+            <button id="ai-suggestions-refresh-btn" onClick={fetchSuggestions}
               style={{ fontFamily:'Syne,sans-serif', fontSize:9, fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', color:'rgba(22,15,8,0.3)', background:'none', border:'none', cursor:'pointer', transition:'color 0.2s', padding:0 }}
               onMouseEnter={e=>e.currentTarget.style.color='var(--coral)'}
               onMouseLeave={e=>e.currentTarget.style.color='rgba(22,15,8,0.3)'}>
               Refresh ↺
             </button>
-            <button onClick={dismiss}
+            <button id="ai-suggestions-dismiss-btn" onClick={dismiss}
               style={{ background:'none', border:'none', cursor:'pointer', color:'rgba(22,15,8,0.25)', fontSize:14, lineHeight:1, transition:'color 0.15s', padding:0 }}
               onMouseEnter={e=>e.currentTarget.style.color='rgba(22,15,8,0.5)'}
               onMouseLeave={e=>e.currentTarget.style.color='rgba(22,15,8,0.25)'}>✕</button>
@@ -164,7 +164,7 @@ export default function AISurveySuggestions({ survey, questions = [], onAdd, tc 
             const isAdded = added.has(sug.text);
             const typeInfo = SUGGESTION_TYPES[sug.type] || { label: sug.type, emoji: '?' };
             return (
-              <motion.div key={i}
+              <motion.div id={`ai-suggestion-card-${i}`} key={i}
                 initial={{ opacity:0, x:-6 }} animate={{ opacity:1, x:0 }} transition={{ delay: i * 0.05 }}
                 style={{ display:'flex', alignItems:'flex-start', gap:12, padding:'14px 16px', borderRadius:14, background:'var(--warm-white)', border:`1px solid ${isAdded ? 'rgba(30,122,74,0.2)' : 'rgba(22,15,8,0.08)'}`, transition:'border-color 0.2s' }}>
 
@@ -196,6 +196,7 @@ export default function AISurveySuggestions({ survey, questions = [], onAdd, tc 
 
                 {/* Add button */}
                 <motion.button
+                  id={`ai-suggestion-add-btn-${i}`}
                   whileHover={{ scale: isAdded ? 1 : 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   disabled={isAdded}

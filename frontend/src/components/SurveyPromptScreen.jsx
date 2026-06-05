@@ -362,6 +362,7 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
       <div className="cp-prompt-wrap">
         <div className="cp-prompt-box">
           <textarea
+            id="prompt-textarea"
             ref={textareaRef}
             className="cp-textarea"
             value={prompt}
@@ -412,6 +413,7 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
             {/* Upload Files */}
             <div className="cp-mode-selector" ref={uploadRef}>
               <button
+                id="attachment-upload-btn"
                 type="button"
                 className={`cp-tool-btn premium-upload-btn ${uploadOpen ? ' open' : ''}`}
                 onClick={() => setUploadOpen(o => !o)}
@@ -463,6 +465,7 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
 
                   {/* MY FOLDER */}
                   <button
+                    id="my-folder-toggle-btn"
                     type="button"
                     className={`cp-mode-option premium-option ${myFolderView ? ' active' : ''}`}
                     onClick={(e) => {
@@ -584,6 +587,7 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
 
                   {/* DRIVE */}
                   <button
+                    id="upload-from-drive-btn"
                     type="button"
                     className="cp-mode-option premium-option"
                     onClick={handleOpenPicker}
@@ -606,6 +610,7 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
 
                   {/* LOCAL */}
                   <button
+                    id="upload-from-local-btn"
                     type="button"
                     className="cp-mode-option premium-option"
                     onClick={() => {
@@ -642,6 +647,7 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
             </div>
             {/* Record/Upload Audio */}
             <button
+              id="voice-record-btn"
               type="button"
               className={`cp-tool-btn ${isRecording ? "recording" : ""}`}
               onClick={isRecording ? stopRecording : startRecording}
@@ -684,6 +690,7 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
             {/* Survey Mode Selector */}
             <div className="cp-mode-selector" ref={modeRef}>
               <button
+                id="survey-mode-selector-btn"
                 type="button"
                 className={`cp-mode-pill${modeOpen ? ' open' : ''}`}
                 onClick={() => setModeOpen(o => !o)}
@@ -699,6 +706,7 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
                 <div className="cp-mode-dropdown">
                   {SURVEY_MODES.map(mode => (
                     <button
+                      id={`survey-mode-option-${mode.id}`}
                       key={mode.id}
                       className={`cp-mode-option${selectedMode.id === mode.id ? ' active' : ''}`}
                       onClick={() => { setSelectedMode(mode); setModeOpen(false); }}
@@ -735,6 +743,7 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
 
             {/* Submit */}
             <button
+              id="generate-survey-btn"
               type="button"
               className={`cp-submit-btn${aiGenerating ? ' generating' : ''}`}
               onClick={handleSubmit}
@@ -767,6 +776,7 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
           {selectedMode.id === 'custom' && (
             <div className="cp-custom-mode">
               <textarea
+                id="custom-mode-instructions-textarea"
                 value={customInstruction}
                 onChange={e => setCustomInstruction(e.target.value)}
                 placeholder="Describe the tone, depth, question style, engagement level, or structure you want..."
@@ -784,6 +794,7 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
         <div className="cp-chips-row">
           {QUICK_TEMPLATES.map(t => (
             <button
+              id={`template-chip-${t.name.toLowerCase().replace(/\s+/g, '-')}`}
               key={t.name}
               type="button"
               className="cp-chip"
@@ -798,7 +809,7 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
 
       {/* Skip link */}
       <div className="cp-skip">
-        <button type="button" className="cp-skip-btn" onClick={onSkip}>
+        <button id="skip-to-manual-builder-btn" type="button" className="cp-skip-btn" onClick={onSkip}>
           Skip, build manually
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M5 12h14M12 5l7 7-7 7" />

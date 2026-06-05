@@ -139,6 +139,7 @@ export default function ConfirmModal({
                   {prompt.label}
                 </label>
                 <input
+                  id="confirm-modal-input"
                   ref={inputRef}
                   type={prompt.type || 'text'}
                   value={inputVal}
@@ -166,6 +167,7 @@ export default function ConfirmModal({
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
               {!alert && (
                 <button
+                  id="confirm-modal-cancel-btn"
                   onClick={onClose}
                   style={{
                     padding: '11px 22px',
@@ -187,6 +189,7 @@ export default function ConfirmModal({
                 </button>
               )}
               <button
+                id="confirm-modal-confirm-btn"
                 onClick={handleConfirm}
                 style={{
                   padding: '11px 24px',

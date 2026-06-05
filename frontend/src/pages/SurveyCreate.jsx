@@ -39,7 +39,7 @@ function QCardCreate({ q, i, tc, qs, sQ, delQ, moveQ, addOpt, sOpt, delOpt }) {
 
   return (
     <Reorder.Item value={q} dragControls={dragControls} dragListener={false} style={{ listStyle: 'none' }}>
-      <div className="q-card" style={{ background: 'var(--warm-white)', borderRadius: 24, border: '1.5px solid rgba(22,15,8,0.07)', overflow: 'visible', position: 'relative', transition: 'border-color 0.25s,box-shadow 0.25s', zIndex: typeOpen ? 100 : 1 }}>
+      <div id={`question-card-${i}`} className="q-card" style={{ background: 'var(--warm-white)', borderRadius: 24, border: '1.5px solid rgba(22,15,8,0.07)', overflow: 'visible', position: 'relative', transition: 'border-color 0.25s,box-shadow 0.25s', zIndex: typeOpen ? 100 : 1 }}>
         <div className="q-accent" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: `linear-gradient(180deg,${tc},${tc}40)`, opacity: 0.4, transition: 'opacity 0.25s', borderTopLeftRadius: 24, borderBottomLeftRadius: 24 }} />
         <div className="q-ghost-num" style={{ position: 'absolute', right: 18, bottom: -16, fontFamily: "'Playfair Display',serif", fontWeight: 900, fontSize: 110, color: 'rgba(22,15,8,0.04)', lineHeight: 1, letterSpacing: '-6px', userSelect: 'none', pointerEvents: 'none' }}>
           {String(i + 1).padStart(2, '0')}
@@ -47,7 +47,7 @@ function QCardCreate({ q, i, tc, qs, sQ, delQ, moveQ, addOpt, sOpt, delOpt }) {
         <div style={{ padding: '24px 28px 22px 32px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div className="drag-handle" onPointerDown={e => { e.preventDefault(); dragControls.start(e); }} title="Drag to reorder"
+              <div id={`question-card-${i}-drag-handle`} className="drag-handle" onPointerDown={e => { e.preventDefault(); dragControls.start(e); }} title="Drag to reorder"
                 style={{ cursor: 'grab', padding: '4px 6px', borderRadius: 8, color: 'rgba(22,15,8,0.2)', display: 'flex', alignItems: 'center', transition: 'all 0.15s', touchAction: 'none' }}
                 onMouseEnter={e => { e.currentTarget.style.background = 'var(--cream-deep)'; e.currentTarget.style.color = 'rgba(22,15,8,0.5)'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'rgba(22,15,8,0.2)'; }}>
@@ -62,28 +62,28 @@ function QCardCreate({ q, i, tc, qs, sQ, delQ, moveQ, addOpt, sOpt, delOpt }) {
             </div>
             <div style={{ display: 'flex', gap: 2 }}>
               {[[-1, '\u2191'], [1, '\u2193']].map(([d, sym]) => (
-                <button key={d} onClick={() => moveQ(q._id, d)} disabled={(d === -1 && i === 0) || (d === 1 && i === qs.length - 1)} className="np-icon-btn"
+                <button id={`question-card-${i}-move-${d === -1 ? 'up' : 'down'}`} key={d} onClick={() => moveQ(q._id, d)} disabled={(d === -1 && i === 0) || (d === 1 && i === qs.length - 1)} className="np-icon-btn"
                   style={{ width: 30, height: 30, borderRadius: 9, border: 'none', background: 'none', cursor: 'pointer', color: 'rgba(22,15,8,0.25)', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s', opacity: (d === -1 && i === 0) || (d === 1 && i === qs.length - 1) ? 0.18 : 1 }}
                   onMouseEnter={e => { e.currentTarget.style.background = 'var(--cream-deep)'; e.currentTarget.style.color = 'var(--espresso)'; }}
                   onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'rgba(22,15,8,0.25)'; }}>
                   {sym}
                 </button>
               ))}
-              <button onClick={() => delQ(q._id)} className="np-icon-btn" style={{ width: 30, height: 30, borderRadius: 9, border: 'none', background: 'none', cursor: 'pointer', color: 'rgba(22,15,8,0.2)', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}
+              <button id={`question-card-${i}-delete`} onClick={() => delQ(q._id)} className="np-icon-btn" style={{ width: 30, height: 30, borderRadius: 9, border: 'none', background: 'none', cursor: 'pointer', color: 'rgba(22,15,8,0.2)', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}
                 onMouseEnter={e => { e.currentTarget.style.background = 'rgba(214,59,31,0.08)'; e.currentTarget.style.color = 'var(--terracotta)'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'rgba(22,15,8,0.2)'; }}>{String.fromCharCode(0x2715)}</button>
             </div>
           </div>
 
-          <input value={q.question_text} onChange={e => sQ(q._id, 'question_text', e.target.value)} placeholder="Type your question here\u2026"
+          <input id={`question-card-${i}-text-input`} value={q.question_text} onChange={e => sQ(q._id, 'question_text', e.target.value)} placeholder="Type your question here\u2026"
             style={{ ...INP, fontSize: 17, padding: '14px 18px', background: 'rgba(253,245,232,0.55)', border: '1.5px solid rgba(22,15,8,0.07)', marginBottom: 10, borderRadius: 16 }} onFocus={fi} onBlur={fo} />
 
-          <input value={q.description || ''} onChange={e => sQ(q._id, 'description', e.target.value)} placeholder="Description or helper text (optional)"
+          <input id={`question-card-${i}-description-input`} value={q.description || ''} onChange={e => sQ(q._id, 'description', e.target.value)} placeholder="Description or helper text (optional)"
             style={{ ...INP, fontSize: 13, color: 'rgba(22,15,8,0.45)', padding: '10px 16px', background: 'transparent', border: '1.5px solid rgba(22,15,8,0.06)', marginBottom: 16, borderRadius: 13 }} onFocus={fi} onBlur={fo} />
 
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
             <div style={{ flex: 1, position: 'relative' }} ref={typeRef}>
-              <button onClick={() => setTypeOpen(o => !o)}
+              <button id={`question-card-${i}-type-selector`} onClick={() => setTypeOpen(o => !o)}
                 style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', background: 'var(--cream-deep)', border: '1.5px solid rgba(22,15,8,0.1)', borderRadius: 13, cursor: 'pointer', fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--espresso)', transition: 'border-color 0.2s', textAlign: 'left' }}>
                 <span style={{ width: 26, height: 26, borderRadius: 8, background: `${tc}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0, color: tc }}>{currentType?.icon}</span>
                 <span style={{ flex: 1 }}>{currentType?.label}</span>
@@ -92,7 +92,7 @@ function QCardCreate({ q, i, tc, qs, sQ, delQ, moveQ, addOpt, sOpt, delOpt }) {
               {typeOpen && (
                 <div style={{ position: 'absolute', left: 0, right: 0, top: 'calc(100% + 6px)', zIndex: 100, background: 'var(--espresso)', borderRadius: 16, padding: 6, boxShadow: '0 24px 60px rgba(22,15,8,0.3)', maxHeight: 280, overflowY: 'auto' }}>
                   {QUESTION_TYPES.map(t => (
-                    <button key={t.value}
+                    <button id={`question-card-${i}-type-option-${t.value}`} key={t.value}
                       onClick={() => { sQ(q._id, 'question_type', t.value); setTypeOpen(false); }}
                       style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', background: 'none', border: 'none', cursor: 'pointer', borderRadius: 10, transition: 'background 0.12s', color: t.value === q.question_type ? 'var(--coral)' : 'rgba(253,245,232,0.75)', textAlign: 'left' }}
                       onMouseEnter={e => e.currentTarget.style.background = 'rgba(253,245,232,0.08)'}
@@ -106,7 +106,7 @@ function QCardCreate({ q, i, tc, qs, sQ, delQ, moveQ, addOpt, sOpt, delOpt }) {
               )}
             </div>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', flexShrink: 0, userSelect: 'none' }}>
-              <div onClick={() => sQ(q._id, 'is_required', !q.is_required)}
+              <div id={`question-card-${i}-required-toggle`} onClick={() => sQ(q._id, 'is_required', !q.is_required)}
                 style={{ width: 38, height: 22, borderRadius: 999, background: q.is_required ? tc : 'rgba(22,15,8,0.12)', position: 'relative', transition: 'background 0.25s', cursor: 'pointer' }}>
                 <div style={{ position: 'absolute', width: 16, height: 16, borderRadius: '50%', background: '#fff', top: 3, left: q.is_required ? 19 : 3, transition: 'left 0.25s', boxShadow: '0 1px 4px rgba(22,15,8,0.2)' }} />
               </div>
@@ -120,16 +120,16 @@ function QCardCreate({ q, i, tc, qs, sQ, delQ, moveQ, addOpt, sOpt, delOpt }) {
                 {(q.options || []).map((o, j) => (
                   <div key={j} className="opt-row" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px 4px 14px', borderRadius: 12, border: '1.5px solid rgba(22,15,8,0.07)', background: 'rgba(253,245,232,0.5)', transition: 'all 0.15s' }}>
                     <div style={{ width: 10, height: 10, borderRadius: '50%', border: `2px solid ${tc}55`, flexShrink: 0, background: `${tc}15` }} />
-                    <input value={o.label} onChange={e => sOpt(q._id, j, e.target.value)} placeholder={`Option ${j + 1}`} className="opt-input" />
-                    <button onClick={() => delOpt(q._id, j)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(22,15,8,0.18)', fontSize: 12, padding: 4, transition: 'color 0.15s', lineHeight: 1 }}
+                    <input id={`question-card-${i}-option-${j}-input`} value={o.label} onChange={e => sOpt(q._id, j, e.target.value)} placeholder={`Option ${j + 1}`} className="opt-input" />
+                    <button id={`question-card-${i}-option-${j}-delete`} onClick={() => delOpt(q._id, j)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(22,15,8,0.18)', fontSize: 12, padding: 4, transition: 'color 0.15s', lineHeight: 1 }}
                       onMouseEnter={e => e.currentTarget.style.color = 'var(--terracotta)'} onMouseLeave={e => e.currentTarget.style.color = 'rgba(22,15,8,0.18)'}>{String.fromCharCode(0x2715)}</button>
                   </div>
                 ))}
               </div>
               {q.question_type === 'visual_choice' && (q.options || []).map((o, j) => (
-                <input key={`img-${j}`} value={o.image_url || ''} onChange={e => sOpt(q._id, j, o.label, e.target.value)} placeholder={`Image URL for option ${j + 1}`} style={{ ...INP, marginTop: 8, padding: '9px 13px', fontSize: 12, borderRadius: 12 }} onFocus={fi} onBlur={fo} />
+                <input id={`question-card-${i}-option-${j}-image-url-input`} key={`img-${j}`} value={o.image_url || ''} onChange={e => sOpt(q._id, j, o.label, e.target.value)} placeholder={`Image URL for option ${j + 1}`} style={{ ...INP, marginTop: 8, padding: '9px 13px', fontSize: 12, borderRadius: 12 }} onFocus={fi} onBlur={fo} />
               ))}
-              <button onClick={() => addOpt(q._id)} style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: "'Syne',sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: tc, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', transition: 'opacity 0.15s' }}>
+              <button id={`question-card-${i}-add-option`} onClick={() => addOpt(q._id)} style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: "'Syne',sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: tc, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', transition: 'opacity 0.15s' }}>
                 <span style={{ width: 18, height: 18, borderRadius: 6, background: `${tc}14`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>+</span>
                 Add option
               </button>
@@ -147,16 +147,16 @@ function QCardCreate({ q, i, tc, qs, sQ, delQ, moveQ, addOpt, sOpt, delOpt }) {
             const delCol = ci => setMx({ ...mxData, columns: (mxData.columns || []).filter((_, j) => j !== ci) });
             return (
               <div className="mx-grid" style={{ marginTop: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
-                {[['Rows', mxData.rows || [], addRow, updRow, delRow], ['Columns', mxData.columns || [], addCol, updCol, delCol]].map(([lbl, items, add, upd, del]) => (
+                {[['rows', mxData.rows || [], addRow, updRow, delRow], ['columns', mxData.columns || [], addCol, updCol, delCol]].map(([lbl, items, add, upd, del]) => (
                   <div key={lbl}>
                     <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.38)', marginBottom: 10 }}>{lbl}</div>
                     {items.map((r, idx) => (
                       <div key={idx} style={{ display: 'flex', gap: 7, marginBottom: 7 }}>
-                        <input value={r.label} onChange={e => upd(idx, e.target.value)} placeholder={`${lbl.slice(0, -1)} ${idx + 1}`} style={{ ...INP, flex: 1, padding: '9px 13px', fontSize: 13, borderRadius: 12 }} onFocus={fi} onBlur={fo} />
-                        <button onClick={() => del(idx)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(22,15,8,0.2)', fontSize: 12, padding: '0 4px' }} onMouseEnter={e => e.currentTarget.style.color = 'var(--terracotta)'} onMouseLeave={e => e.currentTarget.style.color = 'rgba(22,15,8,0.2)'}>{String.fromCharCode(0x2715)}</button>
+                        <input id={`question-card-${i}-${lbl}-input-${idx}`} value={r.label} onChange={e => upd(idx, e.target.value)} placeholder={`${lbl.slice(0, -1)} ${idx + 1}`} style={{ ...INP, flex: 1, padding: '9px 13px', fontSize: 13, borderRadius: 12 }} onFocus={fi} onBlur={fo} />
+                        <button id={`question-card-${i}-${lbl}-delete-${idx}`} onClick={() => del(idx)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(22,15,8,0.2)', fontSize: 12, padding: '0 4px' }} onMouseEnter={e => e.currentTarget.style.color = 'var(--terracotta)'} onMouseLeave={e => e.currentTarget.style.color = 'rgba(22,15,8,0.2)'}>{String.fromCharCode(0x2715)}</button>
                       </div>
                     ))}
-                    <button onClick={add} style={{ fontFamily: "'Syne',sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: tc, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0' }}>+ Add {lbl.slice(0, -1).toLowerCase()}</button>
+                    <button id={`question-card-${i}-${lbl}-add-btn`} onClick={add} style={{ fontFamily: "'Syne',sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: tc, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0' }}>+ Add {lbl.slice(0, -1).toLowerCase()}</button>
                   </div>
                 ))}
               </div>
@@ -504,7 +504,7 @@ export default function SurveyCreate() {
 
       {/* ── OVERWRITE CONFIRMATION MODAL ── */}
       {showConfirm && (
-        <div style={{ position:'fixed',inset:0,zIndex:9999,background:'rgba(22,15,8,0.6)',backdropFilter:'blur(8px)',display:'flex',alignItems:'center',justifyContent:'center',padding:24 }}>
+        <div id="confirm-overwrite-overlay" style={{ position:'fixed',inset:0,zIndex:9999,background:'rgba(22,15,8,0.6)',backdropFilter:'blur(8px)',display:'flex',alignItems:'center',justifyContent:'center',padding:24 }}>
           <div style={{ background:'var(--warm-white)',borderRadius:24,padding:32,width:'100%',maxWidth:480,boxShadow:'0 32px 80px rgba(22,15,8,0.2)' }}>
             <div style={{ width: 48, height: 48, borderRadius: 16, background: 'rgba(214,59,31,0.1)', color: 'var(--terracotta)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, marginBottom: 20 }}>⚠️</div>
             <h3 style={{ fontFamily:"'Playfair Display',serif",fontWeight:900,fontSize:24,margin:'0 0 12px 0',color:'var(--espresso)' }}>Overwrite existing survey?</h3>
@@ -512,8 +512,8 @@ export default function SurveyCreate() {
               This will replace your current survey title, description, welcome message, and all questions with the newly AI-generated ones. This action cannot be undone.
             </p>
             <div style={{ display:'flex',gap:12,justifyContent:'flex-end' }}>
-              <button onClick={() => { setShowConfirm(false); setPendingGen(null); }} style={{ padding:'12px 24px',borderRadius:999,border:'1.5px solid rgba(22,15,8,0.1)',background:'transparent',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:11,letterSpacing:'0.1em',textTransform:'uppercase',color:'rgba(22,15,8,0.5)',cursor:'pointer' }}>Cancel</button>
-              <button onClick={() => applyAIGeneration(pendingGen)} style={{ padding:'12px 24px',borderRadius:999,border:'none',background:'var(--terracotta)',color:'#fff',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:11,letterSpacing:'0.1em',textTransform:'uppercase',cursor:'pointer' }}>Replace Everything</button>
+              <button id="confirm-overwrite-cancel" onClick={() => { setShowConfirm(false); setPendingGen(null); }} style={{ padding:'12px 24px',borderRadius:999,border:'1.5px solid rgba(22,15,8,0.1)',background:'transparent',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:11,letterSpacing:'0.1em',textTransform:'uppercase',color:'rgba(22,15,8,0.5)',cursor:'pointer' }}>Cancel</button>
+              <button id="confirm-overwrite-replace" onClick={() => applyAIGeneration(pendingGen)} style={{ padding:'12px 24px',borderRadius:999,border:'none',background:'var(--terracotta)',color:'#fff',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:11,letterSpacing:'0.1em',textTransform:'uppercase',cursor:'pointer' }}>Replace Everything</button>
             </div>
           </div>
         </div>
@@ -521,7 +521,7 @@ export default function SurveyCreate() {
 
       {/* ── TEMPLATE GALLERY MODAL ── */}
       {showTemplates && (
-        <div style={{ position:'fixed',inset:0,zIndex:9000,background:'rgba(22,15,8,0.72)',backdropFilter:'blur(16px)',display:'flex',alignItems:'center',justifyContent:'center',padding:24 }}
+        <div id="template-gallery-overlay" style={{ position:'fixed',inset:0,zIndex:9000,background:'rgba(22,15,8,0.72)',backdropFilter:'blur(16px)',display:'flex',alignItems:'center',justifyContent:'center',padding:24 }}
           onClick={e => { if (e.target === e.currentTarget) setShowTemplates(false); }}>
           <div style={{ background:'var(--warm-white)',borderRadius:32,width:'100%',maxWidth:940,maxHeight:'90vh',display:'flex',flexDirection:'column',boxShadow:'0 64px 160px rgba(22,15,8,0.45)',overflow:'hidden' }}>
             <div style={{ flexShrink:0, borderBottom:'1px solid rgba(22,15,8,0.07)', position:'relative', overflow:'hidden' }}>
@@ -536,13 +536,13 @@ export default function SurveyCreate() {
                   <h2 style={{ fontFamily:"'Playfair Display',serif",fontWeight:900,fontSize:32,letterSpacing:'-1.5px',margin:0,color:'var(--espresso)',lineHeight:1 }}>Template Gallery</h2>
                   <p style={{ fontFamily:"'Fraunces',serif",fontWeight:300,fontSize:14,color:'rgba(22,15,8,0.4)',marginTop:10,marginBottom:0,lineHeight:1.6 }}>Validated survey frameworks. Load and customise in seconds.</p>
                 </div>
-                <button onClick={() => setShowTemplates(false)} style={{ width:40,height:40,borderRadius:14,border:'1.5px solid rgba(22,15,8,0.1)',background:'var(--cream)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:'rgba(22,15,8,0.4)',fontSize:15,transition:'all 0.15s',flexShrink:0 }}
+                <button id="template-gallery-close" onClick={() => setShowTemplates(false)} style={{ width:40,height:40,borderRadius:14,border:'1.5px solid rgba(22,15,8,0.1)',background:'var(--cream)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:'rgba(22,15,8,0.4)',fontSize:15,transition:'all 0.15s',flexShrink:0 }}
                   onMouseEnter={e=>{e.currentTarget.style.background='var(--cream-deep)';e.currentTarget.style.color='var(--espresso)';}}
                   onMouseLeave={e=>{e.currentTarget.style.background='var(--cream)';e.currentTarget.style.color='rgba(22,15,8,0.4)';}}>✕</button>
               </div>
               <div style={{ display:'flex',gap:0,padding:'0 40px',position:'relative',zIndex:1 }}>
                 {[['gallery','Gallery'],['mine',`My Templates${customTemplates.length?` (${customTemplates.length})`:''}`]].map(([id,lbl]) => (
-                  <button key={id} onClick={() => setTmplTab(id)}
+                  <button id={`template-gallery-tab-${id}`} key={id} onClick={() => setTmplTab(id)}
                     style={{ fontFamily:"'Syne',sans-serif",fontSize:10,fontWeight:700,letterSpacing:'0.14em',textTransform:'uppercase',padding:'12px 20px',border:'none',background:'none',cursor:'pointer',color:tmplTab===id?'var(--espresso)':'rgba(22,15,8,0.35)',borderBottom:tmplTab===id?'2px solid var(--coral)':'2px solid transparent',transition:'all 0.2s',marginBottom:'-1px' }}>
                     {lbl}
                   </button>
@@ -587,7 +587,7 @@ export default function SurveyCreate() {
               {tmplTab === 'mine' && (
                 <>
                   {!showCreateTmpl ? (
-                    <button onClick={() => setShowCreateTmpl(true)} style={{ display:'flex',alignItems:'center',gap:10,padding:'16px 22px',borderRadius:18,border:'1.5px dashed rgba(22,15,8,0.16)',background:'transparent',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:10,letterSpacing:'0.12em',textTransform:'uppercase',color:'rgba(22,15,8,0.4)',cursor:'pointer',transition:'all 0.2s',marginBottom:24 }}
+                    <button id="save-as-template-prompt-btn" onClick={() => setShowCreateTmpl(true)} style={{ display:'flex',alignItems:'center',gap:10,padding:'16px 22px',borderRadius:18,border:'1.5px dashed rgba(22,15,8,0.16)',background:'transparent',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:10,letterSpacing:'0.12em',textTransform:'uppercase',color:'rgba(22,15,8,0.4)',cursor:'pointer',transition:'all 0.2s',marginBottom:24 }}
                       onMouseEnter={e=>{e.currentTarget.style.borderColor=tc;e.currentTarget.style.color=tc;e.currentTarget.style.background=`${tc}05`;}}
                       onMouseLeave={e=>{e.currentTarget.style.borderColor='rgba(22,15,8,0.16)';e.currentTarget.style.color='rgba(22,15,8,0.4)';e.currentTarget.style.background='transparent';}}>
                       <span style={{ width:24,height:24,borderRadius:8,border:'1.5px solid currentColor',display:'flex',alignItems:'center',justifyContent:'center',fontSize:15,flexShrink:0 }}>+</span>
@@ -597,14 +597,14 @@ export default function SurveyCreate() {
                     <div style={{ background:'var(--cream)',borderRadius:22,padding:28,border:'1.5px solid rgba(22,15,8,0.1)',marginBottom:24 }}>
                       <div style={{ fontFamily:"'Playfair Display',serif",fontWeight:900,fontSize:22,letterSpacing:'-0.5px',color:'var(--espresso)',marginBottom:22 }}>Create Template</div>
                       <div style={{ display:'flex',flexDirection:'column',gap:16 }}>
-                        <div><label style={LBL}>Template Name *</label><input value={tmplName} onChange={e=>setTmplName(e.target.value)} placeholder="e.g. Quarterly Customer Pulse" style={INP} onFocus={fi} onBlur={fo}/></div>
+                        <div><label style={LBL}>Template Name *</label><input id="template-name-input" value={tmplName} onChange={e=>setTmplName(e.target.value)} placeholder="e.g. Quarterly Customer Pulse" style={INP} onFocus={fi} onBlur={fo}/></div>
                         <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:14 }}>
-                          <div><label style={LBL}>Category</label><input value={tmplNewCat||tmplCat} onChange={e=>{setTmplNewCat(e.target.value);setTmplCat('');}} placeholder="e.g. Customer" style={INP} onFocus={fi} onBlur={fo}/></div>
-                          <div><label style={LBL}>Description</label><input value={tmplDesc} onChange={e=>setTmplDesc(e.target.value)} placeholder="What is this template for?" style={INP} onFocus={fi} onBlur={fo}/></div>
+                          <div><label style={LBL}>Category</label><input id="template-category-input" value={tmplNewCat||tmplCat} onChange={e=>{setTmplNewCat(e.target.value);setTmplCat('');}} placeholder="e.g. Customer" style={INP} onFocus={fi} onBlur={fo}/></div>
+                          <div><label style={LBL}>Description</label><input id="template-description-input" value={tmplDesc} onChange={e=>setTmplDesc(e.target.value)} placeholder="What is this template for?" style={INP} onFocus={fi} onBlur={fo}/></div>
                         </div>
                         <div style={{ display:'flex',gap:10,justifyContent:'flex-end',paddingTop:8 }}>
-                          <button onClick={()=>setShowCreateTmpl(false)} style={{ padding:'10px 22px',borderRadius:999,border:'1.5px solid rgba(22,15,8,0.1)',background:'transparent',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:10,letterSpacing:'0.1em',textTransform:'uppercase',color:'rgba(22,15,8,0.45)',cursor:'pointer',transition:'all 0.2s' }}>Cancel</button>
-                          <button onClick={saveAsTemplate} style={{ padding:'10px 26px',borderRadius:999,border:'none',background:'var(--espresso)',color:'var(--cream)',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:10,letterSpacing:'0.12em',textTransform:'uppercase',cursor:'pointer',transition:'background 0.2s' }}
+                          <button id="template-create-cancel" onClick={()=>setShowCreateTmpl(false)} style={{ padding:'10px 22px',borderRadius:999,border:'1.5px solid rgba(22,15,8,0.1)',background:'transparent',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:10,letterSpacing:'0.1em',textTransform:'uppercase',color:'rgba(22,15,8,0.45)',cursor:'pointer',transition:'all 0.2s' }}>Cancel</button>
+                          <button id="template-create-save" onClick={saveAsTemplate} style={{ padding:'10px 26px',borderRadius:999,border:'none',background:'var(--espresso)',color:'var(--cream)',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:10,letterSpacing:'0.12em',textTransform:'uppercase',cursor:'pointer',transition:'background 0.2s' }}
                             onMouseEnter={e=>e.currentTarget.style.background=tc} onMouseLeave={e=>e.currentTarget.style.background='var(--espresso)'}>Save template</button>
                         </div>
                       </div>
@@ -670,18 +670,18 @@ export default function SurveyCreate() {
             )}
           </div>
           <div style={{ display:'flex',gap:8,flexShrink:0,flexWrap:'wrap' }}>
-            <button onClick={() => setShowTemplates(true)} style={{ display:'flex',alignItems:'center',gap:8,padding:'11px 20px',borderRadius:999,border:'1.5px solid rgba(22,15,8,0.12)',background:'rgba(255,255,255,0.6)',backdropFilter:'blur(8px)',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:10,letterSpacing:'0.12em',textTransform:'uppercase',color:'rgba(22,15,8,0.5)',cursor:'pointer',transition:'all 0.2s' }}
+            <button id="header-templates-btn" onClick={() => setShowTemplates(true)} style={{ display:'flex',alignItems:'center',gap:8,padding:'11px 20px',borderRadius:999,border:'1.5px solid rgba(22,15,8,0.12)',background:'rgba(255,255,255,0.6)',backdropFilter:'blur(8px)',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:10,letterSpacing:'0.12em',textTransform:'uppercase',color:'rgba(22,15,8,0.5)',cursor:'pointer',transition:'all 0.2s' }}
               onMouseEnter={e=>{e.currentTarget.style.borderColor='rgba(22,15,8,0.25)';e.currentTarget.style.color='var(--espresso)';e.currentTarget.style.background='rgba(255,255,255,0.9)';}}
               onMouseLeave={e=>{e.currentTarget.style.borderColor='rgba(22,15,8,0.12)';e.currentTarget.style.color='rgba(22,15,8,0.5)';e.currentTarget.style.background='rgba(255,255,255,0.6)';}}>
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
               Templates
             </button>
-            <button onClick={() => save('draft')} disabled={busy} style={{ padding:'11px 22px',borderRadius:999,border:'1.5px solid rgba(22,15,8,0.12)',background:'rgba(255,255,255,0.6)',backdropFilter:'blur(8px)',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:10,letterSpacing:'0.12em',textTransform:'uppercase',color:'rgba(22,15,8,0.5)',cursor:'pointer',transition:'all 0.2s',opacity:busy?0.45:1 }}
+            <button id="header-save-draft-btn" onClick={() => save('draft')} disabled={busy} style={{ padding:'11px 22px',borderRadius:999,border:'1.5px solid rgba(22,15,8,0.12)',background:'rgba(255,255,255,0.6)',backdropFilter:'blur(8px)',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:10,letterSpacing:'0.12em',textTransform:'uppercase',color:'rgba(22,15,8,0.5)',cursor:'pointer',transition:'all 0.2s',opacity:busy?0.45:1 }}
               onMouseEnter={e=>{if(!busy){e.currentTarget.style.borderColor='rgba(22,15,8,0.25)';e.currentTarget.style.color='var(--espresso)';e.currentTarget.style.background='rgba(255,255,255,0.9)';}}}
               onMouseLeave={e=>{e.currentTarget.style.borderColor='rgba(22,15,8,0.12)';e.currentTarget.style.color='rgba(22,15,8,0.5)';e.currentTarget.style.background='rgba(255,255,255,0.6)';}}>
               Save draft
             </button>
-            <button onClick={() => save('active')} disabled={busy} style={{ display:'flex',alignItems:'center',gap:8,padding:'11px 24px',borderRadius:999,border:'none',background:'var(--espresso)',color:'var(--cream)',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:10,letterSpacing:'0.12em',textTransform:'uppercase',cursor:'pointer',transition:'all 0.25s',opacity:busy?0.45:1,boxShadow:'0 6px 24px rgba(22,15,8,0.25)' }}
+            <button id="header-publish-btn" onClick={() => save('active')} disabled={busy} style={{ display:'flex',alignItems:'center',gap:8,padding:'11px 24px',borderRadius:999,border:'none',background:'var(--espresso)',color:'var(--cream)',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:10,letterSpacing:'0.12em',textTransform:'uppercase',cursor:'pointer',transition:'all 0.25s',opacity:busy?0.45:1,boxShadow:'0 6px 24px rgba(22,15,8,0.25)' }}
               onMouseEnter={e=>{if(!busy){e.currentTarget.style.background=tc;e.currentTarget.style.boxShadow=`0 10px 36px ${tc}50`;}}}
               onMouseLeave={e=>{e.currentTarget.style.background='var(--espresso)';e.currentTarget.style.boxShadow='0 6px 24px rgba(22,15,8,0.25)';}}>
               {busy ? 'Publishing…' : <><span>Publish</span><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></>}
@@ -691,14 +691,14 @@ export default function SurveyCreate() {
       </div>
 
       {/* ── TWO-COLUMN WORKSPACE ── */}
-      <div className="sc-grid" style={{ display:'grid',gridTemplateColumns:'1fr 300px',gap:40,alignItems:'start' }}>
+      <div id="builder-workspace" className="sc-grid" style={{ display:'grid',gridTemplateColumns:'1fr 300px',gap:40,alignItems:'start' }}>
 
         {/* LEFT — Editor */}
-        <div>
+        <div id="builder-editor-column">
           {/* ── EDITORIAL TAB NAVIGATION ── */}
           <div style={{ display:'flex',gap:0,marginBottom:40,borderBottom:'1px solid rgba(22,15,8,0.07)',position:'relative' }}>
             {TABS.map(t => (
-              <button key={t.id} onClick={() => setTab(t.id)}
+              <button id={`builder-tab-${t.id}`} key={t.id} onClick={() => setTab(t.id)}
                 className={`sc-tab-btn${tab === t.id ? ' active' : ''}`}
                 style={{ display:'flex',alignItems:'center',gap:9,padding:'14px 28px 14px 0',border:'none',background:'none',cursor:'pointer',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:10,letterSpacing:'0.14em',textTransform:'uppercase',color:tab===t.id?'var(--espresso)':'rgba(22,15,8,0.32)',transition:'color 0.2s',marginRight:4 }}>
                 <span style={{ fontFamily:"'Playfair Display',serif",fontWeight:900,fontSize:11,letterSpacing:'0.05em',color:tab===t.id?tc:'rgba(22,15,8,0.2)',transition:'color 0.2s' }}>{t.n}</span>
@@ -713,9 +713,9 @@ export default function SurveyCreate() {
 
           {/* ── DETAILS TAB ── */}
           {tab === 'details' && (
-            <div style={{ display:'flex',flexDirection:'column',gap:28 }}>
+            <div id="builder-tab-details-container" style={{ display:'flex',flexDirection:'column',gap:28 }}>
               {/* AI Context Box */}
-              <div style={{ background: 'rgba(255,69,0,0.03)', padding: 24, borderRadius: 20, border: `1.5px solid ${tc}30` }}>
+              <div id="ai-generator-section" style={{ background: 'rgba(255,69,0,0.03)', padding: 24, borderRadius: 20, border: `1.5px solid ${tc}30` }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
                   <span style={{ fontSize: 16 }}>✨</span>
                   <h3 style={{ margin: 0, fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 18, color: 'var(--espresso)' }}>AI Survey Generator</h3>
@@ -724,6 +724,7 @@ export default function SurveyCreate() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
                   <div className="cp-mode-selector" ref={modeRef}>
                     <button
+                      id="ai-mode-selector-btn"
                       type="button"
                       className={`cp-mode-pill${modeOpen ? ' open' : ''}`}
                       onClick={() => setModeOpen(o => !o)}
@@ -739,6 +740,7 @@ export default function SurveyCreate() {
                       <div className="cp-mode-dropdown" style={{ bottom: 'auto', top: 'calc(100% + 8px)' }}>
                         {SURVEY_MODES.map(mode => (
                           <button
+                            id={`ai-mode-option-${mode.id}`}
                             key={mode.id}
                             type="button"
                             className={`cp-mode-option${f.ai_mode === mode.id ? ' active' : ''}`}
@@ -761,6 +763,7 @@ export default function SurveyCreate() {
                   </div>
                 </div>
                 <textarea 
+                  id="survey-ai-context"
                   value={f.ai_context} 
                   onChange={e => s('ai_context', e.target.value)} 
                   placeholder="e.g. I need a customer satisfaction survey for my new coffee shop. Ask about coffee quality, ambiance, and service." 
@@ -771,6 +774,7 @@ export default function SurveyCreate() {
                 />
                 {f.ai_mode === 'custom' && (
                   <textarea
+                    id="survey-ai-custom-instruction"
                     value={f.ai_custom_instruction}
                     onChange={e => s('ai_custom_instruction', e.target.value)}
                     placeholder="Custom survey mode instructions: tone, depth, question style, engagement level, structure..."
@@ -782,6 +786,7 @@ export default function SurveyCreate() {
                 )}
                 <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                   <button 
+                    id="survey-ai-generate-btn"
                     onClick={handleAIGenerate} 
                     disabled={aiGenerating || !f.ai_context.trim()}
                     style={{
@@ -804,6 +809,7 @@ export default function SurveyCreate() {
                   </button>
                   {f.ai_context.trim() && (
                     <button
+                      id="survey-ai-clear-btn"
                       onClick={() => s('ai_context', '')}
                       disabled={aiGenerating}
                       style={{
@@ -822,22 +828,22 @@ export default function SurveyCreate() {
 
               <div>
                 <label style={LBL}>Survey Title *</label>
-                <input value={f.title} onChange={e=>s('title',e.target.value)} placeholder="e.g. Q3 Customer Satisfaction Study"
+                <input id="survey-title" value={f.title} onChange={e=>s('title',e.target.value)} placeholder="e.g. Q3 Customer Satisfaction Study"
                   style={{...INP,fontSize:20,fontWeight:500,padding:'18px 22px',letterSpacing:'-0.4px',borderRadius:18,background:'var(--warm-white)'}} onFocus={fi} onBlur={fo}/>
               </div>
               <div className="sc-2col" style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:22 }}>
-                <div><label style={LBL}>Description</label><textarea value={f.description} onChange={e=>s('description',e.target.value)} placeholder="What's this research about?" rows={4} style={{...INP,borderRadius:16}} onFocus={fi} onBlur={fo}/></div>
-                <div><label style={LBL}>Welcome Message</label><textarea value={f.welcome_message} onChange={e=>s('welcome_message',e.target.value)} placeholder="Shown on the landing screen before Q1" rows={4} style={{...INP,borderRadius:16}} onFocus={fi} onBlur={fo}/></div>
+                <div><label style={LBL}>Description</label><textarea id="survey-description" value={f.description} onChange={e=>s('description',e.target.value)} placeholder="What's this research about?" rows={4} style={{...INP,borderRadius:16}} onFocus={fi} onBlur={fo}/></div>
+                <div><label style={LBL}>Welcome Message</label><textarea id="survey-welcome-message" value={f.welcome_message} onChange={e=>s('welcome_message',e.target.value)} placeholder="Shown on the landing screen before Q1" rows={4} style={{...INP,borderRadius:16}} onFocus={fi} onBlur={fo}/></div>
               </div>
-              <div><label style={LBL}>Thank You Message</label><textarea value={f.thank_you_message} onChange={e=>s('thank_you_message',e.target.value)} placeholder="Shown after submission" rows={2} style={{...INP,borderRadius:16}} onFocus={fi} onBlur={fo}/></div>
+              <div><label style={LBL}>Thank You Message</label><textarea id="survey-thank-you-message" value={f.thank_you_message} onChange={e=>s('thank_you_message',e.target.value)} placeholder="Shown after submission" rows={2} style={{...INP,borderRadius:16}} onFocus={fi} onBlur={fo}/></div>
               <div className="sc-2col" style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:22 }}>
-                <div><label style={LBL}>Expires</label><input type="datetime-local" value={f.expires_at} onChange={e=>s('expires_at',e.target.value)} style={{...INP,borderRadius:16}} onFocus={fi} onBlur={fo}/></div>
+                <div><label style={LBL}>Expires</label><input id="survey-expires" type="datetime-local" value={f.expires_at} onChange={e=>s('expires_at',e.target.value)} style={{...INP,borderRadius:16}} onFocus={fi} onBlur={fo}/></div>
                 <div>
                   <label style={LBL}>Theme Colour</label>
                   <div style={{ display:'flex',gap:12,alignItems:'center' }}>
-                    <input type="color" value={f.theme_color} onChange={e=>s('theme_color',e.target.value)}
+                    <input id="survey-theme-color-picker" type="color" value={f.theme_color} onChange={e=>s('theme_color',e.target.value)}
                       style={{ width:52,height:52,borderRadius:14,border:'1.5px solid rgba(22,15,8,0.1)',cursor:'pointer',padding:4,background:'var(--warm-white)',flexShrink:0 }}/>
-                    <input value={f.theme_color} onChange={e=>s('theme_color',e.target.value)} style={{...INP,flex:1,letterSpacing:'0.05em',borderRadius:16}} onFocus={fi} onBlur={fo}/>
+                    <input id="survey-theme-color-hex" value={f.theme_color} onChange={e=>s('theme_color',e.target.value)} style={{...INP,flex:1,letterSpacing:'0.05em',borderRadius:16}} onFocus={fi} onBlur={fo}/>
                   </div>
                 </div>
               </div>
@@ -846,7 +852,7 @@ export default function SurveyCreate() {
 
           {/* ── QUESTIONS TAB ── */}
           {tab === 'questions' && (
-            <div style={{ display:'flex',flexDirection:'column',gap:16 }}>
+            <div id="builder-tab-questions-container" style={{ display:'flex',flexDirection:'column',gap:16 }}>
               <div style={{ display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))',gap:10 }}>
                 {[
                   [`${SHORT_SURVEY_RULES.defaultQuestionCount}`, 'default questions'],
@@ -860,7 +866,7 @@ export default function SurveyCreate() {
                   </div>
                 ))}
               </div>
-              <Reorder.Group axis="y" values={qs} onReorder={sQs} style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <Reorder.Group id="builder-questions-group" axis="y" values={qs} onReorder={sQs} style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
                 {qs.map((q, i) => (
                   <QCardCreate key={q._id} q={q} i={i} tc={tc} qs={qs}
                     sQ={sQ} delQ={delQ} moveQ={moveQ}
@@ -869,7 +875,7 @@ export default function SurveyCreate() {
               </Reorder.Group>
 
               {/* Add Question */}
-              <button onClick={addQ}
+              <button id="builder-add-question-btn" onClick={addQ}
                 style={{ width:'100%',padding:'22px 0',border:'2px dashed rgba(22,15,8,0.1)',borderRadius:24,background:'transparent',cursor:'pointer',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:11,letterSpacing:'0.14em',textTransform:'uppercase',color:'rgba(22,15,8,0.28)',transition:'all 0.3s',display:'flex',alignItems:'center',justifyContent:'center',gap:12 }}
                 onMouseEnter={e=>{e.currentTarget.style.borderColor=tc;e.currentTarget.style.color=tc;e.currentTarget.style.background=`${tc}05`;e.currentTarget.style.boxShadow=`0 4px 24px ${tc}10`;}}
                 onMouseLeave={e=>{e.currentTarget.style.borderColor='rgba(22,15,8,0.1)';e.currentTarget.style.color='rgba(22,15,8,0.28)';e.currentTarget.style.background='transparent';e.currentTarget.style.boxShadow='none';}}>
@@ -886,13 +892,13 @@ export default function SurveyCreate() {
 
           {/* ── SETTINGS TAB ── */}
           {tab === 'settings' && (
-            <div style={{ display:'flex',flexDirection:'column',gap:12 }}>
+            <div id="builder-tab-settings-container" style={{ display:'flex',flexDirection:'column',gap:12 }}>
               {[
                 { k:'allow_anonymous',l:'Anonymous responses',d:"Respondents don't need to identify themselves",ico:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>},
                 { k:'require_email',l:'Require email address',d:'Collect respondent emails before they begin',ico:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>},
                 { k:'show_progress_bar',l:'Show progress bar',d:'Display a completion indicator to respondents',ico:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>},
               ].map(x => (
-                <div key={x.k}
+                <div id={`settings-${x.k.replace(/_/g, '-')}-toggle`} key={x.k}
                   style={{ display:'flex',alignItems:'center',justifyContent:'space-between',padding:'22px 26px',background:'var(--warm-white)',borderRadius:22,border:'1.5px solid rgba(22,15,8,0.07)',cursor:'pointer',transition:'all 0.25s',position:'relative',overflow:'hidden' }}
                   onClick={()=>s(x.k,!f[x.k])}
                   onMouseEnter={e=>{e.currentTarget.style.borderColor='rgba(22,15,8,0.14)';e.currentTarget.style.background='#fff';e.currentTarget.style.boxShadow='0 6px 28px rgba(22,15,8,0.06)';}}
@@ -915,10 +921,10 @@ export default function SurveyCreate() {
         </div>{/* end left */}
 
         {/* RIGHT — Sticky Sidebar */}
-        <div className="sc-sidebar" style={{ position:'sticky',top:88,display:'flex',flexDirection:'column',gap:16 }}>
+        <div id="builder-sidebar-column" className="sc-sidebar" style={{ position:'sticky',top:88,display:'flex',flexDirection:'column',gap:16 }}>
 
           {/* Dark Preview Card */}
-          <div style={{ background:'var(--espresso)',borderRadius:24,overflow:'hidden',boxShadow:'0 16px 56px rgba(22,15,8,0.25)',position:'relative' }}>
+          <div id="builder-live-preview-card" style={{ background:'var(--espresso)',borderRadius:24,overflow:'hidden',boxShadow:'0 16px 56px rgba(22,15,8,0.25)',position:'relative' }}>
             <div style={{ position:'absolute',top:-40,right:-40,width:160,height:160,borderRadius:'50%',background:`radial-gradient(circle,${tc}30,transparent 70%)`,pointerEvents:'none' }}/>
             <div style={{ height:4,background:`linear-gradient(90deg,${tc},${tc}55)` }}/>
             <div style={{ padding:'20px 22px 24px',position:'relative',zIndex:1 }}>
@@ -943,7 +949,7 @@ export default function SurveyCreate() {
           </div>
 
           {/* Health Score with circular arc */}
-          <div style={{ background:'var(--warm-white)',borderRadius:22,border:'1.5px solid rgba(22,15,8,0.08)',padding:'20px 22px' }}>
+          <div id="builder-health-score-card" style={{ background:'var(--warm-white)',borderRadius:22,border:'1.5px solid rgba(22,15,8,0.08)',padding:'20px 22px' }}>
             <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16 }}>
               <span style={{ fontFamily:"'Syne',sans-serif",fontSize:9,fontWeight:700,letterSpacing:'0.18em',textTransform:'uppercase',color:'rgba(22,15,8,0.3)' }}>Survey health</span>
               <div style={{ display:'flex',alignItems:'center',gap:2 }}>
@@ -984,7 +990,7 @@ export default function SurveyCreate() {
           </div>
 
           {/* Publish CTA */}
-          <button onClick={()=>save('active')} disabled={busy}
+          <button id="sidebar-publish-btn" onClick={()=>save('active')} disabled={busy}
             style={{ width:'100%',padding:'16px 0',borderRadius:18,border:'none',background:'var(--espresso)',color:'var(--cream)',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:11,letterSpacing:'0.14em',textTransform:'uppercase',cursor:busy?'not-allowed':'pointer',transition:'all 0.28s',boxShadow:'0 6px 28px rgba(22,15,8,0.2)',opacity:busy?0.5:1,display:'flex',alignItems:'center',justifyContent:'center',gap:10 }}
             onMouseEnter={e=>{if(!busy){e.currentTarget.style.background=tc;e.currentTarget.style.boxShadow=`0 10px 40px ${tc}45`;}}}
             onMouseLeave={e=>{e.currentTarget.style.background='var(--espresso)';e.currentTarget.style.boxShadow='0 6px 28px rgba(22,15,8,0.2)';}}>

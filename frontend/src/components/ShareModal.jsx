@@ -460,7 +460,7 @@ export default function ShareModal({ survey, isOpen, onClose }) {
                   <div style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--coral)', marginBottom: 6 }}>Share</div>
                   <h2 style={{ fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: 22, letterSpacing: '-0.5px', color: 'var(--espresso)', margin: 0, lineHeight: 1.15, maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{survey?.title}</h2>
                 </div>
-                <button onClick={onClose}
+                <button id="share-modal-close-btn" onClick={onClose}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(22,15,8,0.3)', fontSize: 18, lineHeight: 1, padding: 4, transition: 'color 0.2s', flexShrink: 0 }}
                   onMouseEnter={e => e.currentTarget.style.color = 'var(--espresso)'}
                   onMouseLeave={e => e.currentTarget.style.color = 'rgba(22,15,8,0.3)'}>✕</button>
@@ -469,7 +469,7 @@ export default function ShareModal({ survey, isOpen, onClose }) {
               {/* Tab bar */}
               <div style={{ display: 'flex', gap: 4, padding: 5, background: 'var(--cream-deep)', borderRadius: 999, marginBottom: 28, flexShrink: 0 }}>
                 {TABS.map(t => (
-                  <button key={t.id} onClick={() => setTab(t.id)}
+                  <button id={`share-modal-tab-${t.id}`} key={t.id} onClick={() => setTab(t.id)}
                     style={{ flex: 1, padding: '8px 0', borderRadius: 999, border: 'none', cursor: 'pointer', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', transition: 'all 0.2s', background: tab === t.id ? 'var(--espresso)' : 'transparent', color: tab === t.id ? 'var(--cream)' : 'rgba(22,15,8,0.4)' }}>
                     {t.label}
                   </button>
@@ -481,9 +481,10 @@ export default function ShareModal({ survey, isOpen, onClose }) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <input readOnly value={surveyUrl} ref={inputRef}
+                      id="share-modal-link-input"
                       onClick={e => e.target.select()}
                       style={{ ...fieldStyle, flex: 1, cursor: 'text', fontSize: 12, letterSpacing: '0.01em' }} />
-                    <motion.button whileTap={{ scale: 0.96 }} onClick={copyLink}
+                    <motion.button id="share-modal-copy-link-btn" whileTap={{ scale: 0.96 }} onClick={copyLink}
                       style={{ ...btnPrimary(false), minWidth: 80, background: copied ? 'var(--sage)' : 'var(--espresso)' }}
                       onMouseEnter={e => { if (!copied) e.currentTarget.style.background = 'var(--coral)'; }}
                       onMouseLeave={e => { if (!copied) e.currentTarget.style.background = 'var(--espresso)'; }}>
@@ -506,6 +507,7 @@ export default function ShareModal({ survey, isOpen, onClose }) {
                     Print or display this QR code to collect in-person responses.
                   </p>
                   <button
+                    id="share-modal-download-qr-btn"
                     onClick={() => {
                       const img = document.querySelector('#nx-qr-img') || document.querySelector('img[alt="QR code"]');
                       if (!img) return;
@@ -528,7 +530,7 @@ export default function ShareModal({ survey, isOpen, onClose }) {
                   {/* Size selector */}
                   <div style={{ display: 'flex', gap: 6 }}>
                     {EMBED_SIZES.map((s, i) => (
-                      <button key={i} onClick={() => setEmbed(i)}
+                      <button id={`share-modal-embed-size-${i}`} key={i} onClick={() => setEmbed(i)}
                         style={{ flex: 1, padding: '8px 0', borderRadius: 10, border: `1.5px solid ${embedSize === i ? 'var(--espresso)' : 'rgba(22,15,8,0.1)'}`, background: embedSize === i ? 'var(--espresso)' : 'transparent', color: embedSize === i ? 'var(--cream)' : 'rgba(22,15,8,0.45)', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', transition: 'all 0.2s' }}>
                         {s.label}
                       </button>
@@ -539,7 +541,7 @@ export default function ShareModal({ survey, isOpen, onClose }) {
                     <pre style={{ margin: 0, padding: '14px 16px', background: 'var(--espresso)', borderRadius: 14, fontFamily: 'monospace', fontSize: 11, color: 'rgba(253,245,232,0.75)', lineHeight: 1.7, overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
                       {embedCode}
                     </pre>
-                    <button onClick={copyEmbed}
+                    <button id="share-modal-copy-embed-btn" onClick={copyEmbed}
                       style={{ position: 'absolute', top: 10, right: 10, padding: '5px 12px', borderRadius: 8, border: 'none', background: 'rgba(253,245,232,0.12)', color: 'rgba(253,245,232,0.6)', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', transition: 'all 0.2s' }}
                       onMouseEnter={e => { e.currentTarget.style.background = 'rgba(253,245,232,0.22)'; e.currentTarget.style.color = 'rgba(253,245,232,0.9)'; }}
                       onMouseLeave={e => { e.currentTarget.style.background = 'rgba(253,245,232,0.12)'; e.currentTarget.style.color = 'rgba(253,245,232,0.6)'; }}>
@@ -560,6 +562,7 @@ export default function ShareModal({ survey, isOpen, onClose }) {
                   </p>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <input
+                      id="share-modal-email-input"
                       type="email"
                       value={emailTo}
                       onChange={e => setEmailTo(e.target.value)}
@@ -569,7 +572,7 @@ export default function ShareModal({ survey, isOpen, onClose }) {
                       onFocus={e => e.target.style.borderColor = 'var(--coral)'}
                       onBlur={e => e.target.style.borderColor = 'rgba(22,15,8,0.1)'}
                     />
-                    <motion.button whileTap={{ scale: 0.96 }} onClick={sendEmail} disabled={sending}
+                    <motion.button id="share-modal-send-email-btn" whileTap={{ scale: 0.96 }} onClick={sendEmail} disabled={sending}
                       style={{ ...btnPrimary(sending) }}
                       onMouseEnter={e => { if (!sending) e.currentTarget.style.background = 'var(--coral)'; }}
                       onMouseLeave={e => { if (!sending) e.currentTarget.style.background = 'var(--espresso)'; }}>
@@ -592,6 +595,7 @@ export default function ShareModal({ survey, isOpen, onClose }) {
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                         {/* WhatsApp */}
                         <button
+                          id="share-modal-whatsapp-toggle-btn"
                           onClick={() => setIsWhatsAppSubViewOpen(true)}
                           className="axiora-social-btn"                      >
                           <WhatsAppIcon /> WhatsApp
@@ -599,6 +603,7 @@ export default function ShareModal({ survey, isOpen, onClose }) {
 
                         {/* Telegram */}
                         <button
+                          id="share-modal-telegram-btn"
                           onClick={() => openShare(`https://t.me/share/url?url=${encodedUrl}&text=${encodedText}`)}
                           className="axiora-social-btn"                      >
                           <TelegramIcon /> Telegram
@@ -606,6 +611,7 @@ export default function ShareModal({ survey, isOpen, onClose }) {
 
                         {/* Twitter/X */}
                         <button
+                          id="share-modal-twitter-btn"
                           onClick={() => openShare(`https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedUrl}`)}
                           className="axiora-social-btn"
                         >
@@ -614,6 +620,7 @@ export default function ShareModal({ survey, isOpen, onClose }) {
 
                         {/* Instagram */}
                         <button
+                          id="share-modal-instagram-btn"
                           onClick={() => {
                             navigator.clipboard.writeText(surveyUrl);
                             window.open("https://www.instagram.com/", "_blank");
@@ -625,6 +632,7 @@ export default function ShareModal({ survey, isOpen, onClose }) {
                         </button>
                         {/* Facebook */}
                         <button
+                          id="share-modal-facebook-btn"
                           onClick={() =>
                             openShare(
                               `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`
@@ -641,6 +649,7 @@ export default function ShareModal({ survey, isOpen, onClose }) {
 
                         {/* LinkedIn */}
                         <button
+                          id="share-modal-linkedin-btn"
                           onClick={() =>
                             openShare(
                               `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}`
@@ -667,6 +676,7 @@ export default function ShareModal({ survey, isOpen, onClose }) {
                           WhatsApp Share Campaign
                         </span>
                         <button
+                          id="share-modal-whatsapp-back-btn"
                           onClick={() => { setIsWhatsAppSubViewOpen(false); setWhatsAppFile(null); setWhatsAppNumbers(''); }}
                           style={{ background: 'none', border: 'none', color: 'rgba(22,15,8,0.4)', fontSize: 10, fontFamily: 'Syne,sans-serif', fontWeight: 700, textTransform: 'uppercase', cursor: 'pointer' }}
                         >
@@ -685,6 +695,7 @@ export default function ShareModal({ survey, isOpen, onClose }) {
                         </label>
                         <div style={{ display: 'flex', gap: 8 }}>
                           <input
+                            id="share-modal-whatsapp-numbers-input"
                             type="text"
                             value={whatsAppNumbers}
                             onChange={e => setWhatsAppNumbers(e.target.value)}
@@ -696,6 +707,7 @@ export default function ShareModal({ survey, isOpen, onClose }) {
                             onBlur={e => e.target.style.borderColor = 'rgba(22,15,8,0.1)'}
                           />
                           <motion.button
+                            id="share-modal-whatsapp-send-manual-btn"
                             whileTap={{ scale: 0.96 }}
                             onClick={sendWhatsApp}
                             disabled={sendingWhatsApp || !!whatsAppFile || !whatsAppNumbers.trim()}
@@ -730,6 +742,7 @@ export default function ShareModal({ survey, isOpen, onClose }) {
                           Custom Message Body
                         </label>
                         <textarea
+                          id="share-modal-whatsapp-message-input"
                           rows={3}
                           value={whatsAppMessage}
                           onChange={e => setWhatsAppMessage(e.target.value)}
@@ -741,6 +754,7 @@ export default function ShareModal({ survey, isOpen, onClose }) {
 
                       {/* Action Button */}
                       <motion.button
+                        id="share-modal-whatsapp-broadcast-btn"
                         whileTap={{ scale: 0.98 }}
                         onClick={sendWhatsApp}
                         disabled={sendingWhatsApp}

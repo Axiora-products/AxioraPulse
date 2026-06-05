@@ -418,7 +418,7 @@ export default function SurveyEdit() {
     const currentType = QUESTION_TYPES.find(t => t.value === q.question_type);
     return (
       <Reorder.Item value={q} dragControls={dragControls} dragListener={false} style={{ listStyle: 'none' }}>
-        <div className="q-card" style={{ background: 'var(--warm-white)', borderRadius: 24, border: '1.5px solid rgba(22,15,8,0.07)', overflow: 'visible', position: 'relative', transition: 'border-color 0.25s,box-shadow 0.25s', animationDelay: `${i * 0.05}s`, zIndex: typeOpen ? 100 : 1 }}>
+        <div id={`question-card-${i}`} className="q-card" style={{ background: 'var(--warm-white)', borderRadius: 24, border: '1.5px solid rgba(22,15,8,0.07)', overflow: 'visible', position: 'relative', transition: 'border-color 0.25s,box-shadow 0.25s', animationDelay: `${i * 0.05}s`, zIndex: typeOpen ? 100 : 1 }}>
           <div className="q-accent" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: `linear-gradient(180deg,${tc},${tc}40)`, opacity: 0.4, transition: 'opacity 0.25s', borderTopLeftRadius: 24, borderBottomLeftRadius: 24 }} />
           <div className="q-ghost-num" style={{ position: 'absolute', right: 18, bottom: -16, fontFamily: "'Playfair Display',serif", fontWeight: 900, fontSize: 110, color: 'rgba(22,15,8,0.04)', lineHeight: 1, letterSpacing: '-6px', userSelect: 'none', pointerEvents: 'none' }}>
             {String(i + 1).padStart(2, '0')}
@@ -428,6 +428,7 @@ export default function SurveyEdit() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 {/* Drag handle */}
                 <div
+                  id={`question-card-${i}-drag-handle`}
                   className="drag-handle"
                   onPointerDown={e => { e.preventDefault(); dragControls.start(e); }}
                   title="Drag to reorder"
@@ -445,31 +446,31 @@ export default function SurveyEdit() {
               </div>
               <div style={{ display: 'flex', gap: 2 }}>
                 {[[-1, '↑'], [1, '↓']].map(([d, sym]) => (
-                  <button key={d} onClick={() => moveQ(q._id, d)} disabled={(d === -1 && i === 0) || (d === 1 && i === qs.length - 1)} className="np-icon-btn"
+                  <button id={`question-card-${i}-move-${d === -1 ? 'up' : 'down'}`} key={d} onClick={() => moveQ(q._id, d)} disabled={(d === -1 && i === 0) || (d === 1 && i === qs.length - 1)} className="np-icon-btn"
                     style={{ width: 30, height: 30, borderRadius: 9, border: 'none', background: 'none', cursor: 'pointer', color: 'rgba(22,15,8,0.25)', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s', opacity: (d === -1 && i === 0) || (d === 1 && i === qs.length - 1) ? 0.18 : 1 }}
                     onMouseEnter={e => { e.currentTarget.style.background = 'var(--cream-deep)'; e.currentTarget.style.color = 'var(--espresso)'; }}
                     onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'rgba(22,15,8,0.25)'; }}>
                     {sym}
                   </button>
                 ))}
-                <button onClick={() => delQ(q._id)} className="np-icon-btn" style={{ width: 30, height: 30, borderRadius: 9, border: 'none', background: 'none', cursor: 'pointer', color: 'rgba(22,15,8,0.2)', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}
+                <button id={`question-card-${i}-delete`} onClick={() => delQ(q._id)} className="np-icon-btn" style={{ width: 30, height: 30, borderRadius: 9, border: 'none', background: 'none', cursor: 'pointer', color: 'rgba(22,15,8,0.2)', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}
                   onMouseEnter={e => { e.currentTarget.style.background = 'rgba(214,59,31,0.08)'; e.currentTarget.style.color = 'var(--terracotta)'; }}
                   onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'rgba(22,15,8,0.2)'; }}>✕</button>
               </div>
             </div>
 
             {/* Question text */}
-            <input value={q.question_text} onChange={e => sQ(q._id, 'question_text', e.target.value)} placeholder="Type your question here…"
+            <input id={`question-card-${i}-text-input`} value={q.question_text} onChange={e => sQ(q._id, 'question_text', e.target.value)} placeholder="Type your question here…"
               style={{ ...INP, fontSize: 17, padding: '14px 18px', background: 'rgba(253,245,232,0.55)', border: '1.5px solid rgba(22,15,8,0.07)', marginBottom: 10, borderRadius: 16 }} onFocus={fi} onBlur={fo} />
 
             {/* Helper text */}
-            <input value={q.description || ''} onChange={e => sQ(q._id, 'description', e.target.value)} placeholder="Description or helper text (optional)"
+            <input id={`question-card-${i}-description-input`} value={q.description || ''} onChange={e => sQ(q._id, 'description', e.target.value)} placeholder="Description or helper text (optional)"
               style={{ ...INP, fontSize: 13, color: 'rgba(22,15,8,0.45)', padding: '10px 16px', background: 'transparent', border: '1.5px solid rgba(22,15,8,0.06)', marginBottom: 16, borderRadius: 13 }} onFocus={fi} onBlur={fo} />
 
             {/* Type selector with icons + required toggle */}
             <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
               <div style={{ flex: 1, position: 'relative' }} ref={typeRef}>
-                <button onClick={() => setTypeOpen(o => !o)}
+                <button id={`question-card-${i}-type-selector`} onClick={() => setTypeOpen(o => !o)}
                   style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', background: 'var(--cream-deep)', border: '1.5px solid rgba(22,15,8,0.1)', borderRadius: 13, cursor: 'pointer', fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--espresso)', transition: 'border-color 0.2s', textAlign: 'left' }}
                   onFocus={fi} onBlur={fo}>
                   <span style={{ width: 26, height: 26, borderRadius: 8, background: `${tc}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0, color: tc }}>{currentType?.icon}</span>
@@ -479,7 +480,7 @@ export default function SurveyEdit() {
                 {typeOpen && (
                   <div style={{ position: 'absolute', left: 0, right: 0, top: 'calc(100% + 6px)', zIndex: 100, background: 'var(--espresso)', borderRadius: 16, padding: 6, boxShadow: '0 24px 60px rgba(22,15,8,0.3)', maxHeight: 280, overflowY: 'auto' }}>
                     {QUESTION_TYPES.map(t => (
-                      <button key={t.value}
+                      <button id={`question-card-${i}-type-option-${t.value}`} key={t.value}
                         onClick={() => { sQ(q._id, 'question_type', t.value); setTypeOpen(false); }}
                         style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', background: 'none', border: 'none', cursor: 'pointer', borderRadius: 10, transition: 'background 0.12s', color: t.value === q.question_type ? 'var(--coral)' : 'rgba(253,245,232,0.75)', textAlign: 'left' }}
                         onMouseEnter={e => e.currentTarget.style.background = 'rgba(253,245,232,0.08)'}
@@ -493,7 +494,7 @@ export default function SurveyEdit() {
                 )}
               </div>
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', flexShrink: 0, userSelect: 'none' }}>
-                <div onClick={() => sQ(q._id, 'is_required', !q.is_required)}
+                <div id={`question-card-${i}-required-toggle`} onClick={() => sQ(q._id, 'is_required', !q.is_required)}
                   style={{ width: 38, height: 22, borderRadius: 999, background: q.is_required ? tc : 'rgba(22,15,8,0.12)', position: 'relative', transition: 'background 0.25s', cursor: 'pointer' }}>
                   <div style={{ position: 'absolute', width: 16, height: 16, borderRadius: '50%', background: '#fff', top: 3, left: q.is_required ? 19 : 3, transition: 'left 0.25s', boxShadow: '0 1px 4px rgba(22,15,8,0.2)' }} />
                 </div>
@@ -508,16 +509,16 @@ export default function SurveyEdit() {
                   {(q.options || []).map((o, j) => (
                     <div key={j} className="opt-row" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px 4px 14px', borderRadius: 12, border: '1.5px solid rgba(22,15,8,0.07)', background: 'rgba(253,245,232,0.5)', transition: 'all 0.15s' }}>
                       <div style={{ width: 10, height: 10, borderRadius: '50%', border: `2px solid ${tc}55`, flexShrink: 0, background: `${tc}15` }} />
-                      <input value={o.label} onChange={e => sOpt(q._id, j, e.target.value)} placeholder={`Option ${j + 1}`} className="opt-input" />
-                      <button onClick={() => delOpt(q._id, j)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(22,15,8,0.18)', fontSize: 12, padding: 4, transition: 'color 0.15s', lineHeight: 1 }}
+                      <input id={`question-card-${i}-option-${j}-input`} value={o.label} onChange={e => sOpt(q._id, j, e.target.value)} placeholder={`Option ${j + 1}`} className="opt-input" />
+                      <button id={`question-card-${i}-option-${j}-delete`} onClick={() => delOpt(q._id, j)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(22,15,8,0.18)', fontSize: 12, padding: 4, transition: 'color 0.15s', lineHeight: 1 }}
                         onMouseEnter={e => e.currentTarget.style.color = 'var(--terracotta)'} onMouseLeave={e => e.currentTarget.style.color = 'rgba(22,15,8,0.18)'}>✕</button>
                     </div>
                   ))}
                 </div>
                 {q.question_type === 'visual_choice' && (q.options || []).map((o, j) => (
-                  <input key={`img-${j}`} value={o.image_url || ''} onChange={e => sOpt(q._id, j, o.label, e.target.value)} placeholder={`Image URL for option ${j + 1}`} style={{ ...INP, marginTop: 8, padding: '9px 13px', fontSize: 12, borderRadius: 12 }} onFocus={fi} onBlur={fo} />
+                  <input id={`question-card-${i}-option-${j}-image-url-input`} key={`img-${j}`} value={o.image_url || ''} onChange={e => sOpt(q._id, j, o.label, e.target.value)} placeholder={`Image URL for option ${j + 1}`} style={{ ...INP, marginTop: 8, padding: '9px 13px', fontSize: 12, borderRadius: 12 }} onFocus={fi} onBlur={fo} />
                 ))}
-                <button onClick={() => addOpt(q._id)} style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: "'Syne',sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: tc, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', transition: 'opacity 0.15s' }}>
+                <button id={`question-card-${i}-add-option`} onClick={() => addOpt(q._id)} style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: "'Syne',sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: tc, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', transition: 'opacity 0.15s' }}>
                   <span style={{ width: 18, height: 18, borderRadius: 6, background: `${tc}14`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>+</span>
                   Add option
                 </button>
@@ -536,16 +537,16 @@ export default function SurveyEdit() {
               const delCol = ci => setMx({ ...mx, columns: (mx.columns || []).filter((_, j) => j !== ci) });
               return (
                 <div className="mx-grid" style={{ marginTop: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
-                  {[['Rows', mx.rows || [], addRow, updRow, delRow], ['Columns', mx.columns || [], addCol, updCol, delCol]].map(([lbl, items, add, upd, del]) => (
+                  {[['rows', mx.rows || [], addRow, updRow, delRow], ['columns', mx.columns || [], addCol, updCol, delCol]].map(([lbl, items, add, upd, del]) => (
                     <div key={lbl}>
                       <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.38)', marginBottom: 10 }}>{lbl}</div>
                       {items.map((r, idx) => (
                         <div key={idx} style={{ display: 'flex', gap: 7, marginBottom: 7 }}>
-                          <input value={r.label} onChange={e => upd(idx, e.target.value)} placeholder={`${lbl.slice(0, -1)} ${idx + 1}`} style={{ ...INP, flex: 1, padding: '9px 13px', fontSize: 13, borderRadius: 12 }} onFocus={fi} onBlur={fo} />
-                          <button onClick={() => del(idx)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(22,15,8,0.2)', fontSize: 12, padding: '0 4px' }} onMouseEnter={e => e.currentTarget.style.color = 'var(--terracotta)'} onMouseLeave={e => e.currentTarget.style.color = 'rgba(22,15,8,0.2)'}>✕</button>
+                          <input id={`question-card-${i}-${lbl}-input-${idx}`} value={r.label} onChange={e => upd(idx, e.target.value)} placeholder={`${lbl.slice(0, -1)} ${idx + 1}`} style={{ ...INP, flex: 1, padding: '9px 13px', fontSize: 13, borderRadius: 12 }} onFocus={fi} onBlur={fo} />
+                          <button id={`question-card-${i}-${lbl}-delete-${idx}`} onClick={() => del(idx)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(22,15,8,0.2)', fontSize: 12, padding: '0 4px' }} onMouseEnter={e => e.currentTarget.style.color = 'var(--terracotta)'} onMouseLeave={e => e.currentTarget.style.color = 'rgba(22,15,8,0.2)'}>✕</button>
                         </div>
                       ))}
-                      <button onClick={add} style={{ fontFamily: "'Syne',sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: tc, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0' }}>+ Add {lbl.slice(0, -1).toLowerCase()}</button>
+                      <button id={`question-card-${i}-${lbl}-add-btn`} onClick={add} style={{ fontFamily: "'Syne',sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: tc, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0' }}>+ Add {lbl.slice(0, -1).toLowerCase()}</button>
                     </div>
                   ))}
                 </div>
@@ -756,7 +757,7 @@ export default function SurveyEdit() {
             {['draft', 'active', 'paused', 'closed'].map(st => {
               const sc = STATUS_COLORS[st];
               return (
-                <button key={st} onClick={() => chg(st)}
+                <button id={`status-btn-${st}`} key={st} onClick={() => chg(st)}
                   style={{ padding: '5px 14px', borderRadius: 999, border: `1.5px solid ${sv.status === st ? sc.text : 'rgba(22,15,8,0.1)'}`, background: sv.status === st ? sc.bg : 'transparent', fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: sv.status === st ? sc.text : 'rgba(22,15,8,0.35)', cursor: 'pointer', transition: 'all 0.2s' }}
                   onMouseEnter={e => { if (sv.status !== st) { e.currentTarget.style.borderColor = sc.text; e.currentTarget.style.color = sc.text; } }}
                   onMouseLeave={e => { if (sv.status !== st) { e.currentTarget.style.borderColor = 'rgba(22,15,8,0.1)'; e.currentTarget.style.color = 'rgba(22,15,8,0.35)'; } }}>
@@ -772,14 +773,14 @@ export default function SurveyEdit() {
               Expires {formatDate(sv.expires_at)}
             </span>
           )}
-          <button onClick={() => setPubShareOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 16px', borderRadius: 999, border: '1.5px solid rgba(22,15,8,0.1)', background: 'transparent', fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.45)', cursor: 'pointer', transition: 'all 0.2s' }}
+          <button id="status-bar-share-btn" onClick={() => setPubShareOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 16px', borderRadius: 999, border: '1.5px solid rgba(22,15,8,0.1)', background: 'transparent', fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.45)', cursor: 'pointer', transition: 'all 0.2s' }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = tc; e.currentTarget.style.color = tc; e.currentTarget.style.background = `${tc}06`; }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(22,15,8,0.1)'; e.currentTarget.style.color = 'rgba(22,15,8,0.45)'; e.currentTarget.style.background = 'transparent'; }}>
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" /></svg>
             Share
           </button>
           {sv.status === 'draft' && hasPermission(profile?.role, 'delete_survey') && (
-            <button onClick={() => setDeleteOpen(true)} style={{ padding: '7px 16px', borderRadius: 999, border: '1.5px solid rgba(214,59,31,0.15)', background: 'transparent', fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(214,59,31,0.5)', cursor: 'pointer', transition: 'all 0.2s' }}
+            <button id="status-bar-delete-btn" onClick={() => setDeleteOpen(true)} style={{ padding: '7px 16px', borderRadius: 999, border: '1.5px solid rgba(214,59,31,0.15)', background: 'transparent', fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(214,59,31,0.5)', cursor: 'pointer', transition: 'all 0.2s' }}
               onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--terracotta)'; e.currentTarget.style.color = 'var(--terracotta)'; e.currentTarget.style.background = 'rgba(214,59,31,0.05)'; }}
               onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(214,59,31,0.15)'; e.currentTarget.style.color = 'rgba(214,59,31,0.5)'; e.currentTarget.style.background = 'transparent'; }}>
               Delete
@@ -789,7 +790,7 @@ export default function SurveyEdit() {
       </div>
 
       {/* ── TWO-COLUMN WORKSPACE ── */}
-      <div className="se-grid np-grid-responsive" style={{
+      <div id="builder-workspace" className="se-grid np-grid-responsive" style={{
         display: 'grid',
         gridTemplateColumns: 'minmax(0,1fr) 320px',
         gap: '32px',
@@ -798,13 +799,13 @@ export default function SurveyEdit() {
       }}>
 
         {/* LEFT — Editor */}
-        <div>
+        <div id="builder-editor-column">
           {/* ── EDITORIAL TAB NAVIGATION ── */}
           <div style={{ display: 'flex', gap: 0, marginBottom: 40, borderBottom: '1px solid rgba(22,15,8,0.07)' }}>
             {TABS.map(t => {
               const isSettings = t.id === 'settings';
               return (
-                <button key={t.id} onClick={() => setTab(t.id)}
+                <button id={`builder-tab-${t.id}`} key={t.id} onClick={() => setTab(t.id)}
                   className={`se-tab-btn${tab === t.id ? ' active' : ''}`}
                   style={{ display: 'flex', alignItems: 'center', gap: isSettings ? 0 : 9, padding: isSettings ? '14px 14px' : '14px 28px 14px 0', border: 'none', background: 'none', cursor: 'pointer', fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: isSettings ? 14 : 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: tab === t.id ? 'var(--espresso)' : 'rgba(22,15,8,0.32)', transition: 'color 0.2s', marginRight: 4 }}>
                   {!isSettings && (
@@ -824,26 +825,26 @@ export default function SurveyEdit() {
 
           {/* ── DETAILS TAB ── */}
           {tab === 'details' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+            <div id="builder-tab-details-container" style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
               <div>
                 <label style={LBL}>Survey Title {isEditing ? '*' : ''}</label>
                 {isEditing
-                  ? <input value={sv.title} onChange={e => s('title', e.target.value)} style={{ ...INP, fontSize: 20, fontWeight: 500, padding: '18px 22px', letterSpacing: '-0.4px', borderRadius: 18 }} onFocus={fi} onBlur={fo} />
-                  : <div style={{ fontFamily: "'Playfair Display',serif", fontWeight: 700, fontSize: 20, color: 'var(--espresso)', padding: '16px 22px', background: 'var(--cream-deep)', borderRadius: 16, letterSpacing: '-0.4px' }}>{sv.title}</div>}
+                  ? <input id="survey-title" value={sv.title} onChange={e => s('title', e.target.value)} style={{ ...INP, fontSize: 20, fontWeight: 500, padding: '18px 22px', letterSpacing: '-0.4px', borderRadius: 18 }} onFocus={fi} onBlur={fo} />
+                  : <div id="survey-title-text" style={{ fontFamily: "'Playfair Display',serif", fontWeight: 700, fontSize: 20, color: 'var(--espresso)', padding: '16px 22px', background: 'var(--cream-deep)', borderRadius: 16, letterSpacing: '-0.4px' }}>{sv.title}</div>}
               </div>
               <div className="se-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 22 }}>
-                <div><label style={LBL}>Description</label>{isEditing ? <textarea value={sv.description || ''} onChange={e => s('description', e.target.value)} placeholder="What's this research about?" rows={4} style={{ ...INP, borderRadius: 16 }} onFocus={fi} onBlur={fo} /> : <div style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 14, color: sv.description ? 'var(--espresso)' : 'rgba(22,15,8,0.3)', padding: '12px 18px', background: 'var(--cream-deep)', borderRadius: 16, minHeight: 48, lineHeight: 1.6 }}>{sv.description || '—'}</div>}</div>
-                <div><label style={LBL}>Welcome Message</label>{isEditing ? <textarea value={sv.welcome_message || ''} onChange={e => s('welcome_message', e.target.value)} placeholder="Shown before Q1" rows={4} style={{ ...INP, borderRadius: 16 }} onFocus={fi} onBlur={fo} /> : <div style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 14, color: sv.welcome_message ? 'var(--espresso)' : 'rgba(22,15,8,0.3)', padding: '12px 18px', background: 'var(--cream-deep)', borderRadius: 16, minHeight: 48, lineHeight: 1.6 }}>{sv.welcome_message || '—'}</div>}</div>
+                <div><label style={LBL}>Description</label>{isEditing ? <textarea id="survey-description" value={sv.description || ''} onChange={e => s('description', e.target.value)} placeholder="What's this research about?" rows={4} style={{ ...INP, borderRadius: 16 }} onFocus={fi} onBlur={fo} /> : <div id="survey-description-text" style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 14, color: sv.description ? 'var(--espresso)' : 'rgba(22,15,8,0.3)', padding: '12px 18px', background: 'var(--cream-deep)', borderRadius: 16, minHeight: 48, lineHeight: 1.6 }}>{sv.description || '—'}</div>}</div>
+                <div><label style={LBL}>Welcome Message</label>{isEditing ? <textarea id="survey-welcome-message" value={sv.welcome_message || ''} onChange={e => s('welcome_message', e.target.value)} placeholder="Shown before Q1" rows={4} style={{ ...INP, borderRadius: 16 }} onFocus={fi} onBlur={fo} /> : <div id="survey-welcome-message-text" style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 14, color: sv.welcome_message ? 'var(--espresso)' : 'rgba(22,15,8,0.3)', padding: '12px 18px', background: 'var(--cream-deep)', borderRadius: 16, minHeight: 48, lineHeight: 1.6 }}>{sv.welcome_message || '—'}</div>}</div>
               </div>
-              <div><label style={LBL}>Thank You Message</label>{isEditing ? <textarea value={sv.thank_you_message || ''} onChange={e => s('thank_you_message', e.target.value)} placeholder="Shown after submission" rows={2} style={{ ...INP, borderRadius: 16 }} onFocus={fi} onBlur={fo} /> : <div style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 14, color: 'var(--espresso)', padding: '12px 18px', background: 'var(--cream-deep)', borderRadius: 16, lineHeight: 1.6 }}>{sv.thank_you_message || '—'}</div>}</div>
+              <div><label style={LBL}>Thank You Message</label>{isEditing ? <textarea id="survey-thank-you-message" value={sv.thank_you_message || ''} onChange={e => s('thank_you_message', e.target.value)} placeholder="Shown after submission" rows={2} style={{ ...INP, borderRadius: 16 }} onFocus={fi} onBlur={fo} /> : <div id="survey-thank-you-message-text" style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 14, color: 'var(--espresso)', padding: '12px 18px', background: 'var(--cream-deep)', borderRadius: 16, lineHeight: 1.6 }}>{sv.thank_you_message || '—'}</div>}</div>
               <div className="se-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 22 }}>
-                <div><label style={LBL}>Expires</label>{isEditing ? <input type="datetime-local" value={sv.expires_at || ''} onChange={e => s('expires_at', e.target.value)} style={{ ...INP, borderRadius: 16 }} onFocus={fi} onBlur={fo} /> : <div style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 14, color: sv.expires_at ? 'var(--espresso)' : 'rgba(22,15,8,0.3)', padding: '12px 18px', background: 'var(--cream-deep)', borderRadius: 16, minHeight: 48 }}>{sv.expires_at ? formatDate(sv.expires_at) : 'No expiry set'}</div>}</div>
+                <div><label style={LBL}>Expires</label>{isEditing ? <input id="survey-expires" type="datetime-local" value={sv.expires_at || ''} onChange={e => s('expires_at', e.target.value)} style={{ ...INP, borderRadius: 16 }} onFocus={fi} onBlur={fo} /> : <div id="survey-expires-text" style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 14, color: sv.expires_at ? 'var(--espresso)' : 'rgba(22,15,8,0.3)', padding: '12px 18px', background: 'var(--cream-deep)', borderRadius: 16, minHeight: 48 }}>{sv.expires_at ? formatDate(sv.expires_at) : 'No expiry set'}</div>}</div>
                 <div>
                   <label style={LBL}>Theme Colour</label>
                   {isEditing ? (
                     <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                      <input type="color" value={sv.theme_color || '#FF4500'} onChange={e => s('theme_color', e.target.value)} style={{ width: 52, height: 52, borderRadius: 14, border: '1.5px solid rgba(22,15,8,0.1)', cursor: 'pointer', padding: 4, background: 'var(--warm-white)', flexShrink: 0 }} />
-                      <input value={sv.theme_color || ''} onChange={e => s('theme_color', e.target.value)} style={{ ...INP, flex: 1, letterSpacing: '0.05em', borderRadius: 16 }} onFocus={fi} onBlur={fo} />
+                      <input id="survey-theme-color-picker" type="color" value={sv.theme_color || '#FF4500'} onChange={e => s('theme_color', e.target.value)} style={{ width: 52, height: 52, borderRadius: 14, border: '1.5px solid rgba(22,15,8,0.1)', cursor: 'pointer', padding: 4, background: 'var(--warm-white)', flexShrink: 0 }} />
+                      <input id="survey-theme-color-hex" value={sv.theme_color || ''} onChange={e => s('theme_color', e.target.value)} style={{ ...INP, flex: 1, letterSpacing: '0.05em', borderRadius: 16 }} onFocus={fi} onBlur={fo} />
                     </div>
                   ) : (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px', background: 'var(--cream-deep)', borderRadius: 16 }}>
@@ -854,7 +855,7 @@ export default function SurveyEdit() {
                 </div>
               </div>
               {!isEditing && (
-                <button onClick={() => setIsEditing(true)}
+                <button id="edit-survey-btn" onClick={() => setIsEditing(true)}
                   style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 8, padding: '11px 24px', borderRadius: 999, border: `1.5px solid ${tc}`, background: 'transparent', fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: tc, cursor: 'pointer', transition: 'all 0.25s' }}
                   onMouseEnter={e => { e.currentTarget.style.background = tc; e.currentTarget.style.color = '#fff'; e.currentTarget.style.boxShadow = `0 6px 24px ${tc}40`; }}
                   onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = tc; e.currentTarget.style.boxShadow = 'none'; }}>
@@ -991,13 +992,13 @@ export default function SurveyEdit() {
 
           {/* ── SETTINGS TAB ── */}
           {tab === 'settings' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div id="builder-tab-settings-container" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
                 { k: 'allow_anonymous', l: 'Anonymous responses', d: "Respondents don't need to identify themselves", ico: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg> },
                 { k: 'require_email', l: 'Require email address', d: 'Collect respondent emails before they begin', ico: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" /><polyline points="22,6 12,13 2,6" /></svg> },
                 { k: 'show_progress_bar', l: 'Show progress bar', d: 'Display a completion indicator to respondents', ico: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg> },
               ].map(x => (
-                <div key={x.k}
+                <div id={`settings-${x.k.replace(/_/g, '-')}-toggle`} key={x.k}
                   style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '22px 26px', background: 'var(--warm-white)', borderRadius: 22, border: '1.5px solid rgba(22,15,8,0.07)', cursor: 'pointer', transition: 'all 0.25s', position: 'relative', overflow: 'hidden' }}
                   onClick={() => { toggleSetting(x.k, !sv[x.k]); }}
                   onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(22,15,8,0.14)'; e.currentTarget.style.background = '#fff'; e.currentTarget.style.boxShadow = '0 6px 28px rgba(22,15,8,0.06)'; }}
@@ -1068,7 +1069,7 @@ export default function SurveyEdit() {
                           </div>
                         </div>
                         {isEditing && (
-                          <button onClick={() => revoke(sh.id)}
+                          <button id={`revoke-collaborator-${sh.id}`} onClick={() => revoke(sh.id)}
                             style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(214,59,31,0.4)', fontSize: 10, fontFamily: "'Syne',sans-serif", fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', padding: 4, transition: 'color 0.2s' }}
                             onMouseEnter={e => e.currentTarget.style.color = 'var(--terracotta)'}
                             onMouseLeave={e => e.currentTarget.style.color = 'rgba(214,59,31,0.4)'}>
@@ -1347,6 +1348,7 @@ export default function SurveyEdit() {
 
         {/* RIGHT — Sticky Sidebar */}
         <div
+          id="builder-sidebar-column"
           className="se-sidebar"
           style={{
             position: 'sticky',
@@ -1359,7 +1361,7 @@ export default function SurveyEdit() {
         >
 
           {/* Dark Survey Card */}
-          <div style={{ background: 'var(--espresso)', borderRadius: 24, overflow: 'hidden', boxShadow: '0 16px 56px rgba(22,15,8,0.25)', position: 'relative' }}>
+          <div id="builder-live-preview-card" style={{ background: 'var(--espresso)', borderRadius: 24, overflow: 'hidden', boxShadow: '0 16px 56px rgba(22,15,8,0.25)', position: 'relative' }}>
             <div style={{ position: 'absolute', top: -40, right: -40, width: 160, height: 160, borderRadius: '50%', background: `radial-gradient(circle,${tc}30,transparent 70%)`, pointerEvents: 'none' }} />
             <div style={{ height: 4, background: `linear-gradient(90deg,${tc},${tc}55)` }} />
             <div style={{ padding: '20px 22px 24px', position: 'relative', zIndex: 1 }}>
@@ -1382,7 +1384,7 @@ export default function SurveyEdit() {
 
           {/* Health Score */}
           {isEditing && (
-            <div style={{ background: 'var(--warm-white)', borderRadius: 22, border: '1.5px solid rgba(22,15,8,0.08)', padding: '20px 22px' }}>
+            <div id="builder-health-score-card" style={{ background: 'var(--warm-white)', borderRadius: 22, border: '1.5px solid rgba(22,15,8,0.08)', padding: '20px 22px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                   <span style={{ fontFamily: "'Syne',sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.3)' }}>Survey health</span>
