@@ -36,16 +36,6 @@ new GitHubOidcStack(app, 'AxioraPulseGitHubOidcStackQa', {
 });
 
 
-// Dev Environment
-new AxioraPulseStack(app, 'AxioraPulseStackDev', {
-  environment: 'dev',
-  env: { 
-    account: '079975324160', 
-    region: 'ap-south-1' 
-  },
-  description: 'Dev environment for AxioraPulse',
-});
-
 // QA Environment
 new AxioraPulseStack(app, 'AxioraPulseStackQa', {
   environment: 'qa',
