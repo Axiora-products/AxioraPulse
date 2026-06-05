@@ -5,6 +5,8 @@ on:
     branches:
       - main
       - develop
+      - 'release/test/*'
+      - 'release/prod/*'
     paths:
       - 'backend/**'
       - 'frontend/**'
@@ -52,7 +54,7 @@ jobs:
   # 3. QA Environment Deployment
   deploy-qa-infra:
     needs: ci-quality-gate
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.target_env == 'qa')
+    if: (github.event_name == 'push' && github.ref != 'refs/heads/develop') || (github.event_name == 'workflow_dispatch' && inputs.target_env == 'qa')
     uses: ./.github/workflows/cdk.yml
     permissions:
       contents: read
@@ -86,7 +88,7 @@ jobs:
   # 4. Production Environment Deployment
   deploy-prod-infra:
     needs: [deploy-qa-app-backend, deploy-qa-app-frontend]
-    if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && inputs.target_env == 'prod')
+    if: ((github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/prod/')) && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && inputs.target_env == 'prod')
     uses: ./.github/workflows/cdk.yml
     permissions:
       contents: read
