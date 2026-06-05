@@ -1,0 +1,84 @@
+name: AxioraPulse Master Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'infra/cdk/**'
+  workflow_dispatch:
+    inputs:
+      target_env:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'qa'
+        type: choice
+        options:
+          - qa
+          - prod
+
+jobs:
+  # 1. Quality Gate
+  ci-quality-gate:
+    uses: ./.github/workflows/templates/ci-quality-gate.yml
+    with:
+      check_backend: true
+      check_frontend: true
+
+  # 2. Deploy to QA
+  # Automatically runs if push is to 'main' or 'develop', or if manually requested for 'qa'
+  deploy-qa-infra:
+    needs: ci-quality-gate
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || inputs.target_env == 'qa'
+    uses: ./.github/workflows/templates/cdk-deploy.yml
+    with:
+      environment: qa
+    secrets:
+      AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+
+  deploy-qa-backend:
+    needs: deploy-qa-infra
+    uses: ./.github/workflows/templates/app-deploy.yml
+    with:
+      environment: qa
+      component: backend
+    secrets: inherit
+
+  deploy-qa-frontend:
+    needs: deploy-qa-infra
+    uses: ./.github/workflows/templates/app-deploy.yml
+    with:
+      environment: qa
+      component: frontend
+    secrets: inherit
+
+  # 3. Deploy to PROD
+  # Requires manual approval via GitHub Environment 'production'
+  # Only runs on 'main' branch or manual request for 'prod'
+  deploy-prod-infra:
+    needs: [deploy-qa-backend, deploy-qa-frontend]
+    if: github.ref == 'refs/heads/main' || inputs.target_env == 'prod'
+    uses: ./.github/workflows/templates/cdk-deploy.yml
+    with:
+      environment: prod
+    secrets:
+      AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+
+  deploy-prod-backend:
+    needs: deploy-prod-infra
+    uses: ./.github/workflows/templates/app-deploy.yml
+    with:
+      environment: prod
+      component: backend
+    secrets: inherit
+
+  deploy-prod-frontend:
+    needs: deploy-prod-infra
+    uses: ./.github/workflows/templates/app-deploy.yml
+    with:
+      environment: prod
+      component: frontend
+    secrets: inherit
