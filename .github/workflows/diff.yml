@@ -5,7 +5,7 @@ on:
     inputs:
       environment:
         required: true
-        type: string # 'qa' or 'prod'
+        type: string
       aws_region:
         required: false
         type: string
@@ -17,11 +17,6 @@ on:
 jobs:
   cdk-diff:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-      pull-requests: write # Required to post comments
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -53,12 +48,9 @@ jobs:
           STACK_SUFFIX=$(echo "${{ inputs.environment }}" | awk '{print toupper(substr($0,1,1))tolower(substr($0,2))}')
           STACK_NAME="AxioraPulseStack${STACK_SUFFIX}"
           
-          # Run diff and capture output, but don't fail yet if there are changes
-          # CDK diff returns 1 if there are changes by default
           npx cdk diff $STACK_NAME > diff_output.txt 2>&1 || true
           cat diff_output.txt
           
-          # Prepare comment
           echo "### CDK Diff for $STACK_NAME (${{ inputs.environment }})" > comment.md
           echo "\`\`\`" >> comment.md
           cat diff_output.txt >> comment.md

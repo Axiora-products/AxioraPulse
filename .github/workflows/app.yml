@@ -32,11 +32,7 @@ on:
 jobs:
   deploy-app:
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }} # Uses GitHub Environments for protection/gates
-    permissions:
-      contents: read
-      id-token: write
-
+    environment: ${{ inputs.environment }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
