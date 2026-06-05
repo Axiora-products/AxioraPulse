@@ -4,6 +4,7 @@ from typing import List, Optional
 from uuid import UUID
 from pydantic import BaseModel
 
+
 class TenantOut(BaseModel):
     id: UUID
     name: str
@@ -14,6 +15,7 @@ class TenantOut(BaseModel):
     created_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
+
 
 class TenantUpdate(BaseModel):
     name: Optional[str] = None
