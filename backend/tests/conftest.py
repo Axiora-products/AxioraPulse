@@ -29,3 +29,71 @@ def mock_verify_cognito_token(monkeypatch):
 @pytest.fixture
 def auth_headers():
     return {"Authorization": f"Bearer {TEST_TOKEN}"}
+
+
+@pytest.fixture(scope="session", autouse=True)
+def seed_test_data():
+    from db.database import SessionLocal
+    from db.models import Tenant, UserProfile, Survey, SurveyQuestion, SurveyStatusEnum, QuestionTypeEnum
+    import uuid
+
+    db = SessionLocal()
+    try:
+        # 1. Create default Tenant if none exists
+        tenant = db.query(Tenant).first()
+        if not tenant:
+            tenant = Tenant(
+                id=uuid.UUID("d3b07384-d113-4956-a5cc-be150efb0f85"), name="Test Organisation", slug="test-org"
+            )
+            db.add(tenant)
+            db.commit()
+            db.refresh(tenant)
+
+        # 2. Create default UserProfile if none exists
+        user = db.query(UserProfile).filter(UserProfile.cognito_sub == "f1d3ad6a-5031-70d5-9d6a-5013ed87e8d2").first()
+        if not user:
+            user = UserProfile(
+                id=uuid.UUID("f1d3ad6a-5031-70d5-9d6a-5013ed87e8d2"),
+                email="dev@axiorapulse.com",
+                full_name="Developer User",
+                cognito_sub="f1d3ad6a-5031-70d5-9d6a-5013ed87e8d2",
+                tenant_id=tenant.id,
+                is_active=True,
+                account_status="active",
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+
+        # 3. Create target Survey if not exists
+        survey_id = uuid.UUID("e0cd2144-b592-4e3a-92a4-9e78eccbe9e9")
+        survey = db.query(Survey).filter(Survey.id == survey_id).first()
+        if not survey:
+            survey = Survey(
+                id=survey_id,
+                title="Test Survey",
+                slug="test-survey",
+                status=SurveyStatusEnum.published,
+                tenant_id=tenant.id,
+                created_by=user.id,
+            )
+            db.add(survey)
+            db.commit()
+            db.refresh(survey)
+
+        # 4. Create a question for this survey if none exists
+        question = db.query(SurveyQuestion).filter(SurveyQuestion.survey_id == survey_id).first()
+        if not question:
+            question = SurveyQuestion(
+                id=uuid.UUID("a7803c3b-0c7d-4414-b474-f10ddc9086c5"),
+                survey_id=survey_id,
+                question_text="How would you rate our service?",
+                question_type=QuestionTypeEnum.rating,
+                is_required=True,
+                sort_order=1,
+            )
+            db.add(question)
+            db.commit()
+
+    finally:
+        db.close()
