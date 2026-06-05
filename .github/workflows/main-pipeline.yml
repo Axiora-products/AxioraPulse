@@ -31,7 +31,7 @@ on:
 jobs:
   # 1. Quality Gate
   ci-quality-gate:
-    uses: ./.github/workflows/reusable-ci-quality-gate.yml
+    uses: ./.github/workflows/ci.yml
     with:
       check_backend: true
       check_frontend: true
@@ -40,7 +40,11 @@ jobs:
   cdk-diff-qa:
     needs: ci-quality-gate
     if: github.event_name == 'pull_request'
-    uses: ./.github/workflows/reusable-cdk-diff.yml
+    uses: ./.github/workflows/diff.yml
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
     with:
       environment: qa
     secrets: inherit
@@ -49,14 +53,20 @@ jobs:
   deploy-qa-infra:
     needs: ci-quality-gate
     if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.target_env == 'qa')
-    uses: ./.github/workflows/reusable-cdk-deploy.yml
+    uses: ./.github/workflows/cdk.yml
+    permissions:
+      contents: read
+      id-token: write
     with:
       environment: qa
     secrets: inherit
 
   deploy-qa-app-backend:
     needs: deploy-qa-infra
-    uses: ./.github/workflows/reusable-app-deploy.yml
+    uses: ./.github/workflows/app.yml
+    permissions:
+      contents: read
+      id-token: write
     with:
       environment: qa
       component: backend
@@ -64,7 +74,10 @@ jobs:
 
   deploy-qa-app-frontend:
     needs: deploy-qa-infra
-    uses: ./.github/workflows/reusable-app-deploy.yml
+    uses: ./.github/workflows/app.yml
+    permissions:
+      contents: read
+      id-token: write
     with:
       environment: qa
       component: frontend
@@ -74,14 +87,20 @@ jobs:
   deploy-prod-infra:
     needs: [deploy-qa-app-backend, deploy-qa-app-frontend]
     if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && inputs.target_env == 'prod')
-    uses: ./.github/workflows/reusable-cdk-deploy.yml
+    uses: ./.github/workflows/cdk.yml
+    permissions:
+      contents: read
+      id-token: write
     with:
       environment: prod
     secrets: inherit
 
   deploy-prod-app-backend:
     needs: deploy-prod-infra
-    uses: ./.github/workflows/reusable-app-deploy.yml
+    uses: ./.github/workflows/app.yml
+    permissions:
+      contents: read
+      id-token: write
     with:
       environment: prod
       component: backend
@@ -89,7 +108,10 @@ jobs:
 
   deploy-prod-app-frontend:
     needs: deploy-prod-infra
-    uses: ./.github/workflows/reusable-app-deploy.yml
+    uses: ./.github/workflows/app.yml
+    permissions:
+      contents: read
+      id-token: write
     with:
       environment: prod
       component: frontend
