@@ -462,38 +462,6 @@ export default function SurveyCreate() {
   }, [resumeDraftId]);
 
   // ── Prompt Phase ──
-  if (!trustAccepted) {
-    return (
-      <div className="trust-screen-shell">
-        <motion.div
-          className="trust-screen-panel"
-          initial={{ opacity: 0, y: 18, scale: 0.985 }}
-          animate={trustLeaving ? { opacity: 0, y: -10, scale: 0.985 } : { opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.36, ease: [0.16, 1, 0.3, 1] }}
-        >
-          <div className="trust-screen-kicker">Idea Protection</div>
-          <h1>{TRUST_SCREEN_COPY.title}</h1>
-          <p>
-            {TRUST_SCREEN_COPY.subheading.split('\n').map((line, index) => (
-              <React.Fragment key={line}>
-                {index > 0 && <br />}
-                {line}
-              </React.Fragment>
-            ))}
-          </p>
-          <button
-            type="button"
-            onClick={() => {
-              setTrustLeaving(true);
-              window.setTimeout(() => setTrustAccepted(true), 220);
-            }}
-          >
-            {TRUST_SCREEN_COPY.continueLabel}
-          </button>
-        </motion.div>
-      </div>
-    );
-  }
 
   if (phase === 'prompt') {
     return (
