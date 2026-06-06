@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     AxioraPulse — Local Development Container Orchestrator for PowerShell (Docker & Podman support)
 .DESCRIPTION
@@ -53,27 +53,35 @@ if ($Help) {
 }
 
 # --- Check Container Engine Status (Docker or Podman) ---
-$DockerCmd = "docker"
+$DockerCmd = $null
 
-# Check if Docker is running
-docker info >$null 2>&1
-if ($LASTEXITCODE -ne 0) {
-    # Check if Podman is running
+# Check if Docker is installed and running
+if (Get-Command docker -ErrorAction SilentlyContinue) {
+    docker info >$null 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        $DockerCmd = "docker"
+    }
+}
+
+# If Docker is not running or not installed, check if Podman is running
+if (-not $DockerCmd -and (Get-Command podman -ErrorAction SilentlyContinue)) {
     podman info >$null 2>&1
     if ($LASTEXITCODE -eq 0) {
         $DockerCmd = "podman"
-        Write-Host "🐳 Docker is not active, but Podman is running. Using Podman as the container engine."
-    } else {
-        Write-Host "❌ Error: Neither Docker nor Podman is active."
-        $DockerDesktopPath = "C:\Program Files\Docker\Docker\Docker Desktop.exe"
-        if (Test-Path -Path $DockerDesktopPath) {
-            Write-Host "💡 Docker Desktop is installed but not running. You can start it from your start menu or run:"
-            Write-Host "   Start-Process '$DockerDesktopPath'"
-        } else {
-            Write-Host "   Please ensure Docker Desktop, the Docker daemon, or a Podman machine is running and try again."
-        }
-        exit 1
+        Write-Host "🐳 Docker is not active or installed, but Podman is running. Using Podman as the container engine."
     }
+}
+
+if (-not $DockerCmd) {
+    Write-Host "❌ Error: Neither Docker nor Podman is active."
+    $DockerDesktopPath = "C:\Program Files\Docker\Docker\Docker Desktop.exe"
+    if (Test-Path -Path $DockerDesktopPath) {
+        Write-Host "💡 Docker Desktop is installed but not running. You can start it from your start menu or run:"
+        Write-Host "   Start-Process '$DockerDesktopPath'"
+    } else {
+        Write-Host "   Please ensure Docker Desktop, the Docker daemon, or a Podman machine is running and try again."
+    }
+    exit 1
 }
 
 # --- Handle Tear Down ---
