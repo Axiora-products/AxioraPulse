@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     AxioraPulse — Local Development Container Orchestrator for PowerShell (Docker & Podman support)
 .DESCRIPTION
@@ -108,7 +108,7 @@ if ($TargetPlatform) {
     }
 
     # 2. Check for cached images with mismatched architectures
-    $Images = @("postgres:17", "motoserver/moto:latest", "axiorapulse-pulse-backend", "axiorapulse-pulse-frontend")
+    $Images = @("postgres:17", "floci/floci:latest", "axiorapulse-pulse-backend", "axiorapulse-pulse-frontend")
     foreach ($img in $Images) {
         & $DockerCmd image inspect $img >$null 2>&1
         if ($LASTEXITCODE -eq 0) {
@@ -193,16 +193,16 @@ if (-not (Test-Path -Path "frontend")) { New-Item -ItemType Directory -Path "fro
 if (-not (Test-Path -Path "backend\.env.docker")) { New-Item -ItemType File -Path "backend\.env.docker" | Out-Null }
 if (-not (Test-Path -Path "frontend\.env.local")) { New-Item -ItemType File -Path "frontend\.env.local" | Out-Null }
 
-# --- Startup Moto & Database First ---
-Write-Host "🌐 Spinning up Moto Server and Database containers..."
-& $DockerCmd compose -f docker-compose.local.yml up -d pulse-moto pulse-db
+# --- Startup Floci & Database First ---
+Write-Host "🌐 Spinning up Floci Server and Database containers..."
+& $DockerCmd compose -f docker-compose.local.yml up -d pulse-floci pulse-db
 
-# --- Build Backend Container to run Moto seed script ---
+# --- Build Backend Container to run Floci seed script ---
 Write-Host "📦 Building backend container..."
 & $DockerCmd compose -f docker-compose.local.yml build pulse-backend
 
-# --- Seed Moto Server (SSM & Cognito) ---
-Write-Host "🌱 Initializing local mock AWS resources (Moto)..."
+# --- Seed Floci Server (SSM & Cognito) ---
+Write-Host "🌱 Initializing local mock AWS resources (Floci)..."
 & $DockerCmd compose -f docker-compose.local.yml run --rm --entrypoint python pulse-backend init_local_aws.py
 
 # --- Move generated Frontend env file ---
@@ -210,7 +210,7 @@ if (Test-Path -Path "backend\.env.local") {
     Move-Item -Path "backend\.env.local" -Destination "frontend\.env.local" -Force
     Write-Host "✅ Mapped generated Cognito credentials to frontend."
 } else {
-    Write-Host "❌ Error: backend\.env.local not found. Moto initialization failed."
+    Write-Host "❌ Error: backend\.env.local not found. Floci initialization failed."
     exit 1
 }
 
@@ -268,7 +268,7 @@ try:
     print(f"Found {len(users)} users in dev Cognito pool.")
 except Exception as e:
     print(f"❌ Failed to fetch users from Cognito: {str(e)}")
-    print("Make sure the local Moto Server container is running and healthy.")
+    print("Make sure the local Floci Server container is running and healthy.")
     exit(0)
 
 db_url = os.getenv("DATABASE_URL")
