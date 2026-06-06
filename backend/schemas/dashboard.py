@@ -5,12 +5,14 @@ from uuid import UUID
 from pydantic import BaseModel
 from .survey import SurveyCreator
 
+
 class DashboardStats(BaseModel):
     total_surveys: int
     active_surveys: int
     total_responses: int
     completion_rate: float
     team_members: int
+
 
 class RecentSurvey(BaseModel):
     id: UUID

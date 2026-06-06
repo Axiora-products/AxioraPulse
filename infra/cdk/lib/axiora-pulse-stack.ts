@@ -3,6 +3,7 @@ import { Construct } from 'constructs';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as ecr from 'aws-cdk-lib/aws-ecr';
+import { NagSuppressions } from 'cdk-nag';
 
 export interface AxioraPulseStackProps extends cdk.StackProps {
   environment: 'dev' | 'qa' | 'prod' | 'development' | 'production';
@@ -73,6 +74,13 @@ export class AxioraPulseStack extends cdk.Stack {
       autoVerify: { email: true },
       removalPolicy: shortEnv === 'prod' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
     });
+
+    NagSuppressions.addResourceSuppressions(userPool, [
+      {
+        id: 'AwsSolutions-COG8',
+        reason: 'QA/Dev Cognito user pool does not require advanced security features (plus tier) to manage costs.'
+      }
+    ]);
 
     const userPoolClient = userPool.addClient('UserPoolClient', {
       userPoolClientName: 'AxioraPulseClient-' + envName,

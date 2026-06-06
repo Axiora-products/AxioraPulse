@@ -23,8 +23,10 @@ from fastapi import Request
 from db.database import get_db
 from db.models import SurveyResponse, SurveyAnswer, ResponseStatusEnum
 from schemas import (
-    ResponseCreate, ResponseUpdate, AnswerIn, ResponseOut, AnswerOut,
-    MessageResponse,
+    ResponseCreate,
+    ResponseUpdate,
+    AnswerIn,
+    ResponseOut,
 )
 
 router = APIRouter(prefix="/responses", tags=["responses"])
@@ -32,6 +34,7 @@ SUPPORTED_RESPONSE_LANGUAGES = {"en", "te", "hi"}
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 def _load_response(response_id: uuid.UUID, db: Session) -> SurveyResponse:
     r = (
@@ -53,6 +56,7 @@ def _response_language(value: str | None) -> str:
 
 # ── Create ────────────────────────────────────────────────────────────────────
 
+
 @router.post("/", response_model=ResponseOut, status_code=status.HTTP_201_CREATED)
 @limiter.limit("10/minute")
 def create_response(request: Request, body: ResponseCreate, db: Session = Depends(get_db)):
@@ -63,13 +67,7 @@ def create_response(request: Request, body: ResponseCreate, db: Session = Depend
     session_token return it instead of inserting a duplicate.
     """
     if body.session_token:
-        existing = (
-            db.query(SurveyResponse)
-            .filter(
-                SurveyResponse.session_token == body.session_token
-            )
-            .first()
-        )
+        existing = db.query(SurveyResponse).filter(SurveyResponse.session_token == body.session_token).first()
         if existing:
             if body.language:
                 existing.language = _response_language(body.language)
@@ -98,6 +96,7 @@ def create_response(request: Request, body: ResponseCreate, db: Session = Depend
 
 # ── Get by session token ──────────────────────────────────────────────────────
 
+
 @router.get("/session/{token}", response_model=Optional[ResponseOut])
 @limiter.limit("20/minute")
 def get_response_by_session(request: Request, token: str, db: Session = Depends(get_db)):
@@ -121,6 +120,7 @@ def get_response_by_session(request: Request, token: str, db: Session = Depends(
 
 # ── Get by id ─────────────────────────────────────────────────────────────────
 
+
 @router.get("/{response_id}", response_model=ResponseOut)
 @limiter.limit("20/minute")
 def get_response(request: Request, response_id: uuid.UUID, db: Session = Depends(get_db)):
@@ -128,6 +128,7 @@ def get_response(request: Request, response_id: uuid.UUID, db: Session = Depends
 
 
 # ── Update metadata ───────────────────────────────────────────────────────────
+
 
 @router.patch("/{response_id}", response_model=ResponseOut)
 @limiter.limit("20/minute")
@@ -174,11 +175,11 @@ def update_response(
 
 # ── Upsert answers (auto-save) ────────────────────────────────────────────────
 
+
 @router.post("/{response_id}/answers")
 @limiter.limit("30/minute")
-
 def upsert_answers(
-    request: Request, 
+    request: Request,
     response_id: uuid.UUID,
     answers: List[AnswerIn],
     db: Session = Depends(get_db),
@@ -193,22 +194,28 @@ def upsert_answers(
         raise HTTPException(status_code=404, detail="Response not found")
 
     for ans in answers:
-        existing = db.query(SurveyAnswer).filter(
-            SurveyAnswer.response_id == response_id,
-            SurveyAnswer.question_id == ans.question_id,
-        ).first()
+        existing = (
+            db.query(SurveyAnswer)
+            .filter(
+                SurveyAnswer.response_id == response_id,
+                SurveyAnswer.question_id == ans.question_id,
+            )
+            .first()
+        )
 
         if existing:
             existing.answer_value = ans.answer_value
-            existing.answer_json  = ans.answer_json
+            existing.answer_json = ans.answer_json
         else:
-            db.add(SurveyAnswer(
-                id=uuid.uuid4(),
-                response_id=response_id,
-                question_id=ans.question_id,
-                answer_value=ans.answer_value,
-                answer_json=ans.answer_json,
-            ))
+            db.add(
+                SurveyAnswer(
+                    id=uuid.uuid4(),
+                    response_id=response_id,
+                    question_id=ans.question_id,
+                    answer_value=ans.answer_value,
+                    answer_json=ans.answer_json,
+                )
+            )
 
     # Update last_saved_at
     r.last_saved_at = datetime.now(timezone.utc)
@@ -218,11 +225,11 @@ def upsert_answers(
 
 # ── Submit ────────────────────────────────────────────────────────────────────
 
+
 @router.post("/{response_id}/submit")
 @limiter.limit("5/minute")
-
 def submit_response(
-    request: Request, 
+    request: Request,
     response_id: uuid.UUID,
     body: dict = {},
     db: Session = Depends(get_db),
@@ -249,11 +256,11 @@ def submit_response(
 
 # ── Mark as abandoned ─────────────────────────────────────────────────────────
 
+
 @router.post("/{response_id}/abandon")
 @limiter.limit("10/minute")
-
 def abandon_response(
-    request: Request, 
+    request: Request,
     response_id: uuid.UUID,
     body: dict = {},
     db: Session = Depends(get_db),

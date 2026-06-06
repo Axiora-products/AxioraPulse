@@ -9,7 +9,7 @@ For full-stack local development (Frontend, Backend, and Database) with AWS SSM 
 
 #### Prerequisites
 * **Docker & Docker Compose**: Ensure Docker Desktop (macOS/Windows) or Daemon (Linux) is running.
-* **Local Mock Environment (Moto)**: Since we use Moto Server to mock AWS services (SSM Parameter Store, Cognito User Pool, etc.) locally, you do **not** need an active AWS session or real AWS credentials to run the development environment.
+* **Local Mock Environment (Floci)**: Since we use Floci Server to mock AWS services (SSM Parameter Store, Cognito User Pool, etc.) locally, you do **not** need an active AWS session or real AWS credentials to run the development environment.
 * **AWS QA/Prod Access (Only for Deployment/Staging)**: If you need to deploy, test against the QA/Staging environment, or interact with real AWS accounts, ensure you have the appropriate AWS profiles (`qa` or `default`) configured and log in via AWS SSO:
   ```bash
   aws sso login --profile qa
@@ -65,7 +65,7 @@ Once active, the local stack exposes:
 The orchestrator automatically maps branches to target profiles and SSM credentials:
 - **`main`** branch → AWS profile: `default` | SSM env: `production` (Requires real AWS credentials if accessing production)
 - **`release/*`** branches → AWS profile: `qa` | SSM env: `staging` (Requires real AWS credentials if accessing staging)
-- **`develop`** or others → Maps to local Moto mock environment. No real AWS profile or credentials are required.
+- **`develop`** or others → Maps to local Floci mock environment. No real AWS profile or credentials are required.
 
 > [!IMPORTANT]
 > - **Only one active release at a time**: Since we share a single AWS QA environment, only one release branch should be actively tested on QA at a time.
@@ -144,8 +144,17 @@ The orchestrator automatically maps branches to target profiles and SSM credenti
    git push origin develop
    ```
 
+### 4. Local Pre-Commit Hooks
+To catch linting and formatting issues locally before they reach the GitHub repository (saving pipeline minutes), you should enable the configured pre-commit hooks:
 
+1. **Install pre-commit**:
+   ```bash
+   pip install pre-commit
+   ```
+2. **Install the git hook**:
+   Run this from the root of the project:
+   ```bash
+   pre-commit install
+   ```
 
-
-
-
+Now, every time you run `git commit`, Ruff will run automatically. If it finds any auto-fixable linting issues or formatting inconsistencies, it will fix them on the fly and prompt you to stage the changes and commit again.
