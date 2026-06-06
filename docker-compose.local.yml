@@ -23,6 +23,9 @@ services:
     container_name: pulse-floci
     ports:
       - "4566:4566"
+    environment:
+      - EXTRA_CORS_ALLOWED_ORIGINS=*
+      - EXTRA_CORS_ALLOWED_HEADERS=*
     networks:
       - pulse-network
 
