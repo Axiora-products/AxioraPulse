@@ -130,7 +130,7 @@ if [ -n "$TARGET_PLATFORM" ]; then
 
   # 2. Check for cached images with mismatched architectures
   # Official and custom build images
-  for img in "postgres:17" "motoserver/moto:latest" "axiorapulse-pulse-backend" "axiorapulse-pulse-frontend"; do
+  for img in "postgres:17" "floci/floci:latest" "axiorapulse-pulse-backend" "axiorapulse-pulse-frontend"; do
     if $DOCKER_CMD image inspect "$img" >/dev/null 2>&1; then
       IMG_ARCH=$($DOCKER_CMD inspect "$img" --format '{{.Architecture}}' 2>/dev/null | tr '[:upper:]' '[:lower:]')
       if [ -n "$IMG_ARCH" ]; then
@@ -203,16 +203,16 @@ mkdir -p backend frontend
 touch backend/.env.docker
 touch frontend/.env.local
 
-# --- Startup Moto & Database First ---
-echo "🌐 Spinning up Moto Server and Database containers..."
-$DOCKER_CMD compose -f docker-compose.local.yml up -d pulse-moto pulse-db
+# --- Startup Floci & Database First ---
+echo "🌐 Spinning up Floci Server and Database containers..."
+$DOCKER_CMD compose -f docker-compose.local.yml up -d pulse-floci pulse-db
 
-# --- Build Backend Container to run Moto seed script ---
+# --- Build Backend Container to run Floci seed script ---
 echo "📦 Building backend container..."
 $DOCKER_CMD compose -f docker-compose.local.yml build pulse-backend
 
-# --- Seed Moto Server (SSM & Cognito) ---
-echo "🌱 Initializing local mock AWS resources (Moto)..."
+# --- Seed Floci Server (SSM & Cognito) ---
+echo "🌱 Initializing local mock AWS resources (Floci)..."
 $DOCKER_CMD compose -f docker-compose.local.yml run --rm --entrypoint python pulse-backend init_local_aws.py
 
 # --- Move generated Frontend env file ---
@@ -220,7 +220,7 @@ if [ -f backend/.env.local ]; then
   mv backend/.env.local frontend/.env.local
   echo "✅ Mapped generated Cognito credentials to frontend."
 else
-  echo "❌ Error: backend/.env.local not found. Moto initialization failed."
+  echo "❌ Error: backend/.env.local not found. Floci initialization failed."
   exit 1
 fi
 
@@ -231,7 +231,7 @@ echo "🚀 Spining up local development container stack..."
 if [ "$REBUILD" = "true" ]; then
   $DOCKER_CMD compose -f docker-compose.local.yml up --build -d -V --force-recreate pulse-backend pulse-frontend
 else
-  $DOCKER_CMD compose -f docker-compose.local.yml up -d --force-recreate pulse-backend pulse-frontend
+  $DOCKER_CMD compose -f docker-compose.local.yml up -d pulse-backend pulse-frontend
 fi
 
 # --- Wait for Backend to be Healthy & Seed Users ---
@@ -272,7 +272,7 @@ try:
     print(f"Found {len(users)} users in dev Cognito pool.")
 except Exception as e:
     print(f"❌ Failed to fetch users from Cognito: {str(e)}")
-    print("Make sure the local Moto Server container is running and healthy.")
+    print("Make sure the local Floci Server container is running and healthy.")
     exit(0)
 
 db_url = os.getenv("DATABASE_URL")
