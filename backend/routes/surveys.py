@@ -22,8 +22,10 @@ import json
 import random
 import string
 import os
+import requests
+from functools import lru_cache
 from datetime import datetime, timezone
-from typing import List
+from typing import Any, List
 from core.rate_limiter import limiter
 from fastapi import Request
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -49,6 +51,7 @@ router = APIRouter(prefix="/surveys", tags=["surveys"])
 
 # Roles that can create / modify surveys
 CREATOR_ROLES = {"super_admin", "admin", "manager", "creator"}
+GEMINI_MODEL = "gemini-2.5-flash"
 
 
 def _require_creator(user: UserProfile):
@@ -85,6 +88,201 @@ def _question_type(qt: str) -> QuestionTypeEnum:
         return QuestionTypeEnum(qt)
     except ValueError:
         raise HTTPException(status_code=422, detail=f"Unknown question type: {qt}")
+
+
+def _localized_text(value: Any, translations: dict[str, str] | None = None) -> dict[str, str]:
+    if isinstance(value, dict):
+        en = str(value.get("en") or value.get("text") or "")
+        return {
+            "en": en,
+            "te": str(value.get("te") or (translations or {}).get("te") or en),
+            "hi": str(value.get("hi") or (translations or {}).get("hi") or en),
+        }
+
+    en = str(value or "")
+    return {
+        "en": en,
+        "te": str((translations or {}).get("te") or en),
+        "hi": str((translations or {}).get("hi") or en),
+    }
+
+
+@lru_cache(maxsize=1024)
+def _translate_with_google(text: str, lang: str) -> str:
+    try:
+        res = requests.get(
+            "https://translate.googleapis.com/translate_a/single",
+            params={
+                "client": "gtx",
+                "sl": "en",
+                "tl": lang,
+                "dt": "t",
+                "q": text,
+            },
+            timeout=8,
+        )
+        res.raise_for_status()
+        data = res.json()
+        translated = "".join(part[0] for part in data[0] if part and part[0])
+        return translated or text
+    except Exception as exc:
+        print(f"[SURVEY_TRANSLATION] Google fallback failed for {lang}: {exc}")
+        return text
+
+
+def _translate_texts(texts: list[str]) -> dict[str, dict[str, str]]:
+    unique_texts = [text for text in dict.fromkeys(t.strip() for t in texts if t and t.strip())]
+    if not unique_texts:
+        return {}
+
+    api_key = os.getenv("GEMINI_KEY") or os.getenv("ANTHROPIC_KEY")
+    if not api_key or api_key.startswith("mock-"):
+        return {
+            text: {
+                "te": _translate_with_google(text, "te"),
+                "hi": _translate_with_google(text, "hi"),
+            }
+            for text in unique_texts
+        }
+
+    payload = {
+        "texts": unique_texts,
+        "target_languages": {
+            "te": "Telugu",
+            "hi": "Hindi",
+        },
+    }
+    prompt = f"""Translate these survey texts into natural Telugu and Hindi.
+Return only valid JSON in this exact shape:
+{{"translations": [{{"en": "original text", "te": "Telugu translation", "hi": "Hindi translation"}}]}}
+
+Input:
+{json.dumps(payload, ensure_ascii=False)}"""
+
+    try:
+        res = requests.post(
+            f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={api_key}",
+            headers={"Content-Type": "application/json"},
+            json={
+                "contents": [{"parts": [{"text": prompt}]}],
+                "systemInstruction": {
+                    "parts": [{"text": "You are a careful translator. Always return valid JSON only."}]
+                },
+                "generationConfig": {
+                    "responseMimeType": "application/json",
+                    "maxOutputTokens": 4096,
+                },
+            },
+            timeout=20,
+        )
+        res.raise_for_status()
+        data = res.json()
+        text = data["candidates"][0]["content"]["parts"][0]["text"]
+        result = json.loads(text)
+    except Exception as exc:
+        print(f"[SURVEY_TRANSLATION] Dynamic translation failed: {exc}")
+        return {}
+
+    translated = {}
+    for item in result.get("translations", []):
+        en = str(item.get("en") or "").strip()
+        if not en:
+            continue
+        translated[en] = {
+            "te": str(item.get("te") or en),
+            "hi": str(item.get("hi") or en),
+        }
+    return translated
+
+
+def _collect_option_texts(options: Any) -> list[str]:
+    texts = []
+    if isinstance(options, list):
+        for item in options:
+            if isinstance(item, dict):
+                for key in ("label", "description"):
+                    if isinstance(item.get(key), str):
+                        texts.append(item[key])
+    elif isinstance(options, dict):
+        for key in ("rows", "columns"):
+            items = options.get(key)
+            if isinstance(items, list):
+                for item in items:
+                    if isinstance(item, dict):
+                        for text_key in ("label", "description"):
+                            if isinstance(item.get(text_key), str):
+                                texts.append(item[text_key])
+        for key in ("min_label", "max_label"):
+            if isinstance(options.get(key), str):
+                texts.append(options[key])
+    return texts
+
+
+def _localize_options(options: Any, translations: dict[str, dict[str, str]]) -> Any:
+    if isinstance(options, list):
+        localized = []
+        for item in options:
+            if not isinstance(item, dict):
+                localized.append(item)
+                continue
+            next_item = dict(item)
+            for key in ("label", "description"):
+                if isinstance(next_item.get(key), str):
+                    text = next_item[key].strip()
+                    next_item[key] = _localized_text(next_item[key], translations.get(text))
+            localized.append(next_item)
+        return localized
+
+    if isinstance(options, dict):
+        next_options = dict(options)
+        for key in ("rows", "columns"):
+            items = next_options.get(key)
+            if isinstance(items, list):
+                next_options[key] = _localize_options(items, translations)
+        for key in ("min_label", "max_label"):
+            if isinstance(next_options.get(key), str):
+                text = next_options[key].strip()
+                next_options[key] = _localized_text(next_options[key], translations.get(text))
+        return next_options
+
+    return options
+
+
+def _localize_public_survey(out: SurveyOut) -> SurveyOut:
+    questions = out.questions or []
+    source_texts = []
+
+    for value in (out.title, out.description, out.welcome_message, out.thank_you_message):
+        if isinstance(value, str):
+            source_texts.append(value)
+
+    for q in questions:
+        if isinstance(q.question_text, str):
+            source_texts.append(q.question_text)
+        if isinstance(q.description, str):
+            source_texts.append(q.description)
+        source_texts.extend(_collect_option_texts(q.options))
+
+    translations = _translate_texts(source_texts)
+
+    if isinstance(out.title, str):
+        out.title = _localized_text(out.title, translations.get(out.title.strip()))
+    if isinstance(out.description, str):
+        out.description = _localized_text(out.description, translations.get(out.description.strip()))
+    if isinstance(out.welcome_message, str):
+        out.welcome_message = _localized_text(out.welcome_message, translations.get(out.welcome_message.strip()))
+    if isinstance(out.thank_you_message, str):
+        out.thank_you_message = _localized_text(out.thank_you_message, translations.get(out.thank_you_message.strip()))
+
+    for q in questions:
+        if isinstance(q.question_text, str):
+            q.question_text = _localized_text(q.question_text, translations.get(q.question_text.strip()))
+        else:
+            q.question_text = _localized_text(q.question_text)
+        if isinstance(q.description, str):
+            q.description = _localized_text(q.description, translations.get(q.description.strip()))
+        q.options = _localize_options(q.options, translations)
+    return out
 
 
 def _upsert_questions(survey_id: uuid.UUID, questions: List[QuestionIn], db: Session):
@@ -225,6 +423,7 @@ def get_survey_by_slug( request: Request, slug: str, db: Session = Depends(get_d
     if not survey:
         raise HTTPException(status_code=404, detail="Survey not found")
     out = SurveyOut.model_validate(survey)
+    out = _localize_public_survey(out)
     # Embed tenant name so SurveyRespond.jsx skips a second API call
     if survey.tenant_id:
         tenant = db.query(Tenant).filter(Tenant.id == survey.tenant_id).first()

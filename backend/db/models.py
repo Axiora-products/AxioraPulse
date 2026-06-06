@@ -187,6 +187,7 @@ class SurveyResponse(Base):
     survey_id         = Column(UUID(as_uuid=True), ForeignKey("surveys.id", ondelete="CASCADE"),index=True, nullable=False)
     session_token     = Column(String(100), nullable=True)
     respondent_email  = Column(String(255), nullable=True)
+    language          = Column(String(10), nullable=False, default="en")
     status            = Column(SAEnum(ResponseStatusEnum), default=ResponseStatusEnum.in_progress)
     started_at        = Column(DateTime(timezone=True), server_default=func.now())
     completed_at      = Column(DateTime(timezone=True), nullable=True)

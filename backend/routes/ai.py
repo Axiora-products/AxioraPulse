@@ -1054,8 +1054,6 @@ class AITranslateRequest(BaseModel):
 
 @router.post("/translate-survey")
 async def translate_survey(body: AITranslateRequest):
-    client = _get_client()
-    
     lang_name = "Hindi" if body.language == "hi" else "Telugu" if body.language == "te" else body.language
     
     # Extract only translatable parts from the input questions to make the payload smaller and extremely safe
@@ -1082,6 +1080,12 @@ async def translate_survey(body: AITranslateRequest):
         "thank_you_message": body.thank_you_message,
         "questions": simple_questions
     }
+
+    api_key = os.getenv("GEMINI_KEY") or os.getenv("ANTHROPIC_KEY")
+    if not api_key or api_key.startswith("mock-"):
+        return survey_data
+
+    client = api_key
     
     prompt = f"""You are an expert translator. Translate the following survey data into natural, fluent, and culturally appropriate {lang_name}.
 
