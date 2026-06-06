@@ -8,8 +8,16 @@ so the frontend data shapes remain unchanged.
 
 import uuid
 from sqlalchemy import (
-    Column, String, Boolean, DateTime, Integer, Text,
-    ForeignKey, Enum as SAEnum, UniqueConstraint, ARRAY
+    Column,
+    String,
+    Boolean,
+    DateTime,
+    Integer,
+    Text,
+    ForeignKey,
+    Enum as SAEnum,
+    UniqueConstraint,
+    ARRAY,
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
@@ -22,46 +30,47 @@ import enum
 
 # ── Enumerations ──────────────────────────────────────────────────────────────
 
+
 class RoleEnum(str, enum.Enum):
     super_admin = "super_admin"
-    admin       = "admin"
-    manager     = "manager"
-    creator     = "creator"
-    viewer      = "viewer"
+    admin = "admin"
+    manager = "manager"
+    creator = "creator"
+    viewer = "viewer"
 
 
 class SurveyStatusEnum(str, enum.Enum):
-    draft   = "draft"
-    active  = "active"
-    paused  = "paused"
+    draft = "draft"
+    active = "active"
+    paused = "paused"
     expired = "expired"
-    closed  = "closed"
+    closed = "closed"
 
 
 class QuestionTypeEnum(str, enum.Enum):
-    short_text      = "short_text"
-    long_text       = "long_text"
-    single_choice   = "single_choice"
+    short_text = "short_text"
+    long_text = "long_text"
+    single_choice = "single_choice"
     multiple_choice = "multiple_choice"
-    rating          = "rating"
-    scale           = "scale"
-    yes_no          = "yes_no"
-    dropdown        = "dropdown"
-    number          = "number"
-    email           = "email"
-    date            = "date"
-    ranking         = "ranking"
-    slider          = "slider"
-    matrix          = "matrix"
-    emoji_reaction  = "emoji_reaction"
-    swipe_choice    = "swipe_choice"
-    visual_choice   = "visual_choice"
+    rating = "rating"
+    scale = "scale"
+    yes_no = "yes_no"
+    dropdown = "dropdown"
+    number = "number"
+    email = "email"
+    date = "date"
+    ranking = "ranking"
+    slider = "slider"
+    matrix = "matrix"
+    emoji_reaction = "emoji_reaction"
+    swipe_choice = "swipe_choice"
+    visual_choice = "visual_choice"
 
 
 class ResponseStatusEnum(str, enum.Enum):
     in_progress = "in_progress"
-    completed   = "completed"
-    abandoned   = "abandoned"
+    completed = "completed"
+    abandoned = "abandoned"
 
 
 class SharePermissionEnum(str, enum.Enum):
@@ -71,24 +80,26 @@ class SharePermissionEnum(str, enum.Enum):
 
 # ── Models ────────────────────────────────────────────────────────────────────
 
+
 class Tenant(Base):
     """
     Represents an organisation / workspace.
     Every user_profile belongs to exactly one tenant.
     """
+
     __tablename__ = "tenants"
 
-    id              = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name            = Column(String(255), nullable=False)
-    slug            = Column(String(100), unique=True,index=True,nullable=False)
-    plan            = Column(String(50), default="free")
-    primary_color   = Column(String(20), default="#FF4500")
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String(255), nullable=False)
+    slug = Column(String(100), unique=True, index=True, nullable=False)
+    plan = Column(String(50), default="free")
+    primary_color = Column(String(20), default="#FF4500")
     approved_domains = Column(ARRAY(Text), default=[])
-    created_at      = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # relationships
-    users    = relationship("UserProfile", back_populates="tenant", cascade="all, delete-orphan")
-    surveys  = relationship("Survey", back_populates="tenant", cascade="all, delete-orphan")
+    users = relationship("UserProfile", back_populates="tenant", cascade="all, delete-orphan")
+    surveys = relationship("Survey", back_populates="tenant", cascade="all, delete-orphan")
     subscriptions = relationship("Subscription", back_populates="tenant", cascade="all, delete-orphan")
     payments = relationship("Payment", back_populates="tenant", cascade="all, delete-orphan")
 
@@ -98,57 +109,61 @@ class UserProfile(Base):
     Stores all user data.  The `id` is also the authentication identity
     (stored in the JWT `sub` claim), so there is no separate auth table.
     """
+
     __tablename__ = "user_profiles"
 
-    id                 = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    email              = Column(String(255), unique=True,index=True, nullable=False)
-    full_name          = Column(String(255), nullable=True)
-    password_hash      = Column(String(255), nullable=True)
-    cognito_sub        = Column(String(255), unique=True, index=True, nullable=True)
-    role               = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.viewer)
-    tenant_id          = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"),index=True, nullable=True)
-    is_active          = Column(Boolean, default=True)
-    is_internal        = Column(Boolean, nullable=False, default=False)  # Axiora team members bypass payment gates
-    account_status     = Column(String(50), default="active")  # 'active' | 'invited'
-    invite_token       = Column(String(100), unique=True, nullable=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    email = Column(String(255), unique=True, index=True, nullable=False)
+    full_name = Column(String(255), nullable=True)
+    password_hash = Column(String(255), nullable=True)
+    cognito_sub = Column(String(255), unique=True, index=True, nullable=True)
+    role = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.viewer)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), index=True, nullable=True)
+    is_active = Column(Boolean, default=True)
+    is_internal = Column(Boolean, nullable=False, default=False)  # Axiora team members bypass payment gates
+    account_status = Column(String(50), default="active")  # 'active' | 'invited'
+    invite_token = Column(String(100), unique=True, nullable=True)
     invite_accepted_at = Column(DateTime(timezone=True), nullable=True)
-    created_at         = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # relationships
-    tenant            = relationship("Tenant", back_populates="users")
-    surveys_created   = relationship("Survey", back_populates="creator", foreign_keys="Survey.created_by")
+    tenant = relationship("Tenant", back_populates="users")
+    surveys_created = relationship("Survey", back_populates="creator", foreign_keys="Survey.created_by")
 
 
 class Survey(Base):
     """
     A survey belongs to a tenant and is created by a user.
     """
+
     __tablename__ = "surveys"
 
-    id                = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    title             = Column(String(500), nullable=False)
-    description       = Column(Text, nullable=True)
-    welcome_message   = Column(Text, nullable=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    title = Column(String(500), nullable=False)
+    description = Column(Text, nullable=True)
+    welcome_message = Column(Text, nullable=True)
     thank_you_message = Column(Text, nullable=True)
-    expires_at        = Column(DateTime(timezone=True), nullable=True)
-    allow_anonymous   = Column(Boolean, default=True)
-    require_email     = Column(Boolean, default=False)
+    expires_at = Column(DateTime(timezone=True), nullable=True)
+    allow_anonymous = Column(Boolean, default=True)
+    require_email = Column(Boolean, default=False)
     show_progress_bar = Column(Boolean, default=True)
-    theme_color       = Column(String(20), default="#FF4500")
-    slug              = Column(String(50), unique=True, nullable=False)
-    status            = Column(SAEnum(SurveyStatusEnum), default=SurveyStatusEnum.draft)
-    tenant_id         = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
-    created_by        = Column(UUID(as_uuid=True), ForeignKey("user_profiles.id", ondelete="SET NULL"), nullable=True)
-    created_at        = Column(DateTime(timezone=True), server_default=func.now())
-    ai_intelligence   = Column(JSONB, nullable=True)
+    theme_color = Column(String(20), default="#FF4500")
+    slug = Column(String(50), unique=True, nullable=False)
+    status = Column(SAEnum(SurveyStatusEnum), default=SurveyStatusEnum.draft)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
+    created_by = Column(UUID(as_uuid=True), ForeignKey("user_profiles.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    ai_intelligence = Column(JSONB, nullable=True)
 
     # relationships
-    tenant    = relationship("Tenant", back_populates="surveys")
-    creator   = relationship("UserProfile", back_populates="surveys_created", foreign_keys=[created_by])
-    questions = relationship("SurveyQuestion", back_populates="survey", cascade="all, delete-orphan", order_by="SurveyQuestion.sort_order")
+    tenant = relationship("Tenant", back_populates="surveys")
+    creator = relationship("UserProfile", back_populates="surveys_created", foreign_keys=[created_by])
+    questions = relationship(
+        "SurveyQuestion", back_populates="survey", cascade="all, delete-orphan", order_by="SurveyQuestion.sort_order"
+    )
     responses = relationship("SurveyResponse", back_populates="survey", cascade="all, delete-orphan")
     feedbacks = relationship("SurveyFeedback", back_populates="survey", cascade="all, delete-orphan")
-    shares    = relationship("SurveyShare", back_populates="survey", cascade="all, delete-orphan")
+    shares = relationship("SurveyShare", back_populates="survey", cascade="all, delete-orphan")
 
 
 class SurveyQuestion(Base):
@@ -157,21 +172,22 @@ class SurveyQuestion(Base):
     `options` is JSONB — can be a list of {label, value} objects or
     a {rows: [...], columns: [...]} object for matrix questions.
     """
+
     __tablename__ = "survey_questions"
 
-    id               = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    survey_id        = Column(UUID(as_uuid=True), ForeignKey("surveys.id", ondelete="CASCADE"),index=True, nullable=False)
-    question_text    = Column(Text, nullable=False)
-    question_type    = Column(SAEnum(QuestionTypeEnum), nullable=False)
-    options          = Column(JSONB, nullable=True)
-    is_required      = Column(Boolean, default=False)
-    description      = Column(Text, nullable=True)
-    sort_order       = Column(Integer, default=0)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    survey_id = Column(UUID(as_uuid=True), ForeignKey("surveys.id", ondelete="CASCADE"), index=True, nullable=False)
+    question_text = Column(Text, nullable=False)
+    question_type = Column(SAEnum(QuestionTypeEnum), nullable=False)
+    options = Column(JSONB, nullable=True)
+    is_required = Column(Boolean, default=False)
+    description = Column(Text, nullable=True)
+    sort_order = Column(Integer, default=0)
     validation_rules = Column(JSONB, nullable=True)
-    created_at       = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # relationships
-    survey  = relationship("Survey", back_populates="questions")
+    survey = relationship("Survey", back_populates="questions")
     answers = relationship("SurveyAnswer", back_populates="question", cascade="all, delete-orphan")
 
 
@@ -181,6 +197,7 @@ class SurveyResponse(Base):
     `session_token` is a browser-generated random token stored in localStorage
     so respondents can resume an in-progress response.
     """
+
     __tablename__ = "survey_responses"
 
     id                = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -200,12 +217,10 @@ class SurveyResponse(Base):
     occupation = Column(String(100), nullable=True)
     city = Column(String(100), nullable=True)
 
-    __table_args__ = (
-        UniqueConstraint("session_token", name="uq_survey_response_session_token"),
-    )
+    __table_args__ = (UniqueConstraint("session_token", name="uq_survey_response_session_token"),)
 
     # relationships
-    survey  = relationship("Survey", back_populates="responses")
+    survey = relationship("Survey", back_populates="responses")
     survey_answers = relationship("SurveyAnswer", back_populates="response", cascade="all, delete-orphan")
 
 
@@ -215,17 +230,18 @@ class SurveyAnswer(Base):
     `answer_json` holds structured data (arrays, objects) for multi-select,
     ranking and matrix questions. `answer_value` holds scalar values.
     """
+
     __tablename__ = "survey_answers"
 
-    id           = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    response_id  = Column(UUID(as_uuid=True), ForeignKey("survey_responses.id", ondelete="CASCADE"),index=True, nullable=False)
-    question_id  = Column(UUID(as_uuid=True), ForeignKey("survey_questions.id", ondelete="CASCADE"), nullable=False)
-    answer_value = Column(Text, nullable=True)
-    answer_json  = Column(JSONB, nullable=True)
-
-    __table_args__ = (
-        UniqueConstraint("response_id", "question_id", name="uq_answer_response_question"),
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    response_id = Column(
+        UUID(as_uuid=True), ForeignKey("survey_responses.id", ondelete="CASCADE"), index=True, nullable=False
     )
+    question_id = Column(UUID(as_uuid=True), ForeignKey("survey_questions.id", ondelete="CASCADE"), nullable=False)
+    answer_value = Column(Text, nullable=True)
+    answer_json = Column(JSONB, nullable=True)
+
+    __table_args__ = (UniqueConstraint("response_id", "question_id", name="uq_answer_response_question"),)
 
     # relationships
     response = relationship("SurveyResponse", back_populates="survey_answers")
@@ -237,12 +253,13 @@ class SurveyFeedback(Base):
     Post-survey meta-feedback collected on the thank-you screen.
     Separate from survey_answers so it doesn't pollute response analytics.
     """
+
     __tablename__ = "survey_feedback"
 
-    id           = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    survey_id    = Column(UUID(as_uuid=True), ForeignKey("surveys.id", ondelete="CASCADE"), index=True, nullable=False)
-    rating       = Column(Integer, nullable=True)
-    comment      = Column(Text, nullable=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    survey_id = Column(UUID(as_uuid=True), ForeignKey("surveys.id", ondelete="CASCADE"), index=True, nullable=False)
+    rating = Column(Integer, nullable=True)
+    comment = Column(Text, nullable=True)
     responded_at = Column(DateTime(timezone=True), nullable=True)
 
     # relationships
@@ -254,23 +271,26 @@ class SurveyShare(Base):
     Tracks which users have been granted explicit access to a survey.
     Used for team sharing in SurveyEdit.jsx.
     """
+
     __tablename__ = "survey_shares"
 
-    id           = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    survey_id    = Column(UUID(as_uuid=True), ForeignKey("surveys.id", ondelete="CASCADE"), index=True, nullable=False)
-    shared_with  = Column(UUID(as_uuid=True), ForeignKey("user_profiles.id", ondelete="CASCADE"), nullable=False)
-    permission   = Column(SAEnum(SharePermissionEnum), default=SharePermissionEnum.viewer)
-    created_at   = Column(DateTime(timezone=True), server_default=func.now())
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    survey_id = Column(UUID(as_uuid=True), ForeignKey("surveys.id", ondelete="CASCADE"), index=True, nullable=False)
+    shared_with = Column(UUID(as_uuid=True), ForeignKey("user_profiles.id", ondelete="CASCADE"), nullable=False)
+    permission = Column(SAEnum(SharePermissionEnum), default=SharePermissionEnum.viewer)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # relationships
     survey = relationship("Survey", back_populates="shares")
-    user   = relationship("UserProfile")
+    user = relationship("UserProfile")
+
 
 class Plan(Base):
     """
     Product plan definition used for feature limits and Razorpay checkout.
     Limits are stored in DB so feature gating does not hardcode plan rules.
     """
+
     __tablename__ = "plans"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -298,10 +318,13 @@ class Subscription(Base):
     Tenant's current subscription and provider mapping.
     One tenant should have one current subscription row.
     """
+
     __tablename__ = "subscriptions"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), unique=True, index=True, nullable=False)
+    tenant_id = Column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), unique=True, index=True, nullable=False
+    )
     plan_id = Column(UUID(as_uuid=True), ForeignKey("plans.id", ondelete="RESTRICT"), index=True, nullable=False)
     status = Column(String(50), nullable=False, default="active")
     razorpay_subscription_id = Column(String(100), unique=True, nullable=True)
@@ -319,11 +342,14 @@ class Subscription(Base):
 
 class Payment(Base):
     """Payment transaction history for Razorpay orders/payments."""
+
     __tablename__ = "payments"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), index=True, nullable=False)
-    subscription_id = Column(UUID(as_uuid=True), ForeignKey("subscriptions.id", ondelete="SET NULL"), index=True, nullable=True)
+    subscription_id = Column(
+        UUID(as_uuid=True), ForeignKey("subscriptions.id", ondelete="SET NULL"), index=True, nullable=True
+    )
     plan_id = Column(UUID(as_uuid=True), ForeignKey("plans.id", ondelete="SET NULL"), index=True, nullable=True)
     razorpay_order_id = Column(String(100), unique=True, nullable=True)
     razorpay_payment_id = Column(String(100), unique=True, nullable=True)
@@ -341,6 +367,7 @@ class Payment(Base):
     tenant = relationship("Tenant", back_populates="payments")
     subscription = relationship("Subscription", back_populates="payments")
     plan = relationship("Plan", back_populates="payments")
+
 
 class DemoSchedule(Base):
     __tablename__ = "demo_schedules"
@@ -376,14 +403,15 @@ class UploadedFile(Base):
     Stores uploaded file metadata and extracted text content.
     Used for providing additional context to AI survey generation.
     """
+
     __tablename__ = "uploaded_files"
 
-    id           = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    filename     = Column(String(500), nullable=False)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    filename = Column(String(500), nullable=False)
     content_type = Column(String(100), nullable=False)
-    file_size    = Column(Integer, nullable=True)
+    file_size = Column(Integer, nullable=True)
     extracted_text = Column(Text, nullable=True)
-    upload_type  = Column(String(20), default="file")  # 'file' | 'audio'
-    tenant_id    = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
-    created_by   = Column(UUID(as_uuid=True), ForeignKey("user_profiles.id", ondelete="SET NULL"), nullable=True)
-    created_at   = Column(DateTime(timezone=True), server_default=func.now())
+    upload_type = Column(String(20), default="file")  # 'file' | 'audio'
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
+    created_by = Column(UUID(as_uuid=True), ForeignKey("user_profiles.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

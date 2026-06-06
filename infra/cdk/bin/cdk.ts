@@ -1,10 +1,17 @@
 #!/usr/bin/env node
 import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
+import { Aspects } from 'aws-cdk-lib';
+import { AwsSolutionsChecks } from 'cdk-nag';
 import { AxioraPulseStack } from '../lib/axiora-pulse-stack';
 import { GitHubOidcStack } from '../lib/github-oidc-stack';
 
 const app = new cdk.App();
+
+// Add cdk-nag aspects conditionally
+if (process.env.CDK_NAG_ENABLED === 'true') {
+  Aspects.of(app).add(new AwsSolutionsChecks({ verbose: true }));
+}
 
 // Global / Shared Infrastructure
 
@@ -41,16 +48,14 @@ new AxioraPulseStack(app, 'AxioraPulseStackQa', {
   description: 'QA environment for AxioraPulse',
 });
 
-// Production (STRICTLY DISABLED)
-// To enable, uncomment and set prodOverride: true
-/*
+
+// Production
 new AxioraPulseStack(app, 'AxioraPulseStackProd', {
   environment: 'prod',
-  prodOverride: false, // Must be true to deploy
+  prodOverride: process.env.CDK_PROD_ENABLED === 'true', 
   env: { 
     account: '217757579310', 
     region: 'ap-south-1' 
   },
   description: 'Production environment for AxioraPulse',
 });
-*/
