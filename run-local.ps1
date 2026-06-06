@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     AxioraPulse — Local Development Container Orchestrator for PowerShell (Docker & Podman support)
 .DESCRIPTION
