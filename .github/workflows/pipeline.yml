@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - develop
-      - 'feature/**'
-      - 'fix/**'
-      - 'hotfix/**'
       - main
       - 'release/**'
   pull_request:
@@ -54,7 +51,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: postgresql://postgres:root@localhost:5432/nexpulse
-      AWS_ENDPOINT_URL: http://localhost:5001
+      AWS_ENDPOINT_URL: http://localhost:4566
       AWS_DEFAULT_REGION: ap-south-1
       AWS_ACCESS_KEY_ID: mock
       AWS_SECRET_ACCESS_KEY: mock
@@ -77,10 +74,10 @@ jobs:
           --health-retries 5
           --tmpfs /var/lib/postgresql/data
           
-      moto:
-        image: motoserver/moto:latest
+      floci:
+        image: floci/floci:latest
         ports:
-          - 5001:5000
+          - 4566:4566
 
     steps:
       - name: Checkout Repository

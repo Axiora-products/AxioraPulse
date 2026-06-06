@@ -4,13 +4,13 @@ import time
 import boto3
 from botocore.exceptions import EndpointConnectionError
 
-# Inside docker network, Moto is available at pulse-moto
-MOTO_ENDPOINT = os.getenv("MOTO_ENDPOINT_URL", "http://pulse-moto:5000")
+# Inside docker network, Floci is available at pulse-floci
+FLOCI_ENDPOINT = os.getenv("FLOCI_ENDPOINT_URL", "http://pulse-floci:4566")
 REGION = os.getenv("AWS_DEFAULT_REGION", "ap-south-1")
 
-print(f"🔄 Connecting to Moto Server at {MOTO_ENDPOINT} (Region: {REGION})...")
+print(f"🔄 Connecting to Floci Server at {FLOCI_ENDPOINT} (Region: {REGION})...")
 
-# Wait for Moto to be ready
+# Wait for Floci to be ready
 attempts = 0
 max_attempts = 15
 ssm_client = None
@@ -21,32 +21,32 @@ while attempts < max_attempts:
         ssm_client = boto3.client(
             "ssm",
             region_name=REGION,
-            endpoint_url=MOTO_ENDPOINT,
+            endpoint_url=FLOCI_ENDPOINT,
             aws_access_key_id="mock",
             aws_secret_access_key="mock",
         )
         cognito_client = boto3.client(
             "cognito-idp",
             region_name=REGION,
-            endpoint_url=MOTO_ENDPOINT,
+            endpoint_url=FLOCI_ENDPOINT,
             aws_access_key_id="mock",
             aws_secret_access_key="mock",
         )
         # Test connection
         ssm_client.describe_parameters(MaxResults=1)
-        print("✅ Connected to Moto Server successfully!")
+        print("✅ Connected to Floci Server successfully!")
         break
     except (EndpointConnectionError, Exception) as e:
         attempts += 1
-        print(f"⏳ Waiting for Moto Server... ({attempts}/{max_attempts}) - {str(e)}")
+        print(f"⏳ Waiting for Floci Server... ({attempts}/{max_attempts}) - {str(e)}")
         time.sleep(2)
 else:
-    print("❌ Error: Could not connect to Moto Server.")
+    print("❌ Error: Could not connect to Floci Server.")
     sys.exit(1)
 
 
 def seed_ssm():
-    print("📥 Seeding Moto SSM parameters from template...")
+    print("📥 Seeding Floci SSM parameters from template...")
     template_path = "/app/.env.local.template"
     if not os.path.exists(template_path):
         # Fallback to local execution path if any
@@ -79,12 +79,12 @@ def seed_ssm():
         except Exception as e:
             print(f"  ⚠️ Failed to seed SSM param {key}: {str(e)}")
 
-    print(f"✅ Moto SSM Parameters seeded ({len(parameters)} variables).")
+    print(f"✅ Floci SSM Parameters seeded ({len(parameters)} variables).")
     return parameters
 
 
 def seed_cognito():
-    print("📥 Seeding Moto Cognito User Pool & Clients...")
+    print("📥 Seeding Floci Cognito User Pool & Clients...")
     try:
         # Create pool
         pool = cognito_client.create_user_pool(
@@ -132,7 +132,7 @@ def seed_cognito():
             )
             print(f"👤 Created user: {u['email']} (Password: Password123!)")
 
-        # Also store these generated values in Moto SSM Parameter store
+        # Also store these generated values in Floci SSM Parameter store
         ssm_client.put_parameter(
             Name="/axiorapulse/dev/COGNITO_USER_POOL_ID", Value=pool_id, Type="String", Overwrite=True
         )
@@ -153,7 +153,7 @@ def generate_env_files(pool_id, client_id, ssm_params):
     backend_env_path = "/app/.env.docker"
     with open(backend_env_path, "w") as f:
         f.write("# ======================================================================\n")
-        f.write("# Generated dynamically from local Moto Server SSM Parameter Store\n")
+        f.write("# Generated dynamically from local Floci Server SSM Parameter Store\n")
         f.write("# ======================================================================\n")
         for k, v in ssm_params.items():
             if k not in ["COGNITO_USER_POOL_ID", "COGNITO_APP_CLIENT_ID"]:
@@ -164,7 +164,7 @@ def generate_env_files(pool_id, client_id, ssm_params):
         f.write("DATABASE_URL=postgresql://postgres:root@pulse-db:5432/nexpulse\n")
         f.write("FRONTEND_URL=http://localhost:5173\n")
         f.write("ENVIRONMENT=development\n")
-        f.write("MOCK_COGNITO=false\n")  # Run full Cognito authentication flow using Moto!
+        f.write("MOCK_COGNITO=false\n")  # Run full Cognito authentication flow using Floci!
 
     print(f"💾 Written backend environment to: {backend_env_path}")
 
@@ -172,7 +172,7 @@ def generate_env_files(pool_id, client_id, ssm_params):
     frontend_env_path = "/app/.env.local"
     with open(frontend_env_path, "w") as f:
         f.write("# ======================================================================\n")
-        f.write("# Generated dynamically from local Moto Server SSM Parameter Store\n")
+        f.write("# Generated dynamically from local Floci Server SSM Parameter Store\n")
         f.write("# ======================================================================\n")
         for k, v in ssm_params.items():
             if k.startswith("VITE_"):
@@ -181,9 +181,9 @@ def generate_env_files(pool_id, client_id, ssm_params):
         f.write(f"VITE_COGNITO_USER_POOL_ID={pool_id}\n")
         f.write(f"VITE_COGNITO_APP_CLIENT_ID={client_id}\n")
         f.write(f"VITE_COGNITO_REGION={REGION}\n")
-        f.write("VITE_COGNITO_ENDPOINT=http://localhost:5001\n")
+        f.write("VITE_COGNITO_ENDPOINT=http://localhost:4566\n")
         f.write("VITE_API_BASE_URL=http://localhost:8000\n")
-        f.write("VITE_MOCK_COGNITO=false\n")  # Use real Cognito SDK flow pointing to local Moto
+        f.write("VITE_MOCK_COGNITO=false\n")  # Use real Cognito SDK flow pointing to local Floci
 
     print(f"💾 Written frontend environment to: {frontend_env_path}")
 
@@ -192,4 +192,4 @@ if __name__ == "__main__":
     ssm_params = seed_ssm()
     pool_id, client_id = seed_cognito()
     generate_env_files(pool_id, client_id, ssm_params)
-    print("🎉 Moto setup and seeding complete!")
+    print("🎉 Floci setup and seeding complete!")
