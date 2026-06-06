@@ -65,12 +65,30 @@ if ($LASTEXITCODE -ne 0) {
         Write-Host "🐳 Docker is not active, but Podman is running. Using Podman as the container engine."
     } else {
         Write-Host "❌ Error: Neither Docker nor Podman is active."
-        $DockerDesktopPath = "C:\Program Files\Docker\Docker\Docker Desktop.exe"
-        if (Test-Path -Path $DockerDesktopPath) {
-            Write-Host "💡 Docker Desktop is installed but not running. You can start it from your start menu or run:"
-            Write-Host "   Start-Process '$DockerDesktopPath'"
+        $isMac = $false
+        $isLinux = $false
+        if ($PSVersionTable.PSVersion.Major -ge 6) {
+            $isMac = $IsMacOS
+            $isLinux = $IsLinux
+        }
+        
+        if ($isMac) {
+            if (Test-Path -Path "/Applications/Docker.app") {
+                Write-Host "💡 Docker Desktop is installed but not running. You can launch it using:"
+                Write-Host "   open -a Docker"
+            } else {
+                Write-Host "   Please start Docker Desktop or your Podman machine."
+            }
+        } elseif ($isLinux) {
+            Write-Host "   Please start the docker service (e.g., 'sudo systemctl start docker') or your Podman service."
         } else {
-            Write-Host "   Please ensure Docker Desktop, the Docker daemon, or a Podman machine is running and try again."
+            $DockerDesktopPath = "C:\Program Files\Docker\Docker\Docker Desktop.exe"
+            if (Test-Path -Path $DockerDesktopPath) {
+                Write-Host "💡 Docker Desktop is installed but not running. You can start it from your start menu or run:"
+                Write-Host "   Start-Process '$DockerDesktopPath'"
+            } else {
+                Write-Host "   Please ensure Docker Desktop, the Docker daemon, or a Podman machine is running and try again."
+            }
         }
         exit 1
     }
@@ -85,7 +103,16 @@ if ($Down) {
 }
 
 # --- Architecture & Platform Check ---
-$HostArch = ($env:PROCESSOR_ARCHITEW6432, $env:PROCESSOR_ARCHITECTURE | Where-Object {$_} | Select-Object -First 1)
+$HostArch = ""
+if ($PSVersionTable.PSVersion.Major -ge 6) {
+    try {
+        $HostArch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLower()
+    } catch {}
+}
+if (-not $HostArch) {
+    $HostArch = ($env:PROCESSOR_ARCHITEW6432, $env:PROCESSOR_ARCHITECTURE | Where-Object {$_} | Select-Object -First 1)
+}
+
 if ($HostArch) {
     $HostArch = $HostArch.ToLower()
 } else {
@@ -93,9 +120,9 @@ if ($HostArch) {
 }
 
 $TargetPlatform = ""
-if ($HostArch -eq "amd64") {
+if ($HostArch -eq "amd64" -or $HostArch -eq "x64" -or $HostArch -eq "x86_64") {
     $TargetPlatform = "linux/amd64"
-} elseif ($HostArch -eq "arm64") {
+} elseif ($HostArch -eq "arm64" -or $HostArch -eq "aarch64") {
     $TargetPlatform = "linux/arm64"
 }
 
