@@ -231,7 +231,7 @@ echo "🚀 Spining up local development container stack..."
 if [ "$REBUILD" = "true" ]; then
   $DOCKER_CMD compose -f docker-compose.local.yml up --build -d -V --force-recreate pulse-backend pulse-frontend
 else
-  $DOCKER_CMD compose -f docker-compose.local.yml up -d --force-recreate pulse-backend pulse-frontend
+  $DOCKER_CMD compose -f docker-compose.local.yml up -d pulse-backend pulse-frontend
 fi
 
 # --- Wait for Backend to be Healthy & Seed Users ---

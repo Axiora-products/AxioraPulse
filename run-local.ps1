@@ -221,7 +221,7 @@ Write-Host "🚀 Spining up local development container stack..."
 if ($Rebuild) {
     & $DockerCmd compose -f docker-compose.local.yml up --build -d -V --force-recreate pulse-backend pulse-frontend
 } else {
-    & $DockerCmd compose -f docker-compose.local.yml up -d --force-recreate pulse-backend pulse-frontend
+    & $DockerCmd compose -f docker-compose.local.yml up -d pulse-backend pulse-frontend
 }
 
 # --- Wait for Backend to be Healthy & Seed Users ---
