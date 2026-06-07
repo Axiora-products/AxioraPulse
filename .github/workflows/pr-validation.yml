@@ -42,7 +42,7 @@ jobs:
   backend:
     needs: changes
     if: ${{ needs.changes.outputs.backend == 'true' }}
-    uses: ./.github/workflows/reusable/backend-validation.yml
+    uses: ./.github/workflows/backend-validation.yml
     with:
       is-pr: true
       base-ref: ${{ github.event.pull_request.base.ref }}
@@ -50,9 +50,9 @@ jobs:
   frontend:
     needs: changes
     if: ${{ needs.changes.outputs.frontend == 'true' }}
-    uses: ./.github/workflows/reusable/frontend-validation.yml
+    uses: ./.github/workflows/frontend-validation.yml
 
   cdk:
     needs: changes
     if: ${{ needs.changes.outputs.cdk == 'true' }}
-    uses: ./.github/workflows/reusable/cdk-validation.yml
+    uses: ./.github/workflows/cdk-validation.yml
