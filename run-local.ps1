@@ -305,7 +305,7 @@ if ($Test) {
         }
 
         Write-Host "🛑 Tearing down local test containers..."
-        & $DockerCmd compose -f docker-compose.local.yml down
+        & $DockerCmd compose -f docker-compose.local.yml down *>$null
 
         if ($RuffCheckExit -eq 0 -and $RuffFormatExit -eq 0 -and $AlembicExit -eq 0 -and $TestExitCode -eq 0) {
             Write-Host "✅ All checks and tests passed successfully!"
