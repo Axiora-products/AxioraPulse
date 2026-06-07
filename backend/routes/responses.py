@@ -150,6 +150,8 @@ def update_response(
 
     if body.occupation is not None:
         r.occupation = body.occupation
+
+    if body.city is not None:
         r.city = body.city
 
     db.commit()
