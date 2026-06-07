@@ -21,6 +21,10 @@ class ResponseUpdate(BaseModel):
     status: Optional[str] = None
     last_saved_at: Optional[datetime] = None
     metadata: Optional[Dict[str, Any]] = None
+    age_range: Optional[str] = None
+    gender: Optional[str] = None
+    occupation: Optional[str] = None
+    city: Optional[str] = None
 
 
 class AnswerIn(BaseModel):

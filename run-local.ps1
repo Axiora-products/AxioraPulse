@@ -28,7 +28,7 @@ param (
     [Alias("p")]
     [String]$Profile,
 
-    [Alias("e")]
+    [Alias("e","env")]
     [String]$EnvName,
 
     [Alias("h")]

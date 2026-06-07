@@ -265,7 +265,11 @@ def get_subscription(
             tenant_id=current_user.tenant_id,
             plan=PlanOut.model_validate(pro_plan),
             status="active",
+            razorpay_subscription_id=None,
+            current_period_start=None,
+            current_period_end=None,
             cancel_at_period_end=False,
+            cancelled_at=None,
             created_at=datetime.utcnow(),
         )
 
