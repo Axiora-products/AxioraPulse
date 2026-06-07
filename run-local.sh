@@ -254,31 +254,54 @@ if [ "$TEST" = "true" ]; then
     echo "🔍 Running Local Linters and Tests inside Backend Container"
     echo "========================================================================"
 
+    # Temporarily disable set -e to collect all failures
+    set +e
+
     echo "📦 Installing test dependencies inside container..."
     $DOCKER_CMD exec pulse-backend pip install pytest ruff alembic pytest-cov
+    INSTALL_EXIT=$?
+
+    if [ $INSTALL_EXIT -ne 0 ]; then
+      echo "❌ Error: Failed to install test dependencies inside the container."
+      $DOCKER_CMD compose -f docker-compose.local.yml down
+      exit $INSTALL_EXIT
+    fi
 
     echo "👉 Running Ruff Check..."
     $DOCKER_CMD exec pulse-backend ruff check .
+    RUFF_CHECK_EXIT=$?
 
     echo "👉 Running Ruff Format Check..."
     $DOCKER_CMD exec pulse-backend ruff format --check .
+    RUFF_FORMAT_EXIT=$?
 
     echo "👉 Running Alembic Migrations on Test DB..."
     $DOCKER_CMD exec pulse-backend alembic upgrade head
+    ALEMBIC_EXIT=$?
 
-    echo "👉 Running Backend Pytest..."
-    $DOCKER_CMD exec pulse-backend pytest tests
-    TEST_EXIT_CODE=$?
+    TEST_EXIT_CODE=0
+    if [ $ALEMBIC_EXIT -eq 0 ]; then
+      echo "👉 Running Backend Pytest..."
+      $DOCKER_CMD exec pulse-backend pytest tests
+      TEST_EXIT_CODE=$?
+    else
+      echo "❌ Skipping pytest because database migrations failed."
+      TEST_EXIT_CODE=$ALEMBIC_EXIT
+    fi
+
+    # Restore set -e
+    set -e
 
     echo "🛑 Tearing down local test containers..."
     $DOCKER_CMD compose -f docker-compose.local.yml down
 
-    if [ $TEST_EXIT_CODE -eq 0 ]; then
-      echo "✅ All tests passed successfully!"
+    # Determine final exit status
+    if [ $RUFF_CHECK_EXIT -eq 0 ] && [ $RUFF_FORMAT_EXIT -eq 0 ] && [ $ALEMBIC_EXIT -eq 0 ] && [ $TEST_EXIT_CODE -eq 0 ]; then
+      echo "✅ All checks and tests passed successfully!"
       exit 0
     else
-      echo "❌ Some tests failed."
-      exit $TEST_EXIT_CODE
+      echo "❌ Some checks or tests failed."
+      exit 1
     fi
   else
     echo "❌ Error: Backend did not become healthy in time."
