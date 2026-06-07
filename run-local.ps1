@@ -275,30 +275,44 @@ if ($Test) {
 
         Write-Host "📦 Installing test dependencies inside container..."
         & $DockerCmd exec pulse-backend pip install pytest ruff alembic pytest-cov
+        $InstallExit = $LASTEXITCODE
+        if ($InstallExit -ne 0) {
+            Write-Host "❌ Error: Failed to install test dependencies inside container."
+            & $DockerCmd compose -f docker-compose.local.yml down
+            exit $InstallExit
+        }
 
         Write-Host "👉 Running Ruff Check..."
         & $DockerCmd exec pulse-backend ruff check .
+        $RuffCheckExit = $LASTEXITCODE
 
         Write-Host "👉 Running Ruff Format Check..."
         & $DockerCmd exec pulse-backend ruff format --check .
+        $RuffFormatExit = $LASTEXITCODE
 
         Write-Host "👉 Running Alembic Migrations on Test DB..."
         & $DockerCmd exec pulse-backend alembic upgrade head
+        $AlembicExit = $LASTEXITCODE
 
-        Write-Host "👉 Running Backend Pytest..."
-        & $DockerCmd exec pulse-backend pytest tests
-        
-        $TestExitCode = $LASTEXITCODE
+        $TestExitCode = 0
+        if ($AlembicExit -eq 0) {
+            Write-Host "👉 Running Backend Pytest..."
+            & $DockerCmd exec pulse-backend pytest tests
+            $TestExitCode = $LASTEXITCODE
+        } else {
+            Write-Host "❌ Skipping pytest because database migrations failed."
+            $TestExitCode = $AlembicExit
+        }
 
         Write-Host "🛑 Tearing down local test containers..."
         & $DockerCmd compose -f docker-compose.local.yml down
 
-        if ($TestExitCode -eq 0) {
-            Write-Host "✅ All tests passed successfully!"
+        if ($RuffCheckExit -eq 0 -and $RuffFormatExit -eq 0 -and $AlembicExit -eq 0 -and $TestExitCode -eq 0) {
+            Write-Host "✅ All checks and tests passed successfully!"
             exit 0
         } else {
-            Write-Host "❌ Some tests failed."
-            exit $TestExitCode
+            Write-Host "❌ Some checks or tests failed."
+            exit 1
         }
     } else {
         Write-Host "❌ Error: Backend did not become healthy in time."
