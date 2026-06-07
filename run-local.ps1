@@ -251,43 +251,38 @@ if ($Test) {
     Write-Host "🔍 Running Local Linters and Tests"
     Write-Host "======================================================================="
 
-    # Check for ruff
-    $hasRuff = Get-Command ruff -ErrorAction SilentlyContinue
-    if ($null -eq $hasRuff) {
-        Write-Host "❌ Error: 'ruff' is not installed on your host system."
-        Write-Host "💡 Please activate your virtualenv or run: pip install ruff"
-        & $DockerCmd compose -f docker-compose.local.yml down
-        exit 1
+    # Determine Python command
+    $PythonCmd = "python"
+    $hasPython = Get-Command python -ErrorAction SilentlyContinue
+    if ($null -eq $hasPython) {
+        $hasPython3 = Get-Command python3 -ErrorAction SilentlyContinue
+        if ($null -ne $hasPython3) {
+            $PythonCmd = "python3"
+        } else {
+            Write-Host "❌ Error: Python is not installed on your system. Please install Python 3."
+            & $DockerCmd compose -f docker-compose.local.yml down
+            exit 1
+        }
     }
 
-    # Check for pytest
-    $hasPytest = Get-Command pytest -ErrorAction SilentlyContinue
-    if ($null -eq $hasPytest) {
-        Write-Host "❌ Error: 'pytest' is not installed on your host system."
-        Write-Host "💡 Please activate your virtualenv or run: pip install pytest pytest-cov"
-        & $DockerCmd compose -f docker-compose.local.yml down
-        exit 1
-    }
-
-    # Check for alembic
-    $hasAlembic = Get-Command alembic -ErrorAction SilentlyContinue
-    if ($null -eq $hasAlembic) {
-        Write-Host "❌ Error: 'alembic' is not installed on your host system."
-        Write-Host "💡 Please activate your virtualenv or run: pip install alembic"
-        & $DockerCmd compose -f docker-compose.local.yml down
-        exit 1
+    # Auto-create virtualenv if it doesn't exist
+    if (-not (Test-Path -Path ".venv")) {
+        Write-Host "🌱 Local virtual environment (.venv) not found. Creating and installing dependencies on the fly..."
+        & $PythonCmd -m venv .venv
+        & .venv\Scripts\pip.exe install --upgrade pip
+        & .venv\Scripts\pip.exe install -r backend/requirements.txt pytest ruff alembic pytest-cov
     }
 
     Write-Host "👉 Running Ruff Check..."
-    ruff check backend
+    & .venv\Scripts\ruff.exe check backend
 
     Write-Host "👉 Running Ruff Format Check..."
-    ruff format --check backend
+    & .venv\Scripts\ruff.exe format --check backend
 
     Write-Host "👉 Running Alembic Migrations on Test DB..."
     Push-Location backend
     $env:DATABASE_URL="postgresql://postgres:root@localhost:5432/nexpulse"
-    alembic upgrade head
+    & ..\.venv\Scripts\alembic.exe upgrade head
     Pop-Location
 
     Write-Host "👉 Running Backend Pytest..."
@@ -298,7 +293,7 @@ if ($Test) {
     $env:AWS_SECRET_ACCESS_KEY="mock"
     $env:SECRET_KEY="mock_secret_key_for_testing_purposes_only"
     $env:PYTHONPATH="backend"
-    pytest backend/tests
+    & .venv\Scripts\pytest.exe backend/tests
     
     $TestExitCode = $LASTEXITCODE
 
