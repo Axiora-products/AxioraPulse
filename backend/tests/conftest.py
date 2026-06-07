@@ -50,10 +50,14 @@ def seed_test_data():
             db.refresh(tenant)
 
         # 2. Create default UserProfile if none exists
-        user = db.query(UserProfile).filter(
-            (UserProfile.cognito_sub == "f1d3ad6a-5031-70d5-9d6a-5013ed87e8d2") |
-            (UserProfile.email == "dev@axiorapulse.com")
-        ).first()
+        user = (
+            db.query(UserProfile)
+            .filter(
+                (UserProfile.cognito_sub == "f1d3ad6a-5031-70d5-9d6a-5013ed87e8d2")
+                | (UserProfile.email == "dev@axiorapulse.com")
+            )
+            .first()
+        )
         if not user:
             user = UserProfile(
                 id=uuid.UUID("f1d3ad6a-5031-70d5-9d6a-5013ed87e8d2"),

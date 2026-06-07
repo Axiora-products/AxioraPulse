@@ -296,6 +296,7 @@ if [ "$TEST" = "true" ]; then
     $DOCKER_CMD compose -f docker-compose.local.yml down || true
 
     # Determine final exit status
+    echo "📊 Exit Codes -> Ruff Check: $RUFF_CHECK_EXIT | Ruff Format: $RUFF_FORMAT_EXIT | Alembic: $ALEMBIC_EXIT | Pytest: $TEST_EXIT_CODE"
     if [ $RUFF_CHECK_EXIT -eq 0 ] && [ $RUFF_FORMAT_EXIT -eq 0 ] && [ $ALEMBIC_EXIT -eq 0 ] && [ $TEST_EXIT_CODE -eq 0 ]; then
       echo "✅ All checks and tests passed successfully!"
       exit 0
