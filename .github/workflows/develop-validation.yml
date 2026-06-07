@@ -38,7 +38,7 @@ jobs:
   backend:
     needs: changes
     if: ${{ needs.changes.outputs.backend == 'true' }}
-    uses: ./.github/workflows/reusable/backend-validation.yml
+    uses: ./.github/workflows/backend-validation.yml
     with:
       is-pr: false
       base-ref: ''
@@ -46,7 +46,7 @@ jobs:
   backend-docker:
     needs: [changes, backend]
     if: ${{ needs.changes.outputs.backend == 'true' }}
-    uses: ./.github/workflows/reusable/docker-build.yml
+    uses: ./.github/workflows/docker-build.yml
     with:
       context: ./backend
       file: ./backend/Dockerfile.prod
@@ -55,7 +55,7 @@ jobs:
   frontend-docker:
     needs: changes
     if: ${{ needs.changes.outputs.frontend == 'true' }}
-    uses: ./.github/workflows/reusable/docker-build.yml
+    uses: ./.github/workflows/docker-build.yml
     with:
       context: ./frontend
       file: ./frontend/Dockerfile
