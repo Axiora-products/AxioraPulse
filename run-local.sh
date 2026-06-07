@@ -14,6 +14,7 @@ REBUILD="false"
 OVERRIDE_PROFILE=""
 OVERRIDE_ENV=""
 DOWN="false"
+TEST="false"
 
 # --- Print Help Menu ---
 print_help() {
@@ -25,6 +26,7 @@ Usage: ./run-local.sh [options]
 Options:
   -d, --down           Stop and tear down the containers, networks, and keep volumes.
   -r, --rebuild        Force rebuild of Docker images during startup.
+  -t, --test           Run local linters and tests (starts DB & Floci, runs tests, then shuts down).
   -p, --profile [prof] Override the AWS profile to use.
   -e, --env [env]      Override the SSM Parameter Store environment (production/development/staging).
   -h, --help           Show this help message.
@@ -45,6 +47,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     -r|--rebuild)
       REBUILD="true"
+      shift
+      ;;
+    -t|--test)
+      TEST="true"
       shift
       ;;
     -p|--profile)
@@ -222,6 +228,69 @@ if [ -f backend/.env.local ]; then
 else
   echo "❌ Error: backend/.env.local not found. Floci initialization failed."
   exit 1
+fi
+
+# --- Run Local Tests if Flag is set ---
+if [ "$TEST" = "true" ]; then
+  echo "========================================================================"
+  echo "🔍 Running Local Linters and Tests"
+  echo "========================================================================"
+
+  # Check for tools
+  if ! command -v ruff &>/dev/null; then
+    echo "❌ Error: 'ruff' is not installed on your host system."
+    echo "💡 Please activate your virtualenv or run: pip install ruff"
+    $DOCKER_CMD compose -f docker-compose.local.yml down
+    exit 1
+  fi
+
+  if ! command -v pytest &>/dev/null; then
+    echo "❌ Error: 'pytest' is not installed on your host system."
+    echo "💡 Please activate your virtualenv or run: pip install pytest pytest-cov"
+    $DOCKER_CMD compose -f docker-compose.local.yml down
+    exit 1
+  fi
+
+  if ! command -v alembic &>/dev/null; then
+    echo "❌ Error: 'alembic' is not installed on your host system."
+    echo "💡 Please activate your virtualenv or run: pip install alembic"
+    $DOCKER_CMD compose -f docker-compose.local.yml down
+    exit 1
+  fi
+
+  echo "👉 Running Ruff Check..."
+  ruff check backend
+
+  echo "👉 Running Ruff Format Check..."
+  ruff format --check backend
+
+  echo "👉 Running Alembic Migrations on Test DB..."
+  cd backend
+  DATABASE_URL="postgresql://postgres:root@localhost:5432/nexpulse" alembic upgrade head
+  cd ..
+
+  echo "👉 Running Backend Pytest..."
+  DATABASE_URL="postgresql://postgres:root@localhost:5432/nexpulse" \
+  AWS_ENDPOINT_URL="http://localhost:4566" \
+  AWS_DEFAULT_REGION="ap-south-1" \
+  AWS_ACCESS_KEY_ID="mock" \
+  AWS_SECRET_ACCESS_KEY="mock" \
+  SECRET_KEY="mock_secret_key_for_testing_purposes_only" \
+  PYTHONPATH="backend" \
+  pytest backend/tests
+  
+  TEST_EXIT_CODE=$?
+
+  echo "🛑 Tearing down local test containers..."
+  $DOCKER_CMD compose -f docker-compose.local.yml down
+
+  if [ $TEST_EXIT_CODE -eq 0 ]; then
+    echo "✅ All tests passed successfully!"
+    exit 0
+  else
+    echo "❌ Some tests failed."
+    exit $TEST_EXIT_CODE
+  fi
 fi
 
 # --- Startup Services ---
