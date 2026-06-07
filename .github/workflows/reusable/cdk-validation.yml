@@ -1,0 +1,45 @@
+name: CDK Validation
+
+on:
+  workflow_call:
+
+jobs:
+  validate:
+    name: Test & Synth CDK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js for CDK
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cache CDK Node Modules
+        uses: actions/cache@v4
+        id: cdk-cache
+        with:
+          path: infra/cdk/node_modules
+          key: ${{ runner.os }}-cdk-${{ hashFiles('infra/cdk/package-lock.json') }}
+
+      - name: Install CDK Dependencies
+        if: steps.cdk-cache.outputs.cache-hit != 'true'
+        run: |
+          npm install --prefix infra/cdk
+
+      - name: Compile CDK (TypeScript Check)
+        run: |
+          npm run build --prefix infra/cdk
+
+      - name: Run CDK Jest Tests
+        run: |
+          npm run test --prefix infra/cdk
+
+      - name: Run CDK Synth
+        env:
+          CDK_PROD_ENABLED: "true"
+          CDK_NAG_ENABLED: ${{ (github.ref_name == 'main' || startsWith(github.ref_name, 'release/')) && 'true' || 'false' }}
+        run: |
+          cd infra/cdk
+          npx cdk synth AxioraPulseStackQa
