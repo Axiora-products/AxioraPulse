@@ -31,13 +31,16 @@ jobs:
             backend:
               - 'backend/**'
               - 'ruff.toml'
-              - '.github/workflows/**'
+              - '.github/workflows/pr-validation.yml'
+              - '.github/workflows/backend-validation.yml'
             frontend:
               - 'frontend/**'
-              - '.github/workflows/**'
+              - '.github/workflows/pr-validation.yml'
+              - '.github/workflows/frontend-validation.yml'
             cdk:
               - 'infra/**'
-              - '.github/workflows/**'
+              - '.github/workflows/pr-validation.yml'
+              - '.github/workflows/cdk-validation.yml'
 
   backend:
     needs: changes

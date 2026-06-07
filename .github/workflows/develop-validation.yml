@@ -30,10 +30,14 @@ jobs:
             backend:
               - 'backend/**'
               - 'ruff.toml'
-              - '.github/workflows/**'
+              - '.github/workflows/develop-validation.yml'
+              - '.github/workflows/backend-validation.yml'
+              - '.github/workflows/docker-build.yml'
             frontend:
               - 'frontend/**'
-              - '.github/workflows/**'
+              - '.github/workflows/develop-validation.yml'
+              - '.github/workflows/frontend-validation.yml'
+              - '.github/workflows/docker-build.yml'
 
   backend:
     needs: changes
