@@ -154,7 +154,7 @@ jobs:
   frontend-build:
     name: Frontend Build
     needs: changes
-    if: ${{ needs.changes.outputs.frontend == 'true' }}
+    if: ${{ needs.changes.outputs.frontend == 'true' && github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -184,7 +184,7 @@ jobs:
   cdk-test-and-synth:
     name: CDK Test & Synth
     needs: changes
-    if: ${{ needs.changes.outputs.cdk == 'true' }}
+    if: ${{ needs.changes.outputs.cdk == 'true' && github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -222,4 +222,48 @@ jobs:
         run: |
           cd infra/cdk
           npx cdk synth AxioraPulseStackQa
+
+  docker-build-backend:
+    name: Build Backend Docker Image
+    needs: changes
+    if: ${{ needs.changes.outputs.backend == 'true' && github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Backend Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile.prod
+          push: false
+          tags: backend-service:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  docker-build-frontend:
+    name: Build Frontend Docker Image
+    needs: changes
+    if: ${{ needs.changes.outputs.frontend == 'true' && github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Frontend Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: false
+          tags: frontend-service:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
