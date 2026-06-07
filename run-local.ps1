@@ -245,67 +245,65 @@ if (Test-Path -Path "backend\.env.local") {
     exit 1
 }
 
-# --- Run Local Tests if Flag is set ---
+# --- Run Local Tests inside Backend Container if Flag is set ---
 if ($Test) {
-    Write-Host "======================================================================="
-    Write-Host "🔍 Running Local Linters and Tests"
-    Write-Host "======================================================================="
+    # Startup Backend Container
+    Write-Host "🚀 Spinning up backend container for tests..."
+    & $DockerCmd compose -f docker-compose.local.yml up -d pulse-backend
 
-    # Determine Python command
-    $PythonCmd = "python"
-    $hasPython = Get-Command python -ErrorAction SilentlyContinue
-    if ($null -eq $hasPython) {
-        $hasPython3 = Get-Command python3 -ErrorAction SilentlyContinue
-        if ($null -ne $hasPython3) {
-            $PythonCmd = "python3"
-        } else {
-            Write-Host "❌ Error: Python is not installed on your system. Please install Python 3."
-            & $DockerCmd compose -f docker-compose.local.yml down
-            exit 1
+    Write-Host "⏳ Waiting for backend container to be healthy..."
+    $attempts = 0
+    $max_attempts = 30
+    $backend_ready = $false
+
+    while ($attempts -lt $max_attempts) {
+        try {
+            $response = Invoke-RestMethod -Uri "http://localhost:8000/health" -TimeoutSec 1 -ErrorAction SilentlyContinue
+            $backend_ready = $true
+            break
+        } catch {
+            # Not ready yet
         }
+        Start-Sleep -Seconds 1
+        $attempts++
     }
 
-    # Auto-create virtualenv if it doesn't exist
-    if (-not (Test-Path -Path ".venv")) {
-        Write-Host "🌱 Local virtual environment (.venv) not found. Creating and installing dependencies on the fly..."
-        & $PythonCmd -m venv .venv
-        & .venv\Scripts\pip.exe install --upgrade pip
-        & .venv\Scripts\pip.exe install -r backend/requirements.txt pytest ruff alembic pytest-cov
-    }
+    if ($backend_ready) {
+        Write-Host "======================================================================="
+        Write-Host "🔍 Running Local Linters and Tests inside Backend Container"
+        Write-Host "======================================================================="
 
-    Write-Host "👉 Running Ruff Check..."
-    & .venv\Scripts\ruff.exe check backend
+        Write-Host "📦 Installing test dependencies inside container..."
+        & $DockerCmd exec pulse-backend pip install pytest ruff alembic pytest-cov
 
-    Write-Host "👉 Running Ruff Format Check..."
-    & .venv\Scripts\ruff.exe format --check backend
+        Write-Host "👉 Running Ruff Check..."
+        & $DockerCmd exec pulse-backend ruff check .
 
-    Write-Host "👉 Running Alembic Migrations on Test DB..."
-    Push-Location backend
-    $env:DATABASE_URL="postgresql://postgres:root@localhost:5432/nexpulse"
-    & ..\.venv\Scripts\alembic.exe upgrade head
-    Pop-Location
+        Write-Host "👉 Running Ruff Format Check..."
+        & $DockerCmd exec pulse-backend ruff format --check .
 
-    Write-Host "👉 Running Backend Pytest..."
-    $env:DATABASE_URL="postgresql://postgres:root@localhost:5432/nexpulse"
-    $env:AWS_ENDPOINT_URL="http://localhost:4566"
-    $env:AWS_DEFAULT_REGION="ap-south-1"
-    $env:AWS_ACCESS_KEY_ID="mock"
-    $env:AWS_SECRET_ACCESS_KEY="mock"
-    $env:SECRET_KEY="mock_secret_key_for_testing_purposes_only"
-    $env:PYTHONPATH="backend"
-    & .venv\Scripts\pytest.exe backend/tests
-    
-    $TestExitCode = $LASTEXITCODE
+        Write-Host "👉 Running Alembic Migrations on Test DB..."
+        & $DockerCmd exec pulse-backend alembic upgrade head
 
-    Write-Host "🛑 Tearing down local test containers..."
-    & $DockerCmd compose -f docker-compose.local.yml down
+        Write-Host "👉 Running Backend Pytest..."
+        & $DockerCmd exec pulse-backend pytest tests
+        
+        $TestExitCode = $LASTEXITCODE
 
-    if ($TestExitCode -eq 0) {
-        Write-Host "✅ All tests passed successfully!"
-        exit 0
+        Write-Host "🛑 Tearing down local test containers..."
+        & $DockerCmd compose -f docker-compose.local.yml down
+
+        if ($TestExitCode -eq 0) {
+            Write-Host "✅ All tests passed successfully!"
+            exit 0
+        } else {
+            Write-Host "❌ Some tests failed."
+            exit $TestExitCode
+        }
     } else {
-        Write-Host "❌ Some tests failed."
-        exit $TestExitCode
+        Write-Host "❌ Error: Backend did not become healthy in time."
+        & $DockerCmd compose -f docker-compose.local.yml down
+        exit 1
     }
 }
 

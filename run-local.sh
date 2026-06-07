@@ -230,64 +230,60 @@ else
   exit 1
 fi
 
-# --- Run Local Tests if Flag is set ---
+# --- Run Local Tests inside Backend Container if Flag is set ---
 if [ "$TEST" = "true" ]; then
-  echo "========================================================================"
-  echo "🔍 Running Local Linters and Tests"
-  echo "========================================================================"
+  # Startup Backend Container
+  echo "🚀 Spinning up backend container for tests..."
+  $DOCKER_CMD compose -f docker-compose.local.yml up -d pulse-backend
 
-  # Determine Python command
-  PYTHON_CMD="python3"
-  if ! command -v python3 &>/dev/null; then
-    if command -v python &>/dev/null; then
-      PYTHON_CMD="python"
-    else
-      echo "❌ Error: Python is not installed on your system. Please install Python 3."
-      $DOCKER_CMD compose -f docker-compose.local.yml down
-      exit 1
+  echo "⏳ Waiting for backend container to be healthy..."
+  attempts=0
+  max_attempts=30
+  backend_ready=false
+  while [ $attempts -lt $max_attempts ]; do
+    if curl -s http://localhost:8000/health >/dev/null 2>&1; then
+      backend_ready=true
+      break
     fi
-  fi
+    sleep 1
+    attempts=$((attempts+1))
+  done
 
-  # Auto-create virtualenv if it doesn't exist
-  if [ ! -d ".venv" ]; then
-    echo "🌱 Local virtual environment (.venv) not found. Creating and installing dependencies on the fly..."
-    $PYTHON_CMD -m venv .venv
-    .venv/bin/pip install --upgrade pip
-    .venv/bin/pip install -r backend/requirements.txt pytest ruff alembic pytest-cov
-  fi
+  if [ "$backend_ready" = "true" ]; then
+    echo "========================================================================"
+    echo "🔍 Running Local Linters and Tests inside Backend Container"
+    echo "========================================================================"
 
-  echo "👉 Running Ruff Check..."
-  .venv/bin/ruff check backend
+    echo "📦 Installing test dependencies inside container..."
+    $DOCKER_CMD exec pulse-backend pip install pytest ruff alembic pytest-cov
 
-  echo "👉 Running Ruff Format Check..."
-  .venv/bin/ruff format --check backend
+    echo "👉 Running Ruff Check..."
+    $DOCKER_CMD exec pulse-backend ruff check .
 
-  echo "👉 Running Alembic Migrations on Test DB..."
-  cd backend
-  DATABASE_URL="postgresql://postgres:root@localhost:5432/nexpulse" ../.venv/bin/alembic upgrade head
-  cd ..
+    echo "👉 Running Ruff Format Check..."
+    $DOCKER_CMD exec pulse-backend ruff format --check .
 
-  echo "👉 Running Backend Pytest..."
-  DATABASE_URL="postgresql://postgres:root@localhost:5432/nexpulse" \
-  AWS_ENDPOINT_URL="http://localhost:4566" \
-  AWS_DEFAULT_REGION="ap-south-1" \
-  AWS_ACCESS_KEY_ID="mock" \
-  AWS_SECRET_ACCESS_KEY="mock" \
-  SECRET_KEY="mock_secret_key_for_testing_purposes_only" \
-  PYTHONPATH="backend" \
-  .venv/bin/pytest backend/tests
-  
-  TEST_EXIT_CODE=$?
+    echo "👉 Running Alembic Migrations on Test DB..."
+    $DOCKER_CMD exec pulse-backend alembic upgrade head
 
-  echo "🛑 Tearing down local test containers..."
-  $DOCKER_CMD compose -f docker-compose.local.yml down
+    echo "👉 Running Backend Pytest..."
+    $DOCKER_CMD exec pulse-backend pytest tests
+    TEST_EXIT_CODE=$?
 
-  if [ $TEST_EXIT_CODE -eq 0 ]; then
-    echo "✅ All tests passed successfully!"
-    exit 0
+    echo "🛑 Tearing down local test containers..."
+    $DOCKER_CMD compose -f docker-compose.local.yml down
+
+    if [ $TEST_EXIT_CODE -eq 0 ]; then
+      echo "✅ All tests passed successfully!"
+      exit 0
+    else
+      echo "❌ Some tests failed."
+      exit $TEST_EXIT_CODE
+    fi
   else
-    echo "❌ Some tests failed."
-    exit $TEST_EXIT_CODE
+    echo "❌ Error: Backend did not become healthy in time."
+    $DOCKER_CMD compose -f docker-compose.local.yml down
+    exit 1
   fi
 fi
 
