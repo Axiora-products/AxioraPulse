@@ -22,10 +22,13 @@ param (
     [Alias("r")]
     [Switch]$Rebuild,
 
+    [Alias("t","c")]
+    [Switch]$Test,
+
     [Alias("p")]
     [String]$Profile,
 
-    [Alias("e")]
+    [Alias("e","env")]
     [String]$EnvName,
 
     [Alias("h")]
@@ -41,6 +44,7 @@ if ($Help) {
     Write-Host "Options:"
     Write-Host "  -d, -Down           Stop and tear down the containers, networks, and keep volumes."
     Write-Host "  -r, -Rebuild        Force rebuild of Docker/Podman images during startup."
+    Write-Host "  -t, -Test           Run local linters and tests (starts DB & Floci, runs tests, then shuts down)."
     Write-Host "  -p, -Profile [prof] Override the AWS profile to use."
     Write-Host "  -e, -EnvName [env]  Override the SSM Parameter Store environment (production/development/staging)."
     Write-Host "  -h, -Help           Show this help message."
@@ -239,6 +243,82 @@ if (Test-Path -Path "backend\.env.local") {
 } else {
     Write-Host "❌ Error: backend\.env.local not found. Floci initialization failed."
     exit 1
+}
+
+# --- Run Local Tests inside Backend Container if Flag is set ---
+if ($Test) {
+    # Startup Backend Container
+    Write-Host "🚀 Spinning up backend container for tests..."
+    & $DockerCmd compose -f docker-compose.local.yml up -d pulse-backend
+
+    Write-Host "⏳ Waiting for backend container to be healthy..."
+    $attempts = 0
+    $max_attempts = 30
+    $backend_ready = $false
+
+    while ($attempts -lt $max_attempts) {
+        try {
+            $response = Invoke-RestMethod -Uri "http://localhost:8000/health" -TimeoutSec 1 -ErrorAction SilentlyContinue
+            $backend_ready = $true
+            break
+        } catch {
+            # Not ready yet
+        }
+        Start-Sleep -Seconds 1
+        $attempts++
+    }
+
+    if ($backend_ready) {
+        Write-Host "======================================================================="
+        Write-Host "🔍 Running Local Linters and Tests inside Backend Container"
+        Write-Host "======================================================================="
+
+        Write-Host "📦 Installing test dependencies inside container..."
+        & $DockerCmd exec pulse-backend pip install pytest ruff alembic pytest-cov
+        $InstallExit = $LASTEXITCODE
+        if ($InstallExit -ne 0) {
+            Write-Host "❌ Error: Failed to install test dependencies inside container."
+            & $DockerCmd compose -f docker-compose.local.yml down
+            exit $InstallExit
+        }
+
+        Write-Host "👉 Running Ruff Check..."
+        & $DockerCmd exec pulse-backend ruff check .
+        $RuffCheckExit = $LASTEXITCODE
+
+        Write-Host "👉 Running Ruff Format Check..."
+        & $DockerCmd exec pulse-backend ruff format --check .
+        $RuffFormatExit = $LASTEXITCODE
+
+        Write-Host "👉 Running Alembic Migrations on Test DB..."
+        & $DockerCmd exec pulse-backend alembic upgrade head
+        $AlembicExit = $LASTEXITCODE
+
+        $TestExitCode = 0
+        if ($AlembicExit -eq 0) {
+            Write-Host "👉 Running Backend Pytest with Coverage..."
+            & $DockerCmd exec -e PYTHONPATH=. pulse-backend pytest --cov=. --cov-report=term-missing --cov-config=.coveragerc tests
+            $TestExitCode = $LASTEXITCODE
+        } else {
+            Write-Host "❌ Skipping pytest because database migrations failed."
+            $TestExitCode = $AlembicExit
+        }
+
+        Write-Host "🛑 Tearing down local test containers..."
+        & $DockerCmd compose -f docker-compose.local.yml down *>$null
+
+        if ($RuffCheckExit -eq 0 -and $RuffFormatExit -eq 0 -and $AlembicExit -eq 0 -and $TestExitCode -eq 0) {
+            Write-Host "✅ All checks and tests passed successfully!"
+            exit 0
+        } else {
+            Write-Host "❌ Some checks or tests failed."
+            exit 1
+        }
+    } else {
+        Write-Host "❌ Error: Backend did not become healthy in time."
+        & $DockerCmd compose -f docker-compose.local.yml down
+        exit 1
+    }
 }
 
 # --- Startup Services ---

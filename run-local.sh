@@ -14,6 +14,7 @@ REBUILD="false"
 OVERRIDE_PROFILE=""
 OVERRIDE_ENV=""
 DOWN="false"
+TEST="false"
 
 # --- Print Help Menu ---
 print_help() {
@@ -25,6 +26,7 @@ Usage: ./run-local.sh [options]
 Options:
   -d, --down           Stop and tear down the containers, networks, and keep volumes.
   -r, --rebuild        Force rebuild of Docker images during startup.
+  -t, --test           Run local linters and tests (starts DB & Floci, runs tests, then shuts down).
   -p, --profile [prof] Override the AWS profile to use.
   -e, --env [env]      Override the SSM Parameter Store environment (production/development/staging).
   -h, --help           Show this help message.
@@ -45,6 +47,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     -r|--rebuild)
       REBUILD="true"
+      shift
+      ;;
+    -t|--test)
+      TEST="true"
       shift
       ;;
     -p|--profile)
@@ -222,6 +228,87 @@ if [ -f backend/.env.local ]; then
 else
   echo "❌ Error: backend/.env.local not found. Floci initialization failed."
   exit 1
+fi
+
+# --- Run Local Tests inside Backend Container if Flag is set ---
+if [ "$TEST" = "true" ]; then
+  # Startup Backend Container
+  echo "🚀 Spinning up backend container for tests..."
+  $DOCKER_CMD compose -f docker-compose.local.yml up -d pulse-backend
+
+  echo "⏳ Waiting for backend container to be healthy..."
+  attempts=0
+  max_attempts=30
+  backend_ready=false
+  while [ $attempts -lt $max_attempts ]; do
+    if curl -s http://localhost:8000/health >/dev/null 2>&1; then
+      backend_ready=true
+      break
+    fi
+    sleep 1
+    attempts=$((attempts+1))
+  done
+
+  if [ "$backend_ready" = "true" ]; then
+    echo "========================================================================"
+    echo "🔍 Running Local Linters and Tests inside Backend Container"
+    echo "========================================================================"
+
+    # Temporarily disable set -e to collect all failures
+    set +e
+
+    echo "📦 Installing test dependencies inside container..."
+    $DOCKER_CMD exec pulse-backend pip install pytest ruff alembic pytest-cov
+    INSTALL_EXIT=$?
+
+    if [ $INSTALL_EXIT -ne 0 ]; then
+      echo "❌ Error: Failed to install test dependencies inside the container."
+      $DOCKER_CMD compose -f docker-compose.local.yml down
+      exit $INSTALL_EXIT
+    fi
+
+    echo "👉 Running Ruff Check..."
+    $DOCKER_CMD exec pulse-backend ruff check .
+    RUFF_CHECK_EXIT=$?
+
+    echo "👉 Running Ruff Format Check..."
+    $DOCKER_CMD exec pulse-backend ruff format --check .
+    RUFF_FORMAT_EXIT=$?
+
+    echo "👉 Running Alembic Migrations on Test DB..."
+    $DOCKER_CMD exec pulse-backend alembic upgrade head
+    ALEMBIC_EXIT=$?
+
+    TEST_EXIT_CODE=0
+    if [ $ALEMBIC_EXIT -eq 0 ]; then
+      echo "👉 Running Backend Pytest with Coverage..."
+      $DOCKER_CMD exec -e PYTHONPATH=. pulse-backend pytest --cov=. --cov-report=term-missing --cov-config=.coveragerc tests
+      TEST_EXIT_CODE=$?
+    else
+      echo "❌ Skipping pytest because database migrations failed."
+      TEST_EXIT_CODE=$ALEMBIC_EXIT
+    fi
+
+    # Restore set -e
+    set -e
+
+    echo "🛑 Tearing down local test containers..."
+    $DOCKER_CMD compose -f docker-compose.local.yml down >/dev/null 2>&1 || true
+
+    # Determine final exit status
+    echo "📊 Exit Codes -> Ruff Check: $RUFF_CHECK_EXIT | Ruff Format: $RUFF_FORMAT_EXIT | Alembic: $ALEMBIC_EXIT | Pytest: $TEST_EXIT_CODE"
+    if [ $RUFF_CHECK_EXIT -eq 0 ] && [ $RUFF_FORMAT_EXIT -eq 0 ] && [ $ALEMBIC_EXIT -eq 0 ] && [ $TEST_EXIT_CODE -eq 0 ]; then
+      echo "✅ All checks and tests passed successfully!"
+      exit 0
+    else
+      echo "❌ Some checks or tests failed."
+      exit 1
+    fi
+  else
+    echo "❌ Error: Backend did not become healthy in time."
+    $DOCKER_CMD compose -f docker-compose.local.yml down
+    exit 1
+  fi
 fi
 
 # --- Startup Services ---
