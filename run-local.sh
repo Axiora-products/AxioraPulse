@@ -293,7 +293,7 @@ if [ "$TEST" = "true" ]; then
     set -e
 
     echo "🛑 Tearing down local test containers..."
-    $DOCKER_CMD compose -f docker-compose.local.yml down || true
+    $DOCKER_CMD compose -f docker-compose.local.yml down >/dev/null 2>&1 || true
 
     # Determine final exit status
     echo "📊 Exit Codes -> Ruff Check: $RUFF_CHECK_EXIT | Ruff Format: $RUFF_FORMAT_EXIT | Alembic: $ALEMBIC_EXIT | Pytest: $TEST_EXIT_CODE"
