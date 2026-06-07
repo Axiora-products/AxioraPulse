@@ -1,6 +1,6 @@
 # Axiora Pulse
 
-[![CI/CD Pipeline](https://github.com/Axiora-products/AxioraPulse/actions/workflows/pipeline.yml/badge.svg)](https://github.com/Axiora-products/AxioraPulse/actions)
+[![CI/CD Pipeline](https://github.com/Axiora-products/AxioraPulse/actions/workflows/develop-validation.yml/badge.svg)](https://github.com/Axiora-products/AxioraPulse/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Python: 3.12](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/downloads/release/python-3120/)
 [![Coverage: 81%](https://img.shields.io/badge/Coverage-81%25-green.svg)](https://github.com/Axiora-products/AxioraPulse)
