@@ -22,6 +22,9 @@ param (
     [Alias("r")]
     [Switch]$Rebuild,
 
+    [Alias("t","c")]
+    [Switch]$Test,
+
     [Alias("p")]
     [String]$Profile,
 
@@ -41,6 +44,7 @@ if ($Help) {
     Write-Host "Options:"
     Write-Host "  -d, -Down           Stop and tear down the containers, networks, and keep volumes."
     Write-Host "  -r, -Rebuild        Force rebuild of Docker/Podman images during startup."
+    Write-Host "  -t, -Test           Run local linters and tests (starts DB & Floci, runs tests, then shuts down)."
     Write-Host "  -p, -Profile [prof] Override the AWS profile to use."
     Write-Host "  -e, -EnvName [env]  Override the SSM Parameter Store environment (production/development/staging)."
     Write-Host "  -h, -Help           Show this help message."
@@ -239,6 +243,75 @@ if (Test-Path -Path "backend\.env.local") {
 } else {
     Write-Host "❌ Error: backend\.env.local not found. Floci initialization failed."
     exit 1
+}
+
+# --- Run Local Tests if Flag is set ---
+if ($Test) {
+    Write-Host "======================================================================="
+    Write-Host "🔍 Running Local Linters and Tests"
+    Write-Host "======================================================================="
+
+    # Check for ruff
+    $hasRuff = Get-Command ruff -ErrorAction SilentlyContinue
+    if ($null -eq $hasRuff) {
+        Write-Host "❌ Error: 'ruff' is not installed on your host system."
+        Write-Host "💡 Please activate your virtualenv or run: pip install ruff"
+        & $DockerCmd compose -f docker-compose.local.yml down
+        exit 1
+    }
+
+    # Check for pytest
+    $hasPytest = Get-Command pytest -ErrorAction SilentlyContinue
+    if ($null -eq $hasPytest) {
+        Write-Host "❌ Error: 'pytest' is not installed on your host system."
+        Write-Host "💡 Please activate your virtualenv or run: pip install pytest pytest-cov"
+        & $DockerCmd compose -f docker-compose.local.yml down
+        exit 1
+    }
+
+    # Check for alembic
+    $hasAlembic = Get-Command alembic -ErrorAction SilentlyContinue
+    if ($null -eq $hasAlembic) {
+        Write-Host "❌ Error: 'alembic' is not installed on your host system."
+        Write-Host "💡 Please activate your virtualenv or run: pip install alembic"
+        & $DockerCmd compose -f docker-compose.local.yml down
+        exit 1
+    }
+
+    Write-Host "👉 Running Ruff Check..."
+    ruff check backend
+
+    Write-Host "👉 Running Ruff Format Check..."
+    ruff format --check backend
+
+    Write-Host "👉 Running Alembic Migrations on Test DB..."
+    Push-Location backend
+    $env:DATABASE_URL="postgresql://postgres:root@localhost:5432/nexpulse"
+    alembic upgrade head
+    Pop-Location
+
+    Write-Host "👉 Running Backend Pytest..."
+    $env:DATABASE_URL="postgresql://postgres:root@localhost:5432/nexpulse"
+    $env:AWS_ENDPOINT_URL="http://localhost:4566"
+    $env:AWS_DEFAULT_REGION="ap-south-1"
+    $env:AWS_ACCESS_KEY_ID="mock"
+    $env:AWS_SECRET_ACCESS_KEY="mock"
+    $env:SECRET_KEY="mock_secret_key_for_testing_purposes_only"
+    $env:PYTHONPATH="backend"
+    pytest backend/tests
+    
+    $TestExitCode = $LASTEXITCODE
+
+    Write-Host "🛑 Tearing down local test containers..."
+    & $DockerCmd compose -f docker-compose.local.yml down
+
+    if ($TestExitCode -eq 0) {
+        Write-Host "✅ All tests passed successfully!"
+        exit 0
+    } else {
+        Write-Host "❌ Some tests failed."
+        exit $TestExitCode
+    }
 }
 
 # --- Startup Services ---
