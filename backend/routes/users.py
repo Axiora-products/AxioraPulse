@@ -13,6 +13,12 @@ GET    /users/{id}      — Get single user profile
 import uuid
 import secrets
 import os
+import time
+import re
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
+from typing import List, Optional
+from pydantic import BaseModel
 from schemas import BulkInviteRequest
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
@@ -187,9 +193,6 @@ def invite_user(
         print("Email failed:", str(e))
 
     return UserProfileOut.model_validate(new_user)
-
-
-import time
 
 
 @router.post("/bulk-invite")
@@ -477,11 +480,6 @@ def get_invite_info(
 
 
 # ── Bulk Communication & Survey Sharing ──────────────────────────────────────
-from pydantic import BaseModel
-from typing import List, Optional
-from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
-import re
 
 
 class ShareSurveyRequest(BaseModel):
