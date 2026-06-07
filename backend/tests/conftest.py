@@ -318,6 +318,7 @@ def seed_test_data():
                 tenant_id=tenant.id,
                 role=RoleEnum.admin,
                 is_active=True,
+                is_internal=True,
                 account_status="active",
             )
             db.add(user)
@@ -327,6 +328,7 @@ def seed_test_data():
             user.is_active = True
             user.role = RoleEnum.admin
             user.tenant_id = tenant.id
+            user.is_internal = True
             if user.cognito_sub != "f1d3ad6a-5031-70d5-9d6a-5013ed87e8d2":
                 user.cognito_sub = "f1d3ad6a-5031-70d5-9d6a-5013ed87e8d2"
             db.commit()
