@@ -11,7 +11,7 @@ import requests
 from fastapi import Request, APIRouter, Depends, HTTPException
 
 
-from pydantic import ValidationError
+from pydantic import ValidationError, BaseModel
 from starlette.concurrency import run_in_threadpool
 from core.rate_limiter import limiter
 
@@ -1073,9 +1073,6 @@ Return this exact JSON structure:
         if "rate" in str(e).lower() or "429" in str(e):
             raise HTTPException(status_code=429, detail="API rate limit reached, please try again shortly")
         raise HTTPException(status_code=500, detail=f"Failed to generate survey intelligence: {str(e)}")
-
-
-from pydantic import BaseModel
 
 
 class AITranslateRequest(BaseModel):
