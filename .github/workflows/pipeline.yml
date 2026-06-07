@@ -95,7 +95,7 @@ jobs:
         id: python-cache
         with:
           path: backend/.venv
-          key: ${{ runner.os }}-python-venv-${{ hashFiles('backend/requirements.txt', '.github/workflows/pipeline.yml') }}
+          key: ${{ runner.os }}-python-venv-v1-${{ hashFiles('backend/requirements.txt') }}
 
       - name: Install Backend Dependencies
         if: steps.python-cache.outputs.cache-hit != 'true'
