@@ -62,6 +62,8 @@ jobs:
         with:
           path: backend/.venv
           key: ${{ runner.os }}-python-venv-v1-${{ hashFiles('backend/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-python-venv-v1-
 
       - name: Install Backend Dependencies
         if: steps.python-cache.outputs.cache-hit != 'true'
