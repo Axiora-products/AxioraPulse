@@ -236,37 +236,35 @@ if [ "$TEST" = "true" ]; then
   echo "🔍 Running Local Linters and Tests"
   echo "========================================================================"
 
-  # Check for tools
-  if ! command -v ruff &>/dev/null; then
-    echo "❌ Error: 'ruff' is not installed on your host system."
-    echo "💡 Please activate your virtualenv or run: pip install ruff"
-    $DOCKER_CMD compose -f docker-compose.local.yml down
-    exit 1
+  # Determine Python command
+  PYTHON_CMD="python3"
+  if ! command -v python3 &>/dev/null; then
+    if command -v python &>/dev/null; then
+      PYTHON_CMD="python"
+    else
+      echo "❌ Error: Python is not installed on your system. Please install Python 3."
+      $DOCKER_CMD compose -f docker-compose.local.yml down
+      exit 1
+    fi
   fi
 
-  if ! command -v pytest &>/dev/null; then
-    echo "❌ Error: 'pytest' is not installed on your host system."
-    echo "💡 Please activate your virtualenv or run: pip install pytest pytest-cov"
-    $DOCKER_CMD compose -f docker-compose.local.yml down
-    exit 1
-  fi
-
-  if ! command -v alembic &>/dev/null; then
-    echo "❌ Error: 'alembic' is not installed on your host system."
-    echo "💡 Please activate your virtualenv or run: pip install alembic"
-    $DOCKER_CMD compose -f docker-compose.local.yml down
-    exit 1
+  # Auto-create virtualenv if it doesn't exist
+  if [ ! -d ".venv" ]; then
+    echo "🌱 Local virtual environment (.venv) not found. Creating and installing dependencies on the fly..."
+    $PYTHON_CMD -m venv .venv
+    .venv/bin/pip install --upgrade pip
+    .venv/bin/pip install -r backend/requirements.txt pytest ruff alembic pytest-cov
   fi
 
   echo "👉 Running Ruff Check..."
-  ruff check backend
+  .venv/bin/ruff check backend
 
   echo "👉 Running Ruff Format Check..."
-  ruff format --check backend
+  .venv/bin/ruff format --check backend
 
   echo "👉 Running Alembic Migrations on Test DB..."
   cd backend
-  DATABASE_URL="postgresql://postgres:root@localhost:5432/nexpulse" alembic upgrade head
+  DATABASE_URL="postgresql://postgres:root@localhost:5432/nexpulse" ../.venv/bin/alembic upgrade head
   cd ..
 
   echo "👉 Running Backend Pytest..."
@@ -277,7 +275,7 @@ if [ "$TEST" = "true" ]; then
   AWS_SECRET_ACCESS_KEY="mock" \
   SECRET_KEY="mock_secret_key_for_testing_purposes_only" \
   PYTHONPATH="backend" \
-  pytest backend/tests
+  .venv/bin/pytest backend/tests
   
   TEST_EXIT_CODE=$?
 
