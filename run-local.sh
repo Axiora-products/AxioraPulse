@@ -281,8 +281,8 @@ if [ "$TEST" = "true" ]; then
 
     TEST_EXIT_CODE=0
     if [ $ALEMBIC_EXIT -eq 0 ]; then
-      echo "👉 Running Backend Pytest..."
-      $DOCKER_CMD exec -e PYTHONPATH=. pulse-backend pytest tests
+      echo "👉 Running Backend Pytest with Coverage..."
+      $DOCKER_CMD exec -e PYTHONPATH=. pulse-backend pytest --cov=. --cov-report=term-missing --cov-config=.coveragerc tests
       TEST_EXIT_CODE=$?
     else
       echo "❌ Skipping pytest because database migrations failed."
