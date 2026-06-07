@@ -50,7 +50,10 @@ def seed_test_data():
             db.refresh(tenant)
 
         # 2. Create default UserProfile if none exists
-        user = db.query(UserProfile).filter(UserProfile.cognito_sub == "f1d3ad6a-5031-70d5-9d6a-5013ed87e8d2").first()
+        user = db.query(UserProfile).filter(
+            (UserProfile.cognito_sub == "f1d3ad6a-5031-70d5-9d6a-5013ed87e8d2") |
+            (UserProfile.email == "dev@axiorapulse.com")
+        ).first()
         if not user:
             user = UserProfile(
                 id=uuid.UUID("f1d3ad6a-5031-70d5-9d6a-5013ed87e8d2"),
@@ -64,6 +67,13 @@ def seed_test_data():
             db.add(user)
             db.commit()
             db.refresh(user)
+        else:
+            # If the user exists but has a different cognito_sub (e.g. from local AWS seeding),
+            # update it to match the hardcoded test token sub so tests authenticate successfully.
+            if user.cognito_sub != "f1d3ad6a-5031-70d5-9d6a-5013ed87e8d2":
+                user.cognito_sub = "f1d3ad6a-5031-70d5-9d6a-5013ed87e8d2"
+                db.commit()
+                db.refresh(user)
 
         # 3. Create target Survey if not exists
         survey_id = uuid.UUID("e0cd2144-b592-4e3a-92a4-9e78eccbe9e9")
