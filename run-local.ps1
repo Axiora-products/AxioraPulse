@@ -297,7 +297,7 @@ if ($Test) {
         $TestExitCode = 0
         if ($AlembicExit -eq 0) {
             Write-Host "👉 Running Backend Pytest..."
-            & $DockerCmd exec pulse-backend pytest tests
+            & $DockerCmd exec -e PYTHONPATH=. pulse-backend pytest tests
             $TestExitCode = $LASTEXITCODE
         } else {
             Write-Host "❌ Skipping pytest because database migrations failed."
