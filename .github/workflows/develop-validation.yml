@@ -108,6 +108,7 @@ jobs:
           tags: |
             ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-fastapi-qa:sha-${{ github.sha }}
             ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-fastapi-qa:qa
+            ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-fastapi-qa:latest
 
   frontend-docker-qa:
     needs: [changes]
@@ -137,3 +138,4 @@ jobs:
           tags: |
             ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-frontend-qa:sha-${{ github.sha }}
             ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-frontend-qa:qa
+            ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-frontend-qa:latest
