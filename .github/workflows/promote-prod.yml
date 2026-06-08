@@ -1,0 +1,104 @@
+name: Promote to Production
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  promote:
+    name: Promote Image & Deploy Prod
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials (Prod)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::217757579310:role/GitHubActionsDeployerRole
+          aws-region: ap-south-1
+
+      - name: Login to Amazon ECR (Prod)
+        id: login-ecr-prod
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Login to Amazon ECR (QA)
+        id: login-ecr-qa
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          registries: "399894608507"
+
+      - name: Promote Backend Image
+        run: |
+          QA_IMAGE=399894608507.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-fastapi-qa:sha-${{ github.sha }}
+          PROD_IMAGE=${{ steps.login-ecr-prod.outputs.registry }}/axiora/pulse-fastapi:sha-${{ github.sha }}
+          LATEST_IMAGE=${{ steps.login-ecr-prod.outputs.registry }}/axiora/pulse-fastapi:prod
+          
+          docker pull $QA_IMAGE
+          docker tag $QA_IMAGE $PROD_IMAGE
+          docker tag $QA_IMAGE $LATEST_IMAGE
+          docker push $PROD_IMAGE
+          docker push $LATEST_IMAGE
+
+      - name: Promote Frontend Image
+        run: |
+          QA_IMAGE=399894608507.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-frontend-qa:sha-${{ github.sha }}
+          PROD_IMAGE=${{ steps.login-ecr-prod.outputs.registry }}/axiora/pulse-frontend:sha-${{ github.sha }}
+          LATEST_IMAGE=${{ steps.login-ecr-prod.outputs.registry }}/axiora/pulse-frontend:prod
+          
+          docker pull $QA_IMAGE
+          docker tag $QA_IMAGE $PROD_IMAGE
+          docker tag $QA_IMAGE $LATEST_IMAGE
+          docker push $PROD_IMAGE
+          docker push $LATEST_IMAGE
+
+      - name: Deploy Prod Infrastructure
+        run: |
+          npm install --prefix infra/cdk
+          cd infra/cdk
+          export CDK_PROD_ENABLED=true
+          npx cdk deploy AxioraPulseStackProd --require-approval never
+
+      - name: Prepare Prod Task Definitions
+        run: |
+          sed -i 's/${ENV}/prod/g' backend/ecs-task-def.json
+          sed -i 's/${ROLE_ARN}/arn:aws:iam::217757579310:role\/GitHubActionsDeployerRole/g' backend/ecs-task-def.json
+          sed -i 's/${ENV}/prod/g' frontend/ecs-task-def.json
+          sed -i 's/${ROLE_ARN}/arn:aws:iam::217757579310:role\/GitHubActionsDeployerRole/g' frontend/ecs-task-def.json
+
+      - name: Render Backend Task Definition
+        id: render-backend
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: backend/ecs-task-def.json
+          container-name: BackendContainer
+          image: ${{ steps.login-ecr-prod.outputs.registry }}/axiora/pulse-fastapi:sha-${{ github.sha }}
+
+      - name: Deploy Backend to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render-backend.outputs.task-definition }}
+          service: pulse-backend-prod
+          cluster: axiorapulse-prod-cluster
+          wait-for-service-stability: true
+
+      - name: Render Frontend Task Definition
+        id: render-frontend
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: frontend/ecs-task-def.json
+          container-name: FrontendContainer
+          image: ${{ steps.login-ecr-prod.outputs.registry }}/axiora/pulse-frontend:sha-${{ github.sha }}
+
+      - name: Deploy Frontend to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render-frontend.outputs.task-definition }}
+          service: pulse-frontend-prod
+          cluster: axiorapulse-prod-cluster
+          wait-for-service-stability: true
