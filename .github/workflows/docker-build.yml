@@ -31,5 +31,3 @@ jobs:
           file: ${{ inputs.file }}
           push: false
           tags: ${{ inputs.image-name }}:latest
-          cache-from: type=gha
-          cache-to: ${{ github.ref_name == 'develop' && 'type=gha,mode=max' || '' }}
