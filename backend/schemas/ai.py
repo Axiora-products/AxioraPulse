@@ -16,6 +16,64 @@ class AIActionItem(BaseModel):
     impact: str
 
 
+# ── Deep Analysis Models ──────────────────────────────────────────────────────
+
+
+class AIThemeItem(BaseModel):
+    theme: str
+    frequency: str  # e.g. "mentioned by 65% of respondents"
+    sentiment: str  # positive, negative, mixed, neutral
+    quotes: List[str] = Field(default_factory=list)
+    relatedQuestions: List[str] = Field(default_factory=list)
+
+
+class AICrossPattern(BaseModel):
+    pattern: str
+    questions: List[str] = Field(default_factory=list)
+    significance: str  # high, medium, low
+    detail: str
+
+
+class AIRespondentSegment(BaseModel):
+    segment: str
+    size: str  # e.g. "~40% of respondents"
+    characteristics: str
+    sentiment: str  # positive, negative, mixed, neutral
+    keyDifference: str
+
+
+class AIUrgencyItem(BaseModel):
+    issue: str
+    urgency: str  # critical, high, medium, low
+    impact: str  # high, medium, low
+    evidence: str
+
+
+class AIBenchmark(BaseModel):
+    metric: str
+    value: str
+    benchmark: str
+    status: str  # above, at, below
+    context: str
+
+
+class AIDataQualityFlag(BaseModel):
+    flag: str
+    severity: str  # warning, info
+    detail: str
+    suggestion: str
+
+
+class AISentimentBreakdown(BaseModel):
+    positive: int = 0
+    neutral: int = 0
+    negative: int = 0
+    overall: str = "neutral"  # positive, neutral, negative
+
+
+# ── Request / Response ────────────────────────────────────────────────────────
+
+
 class AIInsightsRequest(BaseModel):
     surveyTitle: str
     responses: Dict[str, Any]
@@ -23,12 +81,23 @@ class AIInsightsRequest(BaseModel):
 
 
 class AIInsightsResponse(BaseModel):
+    # Core (existing)
     executiveSummary: str
     npsAnalysis: Optional[str] = None
-    insights: List[AIInsightItem]
-    topStrengths: List[str]
-    improvementAreas: List[str]
-    recommendedActions: List[AIActionItem]
+    insights: List[AIInsightItem] = Field(default_factory=list)
+    topStrengths: List[str] = Field(default_factory=list)
+    improvementAreas: List[str] = Field(default_factory=list)
+    recommendedActions: List[AIActionItem] = Field(default_factory=list)
+    # Deep analysis (new)
+    overallScore: Optional[int] = None  # 0-100
+    responseQuality: Optional[str] = None
+    sentimentBreakdown: Optional[AISentimentBreakdown] = None
+    keyThemes: List[AIThemeItem] = Field(default_factory=list)
+    crossQuestionPatterns: List[AICrossPattern] = Field(default_factory=list)
+    respondentSegments: List[AIRespondentSegment] = Field(default_factory=list)
+    urgencyMatrix: List[AIUrgencyItem] = Field(default_factory=list)
+    benchmarkComparison: List[AIBenchmark] = Field(default_factory=list)
+    dataQualityFlags: List[AIDataQualityFlag] = Field(default_factory=list)
 
 
 class AISuggestionItem(BaseModel):
