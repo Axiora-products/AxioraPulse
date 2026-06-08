@@ -55,26 +55,13 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
-      - name: Cache Python Virtualenv
-        uses: actions/cache@v4
-        id: python-cache
-        with:
-          path: backend/.venv
-          key: ${{ runner.os }}-python-venv-v1-${{ hashFiles('backend/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-python-venv-v1-
+          cache: 'pip'
+          cache-dependency-path: 'backend/requirements.txt'
 
       - name: Install Backend Dependencies
-        if: steps.python-cache.outputs.cache-hit != 'true'
         run: |
-          python -m venv backend/.venv
-          backend/.venv/bin/pip install --upgrade pip
-          backend/.venv/bin/pip install -r backend/requirements.txt pytest ruff alembic pytest-cov diff-cover
-
-      - name: Add Virtualenv to PATH
-        run: |
-          echo "${{ github.workspace }}/backend/.venv/bin" >> $GITHUB_PATH
+          pip install --upgrade pip
+          pip install -r backend/requirements.txt pytest ruff alembic pytest-cov diff-cover
 
       - name: Cache Ruff
         uses: actions/cache@v4
