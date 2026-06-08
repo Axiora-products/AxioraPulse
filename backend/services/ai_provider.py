@@ -12,7 +12,6 @@ only when all configured providers have failed.
 """
 
 import os
-import json
 import logging
 import requests
 from typing import Optional
