@@ -28,7 +28,7 @@ new GitHubOidcStack(app, 'AxioraPulseGitHubOidcStackProd', {
 
 new GitHubOidcStack(app, 'AxioraPulseGitHubOidcStackQa', {
   env: { 
-    account: '681816818894', 
+    account: '399894608507', 
     region: 'ap-south-1' 
   },
   repositoryConfig: [
@@ -42,13 +42,14 @@ new GitHubOidcStack(app, 'AxioraPulseGitHubOidcStackQa', {
 new AxioraPulseStack(app, 'AxioraPulseStackQa', {
   environment: 'qa',
   env: { 
-    account: '681816818894', 
+    account: '399894608507', 
     region: 'ap-south-1' 
   },
   description: 'QA environment for AxioraPulse',
 });
 
 
+/*
 // Production
 new AxioraPulseStack(app, 'AxioraPulseStackProd', {
   environment: 'prod',
@@ -59,3 +60,4 @@ new AxioraPulseStack(app, 'AxioraPulseStackProd', {
   },
   description: 'Production environment for AxioraPulse',
 });
+*/

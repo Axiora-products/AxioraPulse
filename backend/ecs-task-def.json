@@ -1,15 +1,15 @@
 {
-  "family": "pulse-backend",
+  "family": "pulse-backend-${ENV}",
   "networkMode": "awsvpc",
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "512",
   "memory": "1024",
-  "executionRoleArn": "arn:aws:iam::079975324160:role/GitHubActionsDeployerRole",
-  "taskRoleArn": "arn:aws:iam::079975324160:role/GitHubActionsDeployerRole",
+  "executionRoleArn": "${ROLE_ARN}",
+  "taskRoleArn": "${ROLE_ARN}",
   "containerDefinitions": [
     {
       "name": "BackendContainer",
-      "image": "079975324160.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-fastapi:latest",
+      "image": "BACKEND_IMAGE",
       "essential": true,
       "portMappings": [
         {
@@ -18,60 +18,60 @@
         }
       ],
       "environment": [
-        { "name": "ENVIRONMENT",      "value": "dev" },
+        { "name": "ENVIRONMENT",      "value": "${ENV}" },
         { "name": "COGNITO_REGION",   "value": "ap-south-1" },
         { "name": "AWS_SES_REGION",   "value": "ap-south-1" }
       ],
       "secrets": [
         {
           "name": "SECRET_KEY",
-          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/dev/SECRET_KEY"
+          "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/SECRET_KEY"
         },
         {
           "name": "DATABASE_URL",
-          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/dev/DATABASE_URL"
+          "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/DATABASE_URL"
         },
         {
           "name": "ANTHROPIC_KEY",
-          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/dev/ANTHROPIC_KEY"
+          "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/ANTHROPIC_KEY"
         },
         {
           "name": "GEMINI_KEY",
-          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/dev/GEMINI_KEY"
+          "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/GEMINI_KEY"
         },
         {
           "name": "OPENAI_KEY",
-          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/dev/OPENAI_KEY"
+          "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/OPENAI_KEY"
         },
         {
           "name": "EMAIL_FROM",
-          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/dev/EMAIL_FROM"
+          "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/EMAIL_FROM"
         },
         {
           "name": "FRONTEND_URL",
-          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/dev/FRONTEND_URL"
+          "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/FRONTEND_URL"
         },
         {
           "name": "RAZORPAY_KEY_ID",
-          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/dev/RAZORPAY_KEY_ID"
+          "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/RAZORPAY_KEY_ID"
         },
         {
           "name": "RAZORPAY_KEY_SECRET",
-          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/dev/RAZORPAY_KEY_SECRET"
+          "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/RAZORPAY_KEY_SECRET"
         },
         {
           "name": "COGNITO_USER_POOL_ID",
-          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/COGNITO_USER_POOL_ID"
+          "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/COGNITO_USER_POOL_ID"
         },
         {
           "name": "COGNITO_APP_CLIENT_ID",
-          "valueFrom": "arn:aws:ssm:ap-south-1:079975324160:parameter/axiorapulse/COGNITO_APP_CLIENT_ID"
+          "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/COGNITO_APP_CLIENT_ID"
         }
       ],
       "logConfiguration": {
         "logDriver": "awslogs",
         "options": {
-          "awslogs-group": "/ecs/pulse-backend-dev",
+          "awslogs-group": "/ecs/pulse-backend-${ENV}",
           "awslogs-region": "ap-south-1",
           "awslogs-stream-prefix": "ecs"
         }
