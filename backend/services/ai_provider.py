@@ -3,7 +3,7 @@ services/ai_provider.py
 ───────────────────────
 Centralized multi-provider AI service with automatic failover.
 
-Supports: Gemini 2.5 Flash, OpenAI GPT-5.1 Mini, Anthropic Claude Sonnet.
+Supports: Gemini 2.5 Flash, OpenAI GPT-5.4 Mini, Anthropic Claude Sonnet.
 Priority order: Gemini → OpenAI → Anthropic.
 
 Each provider returns raw JSON text. On failure (rate limit, network error,
@@ -26,8 +26,8 @@ logger = logging.getLogger("ai_provider")
 
 # ── Provider Models ───────────────────────────────────────────────────────────
 
-GEMINI_MODEL = "gemini-2.5-flash"
-OPENAI_MODEL = "gpt-4.1-mini"
+GEMINI_MODEL = "gemini-2.5-flash-lite"
+OPENAI_MODEL = "gpt-5.4-mini"
 ANTHROPIC_MODEL = "claude-sonnet-4-20250514"
 
 # ── Default System Instruction ────────────────────────────────────────────────
@@ -165,15 +165,56 @@ def _call_openai(
     """Call OpenAI Chat Completions API and return raw JSON text."""
     client = openai.OpenAI(api_key=api_key, timeout=_OPENAI_TIMEOUT)
 
-    response = client.chat.completions.create(
-        model=OPENAI_MODEL,
-        messages=[
-            {"role": "system", "content": system_instruction or _DEFAULT_SYSTEM},
-            {"role": "user", "content": prompt},
-        ],
-        max_tokens=max_tokens,
-        response_format={"type": "json_object"},
-    )
+    # Newer or reasoning models (e.g. gpt-5, o1, o3) don't support max_tokens and require max_completion_tokens
+    use_completion_tokens = OPENAI_MODEL.startswith(("o1-", "o3-", "gpt-5"))
+
+    try:
+        if use_completion_tokens:
+            response = client.chat.completions.create(
+                model=OPENAI_MODEL,
+                messages=[
+                    {"role": "system", "content": system_instruction or _DEFAULT_SYSTEM},
+                    {"role": "user", "content": prompt},
+                ],
+                max_completion_tokens=max_tokens,
+                response_format={"type": "json_object"},
+            )
+        else:
+            response = client.chat.completions.create(
+                model=OPENAI_MODEL,
+                messages=[
+                    {"role": "system", "content": system_instruction or _DEFAULT_SYSTEM},
+                    {"role": "user", "content": prompt},
+                ],
+                max_tokens=max_tokens,
+                response_format={"type": "json_object"},
+            )
+    except Exception as e:
+        err_msg = str(e).lower()
+        if "max_completion_tokens" in err_msg and not use_completion_tokens:
+            logger.info("[AI] Fallback: Retrying OpenAI call with max_completion_tokens")
+            response = client.chat.completions.create(
+                model=OPENAI_MODEL,
+                messages=[
+                    {"role": "system", "content": system_instruction or _DEFAULT_SYSTEM},
+                    {"role": "user", "content": prompt},
+                ],
+                max_completion_tokens=max_tokens,
+                response_format={"type": "json_object"},
+            )
+        elif "max_tokens" in err_msg and use_completion_tokens:
+            logger.info("[AI] Fallback: Retrying OpenAI call with max_tokens")
+            response = client.chat.completions.create(
+                model=OPENAI_MODEL,
+                messages=[
+                    {"role": "system", "content": system_instruction or _DEFAULT_SYSTEM},
+                    {"role": "user", "content": prompt},
+                ],
+                max_tokens=max_tokens,
+                response_format={"type": "json_object"},
+            )
+        else:
+            raise e
 
     text = (response.choices[0].message.content or "").strip()
     if not text:
