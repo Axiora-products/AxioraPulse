@@ -41,7 +41,7 @@ def mock_gemini(monkeypatch):
 
     monkeypatch.setenv("GEMINI_KEY", "mock_key_123")
 
-    def mock_call_gemini(api_key: str, prompt: str, max_tokens: int = 2048) -> str:
+    def mock_call_gemini(prompt: str, max_tokens: int = 2048, system_instruction=None) -> str:
         # Returns a JSON that contains all possible keys for all schemas (Insights, Generate, Suggestions, SurveyIntelligence)
         return json.dumps(
             {
@@ -110,8 +110,8 @@ def mock_gemini(monkeypatch):
     def mock_investor_call_gemini(*args, **kwargs):
         raise ValueError("Simulated Gemini error for fallback testing")
 
-    monkeypatch.setattr(routes.ai, "_call_gemini", mock_call_gemini)
-    monkeypatch.setattr(routes.investor, "_call_gemini", mock_investor_call_gemini)
+    monkeypatch.setattr(routes.ai, "call_ai_sync", mock_call_gemini)
+    monkeypatch.setattr(routes.investor, "call_ai_sync", mock_investor_call_gemini)
 
 
 # --- Mock Whisper Speech-to-Text ---
