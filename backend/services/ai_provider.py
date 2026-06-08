@@ -31,10 +31,7 @@ ANTHROPIC_MODEL = "claude-sonnet-4-20250514"
 
 # ── Default System Instruction ────────────────────────────────────────────────
 
-_DEFAULT_SYSTEM = (
-    "You are a helpful AI assistant. Always respond with valid JSON only "
-    "— no markdown, no explanation."
-)
+_DEFAULT_SYSTEM = "You are a helpful AI assistant. Always respond with valid JSON only — no markdown, no explanation."
 
 # ── Provider Timeout (seconds) ────────────────────────────────────────────────
 
@@ -44,6 +41,7 @@ _ANTHROPIC_TIMEOUT = 90
 
 
 # ── Truncated JSON Repair ─────────────────────────────────────────────────────
+
 
 def _repair_truncated_json(text: str) -> str:
     """
@@ -81,7 +79,7 @@ def _repair_truncated_json(text: str) -> str:
         if escape_next:
             escape_next = False
             continue
-        if ch == '\\':
+        if ch == "\\":
             escape_next = True
             continue
         if ch == '"':
@@ -89,11 +87,11 @@ def _repair_truncated_json(text: str) -> str:
             continue
         if in_string:
             continue
-        if ch in ('{', '['):
+        if ch in ("{", "["):
             stack.append(ch)
-        elif ch == '}' and stack and stack[-1] == '{':
+        elif ch == "}" and stack and stack[-1] == "{":
             stack.pop()
-        elif ch == ']' and stack and stack[-1] == '[':
+        elif ch == "]" and stack and stack[-1] == "[":
             stack.pop()
 
     # Remove trailing comma before closing
@@ -101,7 +99,7 @@ def _repair_truncated_json(text: str) -> str:
 
     # Close unclosed structures in reverse order
     for opener in reversed(stack):
-        repaired += ']' if opener == '[' else '}'
+        repaired += "]" if opener == "[" else "}"
 
     try:
         _json.loads(repaired)
@@ -114,6 +112,7 @@ def _repair_truncated_json(text: str) -> str:
 
 # ── Internal Provider Callers ─────────────────────────────────────────────────
 
+
 def _call_gemini(
     api_key: str,
     prompt: str,
@@ -121,16 +120,11 @@ def _call_gemini(
     system_instruction: Optional[str] = None,
 ) -> str:
     """Call Google Gemini REST API and return raw JSON text."""
-    url = (
-        f"https://generativelanguage.googleapis.com/v1beta/models/"
-        f"{GEMINI_MODEL}:generateContent?key={api_key}"
-    )
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={api_key}"
     headers = {"Content-Type": "application/json"}
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
-        "systemInstruction": {
-            "parts": [{"text": system_instruction or _DEFAULT_SYSTEM}]
-        },
+        "systemInstruction": {"parts": [{"text": system_instruction or _DEFAULT_SYSTEM}]},
         "generationConfig": {
             "responseMimeType": "application/json",
             "maxOutputTokens": max_tokens,
@@ -245,9 +239,7 @@ def _call_anthropic(
     )
 
     # Extract text from content blocks
-    text_parts = [
-        block.text for block in response.content if hasattr(block, "text")
-    ]
+    text_parts = [block.text for block in response.content if hasattr(block, "text")]
     text = "".join(text_parts).strip()
     if not text:
         raise ValueError("Empty response from Anthropic API")
@@ -345,10 +337,14 @@ def call_ai_sync(
                 has_retries_left = attempt < _MAX_RETRIES
 
                 if is_retryable and has_retries_left:
-                    delay = _RETRY_BASE_DELAY * (2 ** attempt)
+                    delay = _RETRY_BASE_DELAY * (2**attempt)
                     logger.warning(
                         "[AI] Provider %s returned transient error (attempt %d/%d), retrying in %ds: %s",
-                        provider_name, attempt + 1, _MAX_RETRIES + 1, delay, safe_msg,
+                        provider_name,
+                        attempt + 1,
+                        _MAX_RETRIES + 1,
+                        delay,
+                        safe_msg,
                     )
                     time.sleep(delay)
                     continue
@@ -369,4 +365,3 @@ def call_ai_sync(
         status_code=503,
         detail="All AI providers are currently unavailable. Please try again shortly.",
     )
-

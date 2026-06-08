@@ -15,7 +15,9 @@ class AIActionItem(BaseModel):
     action: str
     impact: str
 
+
 # ── Deep Analysis Models ──────────────────────────────────────────────────────
+
 
 class AIThemeItem(BaseModel):
     theme: str
@@ -24,11 +26,13 @@ class AIThemeItem(BaseModel):
     quotes: List[str] = Field(default_factory=list)
     relatedQuestions: List[str] = Field(default_factory=list)
 
+
 class AICrossPattern(BaseModel):
     pattern: str
     questions: List[str] = Field(default_factory=list)
     significance: str  # high, medium, low
     detail: str
+
 
 class AIRespondentSegment(BaseModel):
     segment: str
@@ -37,11 +41,13 @@ class AIRespondentSegment(BaseModel):
     sentiment: str  # positive, negative, mixed, neutral
     keyDifference: str
 
+
 class AIUrgencyItem(BaseModel):
     issue: str
     urgency: str  # critical, high, medium, low
-    impact: str   # high, medium, low
+    impact: str  # high, medium, low
     evidence: str
+
 
 class AIBenchmark(BaseModel):
     metric: str
@@ -50,11 +56,13 @@ class AIBenchmark(BaseModel):
     status: str  # above, at, below
     context: str
 
+
 class AIDataQualityFlag(BaseModel):
     flag: str
     severity: str  # warning, info
     detail: str
     suggestion: str
+
 
 class AISentimentBreakdown(BaseModel):
     positive: int = 0
@@ -62,7 +70,9 @@ class AISentimentBreakdown(BaseModel):
     negative: int = 0
     overall: str = "neutral"  # positive, neutral, negative
 
+
 # ── Request / Response ────────────────────────────────────────────────────────
+
 
 class AIInsightsRequest(BaseModel):
     surveyTitle: str
@@ -88,7 +98,6 @@ class AIInsightsResponse(BaseModel):
     urgencyMatrix: List[AIUrgencyItem] = Field(default_factory=list)
     benchmarkComparison: List[AIBenchmark] = Field(default_factory=list)
     dataQualityFlags: List[AIDataQualityFlag] = Field(default_factory=list)
-
 
 
 class AISuggestionItem(BaseModel):

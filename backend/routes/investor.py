@@ -31,6 +31,7 @@ def _get_currency_config(country: str) -> dict:
 
     return {"symbol": "$", "code": "USD", "rate": 1.0}
 
+
 # Investor-specific system instruction for AI calls
 _INVESTOR_SYSTEM_INSTRUCTION = (
     "You are an elite, venture-capital investment committee partner and startup mentor. "
@@ -281,9 +282,7 @@ Produce ONLY a raw JSON structure matching this exact shape:
 """
 
     try:
-        response_text = await run_in_threadpool(
-            call_ai_sync, prompt, 4096, _INVESTOR_SYSTEM_INSTRUCTION
-        )
+        response_text = await run_in_threadpool(call_ai_sync, prompt, 4096, _INVESTOR_SYSTEM_INSTRUCTION)
         report_data = json.loads(response_text)
         return InvestorReadinessReportResponse(**report_data)
     except Exception as e:
