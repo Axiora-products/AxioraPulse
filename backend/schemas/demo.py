@@ -1,5 +1,5 @@
-
 from pydantic import BaseModel
+
 
 class DemoRequest(BaseModel):
     name: str

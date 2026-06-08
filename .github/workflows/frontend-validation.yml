@@ -1,0 +1,33 @@
+name: Frontend Validation
+
+on:
+  workflow_call:
+
+jobs:
+  validate:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js for Frontend
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cache Frontend Node Modules
+        uses: actions/cache@v4
+        id: frontend-cache
+        with:
+          path: frontend/node_modules
+          key: ${{ runner.os }}-frontend-${{ hashFiles('frontend/package-lock.json') }}
+
+      - name: Install Frontend Dependencies
+        if: steps.frontend-cache.outputs.cache-hit != 'true'
+        run: |
+          npm install --prefix frontend
+
+      - name: Build Frontend (Compilation Check)
+        run: |
+          npm run build --prefix frontend
