@@ -9,7 +9,7 @@ import json
 import re
 from fastapi import Request, APIRouter, Depends, HTTPException
 
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from starlette.concurrency import run_in_threadpool
 from core.rate_limiter import limiter
 
