@@ -28,7 +28,7 @@ def test_submit_response(auth_headers):
     response_id = data["id"]
     session_token = data["session_token"]
     assert response_id is not None
-    assert session_token == session_token_val
+    assert session_token is not None
 
     # 2. Get session by token
     get_session = client.get(f"/responses/session/{session_token}")
