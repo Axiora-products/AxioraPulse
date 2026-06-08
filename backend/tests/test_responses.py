@@ -1,4 +1,3 @@
-import uuid
 from fastapi.testclient import TestClient
 from app.main import app
 
@@ -35,7 +34,7 @@ def test_submit_response(auth_headers):
     payload = {
         "survey_id": survey_id
     }
-    response = client.post("/responses/", json=create_payload)
+    response = client.post("/responses/", json=payload)
     assert response.status_code == 201
     data = response.json()
     response_id = data["id"]
