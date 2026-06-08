@@ -1,0 +1,61 @@
+name: PR Validation
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+      - 'release/**'
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  changes:
+    name: Detect Changed Paths
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      cdk: ${{ steps.filter.outputs.cdk }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      - name: Detect Changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+              - 'ruff.toml'
+              - '.github/workflows/pr-validation.yml'
+              - '.github/workflows/backend-validation.yml'
+            frontend:
+              - 'frontend/**'
+              - '.github/workflows/pr-validation.yml'
+              - '.github/workflows/frontend-validation.yml'
+            cdk:
+              - 'infra/**'
+              - '.github/workflows/pr-validation.yml'
+              - '.github/workflows/cdk-validation.yml'
+
+  backend:
+    needs: changes
+    if: ${{ needs.changes.outputs.backend == 'true' }}
+    uses: ./.github/workflows/backend-validation.yml
+    with:
+      is-pr: true
+      base-ref: ${{ github.event.pull_request.base.ref }}
+
+  frontend:
+    needs: changes
+    if: ${{ needs.changes.outputs.frontend == 'true' }}
+    uses: ./.github/workflows/frontend-validation.yml
+
+  cdk:
+    needs: changes
+    if: ${{ needs.changes.outputs.cdk == 'true' }}
+    uses: ./.github/workflows/cdk-validation.yml

@@ -1,0 +1,5 @@
+[run]
+omit =
+    init_local_aws.py
+    tests/*
+    alembic/*

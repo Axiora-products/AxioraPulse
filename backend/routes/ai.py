@@ -15,8 +15,17 @@ from core.rate_limiter import limiter
 
 from sqlalchemy.orm import Session, joinedload
 from db.database import get_db
-from db.models import UserProfile, Survey, SurveyQuestion, SurveyResponse, SurveyAnswer, ResponseStatusEnum
-from schemas import AIInsightsRequest, AIInsightsResponse, AISuggestionsRequest, AISuggestionsResponse, AIGenerateRequest, AIGenerateResponse, IdeaProtectionMetadata, SurveyIntelligenceResponse
+from db.models import UserProfile, Survey, SurveyResponse, ResponseStatusEnum
+from schemas import (
+    AIInsightsRequest,
+    AIInsightsResponse,
+    AISuggestionsRequest,
+    AISuggestionsResponse,
+    AIGenerateRequest,
+    AIGenerateResponse,
+    IdeaProtectionMetadata,
+    SurveyIntelligenceResponse,
+)
 from dependencies import get_current_user
 from services.feature_gate import require_feature
 from services.ai_provider import call_ai_sync
@@ -31,8 +40,13 @@ ADAPTIVE_QUESTION_TYPES = (
 )
 ALLOWED_QUESTION_TYPES = set(ADAPTIVE_QUESTION_TYPES.split("|"))
 OPTION_TYPES = {
-    "single_choice", "multiple_choice", "dropdown", "ranking",
-    "emoji_reaction", "swipe_choice", "visual_choice",
+    "single_choice",
+    "multiple_choice",
+    "dropdown",
+    "ranking",
+    "emoji_reaction",
+    "swipe_choice",
+    "visual_choice",
 }
 FAST_MOBILE_TYPES = ["emoji_reaction", "rating", "scale", "yes_no", "single_choice", "slider"]
 DEEP_TYPES = {"long_text", "matrix", "ranking"}
@@ -177,7 +191,10 @@ def _infer_best_format(text: str, current_type: str, mode: str, index: int, tota
         return "short_text"
     if any(k in ctx for k in ["employee", "team", "workplace"]) and index < 3:
         return "rating"
-    if any(k in ctx for k in ["design", "creative", "concept", "packaging", "ad creative"]) and q_type in {"single_choice", "short_text"}:
+    if any(k in ctx for k in ["design", "creative", "concept", "packaging", "ad creative"]) and q_type in {
+        "single_choice",
+        "short_text",
+    }:
         return "visual_choice"
     if mode in {"emotionally_triggering", "conversational"} and index == 0:
         return "emoji_reaction"
@@ -270,12 +287,42 @@ SENSITIVE_CATEGORY_LABELS = {
 }
 
 SENSITIVE_CATEGORY_KEYWORDS = {
-    "core_idea": ["building", "idea", "concept", "platform", "tool", "app", "product", "predicts", "prediction", "attrition"],
+    "core_idea": [
+        "building",
+        "idea",
+        "concept",
+        "platform",
+        "tool",
+        "app",
+        "product",
+        "predicts",
+        "prediction",
+        "attrition",
+    ],
     "business_model": ["pricing", "subscription", "revenue", "monetize", "buy", "sell", "business model", "gtm"],
     "differentiators": ["unique", "differentiator", "competitive advantage", "moat", "unlike", "secret"],
     "strategy": ["strategy", "roadmap", "launch", "go-to-market", "positioning", "targeting", "validate"],
-    "execution_details": ["using", "integrates", "slack", "microsoft teams", "algorithm", "model", "workflow", "implementation", "scoring"],
-    "proprietary_insights": ["proprietary", "insight", "internal", "trend", "behavior", "productivity", "data source", "signals"],
+    "execution_details": [
+        "using",
+        "integrates",
+        "slack",
+        "microsoft teams",
+        "algorithm",
+        "model",
+        "workflow",
+        "implementation",
+        "scoring",
+    ],
+    "proprietary_insights": [
+        "proprietary",
+        "insight",
+        "internal",
+        "trend",
+        "behavior",
+        "productivity",
+        "data source",
+        "signals",
+    ],
 }
 
 SENSITIVE_REPLACEMENTS = [
@@ -405,9 +452,7 @@ def protect_idea_context(original_context: str) -> dict:
 
     classified = detect_sensitive_idea_info(original_context)
     llm_safe_context = (
-        _mask_context_before_llm(original_context)
-        if classified["protection_applied"]
-        else original_context
+        _mask_context_before_llm(original_context) if classified["protection_applied"] else original_context
     )
 
     prompt = f"""Analyze this private survey-owner prompt and protect the idea before public survey questions are generated.
@@ -445,17 +490,15 @@ Protection rules:
         detected = result.get("detected_sensitive_categories") or []
         if not protected_context:
             return _fallback_protect_context(original_context)
-        detected = [
-            SENSITIVE_CATEGORY_LABELS[c]
-            for c in detected
-            if c in SENSITIVE_CATEGORY_LABELS
-        ]
+        detected = [SENSITIVE_CATEGORY_LABELS[c] for c in detected if c in SENSITIVE_CATEGORY_LABELS]
         if not detected:
             detected = classified["detected_sensitive_categories"]
         return {
             "protected_context": protected_context,
             "detected_sensitive_categories": detected,
-            "protection_applied": bool(result.get("protection_applied") or detected or classified["protection_applied"]),
+            "protection_applied": bool(
+                result.get("protection_applied") or detected or classified["protection_applied"]
+            ),
             "protected_context_summary": result.get("protected_context_summary"),
         }
     except Exception as e:
@@ -517,6 +560,7 @@ async def ping_ai(request: Request):
 
 # ── Internal Helpers ──────────────────────────────────────────────────────────
 
+
 def _build_survey_context(survey_id: str, db: Session) -> dict:
     """Fetch survey, questions, and responses to build context for AI."""
     survey = db.query(Survey).options(joinedload(Survey.questions)).filter(Survey.id == survey_id).first()
@@ -568,13 +612,15 @@ def _build_survey_context(survey_id: str, db: Session) -> dict:
                 elif ans.answer_json:
                     q_answers.append(ans.answer_json)
 
-        question_summaries.append({
-            "id": str(q.id),
-            "text": q.question_text,
-            "type": q.question_type.value,
-            "responseCount": len(q_answers),
-            "responses": q_answers[:50],
-        })
+        question_summaries.append(
+            {
+                "id": str(q.id),
+                "text": q.question_text,
+                "type": q.question_type.value,
+                "responseCount": len(q_answers),
+                "responses": q_answers[:50],
+            }
+        )
 
     return {
         "title": survey.title,
@@ -591,6 +637,7 @@ def _build_survey_context(survey_id: str, db: Session) -> dict:
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
+
 
 @router.get("/surveys/{survey_id}/insights")
 @limiter.limit("3/minute")
@@ -934,8 +981,7 @@ async def generate_survey(
     system_instruction = MODE_PROMPTS.get(mode, MODE_PROMPTS["conversational"])
     if mode == "custom" and body.customInstruction:
         system_instruction = (
-            f"{system_instruction}\n\nCustom survey mode instructions from the user:\n"
-            f"{body.customInstruction[:2000]}"
+            f"{system_instruction}\n\nCustom survey mode instructions from the user:\n{body.customInstruction[:2000]}"
         )
 
     # ── Build the user prompt ─────────────────────────────────────────────
@@ -1087,6 +1133,7 @@ Rules:
 
 # ── Survey Intelligence (Guidance + Roadmap) ──────────────────────────────────
 
+
 @router.post("/survey-intelligence")
 @limiter.limit("3/minute")
 async def generate_survey_intelligence(
@@ -1110,8 +1157,7 @@ async def generate_survey_intelligence(
     location_district = body.get("location_district", "")
 
     q_summary = "\n".join(
-        f"  - Q{i+1} ({q.get('type','text')}): {q.get('text','')}"
-        for i, q in enumerate(questions[:20])
+        f"  - Q{i + 1} ({q.get('type', 'text')}): {q.get('text', '')}" for i, q in enumerate(questions[:20])
     )
 
     location_section = ""
@@ -1242,8 +1288,6 @@ Return this exact JSON structure:
         raise HTTPException(status_code=500, detail=f"Failed to generate survey intelligence: {str(e)}")
 
 
-from pydantic import BaseModel
-
 class AITranslateRequest(BaseModel):
     title: str
     description: str | None = None
@@ -1252,12 +1296,13 @@ class AITranslateRequest(BaseModel):
     questions: list[dict]
     language: str
 
+
 @router.post("/translate-survey")
 async def translate_survey(body: AITranslateRequest):
     # AI provider is resolved automatically by call_ai_sync
     
     lang_name = "Hindi" if body.language == "hi" else "Telugu" if body.language == "te" else body.language
-    
+
     # Extract only translatable parts from the input questions to make the payload smaller and extremely safe
     simple_questions = []
     for q in body.questions:
@@ -1270,8 +1315,10 @@ async def translate_survey(body: AITranslateRequest):
         if q.get("options") is not None:
             opts = q.get("options")
             if isinstance(opts, list):
-                sq["options"] = [{"label": o.get("label"), "value": o.get("value")} for o in opts if isinstance(o, dict)]
-            elif isinstance(opts, dict): # for matrix type
+                sq["options"] = [
+                    {"label": o.get("label"), "value": o.get("value")} for o in opts if isinstance(o, dict)
+                ]
+            elif isinstance(opts, dict):  # for matrix type
                 sq["options"] = opts
         simple_questions.append(sq)
 
@@ -1280,9 +1327,9 @@ async def translate_survey(body: AITranslateRequest):
         "description": body.description,
         "welcome_message": body.welcome_message,
         "thank_you_message": body.thank_you_message,
-        "questions": simple_questions
+        "questions": simple_questions,
     }
-    
+
     prompt = f"""You are an expert translator. Translate the following survey data into natural, fluent, and culturally appropriate {lang_name}.
 
 CRITICAL RULES:
