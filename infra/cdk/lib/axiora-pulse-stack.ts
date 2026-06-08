@@ -3,6 +3,9 @@ import { Construct } from 'constructs';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as ecr from 'aws-cdk-lib/aws-ecr';
+import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import * as ecs from 'aws-cdk-lib/aws-ecs';
+import * as iam from 'aws-cdk-lib/aws-iam';
 import { NagSuppressions } from 'cdk-nag';
 
 export interface AxioraPulseStackProps extends cdk.StackProps {
@@ -15,18 +18,18 @@ export class AxioraPulseStack extends cdk.Stack {
     super(scope, id, props);
 
     const envName = props.environment;
-    const shortEnv = (envName === 'development' || envName === 'dev') ? 'dev' : 
-                    (envName === 'production' || envName === 'prod') ? 'prod' : 'qa';
+    const shortEnv = (envName === 'production' || envName === 'prod') ? 'prod' : 
+                    (envName === 'development' || envName === 'dev') ? 'dev' : 'qa';
 
     // Safety Check: Prevent production deployment unless explicitly overridden
-    if (shortEnv === 'prod' && !props.prodOverride && envName !== 'production') {
+    if (shortEnv === 'prod' && !props.prodOverride) {
       throw new Error('Production deployment is disabled. Set prodOverride: true to enable.');
     }
 
     // Safety Check: Verify target account
     const expectedAccounts: { [key: string]: string } = {
       'dev': '079975324160',
-      'qa': '681816818894',
+      'qa': '399894608507',
       'prod': '217757579310',
     };
 
@@ -34,19 +37,22 @@ export class AxioraPulseStack extends cdk.Stack {
       throw new Error(`Account mismatch! Environment ${envName} expected account ${expectedAccounts[shortEnv]} but got ${this.account}.`);
     }
 
-    // Log target information
-    console.log(`\n🚀 Deploying AxioraPulse`);
-    console.log(`📍 Environment: ${envName} (${shortEnv})`);
-    console.log(`🆔 Account:     ${this.account}`);
-    console.log(`🌍 Region:      ${this.region}`);
-    console.log(`📦 Stack:       ${this.stackName}\n`);
+    // 0. Infrastructure: VPC and Cluster
+    const vpc = new ec2.Vpc(this, 'Vpc', {
+      maxAzs: 2,
+    });
 
-    // 0. ECR Repositories (Only create if not PROD, assuming PROD already has them or is manual)
+    const cluster = new ecs.Cluster(this, 'Cluster', {
+      vpc,
+      clusterName: `axiorapulse-${shortEnv}-cluster`,
+      containerInsights: true,
+    });
+
+    // 1. ECR Repositories
     let backendRepo: ecr.IRepository;
     let frontendRepo: ecr.IRepository;
 
     if (shortEnv === 'dev') {
-      // Import existing dev-specific repositories to avoid 'already exists' error
       backendRepo = ecr.Repository.fromRepositoryName(this, 'BackendRepo', `axiora/pulse-fastapi-${envName}`);
       frontendRepo = ecr.Repository.fromRepositoryName(this, 'FrontendRepo', `axiora/pulse-frontend-${envName}`);
     } else if (shortEnv === 'qa') {
@@ -61,12 +67,27 @@ export class AxioraPulseStack extends cdk.Stack {
         removalPolicy: cdk.RemovalPolicy.DESTROY,
         emptyOnDelete: true,
       });
+
+      // Allow Production account to pull from QA repository for promotion
+      const prodAccount = '217757579310';
+      [backendRepo, frontendRepo].forEach(repo => {
+        repo.addToResourcePolicy(new iam.PolicyStatement({
+          sid: 'AllowProdPull',
+          effect: iam.Effect.ALLOW,
+          principals: [new iam.AccountPrincipal(prodAccount)],
+          actions: [
+            'ecr:BatchCheckLayerAvailability',
+            'ecr:GetDownloadUrlForLayer',
+            'ecr:BatchGetImage',
+          ],
+        }));
+      });
     } else {
       backendRepo = ecr.Repository.fromRepositoryName(this, 'BackendRepo', 'axiora/pulse-fastapi');
       frontendRepo = ecr.Repository.fromRepositoryName(this, 'FrontendRepo', 'axiora/pulse-frontend');
     }
 
-    // 1. Cognito User Pool and Client
+    // 2. Cognito User Pool and Client
     const userPool = new cognito.UserPool(this, 'UserPool', {
       userPoolName: 'AxioraPulseUserPool-' + envName,
       selfSignUpEnabled: true,
@@ -90,22 +111,112 @@ export class AxioraPulseStack extends cdk.Stack {
       },
     });
 
-    // 2. AWS Systems Manager (SSM) Parameters for Cognito Setup
+    // 3. ECS Task Definitions and Services
+    
+    // IAM Role for ECS Tasks (Matches permissions in GitHubActionsDeployerRole but scoped to tasks)
+    const taskExecutionRole = new iam.Role(this, 'EcsTaskExecutionRole', {
+      assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AmazonECSTaskExecutionRolePolicy'),
+      ],
+    });
+    backendRepo.grantPull(taskExecutionRole);
+    frontendRepo.grantPull(taskExecutionRole);
+
+    const taskRole = new iam.Role(this, 'EcsTaskRole', {
+      assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
+    });
+    taskRole.addManagedPolicy(iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonSSMReadOnlyAccess'));
+
+    // Backend Fargate Service
+    const backendTaskDef = new ecs.FargateTaskDefinition(this, 'BackendTaskDef', {
+      memoryLimitMiB: 1024,
+      cpu: 512,
+      executionRole: taskExecutionRole,
+      taskRole: taskRole,
+      family: `pulse-backend-${shortEnv}`,
+    });
+
+    backendTaskDef.addContainer('BackendContainer', {
+      image: ecs.ContainerImage.fromEcrRepository(backendRepo, 'latest'), // Placeholder, GHA will update
+      portMappings: [{ containerPort: 8000 }],
+      logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'ecs', logGroup: new cdk.aws_logs.LogGroup(this, 'BackendLogGroup', {
+        logGroupName: `/ecs/pulse-backend-${shortEnv}`,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+      }) }),
+      healthCheck: {
+        command: [
+          "CMD-SHELL",
+          "curl -f http://localhost:8000/health || python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\" || exit 1"
+        ],
+        interval: cdk.Duration.seconds(30),
+        timeout: cdk.Duration.seconds(10),
+        retries: 3,
+        startPeriod: cdk.Duration.seconds(60),
+      },
+      environment: {
+        'ENVIRONMENT': shortEnv,
+        'COGNITO_REGION': this.region,
+        'AWS_SES_REGION': this.region,
+      }
+    });
+
+    const backendService = new ecs.FargateService(this, 'BackendService', {
+      cluster,
+      taskDefinition: backendTaskDef,
+      desiredCount: 1,
+      serviceName: `pulse-backend-${shortEnv}`,
+      vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC }, // Simplifying for now, usually private
+      assignPublicIp: true,
+    });
+
+    // Frontend Fargate Service
+    const frontendTaskDef = new ecs.FargateTaskDefinition(this, 'FrontendTaskDef', {
+      memoryLimitMiB: 512,
+      cpu: 256,
+      executionRole: taskExecutionRole,
+      taskRole: taskRole,
+      family: `pulse-frontend-${shortEnv}`,
+    });
+
+    frontendTaskDef.addContainer('FrontendContainer', {
+      image: ecs.ContainerImage.fromEcrRepository(frontendRepo, 'latest'), // Placeholder, GHA will update
+      portMappings: [{ containerPort: 80 }],
+      logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'ecs', logGroup: new cdk.aws_logs.LogGroup(this, 'FrontendLogGroup', {
+        logGroupName: `/ecs/pulse-frontend-${shortEnv}`,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+      }) }),
+    });
+
+    const frontendService = new ecs.FargateService(this, 'FrontendService', {
+      cluster,
+      taskDefinition: frontendTaskDef,
+      desiredCount: 1,
+      serviceName: `pulse-frontend-${shortEnv}`,
+      vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
+      assignPublicIp: true,
+    });
+
+    // 4. SSM Parameters
     new ssm.StringParameter(this, 'UserPoolIdParam', {
       parameterName: `/axiorapulse/${shortEnv}/COGNITO_USER_POOL_ID`,
       stringValue: userPool.userPoolId,
-      description: `Cognito User Pool ID for AxioraPulse (${envName})`,
     });
 
     new ssm.StringParameter(this, 'UserPoolClientIdParam', {
       parameterName: `/axiorapulse/${shortEnv}/COGNITO_APP_CLIENT_ID`,
       stringValue: userPoolClient.userPoolClientId,
-      description: `Cognito User Pool Client ID for AxioraPulse (${envName})`,
+    });
+
+    new ssm.StringParameter(this, 'EcsClusterNameParam', {
+      parameterName: `/axiorapulse/${shortEnv}/ECS_CLUSTER_NAME`,
+      stringValue: cluster.clusterName,
     });
 
     // Outputs
-    new cdk.CfnOutput(this, 'UserPoolId', { value: userPool.userPoolId });
-    new cdk.CfnOutput(this, 'UserPoolClientId', { value: userPoolClient.userPoolClientId });
+    new cdk.CfnOutput(this, 'BackendServiceName', { value: backendService.serviceName });
+    new cdk.CfnOutput(this, 'FrontendServiceName', { value: frontendService.serviceName });
+    new cdk.CfnOutput(this, 'EcsClusterName', { value: cluster.clusterName });
   }
 }
 

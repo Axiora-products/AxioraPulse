@@ -1,0 +1,79 @@
+name: Release to QA
+
+on:
+  push:
+    branches:
+      - 'release/test/**'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy-qa:
+    name: Deploy to QA ECS
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::399894608507:role/GitHubActionsDeployerRole
+          aws-region: ap-south-1
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Deploy Infrastructure (If needed)
+        run: |
+          npm install --prefix infra/cdk
+          cd infra/cdk
+          npx cdk deploy AxioraPulseStackQa --require-approval never
+
+      - name: Prepare Task Definitions
+        run: |
+          sed -i 's/${ENV}/qa/g' backend/ecs-task-def.json
+          sed -i 's/${ROLE_ARN}/arn:aws:iam::399894608507:role\/GitHubActionsDeployerRole/g' backend/ecs-task-def.json
+          sed -i 's/${ACCOUNT_ID}/399894608507/g' backend/ecs-task-def.json
+          sed -i 's/${ENV}/qa/g' frontend/ecs-task-def.json
+          sed -i 's/${ROLE_ARN}/arn:aws:iam::399894608507:role\/GitHubActionsDeployerRole/g' frontend/ecs-task-def.json
+
+      - name: Render Backend Task Definition
+        id: render-backend
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: backend/ecs-task-def.json
+          container-name: BackendContainer
+          image: ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-fastapi-qa:sha-${{ github.sha }}
+
+      - name: Deploy Backend to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render-backend.outputs.task-definition }}
+          service: pulse-backend-qa
+          cluster: axiorapulse-qa-cluster
+          wait-for-service-stability: true
+
+      - name: Render Frontend Task Definition
+        id: render-frontend
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: frontend/ecs-task-def.json
+          container-name: FrontendContainer
+          image: ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-frontend-qa:sha-${{ github.sha }}
+
+      - name: Deploy Frontend to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render-frontend.outputs.task-definition }}
+          service: pulse-frontend-qa
+          cluster: axiorapulse-qa-cluster
+          wait-for-service-stability: true
+
+      - name: Run Smoke Tests
+        run: |
+          echo "Running smoke tests against QA environment..."
+          # Example: curl -f https://qa-api.axiorapulse.com/health
