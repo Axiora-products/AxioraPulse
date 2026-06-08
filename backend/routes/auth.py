@@ -9,7 +9,14 @@ from core.rate_limiter import limiter
 from db.database import get_db
 from db.models import Tenant, UserProfile, RoleEnum
 from schemas import (
-    MeResponse, UserProfileOut, TenantOut, UserProfileUpdate, SyncRequest, SyncResponse, MigrateCheckRequest, CleanupRequest
+    MeResponse,
+    UserProfileOut,
+    TenantOut,
+    UserProfileUpdate,
+    SyncRequest,
+    SyncResponse,
+    MigrateCheckRequest,
+    CleanupRequest,
 )
 from cognito_utils import verify_cognito_token, admin_get_user_status, admin_delete_user
 from auth_utils import verify_password
@@ -29,6 +36,7 @@ def _slugify(text: str) -> str:
 
 # ── /auth/me ─────────────────────────────────────────────────────────────────
 
+
 @router.get("/me", response_model=MeResponse)
 @limiter.limit("30/minute")
 def me(
@@ -47,6 +55,7 @@ def me(
 
 # ── /auth/me/profile ──────────────────────────────────────────────────────────
 
+
 @router.patch("/me/profile")
 @limiter.limit("20/minute")
 def update_profile(
@@ -62,6 +71,7 @@ def update_profile(
 
 
 # ── /auth/sync ────────────────────────────────────────────────────────────────
+
 
 @router.post("/sync", response_model=SyncResponse)
 @limiter.limit("10/minute")
@@ -108,7 +118,7 @@ def sync(
 
     # Brand new user — create tenant + profile
     # Auto-derive tenant name from email domain if not provided (handles local dev with fresh DB)
-    derived_tenant_name = body.tenant_name or email.split('@')[1].split('.')[0].title() if email else 'My Organisation'
+    derived_tenant_name = body.tenant_name or email.split("@")[1].split(".")[0].title() if email else "My Organisation"
     derived_tenant_slug = body.tenant_slug or _slugify(derived_tenant_name)
 
     # Check if a tenant with this slug already exists — reuse it instead of crashing
@@ -150,6 +160,7 @@ def sync(
 
 
 # ── /auth/migrate-check ───────────────────────────────────────────────────────
+
 
 @router.post("/migrate-check")
 def migrate_check(
@@ -214,17 +225,17 @@ def mock_login(body: dict, db: Session = Depends(get_db)):
     sub = user.cognito_sub if (user and user.cognito_sub) else f"mock-sub-{uuid.uuid4()}"
 
     from jose import jwt
+
     payload = {
         "sub": sub,
         "email": email,
         "name": name,
         "token_use": "id",
         "aud": os.getenv("COGNITO_APP_CLIENT_ID") or "mock-client-id",
-        "iss": f"https://cognito-idp.{os.getenv('COGNITO_REGION', 'ap-south-1')}.amazonaws.com/{os.getenv('COGNITO_USER_POOL_ID') or 'mock-user-pool-id'}"
+        "iss": f"https://cognito-idp.{os.getenv('COGNITO_REGION', 'ap-south-1')}.amazonaws.com/{os.getenv('COGNITO_USER_POOL_ID') or 'mock-user-pool-id'}",
     }
 
     secret = os.getenv("MOCK_COGNITO_SECRET", "mock-secret-key-1234567890")
     token = jwt.encode(payload, secret, algorithm="HS256")
 
     return {"id_token": token}
-

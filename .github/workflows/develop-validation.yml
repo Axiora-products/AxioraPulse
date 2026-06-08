@@ -1,0 +1,66 @@
+name: Develop Validation
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+      - 'release/**'
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  changes:
+    name: Detect Changed Paths
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      - name: Detect Changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+              - 'ruff.toml'
+              - '.github/workflows/develop-validation.yml'
+              - '.github/workflows/backend-validation.yml'
+              - '.github/workflows/docker-build.yml'
+            frontend:
+              - 'frontend/**'
+              - '.github/workflows/develop-validation.yml'
+              - '.github/workflows/frontend-validation.yml'
+              - '.github/workflows/docker-build.yml'
+
+  backend:
+    needs: changes
+    if: ${{ needs.changes.outputs.backend == 'true' }}
+    uses: ./.github/workflows/backend-validation.yml
+    with:
+      is-pr: false
+      base-ref: ''
+
+  backend-docker:
+    needs: [changes, backend]
+    if: ${{ needs.changes.outputs.backend == 'true' }}
+    uses: ./.github/workflows/docker-build.yml
+    with:
+      context: ./backend
+      file: ./backend/Dockerfile.prod
+      image-name: backend-service
+
+  frontend-docker:
+    needs: changes
+    if: ${{ needs.changes.outputs.frontend == 'true' }}
+    uses: ./.github/workflows/docker-build.yml
+    with:
+      context: ./frontend
+      file: ./frontend/Dockerfile
+      image-name: frontend-service

@@ -8,7 +8,6 @@ import { QUESTION_TYPES, SHORT_SURVEY_RULES, estimateSurveyMinutes, getFormatDiv
 import { Reorder, useDragControls, motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { useLoading } from '../context/LoadingContext';
-import { TRUST_SCREEN_COPY } from '../config/trustScreen';
 
 const newQ = () => ({ _id: Math.random().toString(36).slice(2), question_text: '', question_type: 'short_text', options: [], is_required: false, description: '' });
 const hasO = t => ['single_choice', 'multiple_choice', 'dropdown', 'ranking', 'emoji_reaction', 'swipe_choice', 'visual_choice'].includes(t);
@@ -177,8 +176,6 @@ export default function SurveyCreate() {
   const resumeDraftId = searchParams.get('draftId');
   useEffect(() => { stopLoading(); }, [stopLoading]);
 
-  const [trustAccepted, setTrustAccepted] = useState(() => Boolean(resumeDraftId));
-  const [trustLeaving, setTrustLeaving] = useState(false);
   const [phase, setPhase] = useState('prompt'); // 'prompt' | 'builder'
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState('details');
@@ -462,38 +459,6 @@ export default function SurveyCreate() {
   }, [resumeDraftId]);
 
   // ── Prompt Phase ──
-  if (!trustAccepted) {
-    return (
-      <div className="trust-screen-shell">
-        <motion.div
-          className="trust-screen-panel"
-          initial={{ opacity: 0, y: 18, scale: 0.985 }}
-          animate={trustLeaving ? { opacity: 0, y: -10, scale: 0.985 } : { opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.36, ease: [0.16, 1, 0.3, 1] }}
-        >
-          <div className="trust-screen-kicker">Idea Protection</div>
-          <h1>{TRUST_SCREEN_COPY.title}</h1>
-          <p>
-            {TRUST_SCREEN_COPY.subheading.split('\n').map((line, index) => (
-              <React.Fragment key={line}>
-                {index > 0 && <br />}
-                {line}
-              </React.Fragment>
-            ))}
-          </p>
-          <button
-            type="button"
-            onClick={() => {
-              setTrustLeaving(true);
-              window.setTimeout(() => setTrustAccepted(true), 220);
-            }}
-          >
-            {TRUST_SCREEN_COPY.continueLabel}
-          </button>
-        </motion.div>
-      </div>
-    );
-  }
 
   if (phase === 'prompt') {
     return (
