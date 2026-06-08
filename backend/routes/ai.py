@@ -622,40 +622,252 @@ async def generate_insights(
 ):
     # AI provider is resolved automatically by call_ai_sync
 
-    prompt = f"""Analyze the following survey data and provide structured insights.
+    prompt = f"""You are a senior survey research analyst performing a comprehensive, multi-dimensional analysis.
+Analyze the following survey data with the depth and rigor of a professional research report.
 
+== SURVEY DATA ==
 Survey Title: {body.surveyTitle}
 
 Overall Stats:
 - Total Responses: {body.responses.get('total')}
+- Completed: {body.responses.get('completed')}
 - Completion Rate: {body.responses.get('completionRate')}%
 - Abandon Rate: {body.responses.get('abandonRate')}%
 - Avg Time: {body.responses.get('avgTimeMin')} minutes
-- NPS: {json.dumps(body.responses.get('nps'))}
+- NPS Score: {json.dumps(body.responses.get('nps'))}
 
-Question Summaries:
+Question-by-Question Data:
 {json.dumps(body.questionSummaries, indent=2)}
 
-Return a JSON object with this exact structure:
+== ANALYSIS INSTRUCTIONS ==
+
+Perform ALL of the following analyses. Be specific, quantitative, and evidence-based.
+Reference exact response counts, percentages, and specific answer text wherever possible.
+
+1. **Executive Summary** — A 3-5 sentence strategic overview covering the most important findings, the overall health of the survey, and the single most actionable takeaway. Write as if briefing a CEO.
+
+2. **Overall Score** — Rate the survey results 0-100 based on: response quality (engagement depth, completion rate), sentiment balance, actionability of responses, and NPS if available. Be realistic — don't inflate.
+
+3. **NPS Analysis** — If NPS data exists, provide a detailed interpretation: what the score means in context, comparison to typical benchmarks, and what's driving promoters vs detractors. If no NPS, set to null.
+
+4. **Response Quality** — Assess engagement quality: are respondents giving thoughtful answers or rushing? Look at completion rate, time spent, text response length/quality, and answer patterns.
+
+5. **Sentiment Breakdown** — Estimate the overall sentiment distribution across all responses as percentages (positive/neutral/negative must sum to 100). Look at text responses, ratings, and choice patterns.
+
+6. **Key Findings** (insights) — Generate 5-8 specific, data-backed findings. Each must cite evidence from the responses. Mix types: positive (strengths), warning (concerns), info (patterns), action (opportunities).
+
+7. **Key Themes** — Identify 3-5 thematic clusters that emerge across multiple questions. For each theme, note frequency, overall sentiment, and include 1-2 direct quotes from text responses if available.
+
+8. **Cross-Question Patterns** — Find 2-4 correlations or patterns across different questions. Example: "Respondents who rated X highly also tended to choose Y in Q3." Rate significance as high/medium/low.
+
+9. **Respondent Segments** — Identify 2-4 distinct respondent groups based on their answer patterns. Describe each segment's size, characteristics, sentiment, and what differentiates them.
+
+10. **Urgency Matrix** — Classify 3-5 issues by urgency (critical/high/medium/low) and impact (high/medium/low). Provide evidence for each classification.
+
+11. **Benchmark Comparison** — Compare 3-5 key metrics against typical survey/industry benchmarks. For example: completion rate vs typical survey benchmarks, NPS vs industry averages, response time vs expected.
+
+12. **Data Quality Flags** — Flag 1-3 potential data quality concerns: possible survey fatigue, contradictory answers, suspiciously fast completions, leading question effects, low sample size caveats, etc. Include constructive suggestions.
+
+13. **Top Strengths** — List 3-5 clear strengths evidenced by the data.
+
+14. **Improvement Areas** — List 3-5 areas needing improvement with specific evidence.
+
+15. **Recommended Actions** — Provide 4-6 prioritized, specific, actionable recommendations. Each must include priority (high/medium/low), the concrete action to take, and the expected impact.
+
+== OUTPUT FORMAT ==
+Return ONLY valid JSON with this exact structure (no markdown, no explanation):
 {{
   "executiveSummary": "string",
+  "overallScore": 72,
   "npsAnalysis": "string or null",
+  "responseQuality": "string describing quality assessment",
+  "sentimentBreakdown": {{
+    "positive": 45,
+    "neutral": 35,
+    "negative": 20,
+    "overall": "positive|neutral|negative"
+  }},
   "insights": [
-    {{ "type": "positive|warning|info|action", "title": "string", "detail": "string", "metric": "string or null" }}
+    {{ "type": "positive|warning|info|action", "title": "string", "detail": "string with evidence", "metric": "stat or null" }}
   ],
-  "topStrengths": ["string"],
-  "improvementAreas": ["string"],
+  "keyThemes": [
+    {{ "theme": "string", "frequency": "mentioned by X% of respondents", "sentiment": "positive|negative|mixed|neutral", "quotes": ["direct quote 1"], "relatedQuestions": ["Q1 text snippet"] }}
+  ],
+  "crossQuestionPatterns": [
+    {{ "pattern": "string", "questions": ["Q1 snippet", "Q3 snippet"], "significance": "high|medium|low", "detail": "string" }}
+  ],
+  "respondentSegments": [
+    {{ "segment": "name", "size": "~X% of respondents", "characteristics": "string", "sentiment": "positive|negative|mixed|neutral", "keyDifference": "string" }}
+  ],
+  "urgencyMatrix": [
+    {{ "issue": "string", "urgency": "critical|high|medium|low", "impact": "high|medium|low", "evidence": "string" }}
+  ],
+  "benchmarkComparison": [
+    {{ "metric": "string", "value": "actual value", "benchmark": "typical value", "status": "above|at|below", "context": "string" }}
+  ],
+  "dataQualityFlags": [
+    {{ "flag": "string", "severity": "warning|info", "detail": "string", "suggestion": "string" }}
+  ],
+  "topStrengths": ["string with evidence"],
+  "improvementAreas": ["string with evidence"],
   "recommendedActions": [
-    {{ "priority": "high|medium|low", "action": "string", "impact": "string" }}
+    {{ "priority": "high|medium|low", "action": "specific action", "impact": "expected outcome" }}
   ]
-}}"""
+}}
 
+== CRITICAL RULES ==
+- Every claim MUST reference specific data from the responses (counts, percentages, quoted text).
+- Do NOT fabricate data. If insufficient data exists for an analysis, provide what you can and note the limitation.
+- Be genuinely analytical — surface non-obvious patterns, not just restatements of the raw numbers.
+- The overall score must be realistic and calibrated: 80+ is excellent, 60-79 is good, 40-59 is needs improvement, below 40 is concerning.
+- All percentage breakdowns must sum correctly.
+- Prioritize actionable, specific insights over generic observations."""
+
+    text = None
     try:
-        text = await run_in_threadpool(call_ai_sync, prompt, 2048)
+        text = await run_in_threadpool(call_ai_sync, prompt, 4096)
         result_json = json.loads(text)
+
+        # ── Normalize AI response: fill missing required fields with defaults ──
+        if "executiveSummary" not in result_json:
+            result_json["executiveSummary"] = "No executive summary was generated."
+        if "insights" not in result_json:
+            result_json["insights"] = []
+        if "topStrengths" not in result_json:
+            result_json["topStrengths"] = []
+        if "improvementAreas" not in result_json:
+            result_json["improvementAreas"] = []
+        if "recommendedActions" not in result_json:
+            result_json["recommendedActions"] = []
+
+        # Normalize overallScore
+        score = result_json.get("overallScore")
+        if score is not None:
+            try:
+                result_json["overallScore"] = max(0, min(100, int(score)))
+            except (ValueError, TypeError):
+                result_json["overallScore"] = None
+
+        # Normalize sentimentBreakdown
+        sb = result_json.get("sentimentBreakdown")
+        if isinstance(sb, dict):
+            result_json["sentimentBreakdown"] = {
+                "positive": int(sb.get("positive", 0)),
+                "neutral": int(sb.get("neutral", 0)),
+                "negative": int(sb.get("negative", 0)),
+                "overall": sb.get("overall", "neutral"),
+            }
+
+        # Normalize nested insight items
+        normalized_insights = []
+        for item in result_json.get("insights", []):
+            if isinstance(item, dict):
+                normalized_insights.append({
+                    "type": item.get("type", "info"),
+                    "title": item.get("title", "Insight"),
+                    "detail": item.get("detail", item.get("description", "")),
+                    "metric": item.get("metric"),
+                })
+            elif isinstance(item, str):
+                normalized_insights.append({
+                    "type": "info", "title": "Insight", "detail": item, "metric": None,
+                })
+        result_json["insights"] = normalized_insights
+
+        # Normalize action items
+        normalized_actions = []
+        for item in result_json.get("recommendedActions", []):
+            if isinstance(item, dict):
+                normalized_actions.append({
+                    "priority": item.get("priority", "medium"),
+                    "action": item.get("action", item.get("title", "")),
+                    "impact": item.get("impact", item.get("description", "")),
+                })
+            elif isinstance(item, str):
+                normalized_actions.append({
+                    "priority": "medium", "action": item, "impact": "",
+                })
+        result_json["recommendedActions"] = normalized_actions
+
+        # Normalize theme items
+        normalized_themes = []
+        for item in result_json.get("keyThemes", []):
+            if isinstance(item, dict):
+                normalized_themes.append({
+                    "theme": item.get("theme", item.get("name", "Theme")),
+                    "frequency": item.get("frequency", ""),
+                    "sentiment": item.get("sentiment", "neutral"),
+                    "quotes": item.get("quotes", []),
+                    "relatedQuestions": item.get("relatedQuestions", []),
+                })
+        result_json["keyThemes"] = normalized_themes
+
+        # Normalize cross-question patterns
+        normalized_patterns = []
+        for item in result_json.get("crossQuestionPatterns", []):
+            if isinstance(item, dict):
+                normalized_patterns.append({
+                    "pattern": item.get("pattern", ""),
+                    "questions": item.get("questions", []),
+                    "significance": item.get("significance", "medium"),
+                    "detail": item.get("detail", item.get("description", "")),
+                })
+        result_json["crossQuestionPatterns"] = normalized_patterns
+
+        # Normalize respondent segments
+        normalized_segments = []
+        for item in result_json.get("respondentSegments", []):
+            if isinstance(item, dict):
+                normalized_segments.append({
+                    "segment": item.get("segment", item.get("name", "Segment")),
+                    "size": item.get("size", ""),
+                    "characteristics": item.get("characteristics", ""),
+                    "sentiment": item.get("sentiment", "neutral"),
+                    "keyDifference": item.get("keyDifference", item.get("key_difference", "")),
+                })
+        result_json["respondentSegments"] = normalized_segments
+
+        # Normalize urgency matrix
+        normalized_urgency = []
+        for item in result_json.get("urgencyMatrix", []):
+            if isinstance(item, dict):
+                normalized_urgency.append({
+                    "issue": item.get("issue", ""),
+                    "urgency": item.get("urgency", "medium"),
+                    "impact": item.get("impact", "medium"),
+                    "evidence": item.get("evidence", ""),
+                })
+        result_json["urgencyMatrix"] = normalized_urgency
+
+        # Normalize benchmarks
+        normalized_benchmarks = []
+        for item in result_json.get("benchmarkComparison", []):
+            if isinstance(item, dict):
+                normalized_benchmarks.append({
+                    "metric": item.get("metric", ""),
+                    "value": item.get("value", ""),
+                    "benchmark": item.get("benchmark", ""),
+                    "status": item.get("status", "at"),
+                    "context": item.get("context", ""),
+                })
+        result_json["benchmarkComparison"] = normalized_benchmarks
+
+        # Normalize data quality flags
+        normalized_flags = []
+        for item in result_json.get("dataQualityFlags", []):
+            if isinstance(item, dict):
+                normalized_flags.append({
+                    "flag": item.get("flag", item.get("title", "")),
+                    "severity": item.get("severity", "info"),
+                    "detail": item.get("detail", item.get("description", "")),
+                    "suggestion": item.get("suggestion", item.get("recommendation", "")),
+                })
+        result_json["dataQualityFlags"] = normalized_flags
+
         return AIInsightsResponse(**result_json)
     except ValidationError as ve:
         print(f"[AI] Insights validation error: {ve}")
+        print(f"[AI] Raw AI response: {text[:500] if text else 'N/A'}")
         raise HTTPException(status_code=500, detail="AI provider returned an invalid data structure")
     except HTTPException:
         raise
@@ -664,6 +876,7 @@ Return a JSON object with this exact structure:
         if "rate" in str(e).lower() or "429" in str(e):
             raise HTTPException(status_code=429, detail="API rate limit reached, please try again shortly")
         raise HTTPException(status_code=500, detail=f"Failed to generate insights: {str(e)}")
+
 
 
 @router.post("/generate")
@@ -973,7 +1186,7 @@ Based on the survey's idea, industry, problem statement, research objectives, an
   * If only a country is given, make them national.
   * If no location details are specified, make them globally applicable.
 - Do NOT use generic or template-like outputs. Tailor everything to the survey content.
-- Competitors must be real companies relevant to the survey's problem space.
+- Competitors must be real companies relevant to the survey's problem space. If a specific district/city/town is specified, do NOT assume or claim that any national, global, or metro-only competitor (regardless of industry—whether hyperlocal delivery, IT services, retail, EdTech, healthcare, etc.) is physically active or operating there unless you are certain of their active local presence. If they are a major national/global competitor but do not operate in the local city, explicitly mention this (e.g., in the 'offering' or 'pricing' field add '(National/Global player - not active in [City] yet)').
 - Persona must match the likely respondent/customer profile for this specific survey.
 - Roadmap phases must contain actionable steps connected to the survey's concept.
 - Return ONLY valid JSON with no markdown, no explanation.
