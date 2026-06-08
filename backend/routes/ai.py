@@ -136,7 +136,9 @@ def _normalize_option_list(options):
     return normalized
 
 
-def _infer_best_format(text: str, current_type: str, mode: str, index: int, total: int, context: str = "", has_options: bool = False) -> str:
+def _infer_best_format(
+    text: str, current_type: str, mode: str, index: int, total: int, context: str = "", has_options: bool = False
+) -> str:
     lower = (text or "").lower()
     ctx = (context or "").lower()
     if current_type in ALLOWED_QUESTION_TYPES:
@@ -157,9 +159,18 @@ def _infer_best_format(text: str, current_type: str, mode: str, index: int, tota
     # ── If the AI chose a specific interactive type, trust it ──────────────────
     # Prevents destructive overrides like single_choice (with good options) → yes_no
     _AI_INTERACTIVE_TYPES = {
-        "single_choice", "multiple_choice", "dropdown", "ranking",
-        "emoji_reaction", "swipe_choice", "visual_choice",
-        "rating", "scale", "slider", "matrix", "yes_no",
+        "single_choice",
+        "multiple_choice",
+        "dropdown",
+        "ranking",
+        "emoji_reaction",
+        "swipe_choice",
+        "visual_choice",
+        "rating",
+        "scale",
+        "slider",
+        "matrix",
+        "yes_no",
     }
     if q_type in _AI_INTERACTIVE_TYPES:
         # For option-bearing types, trust the AI when it provided valid options
@@ -229,17 +240,18 @@ def _optimize_generated_survey(result_json: dict, body: AIGenerateRequest) -> di
             continue
         raw_type = str(raw.get("type") or "short_text")
         raw_options = raw.get("options")
-        has_options = (
-            (isinstance(raw_options, list) and len(raw_options) >= 2)
-            or (isinstance(raw_options, dict) and bool(raw_options))
+        has_options = (isinstance(raw_options, list) and len(raw_options) >= 2) or (
+            isinstance(raw_options, dict) and bool(raw_options)
         )
         q_type = _infer_best_format(text, raw_type, mode, i, len(raw_questions), context, has_options)
-        questions.append({
-            "text": text,
-            "type": q_type,
-            "options": _normalize_options(q_type, raw_options),
-            "_original_index": i,
-        })
+        questions.append(
+            {
+                "text": text,
+                "type": q_type,
+                "options": _normalize_options(q_type, raw_options),
+                "_original_index": i,
+            }
+        )
 
     questions.sort(key=lambda q: _flow_bucket(q, q["_original_index"], len(questions)))
 
@@ -676,12 +688,12 @@ Analyze the following survey data with the depth and rigor of a professional res
 Survey Title: {body.surveyTitle}
 
 Overall Stats:
-- Total Responses: {body.responses.get('total')}
-- Completed: {body.responses.get('completed')}
-- Completion Rate: {body.responses.get('completionRate')}%
-- Abandon Rate: {body.responses.get('abandonRate')}%
-- Avg Time: {body.responses.get('avgTimeMin')} minutes
-- NPS Score: {json.dumps(body.responses.get('nps'))}
+- Total Responses: {body.responses.get("total")}
+- Completed: {body.responses.get("completed")}
+- Completion Rate: {body.responses.get("completionRate")}%
+- Abandon Rate: {body.responses.get("abandonRate")}%
+- Avg Time: {body.responses.get("avgTimeMin")} minutes
+- NPS Score: {json.dumps(body.responses.get("nps"))}
 
 Question-by-Question Data:
 {json.dumps(body.questionSummaries, indent=2)}
@@ -809,106 +821,131 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
         normalized_insights = []
         for item in result_json.get("insights", []):
             if isinstance(item, dict):
-                normalized_insights.append({
-                    "type": item.get("type", "info"),
-                    "title": item.get("title", "Insight"),
-                    "detail": item.get("detail", item.get("description", "")),
-                    "metric": item.get("metric"),
-                })
+                normalized_insights.append(
+                    {
+                        "type": item.get("type", "info"),
+                        "title": item.get("title", "Insight"),
+                        "detail": item.get("detail", item.get("description", "")),
+                        "metric": item.get("metric"),
+                    }
+                )
             elif isinstance(item, str):
-                normalized_insights.append({
-                    "type": "info", "title": "Insight", "detail": item, "metric": None,
-                })
+                normalized_insights.append(
+                    {
+                        "type": "info",
+                        "title": "Insight",
+                        "detail": item,
+                        "metric": None,
+                    }
+                )
         result_json["insights"] = normalized_insights
 
         # Normalize action items
         normalized_actions = []
         for item in result_json.get("recommendedActions", []):
             if isinstance(item, dict):
-                normalized_actions.append({
-                    "priority": item.get("priority", "medium"),
-                    "action": item.get("action", item.get("title", "")),
-                    "impact": item.get("impact", item.get("description", "")),
-                })
+                normalized_actions.append(
+                    {
+                        "priority": item.get("priority", "medium"),
+                        "action": item.get("action", item.get("title", "")),
+                        "impact": item.get("impact", item.get("description", "")),
+                    }
+                )
             elif isinstance(item, str):
-                normalized_actions.append({
-                    "priority": "medium", "action": item, "impact": "",
-                })
+                normalized_actions.append(
+                    {
+                        "priority": "medium",
+                        "action": item,
+                        "impact": "",
+                    }
+                )
         result_json["recommendedActions"] = normalized_actions
 
         # Normalize theme items
         normalized_themes = []
         for item in result_json.get("keyThemes", []):
             if isinstance(item, dict):
-                normalized_themes.append({
-                    "theme": item.get("theme", item.get("name", "Theme")),
-                    "frequency": item.get("frequency", ""),
-                    "sentiment": item.get("sentiment", "neutral"),
-                    "quotes": item.get("quotes", []),
-                    "relatedQuestions": item.get("relatedQuestions", []),
-                })
+                normalized_themes.append(
+                    {
+                        "theme": item.get("theme", item.get("name", "Theme")),
+                        "frequency": item.get("frequency", ""),
+                        "sentiment": item.get("sentiment", "neutral"),
+                        "quotes": item.get("quotes", []),
+                        "relatedQuestions": item.get("relatedQuestions", []),
+                    }
+                )
         result_json["keyThemes"] = normalized_themes
 
         # Normalize cross-question patterns
         normalized_patterns = []
         for item in result_json.get("crossQuestionPatterns", []):
             if isinstance(item, dict):
-                normalized_patterns.append({
-                    "pattern": item.get("pattern", ""),
-                    "questions": item.get("questions", []),
-                    "significance": item.get("significance", "medium"),
-                    "detail": item.get("detail", item.get("description", "")),
-                })
+                normalized_patterns.append(
+                    {
+                        "pattern": item.get("pattern", ""),
+                        "questions": item.get("questions", []),
+                        "significance": item.get("significance", "medium"),
+                        "detail": item.get("detail", item.get("description", "")),
+                    }
+                )
         result_json["crossQuestionPatterns"] = normalized_patterns
 
         # Normalize respondent segments
         normalized_segments = []
         for item in result_json.get("respondentSegments", []):
             if isinstance(item, dict):
-                normalized_segments.append({
-                    "segment": item.get("segment", item.get("name", "Segment")),
-                    "size": item.get("size", ""),
-                    "characteristics": item.get("characteristics", ""),
-                    "sentiment": item.get("sentiment", "neutral"),
-                    "keyDifference": item.get("keyDifference", item.get("key_difference", "")),
-                })
+                normalized_segments.append(
+                    {
+                        "segment": item.get("segment", item.get("name", "Segment")),
+                        "size": item.get("size", ""),
+                        "characteristics": item.get("characteristics", ""),
+                        "sentiment": item.get("sentiment", "neutral"),
+                        "keyDifference": item.get("keyDifference", item.get("key_difference", "")),
+                    }
+                )
         result_json["respondentSegments"] = normalized_segments
 
         # Normalize urgency matrix
         normalized_urgency = []
         for item in result_json.get("urgencyMatrix", []):
             if isinstance(item, dict):
-                normalized_urgency.append({
-                    "issue": item.get("issue", ""),
-                    "urgency": item.get("urgency", "medium"),
-                    "impact": item.get("impact", "medium"),
-                    "evidence": item.get("evidence", ""),
-                })
+                normalized_urgency.append(
+                    {
+                        "issue": item.get("issue", ""),
+                        "urgency": item.get("urgency", "medium"),
+                        "impact": item.get("impact", "medium"),
+                        "evidence": item.get("evidence", ""),
+                    }
+                )
         result_json["urgencyMatrix"] = normalized_urgency
 
         # Normalize benchmarks
         normalized_benchmarks = []
         for item in result_json.get("benchmarkComparison", []):
             if isinstance(item, dict):
-                normalized_benchmarks.append({
-                    "metric": item.get("metric", ""),
-                    "value": item.get("value", ""),
-                    "benchmark": item.get("benchmark", ""),
-                    "status": item.get("status", "at"),
-                    "context": item.get("context", ""),
-                })
+                normalized_benchmarks.append(
+                    {
+                        "metric": item.get("metric", ""),
+                        "value": item.get("value", ""),
+                        "benchmark": item.get("benchmark", ""),
+                        "status": item.get("status", "at"),
+                        "context": item.get("context", ""),
+                    }
+                )
         result_json["benchmarkComparison"] = normalized_benchmarks
 
         # Normalize data quality flags
         normalized_flags = []
         for item in result_json.get("dataQualityFlags", []):
             if isinstance(item, dict):
-                normalized_flags.append({
-                    "flag": item.get("flag", item.get("title", "")),
-                    "severity": item.get("severity", "info"),
-                    "detail": item.get("detail", item.get("description", "")),
-                    "suggestion": item.get("suggestion", item.get("recommendation", "")),
-                })
+                normalized_flags.append(
+                    {
+                        "flag": item.get("flag", item.get("title", "")),
+                        "severity": item.get("severity", "info"),
+                        "detail": item.get("detail", item.get("description", "")),
+                        "suggestion": item.get("suggestion", item.get("recommendation", "")),
+                    }
+                )
         result_json["dataQualityFlags"] = normalized_flags
 
         return AIInsightsResponse(**result_json)
@@ -923,7 +960,6 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
         if "rate" in str(e).lower() or "429" in str(e):
             raise HTTPException(status_code=429, detail="API rate limit reached, please try again shortly")
         raise HTTPException(status_code=500, detail=f"Failed to generate insights: {str(e)}")
-
 
 
 @router.post("/generate")
@@ -1057,7 +1093,9 @@ Rules:
 
     try:
         text = await run_in_threadpool(
-            call_ai_sync, prompt, 8192,
+            call_ai_sync,
+            prompt,
+            8192,
             system_instruction + " Always respond with valid JSON only — no markdown, no explanation.",
         )
         result_json = json.loads(text)
@@ -1300,7 +1338,7 @@ class AITranslateRequest(BaseModel):
 @router.post("/translate-survey")
 async def translate_survey(body: AITranslateRequest):
     # AI provider is resolved automatically by call_ai_sync
-    
+
     lang_name = "Hindi" if body.language == "hi" else "Telugu" if body.language == "te" else body.language
 
     # Extract only translatable parts from the input questions to make the payload smaller and extremely safe
