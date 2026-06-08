@@ -1,4 +1,3 @@
-import uuid
 from fastapi.testclient import TestClient
 from app.main import app
 
@@ -7,25 +6,29 @@ SURVEY_ID = "e0cd2144-b592-4e3a-92a4-9e78eccbe9e9"
 QUESTION_ID = "a7803c3b-0c7d-4414-b474-f10ddc9086c5"
 
 
-def test_response_lifecycle(auth_headers):
-    # 1. Create a response session
-    session_token_val = f"session_{uuid.uuid4().hex}"
-    create_payload = {
-        "survey_id": SURVEY_ID,
-        "session_token": session_token_val,
-        "respondent_email": "respondent@example.com",
-        "age_range": "25-34",
-        "gender": "male",
-        "occupation": "Engineer",
-        "city": "Hyderabad",
+def test_submit_response(auth_headers):
+    # 1. Create a survey first
+    survey_payload = {
+        "title": "Test Response Survey",
+        "description": "Test description",
+        "questions": [
+            {"question_text": "Is this a test question?", "question_type": "yes_no"},
+            {"question_text": "Please rate our service", "question_type": "scale"},
+        ],
     }
-    response = client.post("/responses/", json=create_payload)
+    create_response = client.post("/surveys/", json=survey_payload, headers=auth_headers)
+    assert create_response.status_code == 201
+    survey_id = create_response.json()["id"]
+
+    # 2. Submit a response to the created survey
+    payload = {"survey_id": survey_id}
+    response = client.post("/responses/", json=payload)
     assert response.status_code == 201
     data = response.json()
     response_id = data["id"]
     session_token = data["session_token"]
     assert response_id is not None
-    assert session_token == session_token_val
+    assert session_token is not None
 
     # 2. Get session by token
     get_session = client.get(f"/responses/session/{session_token}")

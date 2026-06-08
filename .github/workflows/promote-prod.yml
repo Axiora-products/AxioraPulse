@@ -68,6 +68,7 @@ jobs:
         run: |
           sed -i 's/${ENV}/prod/g' backend/ecs-task-def.json
           sed -i 's/${ROLE_ARN}/arn:aws:iam::217757579310:role\/GitHubActionsDeployerRole/g' backend/ecs-task-def.json
+          sed -i 's/${ACCOUNT_ID}/217757579310/g' backend/ecs-task-def.json
           sed -i 's/${ENV}/prod/g' frontend/ecs-task-def.json
           sed -i 's/${ROLE_ARN}/arn:aws:iam::217757579310:role\/GitHubActionsDeployerRole/g' frontend/ecs-task-def.json
 
