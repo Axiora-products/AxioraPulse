@@ -21,7 +21,7 @@ new GitHubOidcStack(app, 'AxioraPulseGitHubOidcStackProd', {
     region: 'ap-south-1' 
   },
   repositoryConfig: [
-    { owner: 'Kiran-axiora', repo: 'AxioraPulse' }
+    { owner: 'Axiora-products', repo: 'AxioraPulse' }
   ],
   description: 'GitHub Actions OIDC role for AxioraPulse PROD',
 });
@@ -32,7 +32,7 @@ new GitHubOidcStack(app, 'AxioraPulseGitHubOidcStackQa', {
     region: 'ap-south-1' 
   },
   repositoryConfig: [
-    { owner: 'Kiran-axiora', repo: 'AxioraPulse' }
+    { owner: 'Axiora-products', repo: 'AxioraPulse' }
   ],
   description: 'GitHub Actions OIDC role for AxioraPulse QA',
 });
