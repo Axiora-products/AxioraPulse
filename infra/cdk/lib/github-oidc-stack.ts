@@ -14,7 +14,13 @@ export class GitHubOidcStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: GitHubOidcStackProps) {
     super(scope, id, props);
 
-    const githubProviderArn = `arn:aws:iam::${this.account}:oidc-provider/token.actions.githubusercontent.com`;
+    // 0. Create the GitHub OIDC Provider (if not already existing)
+    const githubProvider = new iam.OpenIdConnectProvider(this, 'GitHubProvider', {
+      url: 'https://token.actions.githubusercontent.com',
+      clientIds: ['sts.amazonaws.com'],
+    });
+
+    const githubProviderArn = githubProvider.openIdConnectProviderArn;
 
     // 1. Create the GitHub Deployer Role
     const githubDeployerRole = new iam.Role(this, 'GitHubDeployerRole', {
