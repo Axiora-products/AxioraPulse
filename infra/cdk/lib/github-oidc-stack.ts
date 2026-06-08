@@ -50,11 +50,9 @@ export class GitHubOidcStack extends cdk.Stack {
       resources: ['*'],
     }));
 
+    // Allow pushing only to local account repos
     githubDeployerRole.addToPolicy(new iam.PolicyStatement({
       actions: [
-        'ecr:BatchCheckLayerAvailability',
-        'ecr:GetDownloadUrlForLayer',
-        'ecr:BatchGetImage',
         'ecr:InitiateLayerUpload',
         'ecr:UploadLayerPart',
         'ecr:CompleteLayerUpload',
@@ -62,6 +60,18 @@ export class GitHubOidcStack extends cdk.Stack {
       ],
       resources: [
         `arn:aws:ecr:${this.region}:${this.account}:repository/axiora/*`,
+      ],
+    }));
+
+    // Allow pulling from any axiora repository (required for cross-account promotion)
+    githubDeployerRole.addToPolicy(new iam.PolicyStatement({
+      actions: [
+        'ecr:BatchCheckLayerAvailability',
+        'ecr:GetDownloadUrlForLayer',
+        'ecr:BatchGetImage',
+      ],
+      resources: [
+        `arn:aws:ecr:${this.region}:*:repository/axiora/*`,
       ],
     }));
 
