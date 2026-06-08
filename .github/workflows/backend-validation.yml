@@ -61,6 +61,7 @@ jobs:
       - name: Install Backend Dependencies
         run: |
           pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
           pip install -r backend/requirements.txt pytest ruff alembic pytest-cov diff-cover
 
       - name: Cache Ruff
