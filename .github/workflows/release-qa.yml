@@ -31,6 +31,58 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      - name: Delegate QA Subdomain from Parent Zone
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::217757579310:role/GitHubActionsDeployerRole
+          aws-region: ap-south-1
+
+      - name: Upsert QA DNS Delegation
+        run: |
+          echo "Delegating qa.axiorapulse.com to the QA Route 53 hosted zone..."
+          CDK_ROLE_ARN="arn:aws:iam::217757579310:role/cdk-hnb659fds-deploy-role-217757579310-ap-south-1"
+          ASSUME_ROLE_OUTPUT=$(aws sts assume-role --role-arn "$CDK_ROLE_ARN" --role-session-name "QaDnsDelegation" --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" --output text)
+
+          export AWS_ACCESS_KEY_ID=$(echo "$ASSUME_ROLE_OUTPUT" | awk '{print $1}')
+          export AWS_SECRET_ACCESS_KEY=$(echo "$ASSUME_ROLE_OUTPUT" | awk '{print $2}')
+          export AWS_SESSION_TOKEN=$(echo "$ASSUME_ROLE_OUTPUT" | awk '{print $3}')
+
+          PARENT_ZONE_ID=$(aws route53 list-hosted-zones-by-name \
+            --dns-name axiorapulse.com \
+            --query "HostedZones[?Name == 'axiorapulse.com.' && Config.PrivateZone == \`false\`].Id | [0]" \
+            --output text)
+
+          if [ -z "$PARENT_ZONE_ID" ] || [ "$PARENT_ZONE_ID" = "None" ]; then
+            echo "Could not find the public axiorapulse.com hosted zone in the parent account"
+            exit 1
+          fi
+
+          cat > /tmp/qa-delegation.json <<'JSON'
+          {
+            "Comment": "Delegate QA subdomain to the QA account hosted zone",
+            "Changes": [
+              {
+                "Action": "UPSERT",
+                "ResourceRecordSet": {
+                  "Name": "qa.axiorapulse.com.",
+                  "Type": "NS",
+                  "TTL": 300,
+                  "ResourceRecords": [
+                    { "Value": "ns-844.awsdns-41.net." },
+                    { "Value": "ns-1235.awsdns-26.org." },
+                    { "Value": "ns-1625.awsdns-11.co.uk." },
+                    { "Value": "ns-101.awsdns-12.com." }
+                  ]
+                }
+              }
+            ]
+          }
+          JSON
+
+          aws route53 change-resource-record-sets \
+            --hosted-zone-id "$PARENT_ZONE_ID" \
+            --change-batch file:///tmp/qa-delegation.json
+
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
