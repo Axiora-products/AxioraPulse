@@ -408,25 +408,37 @@ export class AxioraPulseStack extends cdk.Stack {
     backendService.connections.allowFrom(frontendService, ec2.Port.tcp(8000), 'Allow internal frontend to backend traffic');
 
     // 5. SSM Parameters
-    new ssm.StringParameter(this, 'UserPoolIdParam', {
+    const userPoolIdParam = new ssm.StringParameter(this, 'UserPoolIdParam', {
       parameterName: `/axiorapulse/${shortEnv}/COGNITO_USER_POOL_ID`,
       stringValue: userPool.userPoolId,
     });
 
-    new ssm.StringParameter(this, 'UserPoolClientIdParam', {
+    const userPoolClientIdParam = new ssm.StringParameter(this, 'UserPoolClientIdParam', {
       parameterName: `/axiorapulse/${shortEnv}/COGNITO_APP_CLIENT_ID`,
       stringValue: userPoolClient.userPoolClientId,
     });
 
-    new ssm.StringParameter(this, 'EcsClusterNameParam', {
+    const ecsClusterNameParam = new ssm.StringParameter(this, 'EcsClusterNameParam', {
       parameterName: `/axiorapulse/${shortEnv}/ECS_CLUSTER_NAME`,
       stringValue: cluster.clusterName,
     });
 
-    new ssm.StringParameter(this, 'FrontendUrlParam', {
+    const frontendUrlParam = new ssm.StringParameter(this, 'FrontendUrlParam', {
       parameterName: `/axiorapulse/${shortEnv}/FRONTEND_URL`,
       stringValue: `https://${domainName}`,
     });
+
+    // Ensure services depend on SSM parameters to prevent race conditions during deployment
+    backendService.node.addDependency(databaseUrlWriter);
+    backendService.node.addDependency(userPoolIdParam);
+    backendService.node.addDependency(userPoolClientIdParam);
+    backendService.node.addDependency(ecsClusterNameParam);
+    backendService.node.addDependency(frontendUrlParam);
+
+    frontendService.node.addDependency(userPoolIdParam);
+    frontendService.node.addDependency(userPoolClientIdParam);
+    frontendService.node.addDependency(ecsClusterNameParam);
+    frontendService.node.addDependency(frontendUrlParam);
 
     // CDK-Nag Suppressions
     NagSuppressions.addResourceSuppressions(alb, [
