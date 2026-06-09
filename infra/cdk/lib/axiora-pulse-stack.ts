@@ -3,6 +3,9 @@ import { Construct } from 'constructs';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import * as rds from 'aws-cdk-lib/aws-rds';
 import * as cr from 'aws-cdk-lib/custom-resources';
+import * as route53 from 'aws-cdk-lib/aws-route53';
+import * as acm from 'aws-cdk-lib/aws-certificatemanager';
+import * as targets from 'aws-cdk-lib/aws-route53-targets';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as ecr from 'aws-cdk-lib/aws-ecr';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
@@ -54,6 +57,23 @@ export class AxioraPulseStack extends cdk.Stack {
         name: `${shortEnv}.local`,
         type: cloudmap.NamespaceType.DNS_PRIVATE,
       }
+    });
+
+    // 0.1 DNS and SSL Certificate
+    const rootDomain = 'axiorapulse.com';
+    const domainName = shortEnv === 'prod' ? rootDomain : `${shortEnv}.${rootDomain}`;
+
+    // Create the public hosted zone for the environment domain
+    const hostedZone = new route53.PublicHostedZone(this, 'HostedZone', {
+      zoneName: domainName,
+    });
+
+    // Request a wildcard SSL certificate for the domain (e.g. *.qa.axiorapulse.com or *.axiorapulse.com)
+    // validated automatically via DNS using the hosted zone
+    const certificate = new acm.Certificate(this, 'Certificate', {
+      domainName: domainName,
+      subjectAlternativeNames: [`*.${domainName}`],
+      validation: acm.CertificateValidation.fromDns(hostedZone),
     });
 
     // RDS Database Security Group
@@ -323,7 +343,10 @@ export class AxioraPulseStack extends cdk.Stack {
     });
 
     const frontendListener = alb.addListener('FrontendListener', {
-      port: 80,
+      port: 443,
+      protocol: elbv2.ApplicationProtocol.HTTPS,
+      certificates: [elbv2.ListenerCertificate.fromCertificateManager(certificate)],
+      sslPolicy: elbv2.SslPolicy.RECOMMENDED_TLS,
       open: true,
     });
 
@@ -335,8 +358,19 @@ export class AxioraPulseStack extends cdk.Stack {
       }
     });
 
+    // HTTP (80) to HTTPS (443) redirect
+    alb.addRedirect({
+      sourceProtocol: elbv2.ApplicationProtocol.HTTP,
+      sourcePort: 80,
+      targetProtocol: elbv2.ApplicationProtocol.HTTPS,
+      targetPort: 443,
+    });
+
     const backendListener = alb.addListener('BackendListener', {
       port: 8000,
+      protocol: elbv2.ApplicationProtocol.HTTPS,
+      certificates: [elbv2.ListenerCertificate.fromCertificateManager(certificate)],
+      sslPolicy: elbv2.SslPolicy.RECOMMENDED_TLS,
       open: true,
     });
 
@@ -346,6 +380,20 @@ export class AxioraPulseStack extends cdk.Stack {
       healthCheck: {
         path: '/health',
       }
+    });
+
+    // 4.1 Route 53 DNS Records
+    // Alias for frontend (e.g. qa.axiorapulse.com or axiorapulse.com)
+    new route53.ARecord(this, 'FrontendAliasRecord', {
+      zone: hostedZone,
+      target: route53.RecordTarget.fromAlias(new targets.LoadBalancerTarget(alb)),
+    });
+
+    // Alias for backend API (e.g. api.qa.axiorapulse.com or api.axiorapulse.com)
+    new route53.ARecord(this, 'BackendAliasRecord', {
+      zone: hostedZone,
+      recordName: 'api',
+      target: route53.RecordTarget.fromAlias(new targets.LoadBalancerTarget(alb)),
     });
 
     // Allow frontend to communicate with backend internally
@@ -369,7 +417,7 @@ export class AxioraPulseStack extends cdk.Stack {
 
     new ssm.StringParameter(this, 'FrontendUrlParam', {
       parameterName: `/axiorapulse/${shortEnv}/FRONTEND_URL`,
-      stringValue: `http://${alb.loadBalancerDnsName}`,
+      stringValue: `https://${domainName}`,
     });
 
     // Outputs
