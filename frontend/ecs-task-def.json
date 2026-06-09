@@ -17,6 +17,9 @@
           "protocol": "tcp"
         }
       ],
+      "environment": [
+        { "name": "BACKEND_INTERNAL_URL", "value": "backend.${ENV}.local:8000" }
+      ],
       "logConfiguration": {
         "logDriver": "awslogs",
         "options": {
