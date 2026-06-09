@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - develop
-      - 'release/test/*'
 
 permissions:
   id-token: write
@@ -62,48 +61,13 @@ jobs:
 
   cdk-validation:
     needs: changes
-    if: ${{ needs.changes.outputs.infra == 'true' && needs.changes.outputs.branch-type == 'release-test' }}
+    if: ${{ needs.changes.outputs.infra == 'true' }}
     uses: ./.github/workflows/cdk-validation.yml
 
-  # 🔄 ONLY for release/test/* branches
-  infra-deploy-qa:
-    needs: [changes, cdk-validation]
-    if: ${{ always() && needs.changes.outputs.infra == 'true' && needs.changes.outputs.branch-type == 'release-test' && (needs.cdk-validation.result == 'success' || needs.cdk-validation.result == 'skipped') }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::399894608507:role/GitHubActionsDeployerRole
-          aws-region: ap-south-1
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install CDK Dependencies
-        run: npm install --prefix infra/cdk
-
-      - name: Deploy QA Infrastructure
-        run: |
-          cd infra/cdk
-          npx cdk deploy AxioraPulseStackQa --require-approval never
-
-  # 🐳 ECR Push for BOTH branches (but only if infra is ready for release branches)
+  # 🐳 ECR Push for develop branch pushes
   backend-docker-qa:
-    needs: [changes, backend-tests, infra-deploy-qa]
-    if: |
-      always() &&
-      needs.changes.outputs.backend == 'true' &&
-      needs.backend-tests.result == 'success' &&
-      (
-        (needs.changes.outputs.branch-type == 'release-test' && (needs.infra-deploy-qa.result == 'success' || needs.infra-deploy-qa.result == 'skipped')) ||
-        needs.changes.outputs.branch-type == 'develop'
-      )
+    needs: [changes, backend-tests]
+    if: ${{ always() && needs.changes.outputs.backend == 'true' && needs.backend-tests.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -134,14 +98,8 @@ jobs:
             ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-fastapi-qa:latest
 
   frontend-docker-qa:
-    needs: [changes, infra-deploy-qa]
-    if: |
-      always() &&
-      needs.changes.outputs.frontend == 'true' &&
-      (
-        (needs.changes.outputs.branch-type == 'release-test' && (needs.infra-deploy-qa.result == 'success' || needs.infra-deploy-qa.result == 'skipped')) ||
-        needs.changes.outputs.branch-type == 'develop'
-      )
+    needs: changes
+    if: ${{ always() && needs.changes.outputs.frontend == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
