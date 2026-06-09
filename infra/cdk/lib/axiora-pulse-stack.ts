@@ -103,60 +103,25 @@ export class AxioraPulseStack extends cdk.Stack {
       removalPolicy: shortEnv === 'prod' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
     });
 
-    // Custom Resource to write the constructed DATABASE_URL to SSM Parameter Store as a SecureString
-    const databaseUrlWriter = new cr.AwsCustomResource(this, 'DatabaseUrlWriter', {
-      onCreate: {
-        service: 'SSM',
-        action: 'putParameter',
-        parameters: {
-          Name: `/axiorapulse/${shortEnv}/DATABASE_URL`,
-          Value: cdk.Fn.join('', [
-            'postgresql://',
-            dbSecret.secretValueFromJson('username').unsafeUnwrap(),
-            ':',
-            dbSecret.secretValueFromJson('password').unsafeUnwrap(),
-            '@',
-            database.dbInstanceEndpointAddress,
-            ':',
-            database.dbInstanceEndpointPort,
-            '/nexpulse'
-          ]),
-          Type: 'SecureString',
-          Overwrite: true,
-        },
-        physicalResourceId: cr.PhysicalResourceId.of('DatabaseUrlWriter'),
-      },
-      onUpdate: {
-        service: 'SSM',
-        action: 'putParameter',
-        parameters: {
-          Name: `/axiorapulse/${shortEnv}/DATABASE_URL`,
-          Value: cdk.Fn.join('', [
-            'postgresql://',
-            dbSecret.secretValueFromJson('username').unsafeUnwrap(),
-            ':',
-            dbSecret.secretValueFromJson('password').unsafeUnwrap(),
-            '@',
-            database.dbInstanceEndpointAddress,
-            ':',
-            database.dbInstanceEndpointPort,
-            '/nexpulse'
-          ]),
-          Type: 'SecureString',
-          Overwrite: true,
-        },
-        physicalResourceId: cr.PhysicalResourceId.of('DatabaseUrlWriter'),
-      },
-      onDelete: {
-        service: 'SSM',
-        action: 'deleteParameter',
-        parameters: {
-          Name: `/axiorapulse/${shortEnv}/DATABASE_URL`,
-        },
-      },
-      policy: cr.AwsCustomResourcePolicy.fromSdkCalls({
-        resources: cr.AwsCustomResourcePolicy.ANY_RESOURCE,
-      }),
+    // Store DB connection details in SSM (non-sensitive fields)
+    const dbHostParam = new ssm.StringParameter(this, 'DbHostParam', {
+      parameterName: `/axiorapulse/${shortEnv}/DB_HOST`,
+      stringValue: database.dbInstanceEndpointAddress,
+    });
+
+    const dbPortParam = new ssm.StringParameter(this, 'DbPortParam', {
+      parameterName: `/axiorapulse/${shortEnv}/DB_PORT`,
+      stringValue: database.dbInstanceEndpointPort.toString(),
+    });
+
+    const dbNameParam = new ssm.StringParameter(this, 'DbNameParam', {
+      parameterName: `/axiorapulse/${shortEnv}/DB_NAME`,
+      stringValue: 'nexpulse',
+    });
+
+    const dbSecretArnParam = new ssm.StringParameter(this, 'DbSecretArnParam', {
+      parameterName: `/axiorapulse/${shortEnv}/DB_SECRET_ARN`,
+      stringValue: dbSecret.secretArn,
     });
 
     // 1. ECR Repositories
@@ -242,15 +207,17 @@ export class AxioraPulseStack extends cdk.Stack {
     backendRepo.grantPull(taskExecutionRole);
     frontendRepo.grantPull(taskExecutionRole);
 
-    // Grant permission to read SSM parameters for secrets
+    // Grant permission to read SSM parameters and Secrets Manager secrets
     taskExecutionRole.addToPolicy(new iam.PolicyStatement({
       actions: [
         'ssm:GetParameters',
         'ssm:GetParameter',
+        'secretsmanager:GetSecretValue',
       ],
       resources: [
         `arn:aws:ssm:${this.region}:${this.account}:parameter/axiorapulse/${shortEnv}/*`,
         `arn:aws:ssm:${this.region}:${this.account}:parameter/axiorapulse/*`,
+        dbSecret.secretArn,
       ],
     }));
 
@@ -429,8 +396,10 @@ export class AxioraPulseStack extends cdk.Stack {
       stringValue: `https://${domainName}`,
     });
 
-    // Ensure services depend on SSM parameters to prevent race conditions during deployment
-    backendService.node.addDependency(databaseUrlWriter);
+    backendService.node.addDependency(dbHostParam);
+    backendService.node.addDependency(dbPortParam);
+    backendService.node.addDependency(dbNameParam);
+    backendService.node.addDependency(dbSecretArnParam);
     backendService.node.addDependency(userPoolIdParam);
     backendService.node.addDependency(userPoolClientIdParam);
     backendService.node.addDependency(ecsClusterNameParam);
@@ -514,31 +483,7 @@ export class AxioraPulseStack extends cdk.Stack {
       }
     ]);
 
-    NagSuppressions.addResourceSuppressions(databaseUrlWriter, [
-      {
-        id: 'AwsSolutions-IAM5',
-        reason: 'Custom resource policy requires wildcard permissions to put/delete parameters on SSM.'
-      }
-    ], true);
 
-    // Suppress cdk-nag errors on the CDK-generated custom resource Lambda singleton
-    const customResourceLambda = this.node.tryFindChild('AWS679f53fac002430cb0da5b7982bd2287');
-    if (customResourceLambda) {
-      NagSuppressions.addResourceSuppressions(customResourceLambda, [
-        {
-          id: 'AwsSolutions-IAM4',
-          reason: 'CDK-generated custom resource Lambda uses standard AWSLambdaBasicExecutionRole.'
-        },
-        {
-          id: 'AwsSolutions-IAM5',
-          reason: 'CDK-generated custom resource Lambda policy requires wildcard resources.'
-        },
-        {
-          id: 'AwsSolutions-L1',
-          reason: 'CDK-generated custom resource Lambda uses standard internal runtime.'
-        }
-      ], true);
-    }
 
     // Outputs
     new cdk.CfnOutput(this, 'BackendServiceName', { value: backendService.serviceName });
