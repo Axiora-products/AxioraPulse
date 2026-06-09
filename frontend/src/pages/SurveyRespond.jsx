@@ -457,6 +457,9 @@ useEffect(() => {
       const ex = sessionRes.data;
       if (ex) {
         rId.current = ex.id;
+        if (ex.language) {
+          setCurrentLang(ex.language);
+        }
         const r = {};
         (ex.survey_answers || []).forEach(a => { r[a.question_id] = a.answer_json ?? a.answer_value ?? ''; });
         setAns(r);
@@ -1522,7 +1525,7 @@ useEffect(() => {
                 <Icons.X style={{ width: 16, height: 16 }} />
               </button>
 
-              <div style={{ width: 56, height: 56, borderRadius: 16, background: `${tc}12`, display: 'flex', alignItems: 'center', justifycontent: 'center', margin: '0 auto 20px', fontSize: 24 }}>
+              <div style={{ width: 56, height: 56, borderRadius: 16, background: `${tc}12`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: 24 }}>
                 🌐
               </div>
 
