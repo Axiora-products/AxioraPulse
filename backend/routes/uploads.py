@@ -6,7 +6,10 @@ Whisper-only file and audio upload endpoints.
 import os
 import uuid
 import tempfile
-import traceback
+import asyncio
+import logging
+import shutil
+import threading
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request, Form
 from sqlalchemy.orm import Session
@@ -16,9 +19,8 @@ from db.models import UserProfile, UploadedFile
 from dependencies import get_current_user
 from core.rate_limiter import limiter
 
-import whisper
-
 router = APIRouter(prefix="/uploads", tags=["uploads"])
+logger = logging.getLogger(__name__)
 
 UPLOAD_DIR = os.path.join(
     os.path.dirname(os.path.dirname(__file__)),
@@ -51,6 +53,30 @@ ALLOWED_AUDIO_TYPES = {
     "application/octet-stream",
 }
 
+ALLOWED_AUDIO_SUFFIXES = {
+    ".mp3",
+    ".wav",
+    ".webm",
+    ".mp4",
+    ".mpeg",
+    ".ogg",
+    ".m4a",
+}
+
+AUDIO_SUFFIX_BY_CONTENT_TYPE = {
+    "audio/mpeg": ".mp3",
+    "audio/mp3": ".mp3",
+    "audio/wav": ".wav",
+    "audio/x-wav": ".wav",
+    "audio/webm": ".webm",
+    "video/webm": ".webm",
+    "audio/mp4": ".mp4",
+    "video/mp4": ".mp4",
+    "audio/ogg": ".ogg",
+    "audio/m4a": ".m4a",
+    "audio/x-m4a": ".m4a",
+}
+
 LANGUAGE_MAP = {
     "auto": None,
     "english": "en",
@@ -61,7 +87,83 @@ LANGUAGE_MAP = {
     "te": "te",
 }
 
-whisper_model = whisper.load_model("base")
+WHISPER_CACHE_DIR = os.path.join(UPLOAD_DIR, "whisper_cache")
+os.makedirs(WHISPER_CACHE_DIR, exist_ok=True)
+
+_whisper_model = None
+_whisper_model_lock = threading.Lock()
+
+
+def _ensure_ffmpeg_available() -> str:
+    ffmpeg_path = shutil.which("ffmpeg")
+    logger.info("shutil.which('ffmpeg'): %s", ffmpeg_path)
+    logger.info("PATH: %s", os.environ.get("PATH"))
+
+    if not ffmpeg_path:
+        possible_paths = [
+            "/usr/bin/ffmpeg",
+            "/usr/local/bin/ffmpeg",
+            r"C:\ffmpeg\bin\ffmpeg.exe",
+        ]
+
+        for path in possible_paths:
+            if os.path.exists(path):
+                ffmpeg_path = path
+                break
+
+    logger.info("Detected ffmpeg path: %s", ffmpeg_path)
+
+    if ffmpeg_path:
+        # Whisper invokes the command name "ffmpeg", so fallback locations must
+        # also be visible on PATH in the transcription worker process.
+        ffmpeg_dir = os.path.dirname(ffmpeg_path)
+        path_entries = os.environ.get("PATH", "").split(os.pathsep)
+        if ffmpeg_dir not in path_entries:
+            os.environ["PATH"] = os.pathsep.join([ffmpeg_dir, *path_entries])
+            logger.info("Added ffmpeg directory to PATH: %s", ffmpeg_dir)
+
+        return ffmpeg_path
+
+    raise HTTPException(
+        status_code=503,
+        detail=(
+            "FFmpeg is required for audio transcription but was not found. "
+            "On Windows run `winget install Gyan.FFmpeg` and restart the server. "
+            "On Debian/Ubuntu run `apt-get update && apt-get install -y ffmpeg`."
+        ),
+    )
+
+
+def _get_audio_suffix(filename: str | None, content_type: str | None) -> str:
+    filename_suffix = os.path.splitext(filename or "")[1].lower()
+    if filename_suffix in ALLOWED_AUDIO_SUFFIXES:
+        return filename_suffix
+
+    return AUDIO_SUFFIX_BY_CONTENT_TYPE.get(
+        (content_type or "").lower(),
+        ".webm",
+    )
+
+
+def _get_whisper_model():
+    global _whisper_model
+
+    if _whisper_model is None:
+        with _whisper_model_lock:
+            if _whisper_model is None:
+                try:
+                    import whisper
+                except ImportError as exc:
+                    raise RuntimeError(
+                        "Whisper is not installed. Install backend requirements."
+                    ) from exc
+
+                _whisper_model = whisper.load_model(
+                    "base",
+                    download_root=WHISPER_CACHE_DIR,
+                )
+
+    return _whisper_model
 
 
 def _extract_text_from_file(filepath: str, content_type: str) -> str:
@@ -103,7 +205,10 @@ def _extract_text_from_file(filepath: str, content_type: str) -> str:
 
 
 def _transcribe_with_whisper(audio_path: str, language: str = "auto") -> dict:
+    _ensure_ffmpeg_available()
+
     lang_code = LANGUAGE_MAP.get((language or "auto").lower(), None)
+    whisper_model = _get_whisper_model()
 
     result = whisper_model.transcribe(
         audio_path,
@@ -193,7 +298,7 @@ async def upload_audio(
         raise HTTPException(status_code=400, detail="Audio file too large (max 25 MB)")
 
     file_id = str(uuid.uuid4())
-    ext = os.path.splitext(file.filename or "audio.webm")[1] or ".webm"
+    ext = _get_audio_suffix(file.filename, file.content_type)
     stored_name = f"{file_id}{ext}"
     filepath = os.path.join(UPLOAD_DIR, stored_name)
 
@@ -201,16 +306,18 @@ async def upload_audio(
         f.write(contents)
 
     try:
-        result = _transcribe_with_whisper(filepath, language)
+        result = await asyncio.to_thread(_transcribe_with_whisper, filepath, language)
         transcript = result["text"]
         detected_language = result["language"]
 
+    except HTTPException:
+        raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Whisper transcription failed for uploaded audio")
         raise HTTPException(
             status_code=500,
-            detail=f"Transcription failed: {repr(e)}",
-        )
+            detail=f"Audio transcription failed: {str(e)}",
+        ) from e
 
     db_file = UploadedFile(
         filename=file.filename or "Audio recording",
@@ -243,12 +350,21 @@ async def transcribe_audio(
     audio: UploadFile = File(...),
     language: str = Form("auto"),
 ):
+    if audio.content_type not in ALLOWED_AUDIO_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported audio type: {audio.content_type}",
+        )
+
     contents = await audio.read()
+
+    if not contents:
+        raise HTTPException(status_code=400, detail="Uploaded audio file is empty")
 
     if len(contents) > 25 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="Audio file too large (max 25 MB)")
 
-    suffix = os.path.splitext(audio.filename or "recording.webm")[1] or ".webm"
+    suffix = _get_audio_suffix(audio.filename, audio.content_type)
     temp_path = None
 
     try:
@@ -256,19 +372,21 @@ async def transcribe_audio(
             temp.write(contents)
             temp_path = temp.name
 
-        result = _transcribe_with_whisper(temp_path, language)
+        result = await asyncio.to_thread(_transcribe_with_whisper, temp_path, language)
 
         return {
             "text": result["text"],
             "language": result["language"],
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
-        traceback.print_exc()
+        logger.exception("Whisper transcription failed for temporary audio upload")
         raise HTTPException(
             status_code=500,
-            detail=f"Transcription failed: {repr(e)}",
-        )
+            detail=f"Audio transcription failed: {str(e)}",
+        ) from e
 
     finally:
         if temp_path and os.path.exists(temp_path):
