@@ -1,0 +1,141 @@
+name: Develop Validation & QA Build
+
+on:
+  push:
+    branches:
+      - develop
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  changes:
+    name: Detect Changed Paths
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      infra: ${{ steps.filter.outputs.infra }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      - name: Detect Changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+              - 'ruff.toml'
+              - '.github/workflows/develop-validation.yml'
+              - '.github/workflows/backend-validation.yml'
+              - '.github/workflows/docker-build.yml'
+            frontend:
+              - 'frontend/**'
+              - '.github/workflows/develop-validation.yml'
+              - '.github/workflows/frontend-validation.yml'
+              - '.github/workflows/docker-build.yml'
+            infra:
+              - 'infra/cdk/**'
+              - '.github/workflows/cdk-validation.yml'
+
+  backend-tests:
+    needs: changes
+    if: ${{ needs.changes.outputs.backend == 'true' }}
+    uses: ./.github/workflows/backend-validation.yml
+    with:
+      is-pr: false
+      base-ref: ''
+
+  cdk-validation:
+    needs: changes
+    if: ${{ needs.changes.outputs.infra == 'true' }}
+    uses: ./.github/workflows/cdk-validation.yml
+
+  infra-deploy-qa:
+    needs: [changes, cdk-validation]
+    if: ${{ always() && needs.changes.outputs.infra == 'true' && (needs.cdk-validation.result == 'success' || needs.cdk-validation.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::399894608507:role/GitHubActionsDeployerRole
+          aws-region: ap-south-1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install CDK Dependencies
+        run: npm install --prefix infra/cdk
+
+      - name: Deploy QA Infrastructure
+        run: |
+          cd infra/cdk
+          npx cdk deploy AxioraPulseStackQa --require-approval never
+
+  backend-docker-qa:
+    needs: [changes, backend-tests]
+    if: ${{ needs.changes.outputs.backend == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::399894608507:role/GitHubActionsDeployerRole
+          aws-region: ap-south-1
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and Push Backend
+        uses: ./.github/workflows/docker-build.yml
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile.prod
+          image-name: ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-fastapi-qa
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-fastapi-qa:sha-${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-fastapi-qa:qa
+            ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-fastapi-qa:latest
+
+  frontend-docker-qa:
+    needs: [changes]
+    if: ${{ needs.changes.outputs.frontend == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::399894608507:role/GitHubActionsDeployerRole
+          aws-region: ap-south-1
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and Push Frontend
+        uses: ./.github/workflows/docker-build.yml
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          image-name: ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-frontend-qa
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-frontend-qa:sha-${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-frontend-qa:qa
+            ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-frontend-qa:latest

@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 import os
 import sys
 from logging.config import fileConfig
@@ -34,9 +35,7 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # Override sqlalchemy.url from environment variable
-DATABASE_URL = os.getenv(
-    "DATABASE_URL", "postgresql://postgres:root@localhost:5432/nexpulse"
-)
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:root@localhost:5432/nexpulse")
 config.set_main_option("sqlalchemy.url", DATABASE_URL.replace("%", "%%"))
 
 target_metadata = Base.metadata

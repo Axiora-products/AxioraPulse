@@ -1,32 +1,36 @@
 """
 routes/ai.py
 ────────────
-AI-powered survey insights using Anthropic Claude.
+AI-powered survey insights with multi-provider failover
+(Gemini → OpenAI → Anthropic).
 """
 
-from ast import Return
-import os
 import json
 import re
-import requests
 from fastapi import Request, APIRouter, Depends, HTTPException
 
-import anthropic
-
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from starlette.concurrency import run_in_threadpool
 from core.rate_limiter import limiter
 
 from sqlalchemy.orm import Session, joinedload
 from db.database import get_db
-from db.models import UserProfile, Survey, SurveyQuestion, SurveyResponse, SurveyAnswer, ResponseStatusEnum
-from schemas import AIInsightsRequest, AIInsightsResponse, AISuggestionsRequest, AISuggestionsResponse, AIGenerateRequest, AIGenerateResponse, IdeaProtectionMetadata, SurveyIntelligenceResponse
+from db.models import UserProfile, Survey, SurveyResponse, ResponseStatusEnum
+from schemas import (
+    AIInsightsRequest,
+    AIInsightsResponse,
+    AISuggestionsRequest,
+    AISuggestionsResponse,
+    AIGenerateRequest,
+    AIGenerateResponse,
+    IdeaProtectionMetadata,
+    SurveyIntelligenceResponse,
+)
 from dependencies import get_current_user
 from services.feature_gate import require_feature
+from services.ai_provider import call_ai_sync
 
 router = APIRouter(prefix="/ai", tags=["ai"])
-
-MODEL = "gemini-2.5-flash"
 SHORT_SURVEY_DEFAULT_QUESTIONS = 12
 SHORT_SURVEY_TARGET_MINUTES = 3
 SHORT_SURVEY_MAX_WORDS = 18
@@ -36,8 +40,13 @@ ADAPTIVE_QUESTION_TYPES = (
 )
 ALLOWED_QUESTION_TYPES = set(ADAPTIVE_QUESTION_TYPES.split("|"))
 OPTION_TYPES = {
-    "single_choice", "multiple_choice", "dropdown", "ranking",
-    "emoji_reaction", "swipe_choice", "visual_choice",
+    "single_choice",
+    "multiple_choice",
+    "dropdown",
+    "ranking",
+    "emoji_reaction",
+    "swipe_choice",
+    "visual_choice",
 }
 FAST_MOBILE_TYPES = ["emoji_reaction", "rating", "scale", "yes_no", "single_choice", "slider"]
 DEEP_TYPES = {"long_text", "matrix", "ranking"}
@@ -127,7 +136,9 @@ def _normalize_option_list(options):
     return normalized
 
 
-def _infer_best_format(text: str, current_type: str, mode: str, index: int, total: int, context: str = "") -> str:
+def _infer_best_format(
+    text: str, current_type: str, mode: str, index: int, total: int, context: str = "", has_options: bool = False
+) -> str:
     lower = (text or "").lower()
     ctx = (context or "").lower()
     if current_type in ALLOWED_QUESTION_TYPES:
@@ -135,12 +146,42 @@ def _infer_best_format(text: str, current_type: str, mode: str, index: int, tota
     else:
         q_type = "short_text"
 
+    # Hard structural types — always keep
     if q_type in {"email", "number", "date"}:
         return q_type
+    # Last question should be open-ended
     if index == total - 1:
         return "long_text"
+    # Don't allow long_text too early
     if q_type == "long_text" and index < total - 2:
         return "short_text"
+
+    # ── If the AI chose a specific interactive type, trust it ──────────────────
+    # Prevents destructive overrides like single_choice (with good options) → yes_no
+    _AI_INTERACTIVE_TYPES = {
+        "single_choice",
+        "multiple_choice",
+        "dropdown",
+        "ranking",
+        "emoji_reaction",
+        "swipe_choice",
+        "visual_choice",
+        "rating",
+        "scale",
+        "slider",
+        "matrix",
+        "yes_no",
+    }
+    if q_type in _AI_INTERACTIVE_TYPES:
+        # For option-bearing types, trust the AI when it provided valid options
+        if q_type in OPTION_TYPES and has_options:
+            return q_type
+        # For non-option types (rating, scale, yes_no, slider), trust directly
+        if q_type not in OPTION_TYPES:
+            return q_type
+
+    # ── Only for generic types (short_text) or option types without valid
+    #    options, infer a better format from keywords ──────────────────────────
     if any(k in lower for k in ["feel", "emotion", "mood", "reaction", "sentiment"]):
         return "emoji_reaction"
     if any(k in lower for k in ["prefer", "choose", "which option", "pick", "tradeoff"]):
@@ -151,13 +192,20 @@ def _infer_best_format(text: str, current_type: str, mode: str, index: int, tota
         return "scale"
     if any(k in lower for k in ["image", "visual", "design", "look", "concept"]):
         return "visual_choice"
-    if any(k in lower for k in ["yes or no", "do you", "did you", "are you", "have you"]):
+    # Only match genuine polar yes/no questions — not mid-sentence "do you"
+    # like "how do you" or "what do you" which are NOT polar questions
+    if "yes or no" in lower:
+        return "yes_no"
+    if re.match(r"^(do you|did you|are you|have you|is there|was there|will you|would you)\b", lower):
         return "yes_no"
     if any(k in ctx for k in ["busy", "mobile", "quick", "consumer", "customer"]) and current_type == "long_text":
         return "short_text"
     if any(k in ctx for k in ["employee", "team", "workplace"]) and index < 3:
         return "rating"
-    if any(k in ctx for k in ["design", "creative", "concept", "packaging", "ad creative"]) and q_type in {"single_choice", "short_text"}:
+    if any(k in ctx for k in ["design", "creative", "concept", "packaging", "ad creative"]) and q_type in {
+        "single_choice",
+        "short_text",
+    }:
         return "visual_choice"
     if mode in {"emotionally_triggering", "conversational"} and index == 0:
         return "emoji_reaction"
@@ -190,13 +238,20 @@ def _optimize_generated_survey(result_json: dict, body: AIGenerateRequest) -> di
         text = _shorten_question(str(raw.get("text") or raw.get("question") or "").strip())
         if not text:
             continue
-        q_type = _infer_best_format(text, str(raw.get("type") or "short_text"), mode, i, len(raw_questions), context)
-        questions.append({
-            "text": text,
-            "type": q_type,
-            "options": _normalize_options(q_type, raw.get("options")),
-            "_original_index": i,
-        })
+        raw_type = str(raw.get("type") or "short_text")
+        raw_options = raw.get("options")
+        has_options = (isinstance(raw_options, list) and len(raw_options) >= 2) or (
+            isinstance(raw_options, dict) and bool(raw_options)
+        )
+        q_type = _infer_best_format(text, raw_type, mode, i, len(raw_questions), context, has_options)
+        questions.append(
+            {
+                "text": text,
+                "type": q_type,
+                "options": _normalize_options(q_type, raw_options),
+                "_original_index": i,
+            }
+        )
 
     questions.sort(key=lambda q: _flow_bucket(q, q["_original_index"], len(questions)))
 
@@ -231,59 +286,7 @@ def _optimize_generated_survey(result_json: dict, body: AIGenerateRequest) -> di
     }
 
 
-def _get_client() -> str:
-    api_key = os.getenv("GEMINI_KEY")
-    if not api_key:
-        api_key = os.getenv("ANTHROPIC_KEY")
-    if not api_key:
-        raise HTTPException(status_code=500, detail="Gemini API key not configured on server")
-    return api_key
-
-
-def _call_gemini(api_key: str, prompt: str, max_tokens: int = 2048) -> str:
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent?key={api_key}"
-    headers = {
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "contents": [
-            {
-                "parts": [
-                    {
-                        "text": prompt
-                    }
-                ]
-            }
-        ],
-        "systemInstruction": {
-            "parts": [
-                {
-                    "text": "You are a helpful AI assistant. Always respond with valid JSON only — no markdown, no explanation."
-                }
-            ]
-        },
-        "generationConfig": {
-            "responseMimeType": "application/json",
-            "maxOutputTokens": max_tokens
-        }
-    }
-    
-    response = requests.post(url, headers=headers, json=payload, timeout=60)
-    response.raise_for_status()
-    result = response.json()
-    
-    try:
-        text = result["candidates"][0]["content"]["parts"][0]["text"].strip()
-    except (KeyError, IndexError, TypeError) as e:
-        print(f"[AI] Error parsing Gemini response: {e}, Response: {result}")
-        raise ValueError("Failed to parse response structure from Gemini API")
-        
-    # Strip markdown code fences if Gemini wraps the JSON despite instructions
-    if text.startswith("```"):
-        text = text.split("\n", 1)[-1]
-        if text.endswith("```"):
-            text = text[: text.rfind("```")]
-    return text.strip()
+# _get_client() and _call_gemini() removed — now using services.ai_provider.call_ai_sync
 
 
 SENSITIVE_CATEGORY_LABELS = {
@@ -296,12 +299,42 @@ SENSITIVE_CATEGORY_LABELS = {
 }
 
 SENSITIVE_CATEGORY_KEYWORDS = {
-    "core_idea": ["building", "idea", "concept", "platform", "tool", "app", "product", "predicts", "prediction", "attrition"],
+    "core_idea": [
+        "building",
+        "idea",
+        "concept",
+        "platform",
+        "tool",
+        "app",
+        "product",
+        "predicts",
+        "prediction",
+        "attrition",
+    ],
     "business_model": ["pricing", "subscription", "revenue", "monetize", "buy", "sell", "business model", "gtm"],
     "differentiators": ["unique", "differentiator", "competitive advantage", "moat", "unlike", "secret"],
     "strategy": ["strategy", "roadmap", "launch", "go-to-market", "positioning", "targeting", "validate"],
-    "execution_details": ["using", "integrates", "slack", "microsoft teams", "algorithm", "model", "workflow", "implementation", "scoring"],
-    "proprietary_insights": ["proprietary", "insight", "internal", "trend", "behavior", "productivity", "data source", "signals"],
+    "execution_details": [
+        "using",
+        "integrates",
+        "slack",
+        "microsoft teams",
+        "algorithm",
+        "model",
+        "workflow",
+        "implementation",
+        "scoring",
+    ],
+    "proprietary_insights": [
+        "proprietary",
+        "insight",
+        "internal",
+        "trend",
+        "behavior",
+        "productivity",
+        "data source",
+        "signals",
+    ],
 }
 
 SENSITIVE_REPLACEMENTS = [
@@ -420,7 +453,7 @@ def _fallback_protect_context(original_context: str) -> dict:
     }
 
 
-def protect_idea_context(client: str, original_context: str) -> dict:
+def protect_idea_context(original_context: str) -> dict:
     """
     Idea-protection intelligence layer.
     Runs before final survey generation so public-facing questions validate the market
@@ -431,9 +464,7 @@ def protect_idea_context(client: str, original_context: str) -> dict:
 
     classified = detect_sensitive_idea_info(original_context)
     llm_safe_context = (
-        _mask_context_before_llm(original_context)
-        if classified["protection_applied"]
-        else original_context
+        _mask_context_before_llm(original_context) if classified["protection_applied"] else original_context
     )
 
     prompt = f"""Analyze this private survey-owner prompt and protect the idea before public survey questions are generated.
@@ -465,23 +496,21 @@ Protection rules:
 - If no sensitive details are present, return the original intent in protected_context and set protection_applied to false."""
 
     try:
-        text = _call_gemini(client, prompt, 1200)
+        text = call_ai_sync(prompt, 1200)
         result = json.loads(text)
         protected_context = str(result.get("protected_context") or "").strip()
         detected = result.get("detected_sensitive_categories") or []
         if not protected_context:
             return _fallback_protect_context(original_context)
-        detected = [
-            SENSITIVE_CATEGORY_LABELS[c]
-            for c in detected
-            if c in SENSITIVE_CATEGORY_LABELS
-        ]
+        detected = [SENSITIVE_CATEGORY_LABELS[c] for c in detected if c in SENSITIVE_CATEGORY_LABELS]
         if not detected:
             detected = classified["detected_sensitive_categories"]
         return {
             "protected_context": protected_context,
             "detected_sensitive_categories": detected,
-            "protection_applied": bool(result.get("protection_applied") or detected or classified["protection_applied"]),
+            "protection_applied": bool(
+                result.get("protection_applied") or detected or classified["protection_applied"]
+            ),
             "protected_context_summary": result.get("protected_context_summary"),
         }
     except Exception as e:
@@ -543,6 +572,7 @@ async def ping_ai(request: Request):
 
 # ── Internal Helpers ──────────────────────────────────────────────────────────
 
+
 def _build_survey_context(survey_id: str, db: Session) -> dict:
     """Fetch survey, questions, and responses to build context for AI."""
     survey = db.query(Survey).options(joinedload(Survey.questions)).filter(Survey.id == survey_id).first()
@@ -594,13 +624,15 @@ def _build_survey_context(survey_id: str, db: Session) -> dict:
                 elif ans.answer_json:
                     q_answers.append(ans.answer_json)
 
-        question_summaries.append({
-            "id": str(q.id),
-            "text": q.question_text,
-            "type": q.question_type.value,
-            "responseCount": len(q_answers),
-            "responses": q_answers[:50],
-        })
+        question_summaries.append(
+            {
+                "id": str(q.id),
+                "text": q.question_text,
+                "type": q.question_type.value,
+                "responseCount": len(q_answers),
+                "responses": q_answers[:50],
+            }
+        )
 
     return {
         "title": survey.title,
@@ -617,6 +649,7 @@ def _build_survey_context(survey_id: str, db: Session) -> dict:
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
+
 
 @router.get("/surveys/{survey_id}/insights")
 @limiter.limit("3/minute")
@@ -646,43 +679,282 @@ async def generate_insights(
     current_user: UserProfile = Depends(get_current_user),
     _gate: None = Depends(require_feature("ai_insights")),
 ):
-    client = _get_client()
+    # AI provider is resolved automatically by call_ai_sync
 
-    prompt = f"""Analyze the following survey data and provide structured insights.
+    prompt = f"""You are a senior survey research analyst performing a comprehensive, multi-dimensional analysis.
+Analyze the following survey data with the depth and rigor of a professional research report.
 
+== SURVEY DATA ==
 Survey Title: {body.surveyTitle}
 
 Overall Stats:
-- Total Responses: {body.responses.get('total')}
-- Completion Rate: {body.responses.get('completionRate')}%
-- Abandon Rate: {body.responses.get('abandonRate')}%
-- Avg Time: {body.responses.get('avgTimeMin')} minutes
-- NPS: {json.dumps(body.responses.get('nps'))}
+- Total Responses: {body.responses.get("total")}
+- Completed: {body.responses.get("completed")}
+- Completion Rate: {body.responses.get("completionRate")}%
+- Abandon Rate: {body.responses.get("abandonRate")}%
+- Avg Time: {body.responses.get("avgTimeMin")} minutes
+- NPS Score: {json.dumps(body.responses.get("nps"))}
 
-Question Summaries:
+Question-by-Question Data:
 {json.dumps(body.questionSummaries, indent=2)}
 
-Return a JSON object with this exact structure:
+== ANALYSIS INSTRUCTIONS ==
+
+Perform ALL of the following analyses. Be specific, quantitative, and evidence-based.
+Reference exact response counts, percentages, and specific answer text wherever possible.
+
+1. **Executive Summary** — A 3-5 sentence strategic overview covering the most important findings, the overall health of the survey, and the single most actionable takeaway. Write as if briefing a CEO.
+
+2. **Overall Score** — Rate the survey results 0-100 based on: response quality (engagement depth, completion rate), sentiment balance, actionability of responses, and NPS if available. Be realistic — don't inflate.
+
+3. **NPS Analysis** — If NPS data exists, provide a detailed interpretation: what the score means in context, comparison to typical benchmarks, and what's driving promoters vs detractors. If no NPS, set to null.
+
+4. **Response Quality** — Assess engagement quality: are respondents giving thoughtful answers or rushing? Look at completion rate, time spent, text response length/quality, and answer patterns.
+
+5. **Sentiment Breakdown** — Estimate the overall sentiment distribution across all responses as percentages (positive/neutral/negative must sum to 100). Look at text responses, ratings, and choice patterns.
+
+6. **Key Findings** (insights) — Generate 5-8 specific, data-backed findings. Each must cite evidence from the responses. Mix types: positive (strengths), warning (concerns), info (patterns), action (opportunities).
+
+7. **Key Themes** — Identify 3-5 thematic clusters that emerge across multiple questions. For each theme, note frequency, overall sentiment, and include 1-2 direct quotes from text responses if available.
+
+8. **Cross-Question Patterns** — Find 2-4 correlations or patterns across different questions. Example: "Respondents who rated X highly also tended to choose Y in Q3." Rate significance as high/medium/low.
+
+9. **Respondent Segments** — Identify 2-4 distinct respondent groups based on their answer patterns. Describe each segment's size, characteristics, sentiment, and what differentiates them.
+
+10. **Urgency Matrix** — Classify 3-5 issues by urgency (critical/high/medium/low) and impact (high/medium/low). Provide evidence for each classification.
+
+11. **Benchmark Comparison** — Compare 3-5 key metrics against typical survey/industry benchmarks. For example: completion rate vs typical survey benchmarks, NPS vs industry averages, response time vs expected.
+
+12. **Data Quality Flags** — Flag 1-3 potential data quality concerns: possible survey fatigue, contradictory answers, suspiciously fast completions, leading question effects, low sample size caveats, etc. Include constructive suggestions.
+
+13. **Top Strengths** — List 3-5 clear strengths evidenced by the data.
+
+14. **Improvement Areas** — List 3-5 areas needing improvement with specific evidence.
+
+15. **Recommended Actions** — Provide 4-6 prioritized, specific, actionable recommendations. Each must include priority (high/medium/low), the concrete action to take, and the expected impact.
+
+== OUTPUT FORMAT ==
+Return ONLY valid JSON with this exact structure (no markdown, no explanation):
 {{
   "executiveSummary": "string",
+  "overallScore": 72,
   "npsAnalysis": "string or null",
+  "responseQuality": "string describing quality assessment",
+  "sentimentBreakdown": {{
+    "positive": 45,
+    "neutral": 35,
+    "negative": 20,
+    "overall": "positive|neutral|negative"
+  }},
   "insights": [
-    {{ "type": "positive|warning|info|action", "title": "string", "detail": "string", "metric": "string or null" }}
+    {{ "type": "positive|warning|info|action", "title": "string", "detail": "string with evidence", "metric": "stat or null" }}
   ],
-  "topStrengths": ["string"],
-  "improvementAreas": ["string"],
+  "keyThemes": [
+    {{ "theme": "string", "frequency": "mentioned by X% of respondents", "sentiment": "positive|negative|mixed|neutral", "quotes": ["direct quote 1"], "relatedQuestions": ["Q1 text snippet"] }}
+  ],
+  "crossQuestionPatterns": [
+    {{ "pattern": "string", "questions": ["Q1 snippet", "Q3 snippet"], "significance": "high|medium|low", "detail": "string" }}
+  ],
+  "respondentSegments": [
+    {{ "segment": "name", "size": "~X% of respondents", "characteristics": "string", "sentiment": "positive|negative|mixed|neutral", "keyDifference": "string" }}
+  ],
+  "urgencyMatrix": [
+    {{ "issue": "string", "urgency": "critical|high|medium|low", "impact": "high|medium|low", "evidence": "string" }}
+  ],
+  "benchmarkComparison": [
+    {{ "metric": "string", "value": "actual value", "benchmark": "typical value", "status": "above|at|below", "context": "string" }}
+  ],
+  "dataQualityFlags": [
+    {{ "flag": "string", "severity": "warning|info", "detail": "string", "suggestion": "string" }}
+  ],
+  "topStrengths": ["string with evidence"],
+  "improvementAreas": ["string with evidence"],
   "recommendedActions": [
-    {{ "priority": "high|medium|low", "action": "string", "impact": "string" }}
+    {{ "priority": "high|medium|low", "action": "specific action", "impact": "expected outcome" }}
   ]
-}}"""
+}}
 
+== CRITICAL RULES ==
+- Every claim MUST reference specific data from the responses (counts, percentages, quoted text).
+- Do NOT fabricate data. If insufficient data exists for an analysis, provide what you can and note the limitation.
+- Be genuinely analytical — surface non-obvious patterns, not just restatements of the raw numbers.
+- The overall score must be realistic and calibrated: 80+ is excellent, 60-79 is good, 40-59 is needs improvement, below 40 is concerning.
+- All percentage breakdowns must sum correctly.
+- Prioritize actionable, specific insights over generic observations."""
+
+    text = None
     try:
-        text = await run_in_threadpool(_call_gemini, client, prompt, 2048)
+        text = await run_in_threadpool(call_ai_sync, prompt, 4096)
         result_json = json.loads(text)
+
+        # ── Normalize AI response: fill missing required fields with defaults ──
+        if "executiveSummary" not in result_json:
+            result_json["executiveSummary"] = "No executive summary was generated."
+        if "insights" not in result_json:
+            result_json["insights"] = []
+        if "topStrengths" not in result_json:
+            result_json["topStrengths"] = []
+        if "improvementAreas" not in result_json:
+            result_json["improvementAreas"] = []
+        if "recommendedActions" not in result_json:
+            result_json["recommendedActions"] = []
+
+        # Normalize overallScore
+        score = result_json.get("overallScore")
+        if score is not None:
+            try:
+                result_json["overallScore"] = max(0, min(100, int(score)))
+            except (ValueError, TypeError):
+                result_json["overallScore"] = None
+
+        # Normalize sentimentBreakdown
+        sb = result_json.get("sentimentBreakdown")
+        if isinstance(sb, dict):
+            result_json["sentimentBreakdown"] = {
+                "positive": int(sb.get("positive", 0)),
+                "neutral": int(sb.get("neutral", 0)),
+                "negative": int(sb.get("negative", 0)),
+                "overall": sb.get("overall", "neutral"),
+            }
+
+        # Normalize nested insight items
+        normalized_insights = []
+        for item in result_json.get("insights", []):
+            if isinstance(item, dict):
+                normalized_insights.append(
+                    {
+                        "type": item.get("type", "info"),
+                        "title": item.get("title", "Insight"),
+                        "detail": item.get("detail", item.get("description", "")),
+                        "metric": item.get("metric"),
+                    }
+                )
+            elif isinstance(item, str):
+                normalized_insights.append(
+                    {
+                        "type": "info",
+                        "title": "Insight",
+                        "detail": item,
+                        "metric": None,
+                    }
+                )
+        result_json["insights"] = normalized_insights
+
+        # Normalize action items
+        normalized_actions = []
+        for item in result_json.get("recommendedActions", []):
+            if isinstance(item, dict):
+                normalized_actions.append(
+                    {
+                        "priority": item.get("priority", "medium"),
+                        "action": item.get("action", item.get("title", "")),
+                        "impact": item.get("impact", item.get("description", "")),
+                    }
+                )
+            elif isinstance(item, str):
+                normalized_actions.append(
+                    {
+                        "priority": "medium",
+                        "action": item,
+                        "impact": "",
+                    }
+                )
+        result_json["recommendedActions"] = normalized_actions
+
+        # Normalize theme items
+        normalized_themes = []
+        for item in result_json.get("keyThemes", []):
+            if isinstance(item, dict):
+                normalized_themes.append(
+                    {
+                        "theme": item.get("theme", item.get("name", "Theme")),
+                        "frequency": item.get("frequency", ""),
+                        "sentiment": item.get("sentiment", "neutral"),
+                        "quotes": item.get("quotes", []),
+                        "relatedQuestions": item.get("relatedQuestions", []),
+                    }
+                )
+        result_json["keyThemes"] = normalized_themes
+
+        # Normalize cross-question patterns
+        normalized_patterns = []
+        for item in result_json.get("crossQuestionPatterns", []):
+            if isinstance(item, dict):
+                normalized_patterns.append(
+                    {
+                        "pattern": item.get("pattern", ""),
+                        "questions": item.get("questions", []),
+                        "significance": item.get("significance", "medium"),
+                        "detail": item.get("detail", item.get("description", "")),
+                    }
+                )
+        result_json["crossQuestionPatterns"] = normalized_patterns
+
+        # Normalize respondent segments
+        normalized_segments = []
+        for item in result_json.get("respondentSegments", []):
+            if isinstance(item, dict):
+                normalized_segments.append(
+                    {
+                        "segment": item.get("segment", item.get("name", "Segment")),
+                        "size": item.get("size", ""),
+                        "characteristics": item.get("characteristics", ""),
+                        "sentiment": item.get("sentiment", "neutral"),
+                        "keyDifference": item.get("keyDifference", item.get("key_difference", "")),
+                    }
+                )
+        result_json["respondentSegments"] = normalized_segments
+
+        # Normalize urgency matrix
+        normalized_urgency = []
+        for item in result_json.get("urgencyMatrix", []):
+            if isinstance(item, dict):
+                normalized_urgency.append(
+                    {
+                        "issue": item.get("issue", ""),
+                        "urgency": item.get("urgency", "medium"),
+                        "impact": item.get("impact", "medium"),
+                        "evidence": item.get("evidence", ""),
+                    }
+                )
+        result_json["urgencyMatrix"] = normalized_urgency
+
+        # Normalize benchmarks
+        normalized_benchmarks = []
+        for item in result_json.get("benchmarkComparison", []):
+            if isinstance(item, dict):
+                normalized_benchmarks.append(
+                    {
+                        "metric": item.get("metric", ""),
+                        "value": item.get("value", ""),
+                        "benchmark": item.get("benchmark", ""),
+                        "status": item.get("status", "at"),
+                        "context": item.get("context", ""),
+                    }
+                )
+        result_json["benchmarkComparison"] = normalized_benchmarks
+
+        # Normalize data quality flags
+        normalized_flags = []
+        for item in result_json.get("dataQualityFlags", []):
+            if isinstance(item, dict):
+                normalized_flags.append(
+                    {
+                        "flag": item.get("flag", item.get("title", "")),
+                        "severity": item.get("severity", "info"),
+                        "detail": item.get("detail", item.get("description", "")),
+                        "suggestion": item.get("suggestion", item.get("recommendation", "")),
+                    }
+                )
+        result_json["dataQualityFlags"] = normalized_flags
+
         return AIInsightsResponse(**result_json)
     except ValidationError as ve:
         print(f"[AI] Insights validation error: {ve}")
-        raise HTTPException(status_code=500, detail="Gemini returned an invalid data structure")
+        print(f"[AI] Raw AI response: {text[:500] if text else 'N/A'}")
+        raise HTTPException(status_code=500, detail="AI provider returned an invalid data structure")
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"[AI] Insights error: {e}")
         if "rate" in str(e).lower() or "429" in str(e):
@@ -697,7 +969,7 @@ async def generate_survey(
     body: AIGenerateRequest,
     current_user: UserProfile = Depends(get_current_user),
 ):
-    client = _get_client()
+    # AI provider is resolved automatically by call_ai_sync
 
     # ── Mode-specific system instructions ─────────────────────────────────
     MODE_PROMPTS = {
@@ -745,8 +1017,7 @@ async def generate_survey(
     system_instruction = MODE_PROMPTS.get(mode, MODE_PROMPTS["conversational"])
     if mode == "custom" and body.customInstruction:
         system_instruction = (
-            f"{system_instruction}\n\nCustom survey mode instructions from the user:\n"
-            f"{body.customInstruction[:2000]}"
+            f"{system_instruction}\n\nCustom survey mode instructions from the user:\n{body.customInstruction[:2000]}"
         )
 
     # ── Build the user prompt ─────────────────────────────────────────────
@@ -762,7 +1033,7 @@ async def generate_survey(
     # The idea-protection layer runs before final survey generation. The original
     # owner prompt stays internal to this request; the question generator receives
     # only the protected, generalized validation brief below.
-    protection_result = await run_in_threadpool(protect_idea_context, client, original_owner_context)
+    protection_result = await run_in_threadpool(protect_idea_context, original_owner_context)
     protected_context = protection_result["protected_context"]
     protection_metadata = IdeaProtectionMetadata(
         protection_applied=protection_result["protection_applied"],
@@ -770,9 +1041,7 @@ async def generate_survey(
         protected_context_summary=protection_result.get("protected_context_summary"),
     )
 
-    prompt = f"""{system_instruction}
-
-Generate a complete survey based on the following protected validation brief.
+    prompt = f"""Generate a complete survey based on the following protected validation brief.
 
 Protected validation brief: {protected_context}
 Target audience: {body.targetAudience or "Infer from the protected validation brief"}
@@ -816,10 +1085,19 @@ Rules:
 - For visual_choice options, include image_url when a concrete image URL is available; otherwise use clear labels.
 - For emoji_reaction options, use emoji characters as labels and stable lowercase values.
 - Make questions clear, unbiased, engaging, and fatigue-resistant.
-- Adapt tone and depth based on the survey style described above"""
+- Adapt tone and depth based on the survey style described above.
+- CRITICAL: Every question MUST be directly relevant to the validation brief topic. Do not generate generic filler questions unrelated to the domain.
+- CRITICAL: Question type MUST semantically match the question content. Never assign yes_no to questions starting with "how", "what", "which", "where", or "why" — use single_choice or multiple_choice with relevant answer options instead.
+- CRITICAL: Options for choice-type questions MUST be contextually meaningful answers to the specific question. Generic "Yes/No" options must ONLY appear on genuine polar yes/no questions. A question like "How do you acquire X?" must have options like specific methods, channels, or approaches — never Yes/No.
+- For each single_choice, multiple_choice, or dropdown question, provide 3-6 specific, meaningful options that directly address the question asked."""
 
     try:
-        text = await run_in_threadpool(_call_gemini, client, prompt, 8192)
+        text = await run_in_threadpool(
+            call_ai_sync,
+            prompt,
+            8192,
+            system_instruction + " Always respond with valid JSON only — no markdown, no explanation.",
+        )
         result_json = json.loads(text)
         result_json = _optimize_generated_survey(result_json, body)
         if _contains_leak(result_json, leak_terms):
@@ -829,7 +1107,9 @@ Rules:
         return AIGenerateResponse(**result_json)
     except ValidationError as ve:
         print(f"[AI] Generate validation error: {ve}")
-        raise HTTPException(status_code=500, detail="Gemini returned an invalid survey structure")
+        raise HTTPException(status_code=500, detail="AI provider returned an invalid survey structure")
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"[AI] Generate error: {e}")
         if "rate" in str(e).lower() or "429" in str(e):
@@ -844,7 +1124,7 @@ async def generate_suggestions(
     body: AISuggestionsRequest,
     current_user: UserProfile = Depends(get_current_user),
 ):
-    client = _get_client()
+    # AI provider is resolved automatically by call_ai_sync
 
     prompt = f"""Based on the following survey title and existing questions, suggest 3-5 relevant follow-up questions.
 
@@ -874,12 +1154,14 @@ Rules:
 - Only include "options" for single_choice, multiple_choice, dropdown, ranking, matrix, emoji_reaction, swipe_choice, and visual_choice types."""
 
     try:
-        text = await run_in_threadpool(_call_gemini, client, prompt, 1024)
+        text = await run_in_threadpool(call_ai_sync, prompt, 1024)
         result_json = json.loads(text)
         return AISuggestionsResponse(**result_json)
     except ValidationError as ve:
         print(f"[AI] Suggestions validation error: {ve}")
-        raise HTTPException(status_code=500, detail="Gemini returned an invalid suggestion structure")
+        raise HTTPException(status_code=500, detail="AI provider returned an invalid suggestion structure")
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"[AI] Suggestions error: {e}")
         if "rate" in str(e).lower() or "429" in str(e):
@@ -888,6 +1170,7 @@ Rules:
 
 
 # ── Survey Intelligence (Guidance + Roadmap) ──────────────────────────────────
+
 
 @router.post("/survey-intelligence")
 @limiter.limit("3/minute")
@@ -901,7 +1184,7 @@ async def generate_survey_intelligence(
     viability score, and development roadmap — all contextually aligned with the
     survey idea, title, description, and questions.
     """
-    client = _get_client()
+    # AI provider is resolved automatically by call_ai_sync
 
     title = body.get("title", "")
     description = body.get("description", "")
@@ -912,8 +1195,7 @@ async def generate_survey_intelligence(
     location_district = body.get("location_district", "")
 
     q_summary = "\n".join(
-        f"  - Q{i+1} ({q.get('type','text')}): {q.get('text','')}"
-        for i, q in enumerate(questions[:20])
+        f"  - Q{i + 1} ({q.get('type', 'text')}): {q.get('text', '')}" for i, q in enumerate(questions[:20])
     )
 
     location_section = ""
@@ -988,7 +1270,7 @@ Based on the survey's idea, industry, problem statement, research objectives, an
   * If only a country is given, make them national.
   * If no location details are specified, make them globally applicable.
 - Do NOT use generic or template-like outputs. Tailor everything to the survey content.
-- Competitors must be real companies relevant to the survey's problem space.
+- Competitors must be real companies relevant to the survey's problem space. If a specific district/city/town is specified, do NOT assume or claim that any national, global, or metro-only competitor (regardless of industry—whether hyperlocal delivery, IT services, retail, EdTech, healthcare, etc.) is physically active or operating there unless you are certain of their active local presence. If they are a major national/global competitor but do not operate in the local city, explicitly mention this (e.g., in the 'offering' or 'pricing' field add '(National/Global player - not active in [City] yet)').
 - Persona must match the likely respondent/customer profile for this specific survey.
 - Roadmap phases must contain actionable steps connected to the survey's concept.
 - Return ONLY valid JSON with no markdown, no explanation.
@@ -1032,17 +1314,17 @@ Return this exact JSON structure:
 }}"""
 
     try:
-        text = await run_in_threadpool(_call_gemini, client, prompt, 4096)
+        text = await run_in_threadpool(call_ai_sync, prompt, 8192)
         result_json = json.loads(text)
         return SurveyIntelligenceResponse(**result_json)
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"[AI] Survey intelligence error: {e}")
         if "rate" in str(e).lower() or "429" in str(e):
             raise HTTPException(status_code=429, detail="API rate limit reached, please try again shortly")
         raise HTTPException(status_code=500, detail=f"Failed to generate survey intelligence: {str(e)}")
 
-
-from pydantic import BaseModel
 
 class AITranslateRequest(BaseModel):
     title: str
@@ -1052,10 +1334,13 @@ class AITranslateRequest(BaseModel):
     questions: list[dict]
     language: str
 
+
 @router.post("/translate-survey")
 async def translate_survey(body: AITranslateRequest):
+    # AI provider is resolved automatically by call_ai_sync
+
     lang_name = "Hindi" if body.language == "hi" else "Telugu" if body.language == "te" else body.language
-    
+
     # Extract only translatable parts from the input questions to make the payload smaller and extremely safe
     simple_questions = []
     for q in body.questions:
@@ -1068,8 +1353,10 @@ async def translate_survey(body: AITranslateRequest):
         if q.get("options") is not None:
             opts = q.get("options")
             if isinstance(opts, list):
-                sq["options"] = [{"label": o.get("label"), "value": o.get("value")} for o in opts if isinstance(o, dict)]
-            elif isinstance(opts, dict): # for matrix type
+                sq["options"] = [
+                    {"label": o.get("label"), "value": o.get("value")} for o in opts if isinstance(o, dict)
+                ]
+            elif isinstance(opts, dict):  # for matrix type
                 sq["options"] = opts
         simple_questions.append(sq)
 
@@ -1078,15 +1365,9 @@ async def translate_survey(body: AITranslateRequest):
         "description": body.description,
         "welcome_message": body.welcome_message,
         "thank_you_message": body.thank_you_message,
-        "questions": simple_questions
+        "questions": simple_questions,
     }
 
-    api_key = os.getenv("GEMINI_KEY") or os.getenv("ANTHROPIC_KEY")
-    if not api_key or api_key.startswith("mock-"):
-        return survey_data
-
-    client = api_key
-    
     prompt = f"""You are an expert translator. Translate the following survey data into natural, fluent, and culturally appropriate {lang_name}.
 
 CRITICAL RULES:
@@ -1106,7 +1387,7 @@ Original Survey JSON:
 {json.dumps(survey_data, ensure_ascii=False)}"""
 
     try:
-        text = await run_in_threadpool(_call_gemini, client, prompt, 4096)
+        text = await run_in_threadpool(call_ai_sync, prompt, 4096)
         result_json = json.loads(text)
         return result_json
     except Exception as e:

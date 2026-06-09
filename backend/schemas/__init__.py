@@ -1,3 +1,4 @@
+# ruff: noqa: F401, F403
 from .base import *
 from .tenant import *
 from .user import *
