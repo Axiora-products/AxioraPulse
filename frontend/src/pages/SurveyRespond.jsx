@@ -273,6 +273,26 @@ export default function SurveyRespond() {
   const [showLangPopup, setShowLangPopup] = useState(false);
   const [currentLang, setCurrentLang] = useState(getLanguageFromCookie());
   const [ans, setAns] = useState({});
+  // Restore cached answers
+useEffect(() => {
+  const cachedAnswers = localStorage.getItem(`survey_answers_${slug}`);
+
+  if (cachedAnswers) {
+    try {
+      setAns(JSON.parse(cachedAnswers));
+    } catch (err) {
+      console.error("Failed to parse cached answers", err);
+    }
+  }
+}, [slug]);
+
+// Save answers whenever they change
+useEffect(() => {
+  localStorage.setItem(
+    `survey_answers_${slug}`,
+    JSON.stringify(ans)
+  );
+}, [ans, slug]);
   const [step, setStep] = useState(-1);
   const [dir, setDir] = useState(1);
   const [busy, setBusy] = useState(false);
@@ -524,6 +544,7 @@ export default function SurveyRespond() {
       await API.post(`/responses/${id}/submit`, { metadata: { quality_score: quality } });
       setShowDemographics(true);
       localStorage.removeItem(`nx_${slug}`);
+      localStorage.removeItem(`survey_answers_${slug}`);
     } catch (e) { toast.error(ui.submitFailed); }
     finally { setBusy(false); }
   }
@@ -1341,7 +1362,7 @@ export default function SurveyRespond() {
                   {/* Nav */}
                   <motion.div className="np-question-nav" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.38 }}
                     style={{ marginTop: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <button onClick={goBack} disabled={!canBack}
+                    <button id="back-btn" data-testid="back-btn" onClick={goBack} disabled={!canBack}
                       style={{ display: 'flex', alignItems: 'center', gap: 7, fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: sub, background: 'none', border: 'none', cursor: canBack ? 'pointer' : 'default', opacity: canBack ? 1 : 0, padding: '8px 0', transition: 'color 0.2s' }}
                       onMouseEnter={e => { if (canBack) e.currentTarget.style.color = fg; }}
                       onMouseLeave={e => e.currentTarget.style.color = sub}>
@@ -1403,6 +1424,8 @@ export default function SurveyRespond() {
                 </motion.p>
                 <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28 }}>
                   <input
+                     id="respondent-email"
+                     data-testid="respondent-email"
                      type="email"
                      value={email}
                      onChange={e => setEmail(e.target.value)}
@@ -1414,7 +1437,7 @@ export default function SurveyRespond() {
                      onBlur={e => { e.target.style.borderColor = 'rgba(22,15,8,0.12)'; e.target.style.boxShadow = 'none'; }}
                   />
                   <div style={{ display: 'flex', gap: 12, justifyContent: 'center', alignItems: 'center' }}>
-                    <motion.button whileHover={{ scale: 1.02, y: -1 }} whileTap={{ scale: 0.97 }}
+                    <motion.button id="continue-btn" data-testid="continue-btn" whileHover={{ scale: 1.02, y: -1 }} whileTap={{ scale: 0.97 }}
                       onClick={submit} disabled={busy || !email}
                       style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '15px 44px', borderRadius: 999, border: 'none', background: email ? tc : 'rgba(22,15,8,0.1)', color: email ? '#fff' : sub, fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 12, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: (busy || !email) ? 'not-allowed' : 'pointer', opacity: busy ? 0.65 : 1, transition: 'all 0.25s', boxShadow: email ? `0 8px 32px ${tc}40` : 'none' }}>
                       {busy ? ui.submitting : <><span>{ui.submit}</span><Icons.Check style={{ color: 'currentColor' }} /></>}
