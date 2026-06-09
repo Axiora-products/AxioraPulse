@@ -45,71 +45,10 @@ jobs:
       - name: Install CDK Dependencies
         run: npm install --prefix infra/cdk
 
-      - name: Wait for Stack Stability
-        run: |
-          echo "Checking CloudFormation stack status..."
-          
-          # Assume CDK lookup role to have permissions for describe-stacks
-          CDK_ROLE_ARN="arn:aws:iam::399894608507:role/cdk-hnb659fds-lookup-role-399894608507-ap-south-1"
-          ASSUME_ROLE_OUTPUT=$(aws sts assume-role --role-arn "$CDK_ROLE_ARN" --role-session-name "StackStabilityCheck" --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" --output text 2>/dev/null || echo "")
-          
-          if [ -n "$ASSUME_ROLE_OUTPUT" ]; then
-            export AWS_ACCESS_KEY_ID=$(echo "$ASSUME_ROLE_OUTPUT" | awk '{print $1}')
-            export AWS_SECRET_ACCESS_KEY=$(echo "$ASSUME_ROLE_OUTPUT" | awk '{print $2}')
-            export AWS_SESSION_TOKEN=$(echo "$ASSUME_ROLE_OUTPUT" | awk '{print $3}')
-            echo "Successfully assumed CDK lookup role"
-          else
-            echo "Warning: Failed to assume CDK lookup role, proceeding with default credentials"
-          fi
-
-          MAX_ATTEMPTS=30
-          ATTEMPT=0
-          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
-            STACK_STATUS_ERR=$(aws cloudformation describe-stacks --stack-name AxioraPulseStackQa --region ap-south-1 --query 'Stacks[0].StackStatus' --output text 2>&1)
-            STATUS_EXIT_CODE=$?
-            
-            if [ $STATUS_EXIT_CODE -eq 0 ]; then
-              STACK_STATUS="$STACK_STATUS_ERR"
-            else
-              if [[ "$STACK_STATUS_ERR" == *"does not exist"* ]]; then
-                STACK_STATUS=""
-              else
-                echo "Error describing stack: $STACK_STATUS_ERR"
-                STACK_STATUS="UNKNOWN_ERROR"
-              fi
-            fi
-            
-            echo "Stack status: $STACK_STATUS"
-            
-            if [[ "$STACK_STATUS" == "CREATE_COMPLETE" || "$STACK_STATUS" == "UPDATE_COMPLETE" || "$STACK_STATUS" == "ROLLBACK_COMPLETE" || "$STACK_STATUS" == "UPDATE_ROLLBACK_COMPLETE" ]]; then
-              echo "Stack is in stable state"
-              break
-            elif [[ "$STACK_STATUS" == "UPDATE_IN_PROGRESS" || "$STACK_STATUS" == "CREATE_IN_PROGRESS" || "$STACK_STATUS" == "UPDATE_ROLLBACK_IN_PROGRESS" || "$STACK_STATUS" == "ROLLBACK_IN_PROGRESS" || "$STACK_STATUS" == "UPDATE_COMPLETE_CLEANUP_IN_PROGRESS" ]]; then
-              echo "Stack is updating... waiting (Attempt $((ATTEMPT+1))/$MAX_ATTEMPTS)"
-              sleep 10
-            elif [[ "$STACK_STATUS" == "" ]]; then
-              echo "Stack does not exist yet, will be created"
-              break
-            else
-              echo "Unexpected stack status or error: $STACK_STATUS"
-              if [[ "$STACK_STATUS" == "UNKNOWN_ERROR" ]]; then
-                echo "Waiting 10 seconds in case error is transient..."
-                sleep 10
-              else
-                break
-              fi
-            fi
-            ATTEMPT=$((ATTEMPT+1))
-          done
-          
-          if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
-            echo "Warning: Stack did not reach stable state after $(($MAX_ATTEMPTS * 10)) seconds"
-          fi
-
-      - name: Deploy QA Infrastructure
+      - name: Destroy QA Infrastructure
         run: |
           cd infra/cdk
-          npx cdk deploy AxioraPulseStackQa --require-approval never
+          npx cdk destroy AxioraPulseStackQa --force
 
   # 3. Build & Push Docker Images (runs after infrastructure and tests pass)
   build-push-images:
