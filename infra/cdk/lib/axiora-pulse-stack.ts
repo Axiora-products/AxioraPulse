@@ -367,12 +367,13 @@ export class AxioraPulseStack extends cdk.Stack {
     });
 
     // HTTP (80) to HTTPS (443) redirect
-    alb.addRedirect({
+    const redirectListener = alb.addRedirect({
       sourceProtocol: elbv2.ApplicationProtocol.HTTP,
       sourcePort: 80,
       targetProtocol: elbv2.ApplicationProtocol.HTTPS,
       targetPort: 443,
     });
+    redirectListener.node.addDependency(frontendListener);
 
     const backendListener = alb.addListener('BackendListener', {
       port: 8000,
