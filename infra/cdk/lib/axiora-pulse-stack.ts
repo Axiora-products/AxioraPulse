@@ -6,6 +6,8 @@ import * as ecr from 'aws-cdk-lib/aws-ecr';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
+import * as cloudmap from 'aws-cdk-lib/aws-servicediscovery';
 import { NagSuppressions } from 'cdk-nag';
 
 export interface AxioraPulseStackProps extends cdk.StackProps {
@@ -46,6 +48,10 @@ export class AxioraPulseStack extends cdk.Stack {
       vpc,
       clusterName: `axiorapulse-${shortEnv}-cluster`,
       containerInsights: true,
+      defaultCloudMapNamespace: {
+        name: `${shortEnv}.local`,
+        type: cloudmap.NamespaceType.DNS_PRIVATE,
+      }
     });
 
     // 1. ECR Repositories
@@ -123,6 +129,18 @@ export class AxioraPulseStack extends cdk.Stack {
     backendRepo.grantPull(taskExecutionRole);
     frontendRepo.grantPull(taskExecutionRole);
 
+    // Grant permission to read SSM parameters for secrets
+    taskExecutionRole.addToPolicy(new iam.PolicyStatement({
+      actions: [
+        'ssm:GetParameters',
+        'ssm:GetParameter',
+      ],
+      resources: [
+        `arn:aws:ssm:${this.region}:${this.account}:parameter/axiorapulse/${shortEnv}/*`,
+        `arn:aws:ssm:${this.region}:${this.account}:parameter/axiorapulse/*`,
+      ],
+    }));
+
     const taskRole = new iam.Role(this, 'EcsTaskRole', {
       assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
     });
@@ -147,7 +165,7 @@ export class AxioraPulseStack extends cdk.Stack {
       healthCheck: {
         command: [
           "CMD-SHELL",
-          "curl -f http://localhost:8000/health || python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\" || exit 1"
+          "curl -f http://localhost:8000/health || exit 1"
         ],
         interval: cdk.Duration.seconds(30),
         timeout: cdk.Duration.seconds(10),
@@ -166,8 +184,11 @@ export class AxioraPulseStack extends cdk.Stack {
       taskDefinition: backendTaskDef,
       desiredCount: 1,
       serviceName: `pulse-backend-${shortEnv}`,
-      vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC }, // Simplifying for now, usually private
-      assignPublicIp: true,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      assignPublicIp: false,
+      cloudMapOptions: {
+        name: 'backend',
+      },
     });
 
     // Frontend Fargate Service
@@ -186,6 +207,16 @@ export class AxioraPulseStack extends cdk.Stack {
         logGroupName: `/ecs/pulse-frontend-${shortEnv}`,
         removalPolicy: cdk.RemovalPolicy.DESTROY,
       }) }),
+      healthCheck: {
+        command: [
+          "CMD-SHELL",
+          "wget -qO- http://localhost:80/ || exit 1"
+        ],
+        interval: cdk.Duration.seconds(30),
+        timeout: cdk.Duration.seconds(5),
+        retries: 3,
+        startPeriod: cdk.Duration.seconds(10),
+      }
     });
 
     const frontendService = new ecs.FargateService(this, 'FrontendService', {
@@ -193,11 +224,47 @@ export class AxioraPulseStack extends cdk.Stack {
       taskDefinition: frontendTaskDef,
       desiredCount: 1,
       serviceName: `pulse-frontend-${shortEnv}`,
-      vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
-      assignPublicIp: true,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      assignPublicIp: false,
     });
 
-    // 4. SSM Parameters
+    // 4. Application Load Balancer
+    const alb = new elbv2.ApplicationLoadBalancer(this, 'Alb', {
+      vpc,
+      internetFacing: true,
+      loadBalancerName: `axiorapulse-${shortEnv}-alb`,
+    });
+
+    const frontendListener = alb.addListener('FrontendListener', {
+      port: 80,
+      open: true,
+    });
+
+    frontendListener.addTargets('FrontendTarget', {
+      port: 80,
+      targets: [frontendService],
+      healthCheck: {
+        path: '/',
+      }
+    });
+
+    const backendListener = alb.addListener('BackendListener', {
+      port: 8000,
+      open: true,
+    });
+
+    backendListener.addTargets('BackendTarget', {
+      port: 8000,
+      targets: [backendService],
+      healthCheck: {
+        path: '/health',
+      }
+    });
+
+    // Allow frontend to communicate with backend internally
+    backendService.connections.allowFrom(frontendService, ec2.Port.tcp(8000), 'Allow internal frontend to backend traffic');
+
+    // 5. SSM Parameters
     new ssm.StringParameter(this, 'UserPoolIdParam', {
       parameterName: `/axiorapulse/${shortEnv}/COGNITO_USER_POOL_ID`,
       stringValue: userPool.userPoolId,
@@ -217,6 +284,7 @@ export class AxioraPulseStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'BackendServiceName', { value: backendService.serviceName });
     new cdk.CfnOutput(this, 'FrontendServiceName', { value: frontendService.serviceName });
     new cdk.CfnOutput(this, 'EcsClusterName', { value: cluster.clusterName });
+    new cdk.CfnOutput(this, 'LoadBalancerDNS', { value: alb.loadBalancerDnsName });
   }
 }
 
