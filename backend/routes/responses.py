@@ -30,6 +30,7 @@ from schemas import (
 )
 
 router = APIRouter(prefix="/responses", tags=["responses"])
+SUPPORTED_RESPONSE_LANGUAGES = {"en", "te", "hi"}
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -47,6 +48,10 @@ def _load_response(response_id: uuid.UUID, db: Session) -> SurveyResponse:
     return r
 
 
+def _response_language(value: str | None) -> str:
+    return value if value in SUPPORTED_RESPONSE_LANGUAGES else "en"
+
+
 # ── Create ────────────────────────────────────────────────────────────────────
 
 
@@ -62,6 +67,10 @@ def create_response(request: Request, body: ResponseCreate, db: Session = Depend
     if body.session_token:
         existing = db.query(SurveyResponse).filter(SurveyResponse.session_token == body.session_token).first()
         if existing:
+            if body.language:
+                existing.language = _response_language(body.language)
+                db.commit()
+                db.refresh(existing)
             return ResponseOut.model_validate(existing)
 
     row = SurveyResponse(
@@ -69,6 +78,7 @@ def create_response(request: Request, body: ResponseCreate, db: Session = Depend
         survey_id=body.survey_id,
         session_token=body.session_token or str(uuid.uuid4()),
         respondent_email=body.respondent_email,
+        language=_response_language(body.language),
         age_range=body.age_range,
         gender=body.gender,
         occupation=body.occupation,
@@ -133,6 +143,8 @@ def update_response(
 
     if body.respondent_email is not None:
         r.respondent_email = body.respondent_email
+    if body.language is not None:
+        r.language = _response_language(body.language)
     if body.status is not None:
         try:
             r.status = ResponseStatusEnum(body.status)
