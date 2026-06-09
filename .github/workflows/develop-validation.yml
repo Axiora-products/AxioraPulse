@@ -98,17 +98,21 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build and Push Backend
-        uses: ./.github/workflows/docker-build.yml
+        uses: docker/build-push-action@v5
         with:
           context: ./backend
           file: ./backend/Dockerfile.prod
-          image-name: ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-fastapi-qa
           push: true
           tags: |
             ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-fastapi-qa:sha-${{ github.sha }}
             ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-fastapi-qa:qa
             ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-fastapi-qa:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   frontend-docker-qa:
     needs: [changes]
@@ -128,14 +132,18 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build and Push Frontend
-        uses: ./.github/workflows/docker-build.yml
+        uses: docker/build-push-action@v5
         with:
           context: ./frontend
           file: ./frontend/Dockerfile
-          image-name: ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-frontend-qa
           push: true
           tags: |
             ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-frontend-qa:sha-${{ github.sha }}
             ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-frontend-qa:qa
             ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-frontend-qa:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
