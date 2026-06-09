@@ -211,3 +211,18 @@ def test_auth_utils_helpers():
     assert refresh is not None
     decoded_refresh = decode_access_token(refresh)
     assert decoded_refresh["type"] == "refresh"
+
+
+def test_get_auth_config(monkeypatch):
+    monkeypatch.setenv("COGNITO_USER_POOL_ID", "test-user-pool-id")
+    monkeypatch.setenv("COGNITO_APP_CLIENT_ID", "test-app-client-id")
+    monkeypatch.setenv("COGNITO_REGION", "us-east-1")
+    monkeypatch.setenv("MOCK_COGNITO", "true")
+
+    response = client.get("/auth/config")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["COGNITO_USER_POOL_ID"] == "test-user-pool-id"
+    assert data["COGNITO_APP_CLIENT_ID"] == "test-app-client-id"
+    assert data["COGNITO_REGION"] == "us-east-1"
+    assert data["MOCK_COGNITO"] is True

@@ -6,15 +6,26 @@ import {
 } from 'amazon-cognito-identity-js';
 
 let _userPool = null;
-const isMock = import.meta.env.VITE_MOCK_COGNITO === 'true';
+let _config = null;
+
+export function setAuthConfig(config) {
+  _config = config;
+}
+
+export function isMockAuth() {
+  if (_config) {
+    return _config.MOCK_COGNITO === true || _config.MOCK_COGNITO === 'true';
+  }
+  return import.meta.env.VITE_MOCK_COGNITO === 'true';
+}
 
 function getUserPool() {
-  if (isMock) return null;
+  if (isMockAuth()) return null;
   if (!_userPool) {
-    const id = import.meta.env.VITE_COGNITO_USER_POOL_ID;
-    const clientId = import.meta.env.VITE_COGNITO_APP_CLIENT_ID;
-    const endpoint = import.meta.env.VITE_COGNITO_ENDPOINT;
-    if (!id || !clientId) throw new Error('VITE_COGNITO_USER_POOL_ID and VITE_COGNITO_APP_CLIENT_ID must be set');
+    const id = _config?.COGNITO_USER_POOL_ID || import.meta.env.VITE_COGNITO_USER_POOL_ID;
+    const clientId = _config?.COGNITO_APP_CLIENT_ID || import.meta.env.VITE_COGNITO_APP_CLIENT_ID;
+    const endpoint = _config?.COGNITO_ENDPOINT || import.meta.env.VITE_COGNITO_ENDPOINT;
+    if (!id || !clientId) throw new Error('COGNITO_USER_POOL_ID and COGNITO_APP_CLIENT_ID must be configured');
     _userPool = new CognitoUserPool({
       UserPoolId: id,
       ClientId: clientId,
@@ -25,7 +36,7 @@ function getUserPool() {
 }
 
 export function cognitoSignIn(email, password) {
-  if (isMock) {
+  if (isMockAuth()) {
     return new Promise(async (resolve, reject) => {
       try {
         const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -83,7 +94,7 @@ export function cognitoSignIn(email, password) {
 }
 
 export function cognitoSignUp(email, password, name) {
-  if (isMock) {
+  if (isMockAuth()) {
     // Preserve full name locally for immediate mock-login / sync
     localStorage.setItem(`mock_name_${email}`, name);
     return Promise.resolve({
@@ -107,7 +118,7 @@ export function cognitoSignUp(email, password, name) {
 }
 
 export function cognitoConfirmSignUp(email, code) {
-  if (isMock) {
+  if (isMockAuth()) {
     return Promise.resolve('SUCCESS');
   }
 
@@ -121,7 +132,7 @@ export function cognitoConfirmSignUp(email, code) {
 }
 
 export function cognitoResendCode(email) {
-  if (isMock) {
+  if (isMockAuth()) {
     return Promise.resolve('SUCCESS');
   }
 
@@ -135,7 +146,7 @@ export function cognitoResendCode(email) {
 }
 
 export function cognitoForgotPassword(email) {
-  if (isMock) {
+  if (isMockAuth()) {
     return Promise.resolve('SUCCESS');
   }
 
@@ -150,7 +161,7 @@ export function cognitoForgotPassword(email) {
 }
 
 export function cognitoConfirmPassword(email, code, newPassword) {
-  if (isMock) {
+  if (isMockAuth()) {
     return Promise.resolve('SUCCESS');
   }
 
@@ -164,7 +175,7 @@ export function cognitoConfirmPassword(email, code, newPassword) {
 }
 
 export function cognitoGetCurrentSession() {
-  if (isMock) {
+  if (isMockAuth()) {
     return new Promise((resolve, reject) => {
       const token = localStorage.getItem('token');
       if (!token) return reject(new Error('No authenticated user'));
@@ -197,7 +208,7 @@ export function cognitoGetCurrentSession() {
 }
 
 export function cognitoSignOut() {
-  if (isMock) {
+  if (isMockAuth()) {
     localStorage.removeItem('token');
     return;
   }
