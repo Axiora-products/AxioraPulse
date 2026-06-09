@@ -165,6 +165,7 @@ def test_survey_localization_helper_methods(auth_headers):
 
     # 3. Mock google translate API throwing an exception
     from routes.surveys import _translate_with_google
+
     _translate_with_google.cache_clear()
     with patch("requests.get", side_effect=Exception("Translation connection failed")):
         # It should fallback to returning the original English text
