@@ -1,6 +1,7 @@
 import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import { NagSuppressions } from 'cdk-nag';
 
 export interface GitHubOidcStackProps extends cdk.StackProps {
   repositoryConfig: {
@@ -114,6 +115,18 @@ export class GitHubOidcStack extends cdk.Stack {
         `arn:aws:iam::${this.account}:role/cdk-*`,
       ],
     }));
+
+    // CDK-Nag Suppressions
+    NagSuppressions.addResourceSuppressions(githubDeployerRole, [
+      {
+        id: 'AwsSolutions-IAM4',
+        reason: 'OIDC deployer role requires standard managed policies for ECS task execution and SSM read access.'
+      },
+      {
+        id: 'AwsSolutions-IAM5',
+        reason: 'OIDC deployer role requires wildcard permissions for ECR authorization, pushing/pulling images, ECS task management, and PassRole/AssumeRole for CDK and ECS.'
+      }
+    ], true);
 
     // Outputs
     new cdk.CfnOutput(this, 'GitHubDeployerRoleArn', {
