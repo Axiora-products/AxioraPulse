@@ -92,7 +92,7 @@ export class AxioraPulseStack extends cdk.Stack {
     // RDS PostgreSQL database instance
     const database = new rds.DatabaseInstance(this, 'Database', {
       engine: rds.DatabaseInstanceEngine.postgres({
-        version: rds.PostgresEngineVersion.VER_16_6,
+        version: rds.PostgresEngineVersion.VER_16_13,
       }),
       instanceType: ec2.InstanceType.of(ec2.InstanceClass.BURSTABLE3, ec2.InstanceSize.MICRO),
       vpc,
