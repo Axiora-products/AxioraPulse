@@ -72,13 +72,43 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
         }
       };
 
-      mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(chunks, { type: "audio/webm" });
+      mediaRecorder.onstop = async () => {
+        const recorderMimeType = mediaRecorder.mimeType || 'audio/webm';
+        const uploadMimeType = recorderMimeType.split(';')[0];
+        const extension = uploadMimeType.includes('mp4')
+          ? 'mp4'
+          : uploadMimeType.includes('ogg')
+            ? 'ogg'
+            : 'webm';
+        const audioBlob = new Blob(chunks, { type: uploadMimeType });
+        const formData = new FormData();
+        formData.append('audio', audioBlob, `recording.${extension}`);
+        formData.append('language', 'auto');
 
-        // Upload or use audioBlob here
-        console.log(audioBlob);
+        console.log('Microphone blob size:', audioBlob.size);
+        console.log('Microphone blob type:', audioBlob.type);
+        console.log('Microphone FormData keys:', Array.from(formData.keys()));
 
-        setAudioChunks([]);
+        setUploading(true);
+        try {
+          const { data } = await API.post('/uploads/audio/transcribe', formData);
+          const transcript = data.text?.trim();
+          if (transcript) {
+            setPrompt(prev => `${prev}${prev.trim() ? ' ' : ''}${transcript}`);
+            toast.success('Recording transcribed');
+          }
+        } catch (err) {
+          console.error(
+            'Audio transcription response:',
+            err.response?.status,
+            err.response?.data,
+          );
+          toast.error(err.response?.data?.detail || 'Audio transcription failed');
+        } finally {
+          setUploading(false);
+          setAudioChunks([]);
+          stream.getTracks().forEach(track => track.stop());
+        }
       };
 
       mediaRecorder.start();
