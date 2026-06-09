@@ -153,7 +153,7 @@ def _translate_texts(texts: list[str]) -> dict[str, dict[str, str]]:
         return {}
 
     api_key = os.getenv("GEMINI_KEY")
-    if not api_key or api_key.startswith("mock-"):
+    if not api_key or api_key.startswith("mock"):
         return {
             text: {
                 "te": _translate_with_google(text, "te"),
