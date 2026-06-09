@@ -209,6 +209,8 @@ jobs:
 
       - name: Prepare Task Definitions
         run: |
+          DB_SECRET_ARN=$(aws ssm get-parameter --name "/axiorapulse/qa/DB_SECRET_ARN" --region ap-south-1 --query "Parameter.Value" --output text)
+          sed -i "s|\${DB_SECRET_ARN}|$DB_SECRET_ARN|g" backend/ecs-task-def.json
           sed -i 's/${ENV}/qa/g' backend/ecs-task-def.json
           sed -i 's/${ROLE_ARN}/arn:aws:iam::399894608507:role\/GitHubActionsDeployerRole/g' backend/ecs-task-def.json
           sed -i 's/${ACCOUNT_ID}/399894608507/g' backend/ecs-task-def.json

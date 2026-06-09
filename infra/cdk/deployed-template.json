@@ -1,0 +1,2281 @@
+{
+    "Description": "QA environment for AxioraPulse",
+    "Resources": {
+        "Vpc8378EB38": {
+            "Type": "AWS::EC2::VPC",
+            "Properties": {
+                "CidrBlock": "10.0.0.0/16",
+                "EnableDnsHostnames": true,
+                "EnableDnsSupport": true,
+                "InstanceTenancy": "default",
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "AxioraPulseStackQa/Vpc"
+                    }
+                ]
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Vpc/Resource"
+            }
+        },
+        "VpcPublicSubnet1Subnet5C2D37C4": {
+            "Type": "AWS::EC2::Subnet",
+            "Properties": {
+                "AvailabilityZone": "ap-south-1a",
+                "CidrBlock": "10.0.0.0/18",
+                "MapPublicIpOnLaunch": true,
+                "Tags": [
+                    {
+                        "Key": "aws-cdk:subnet-name",
+                        "Value": "Public"
+                    },
+                    {
+                        "Key": "aws-cdk:subnet-type",
+                        "Value": "Public"
+                    },
+                    {
+                        "Key": "Name",
+                        "Value": "AxioraPulseStackQa/Vpc/PublicSubnet1"
+                    }
+                ],
+                "VpcId": {
+                    "Ref": "Vpc8378EB38"
+                }
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Vpc/PublicSubnet1/Subnet"
+            }
+        },
+        "VpcPublicSubnet1RouteTable6C95E38E": {
+            "Type": "AWS::EC2::RouteTable",
+            "Properties": {
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "AxioraPulseStackQa/Vpc/PublicSubnet1"
+                    }
+                ],
+                "VpcId": {
+                    "Ref": "Vpc8378EB38"
+                }
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Vpc/PublicSubnet1/RouteTable"
+            }
+        },
+        "VpcPublicSubnet1RouteTableAssociation97140677": {
+            "Type": "AWS::EC2::SubnetRouteTableAssociation",
+            "Properties": {
+                "RouteTableId": {
+                    "Ref": "VpcPublicSubnet1RouteTable6C95E38E"
+                },
+                "SubnetId": {
+                    "Ref": "VpcPublicSubnet1Subnet5C2D37C4"
+                }
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Vpc/PublicSubnet1/RouteTableAssociation"
+            }
+        },
+        "VpcPublicSubnet1DefaultRoute3DA9E72A": {
+            "Type": "AWS::EC2::Route",
+            "Properties": {
+                "DestinationCidrBlock": "0.0.0.0/0",
+                "GatewayId": {
+                    "Ref": "VpcIGWD7BA715C"
+                },
+                "RouteTableId": {
+                    "Ref": "VpcPublicSubnet1RouteTable6C95E38E"
+                }
+            },
+            "DependsOn": [
+                "VpcVPCGWBF912B6E"
+            ],
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Vpc/PublicSubnet1/DefaultRoute"
+            }
+        },
+        "VpcPublicSubnet1EIPD7E02669": {
+            "Type": "AWS::EC2::EIP",
+            "Properties": {
+                "Domain": "vpc",
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "AxioraPulseStackQa/Vpc/PublicSubnet1"
+                    }
+                ]
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Vpc/PublicSubnet1/EIP"
+            }
+        },
+        "VpcPublicSubnet1NATGateway4D7517AA": {
+            "Type": "AWS::EC2::NatGateway",
+            "Properties": {
+                "AllocationId": {
+                    "Fn::GetAtt": [
+                        "VpcPublicSubnet1EIPD7E02669",
+                        "AllocationId"
+                    ]
+                },
+                "SubnetId": {
+                    "Ref": "VpcPublicSubnet1Subnet5C2D37C4"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "AxioraPulseStackQa/Vpc/PublicSubnet1"
+                    }
+                ]
+            },
+            "DependsOn": [
+                "VpcPublicSubnet1DefaultRoute3DA9E72A",
+                "VpcPublicSubnet1RouteTableAssociation97140677"
+            ],
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Vpc/PublicSubnet1/NATGateway"
+            }
+        },
+        "VpcPublicSubnet2Subnet691E08A3": {
+            "Type": "AWS::EC2::Subnet",
+            "Properties": {
+                "AvailabilityZone": "ap-south-1b",
+                "CidrBlock": "10.0.64.0/18",
+                "MapPublicIpOnLaunch": true,
+                "Tags": [
+                    {
+                        "Key": "aws-cdk:subnet-name",
+                        "Value": "Public"
+                    },
+                    {
+                        "Key": "aws-cdk:subnet-type",
+                        "Value": "Public"
+                    },
+                    {
+                        "Key": "Name",
+                        "Value": "AxioraPulseStackQa/Vpc/PublicSubnet2"
+                    }
+                ],
+                "VpcId": {
+                    "Ref": "Vpc8378EB38"
+                }
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Vpc/PublicSubnet2/Subnet"
+            }
+        },
+        "VpcPublicSubnet2RouteTable94F7E489": {
+            "Type": "AWS::EC2::RouteTable",
+            "Properties": {
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "AxioraPulseStackQa/Vpc/PublicSubnet2"
+                    }
+                ],
+                "VpcId": {
+                    "Ref": "Vpc8378EB38"
+                }
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Vpc/PublicSubnet2/RouteTable"
+            }
+        },
+        "VpcPublicSubnet2RouteTableAssociationDD5762D8": {
+            "Type": "AWS::EC2::SubnetRouteTableAssociation",
+            "Properties": {
+                "RouteTableId": {
+                    "Ref": "VpcPublicSubnet2RouteTable94F7E489"
+                },
+                "SubnetId": {
+                    "Ref": "VpcPublicSubnet2Subnet691E08A3"
+                }
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Vpc/PublicSubnet2/RouteTableAssociation"
+            }
+        },
+        "VpcPublicSubnet2DefaultRoute97F91067": {
+            "Type": "AWS::EC2::Route",
+            "Properties": {
+                "DestinationCidrBlock": "0.0.0.0/0",
+                "GatewayId": {
+                    "Ref": "VpcIGWD7BA715C"
+                },
+                "RouteTableId": {
+                    "Ref": "VpcPublicSubnet2RouteTable94F7E489"
+                }
+            },
+            "DependsOn": [
+                "VpcVPCGWBF912B6E"
+            ],
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Vpc/PublicSubnet2/DefaultRoute"
+            }
+        },
+        "VpcPrivateSubnet1Subnet536B997A": {
+            "Type": "AWS::EC2::Subnet",
+            "Properties": {
+                "AvailabilityZone": "ap-south-1a",
+                "CidrBlock": "10.0.128.0/18",
+                "MapPublicIpOnLaunch": false,
+                "Tags": [
+                    {
+                        "Key": "aws-cdk:subnet-name",
+                        "Value": "Private"
+                    },
+                    {
+                        "Key": "aws-cdk:subnet-type",
+                        "Value": "Private"
+                    },
+                    {
+                        "Key": "Name",
+                        "Value": "AxioraPulseStackQa/Vpc/PrivateSubnet1"
+                    }
+                ],
+                "VpcId": {
+                    "Ref": "Vpc8378EB38"
+                }
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Vpc/PrivateSubnet1/Subnet"
+            }
+        },
+        "VpcPrivateSubnet1RouteTableB2C5B500": {
+            "Type": "AWS::EC2::RouteTable",
+            "Properties": {
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "AxioraPulseStackQa/Vpc/PrivateSubnet1"
+                    }
+                ],
+                "VpcId": {
+                    "Ref": "Vpc8378EB38"
+                }
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Vpc/PrivateSubnet1/RouteTable"
+            }
+        },
+        "VpcPrivateSubnet1RouteTableAssociation70C59FA6": {
+            "Type": "AWS::EC2::SubnetRouteTableAssociation",
+            "Properties": {
+                "RouteTableId": {
+                    "Ref": "VpcPrivateSubnet1RouteTableB2C5B500"
+                },
+                "SubnetId": {
+                    "Ref": "VpcPrivateSubnet1Subnet536B997A"
+                }
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Vpc/PrivateSubnet1/RouteTableAssociation"
+            }
+        },
+        "VpcPrivateSubnet1DefaultRouteBE02A9ED": {
+            "Type": "AWS::EC2::Route",
+            "Properties": {
+                "DestinationCidrBlock": "0.0.0.0/0",
+                "NatGatewayId": {
+                    "Ref": "VpcPublicSubnet1NATGateway4D7517AA"
+                },
+                "RouteTableId": {
+                    "Ref": "VpcPrivateSubnet1RouteTableB2C5B500"
+                }
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Vpc/PrivateSubnet1/DefaultRoute"
+            }
+        },
+        "VpcPrivateSubnet2Subnet3788AAA1": {
+            "Type": "AWS::EC2::Subnet",
+            "Properties": {
+                "AvailabilityZone": "ap-south-1b",
+                "CidrBlock": "10.0.192.0/18",
+                "MapPublicIpOnLaunch": false,
+                "Tags": [
+                    {
+                        "Key": "aws-cdk:subnet-name",
+                        "Value": "Private"
+                    },
+                    {
+                        "Key": "aws-cdk:subnet-type",
+                        "Value": "Private"
+                    },
+                    {
+                        "Key": "Name",
+                        "Value": "AxioraPulseStackQa/Vpc/PrivateSubnet2"
+                    }
+                ],
+                "VpcId": {
+                    "Ref": "Vpc8378EB38"
+                }
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Vpc/PrivateSubnet2/Subnet"
+            }
+        },
+        "VpcPrivateSubnet2RouteTableA678073B": {
+            "Type": "AWS::EC2::RouteTable",
+            "Properties": {
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "AxioraPulseStackQa/Vpc/PrivateSubnet2"
+                    }
+                ],
+                "VpcId": {
+                    "Ref": "Vpc8378EB38"
+                }
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Vpc/PrivateSubnet2/RouteTable"
+            }
+        },
+        "VpcPrivateSubnet2RouteTableAssociationA89CAD56": {
+            "Type": "AWS::EC2::SubnetRouteTableAssociation",
+            "Properties": {
+                "RouteTableId": {
+                    "Ref": "VpcPrivateSubnet2RouteTableA678073B"
+                },
+                "SubnetId": {
+                    "Ref": "VpcPrivateSubnet2Subnet3788AAA1"
+                }
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Vpc/PrivateSubnet2/RouteTableAssociation"
+            }
+        },
+        "VpcPrivateSubnet2DefaultRoute060D2087": {
+            "Type": "AWS::EC2::Route",
+            "Properties": {
+                "DestinationCidrBlock": "0.0.0.0/0",
+                "NatGatewayId": {
+                    "Ref": "VpcPublicSubnet1NATGateway4D7517AA"
+                },
+                "RouteTableId": {
+                    "Ref": "VpcPrivateSubnet2RouteTableA678073B"
+                }
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Vpc/PrivateSubnet2/DefaultRoute"
+            }
+        },
+        "VpcIGWD7BA715C": {
+            "Type": "AWS::EC2::InternetGateway",
+            "Properties": {
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "AxioraPulseStackQa/Vpc"
+                    }
+                ]
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Vpc/IGW"
+            }
+        },
+        "VpcVPCGWBF912B6E": {
+            "Type": "AWS::EC2::VPCGatewayAttachment",
+            "Properties": {
+                "InternetGatewayId": {
+                    "Ref": "VpcIGWD7BA715C"
+                },
+                "VpcId": {
+                    "Ref": "Vpc8378EB38"
+                }
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Vpc/VPCGW"
+            }
+        },
+        "VpcRestrictDefaultSecurityGroupCustomResourceC73DA2BE": {
+            "Type": "Custom::VpcRestrictDefaultSG",
+            "Properties": {
+                "ServiceToken": {
+                    "Fn::GetAtt": [
+                        "CustomVpcRestrictDefaultSGCustomResourceProviderHandlerDC833E5E",
+                        "Arn"
+                    ]
+                },
+                "DefaultSecurityGroupId": {
+                    "Fn::GetAtt": [
+                        "Vpc8378EB38",
+                        "DefaultSecurityGroup"
+                    ]
+                },
+                "Account": "399894608507"
+            },
+            "UpdateReplacePolicy": "Delete",
+            "DeletionPolicy": "Delete",
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Vpc/RestrictDefaultSecurityGroupCustomResource/Default"
+            }
+        },
+        "VpcS3Endpoint4A3DE4B5": {
+            "Type": "AWS::EC2::VPCEndpoint",
+            "Properties": {
+                "RouteTableIds": [
+                    {
+                        "Ref": "VpcPrivateSubnet1RouteTableB2C5B500"
+                    },
+                    {
+                        "Ref": "VpcPrivateSubnet2RouteTableA678073B"
+                    },
+                    {
+                        "Ref": "VpcPublicSubnet1RouteTable6C95E38E"
+                    },
+                    {
+                        "Ref": "VpcPublicSubnet2RouteTable94F7E489"
+                    }
+                ],
+                "ServiceName": {
+                    "Fn::Join": [
+                        "",
+                        [
+                            "com.amazonaws.",
+                            {
+                                "Ref": "AWS::Region"
+                            },
+                            ".s3"
+                        ]
+                    ]
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "AxioraPulseStackQa/Vpc"
+                    }
+                ],
+                "VpcEndpointType": "Gateway",
+                "VpcId": {
+                    "Ref": "Vpc8378EB38"
+                }
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Vpc/S3Endpoint/Resource"
+            }
+        },
+        "VpcEcrEndpointSecurityGroup13145954": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": "AxioraPulseStackQa/Vpc/EcrEndpoint/SecurityGroup",
+                "SecurityGroupEgress": [
+                    {
+                        "CidrIp": "0.0.0.0/0",
+                        "Description": "Allow all outbound traffic by default",
+                        "IpProtocol": "-1"
+                    }
+                ],
+                "SecurityGroupIngress": [
+                    {
+                        "CidrIp": {
+                            "Fn::GetAtt": [
+                                "Vpc8378EB38",
+                                "CidrBlock"
+                            ]
+                        },
+                        "Description": {
+                            "Fn::Join": [
+                                "",
+                                [
+                                    "from ",
+                                    {
+                                        "Fn::GetAtt": [
+                                            "Vpc8378EB38",
+                                            "CidrBlock"
+                                        ]
+                                    },
+                                    ":443"
+                                ]
+                            ]
+                        },
+                        "FromPort": 443,
+                        "IpProtocol": "tcp",
+                        "ToPort": 443
+                    }
+                ],
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "AxioraPulseStackQa/Vpc"
+                    }
+                ],
+                "VpcId": {
+                    "Ref": "Vpc8378EB38"
+                }
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Vpc/EcrEndpoint/SecurityGroup/Resource"
+            }
+        },
+        "VpcEcrEndpoint0BE46338": {
+            "Type": "AWS::EC2::VPCEndpoint",
+            "Properties": {
+                "PrivateDnsEnabled": true,
+                "SecurityGroupIds": [
+                    {
+                        "Fn::GetAtt": [
+                            "VpcEcrEndpointSecurityGroup13145954",
+                            "GroupId"
+                        ]
+                    }
+                ],
+                "ServiceName": "com.amazonaws.ap-south-1.ecr.api",
+                "SubnetIds": [
+                    {
+                        "Ref": "VpcPrivateSubnet1Subnet536B997A"
+                    },
+                    {
+                        "Ref": "VpcPrivateSubnet2Subnet3788AAA1"
+                    }
+                ],
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "AxioraPulseStackQa/Vpc"
+                    }
+                ],
+                "VpcEndpointType": "Interface",
+                "VpcId": {
+                    "Ref": "Vpc8378EB38"
+                }
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Vpc/EcrEndpoint/Resource"
+            }
+        },
+        "VpcEcrDockerEndpointSecurityGroup5D41A216": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": "AxioraPulseStackQa/Vpc/EcrDockerEndpoint/SecurityGroup",
+                "SecurityGroupEgress": [
+                    {
+                        "CidrIp": "0.0.0.0/0",
+                        "Description": "Allow all outbound traffic by default",
+                        "IpProtocol": "-1"
+                    }
+                ],
+                "SecurityGroupIngress": [
+                    {
+                        "CidrIp": {
+                            "Fn::GetAtt": [
+                                "Vpc8378EB38",
+                                "CidrBlock"
+                            ]
+                        },
+                        "Description": {
+                            "Fn::Join": [
+                                "",
+                                [
+                                    "from ",
+                                    {
+                                        "Fn::GetAtt": [
+                                            "Vpc8378EB38",
+                                            "CidrBlock"
+                                        ]
+                                    },
+                                    ":443"
+                                ]
+                            ]
+                        },
+                        "FromPort": 443,
+                        "IpProtocol": "tcp",
+                        "ToPort": 443
+                    }
+                ],
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "AxioraPulseStackQa/Vpc"
+                    }
+                ],
+                "VpcId": {
+                    "Ref": "Vpc8378EB38"
+                }
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Vpc/EcrDockerEndpoint/SecurityGroup/Resource"
+            }
+        },
+        "VpcEcrDockerEndpoint53ED547B": {
+            "Type": "AWS::EC2::VPCEndpoint",
+            "Properties": {
+                "PrivateDnsEnabled": true,
+                "SecurityGroupIds": [
+                    {
+                        "Fn::GetAtt": [
+                            "VpcEcrDockerEndpointSecurityGroup5D41A216",
+                            "GroupId"
+                        ]
+                    }
+                ],
+                "ServiceName": "com.amazonaws.ap-south-1.ecr.dkr",
+                "SubnetIds": [
+                    {
+                        "Ref": "VpcPrivateSubnet1Subnet536B997A"
+                    },
+                    {
+                        "Ref": "VpcPrivateSubnet2Subnet3788AAA1"
+                    }
+                ],
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "AxioraPulseStackQa/Vpc"
+                    }
+                ],
+                "VpcEndpointType": "Interface",
+                "VpcId": {
+                    "Ref": "Vpc8378EB38"
+                }
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Vpc/EcrDockerEndpoint/Resource"
+            }
+        },
+        "VpcCloudWatchLogsEndpointSecurityGroupE044298A": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": "AxioraPulseStackQa/Vpc/CloudWatchLogsEndpoint/SecurityGroup",
+                "SecurityGroupEgress": [
+                    {
+                        "CidrIp": "0.0.0.0/0",
+                        "Description": "Allow all outbound traffic by default",
+                        "IpProtocol": "-1"
+                    }
+                ],
+                "SecurityGroupIngress": [
+                    {
+                        "CidrIp": {
+                            "Fn::GetAtt": [
+                                "Vpc8378EB38",
+                                "CidrBlock"
+                            ]
+                        },
+                        "Description": {
+                            "Fn::Join": [
+                                "",
+                                [
+                                    "from ",
+                                    {
+                                        "Fn::GetAtt": [
+                                            "Vpc8378EB38",
+                                            "CidrBlock"
+                                        ]
+                                    },
+                                    ":443"
+                                ]
+                            ]
+                        },
+                        "FromPort": 443,
+                        "IpProtocol": "tcp",
+                        "ToPort": 443
+                    }
+                ],
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "AxioraPulseStackQa/Vpc"
+                    }
+                ],
+                "VpcId": {
+                    "Ref": "Vpc8378EB38"
+                }
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Vpc/CloudWatchLogsEndpoint/SecurityGroup/Resource"
+            }
+        },
+        "VpcCloudWatchLogsEndpointA6195533": {
+            "Type": "AWS::EC2::VPCEndpoint",
+            "Properties": {
+                "PrivateDnsEnabled": true,
+                "SecurityGroupIds": [
+                    {
+                        "Fn::GetAtt": [
+                            "VpcCloudWatchLogsEndpointSecurityGroupE044298A",
+                            "GroupId"
+                        ]
+                    }
+                ],
+                "ServiceName": "com.amazonaws.ap-south-1.logs",
+                "SubnetIds": [
+                    {
+                        "Ref": "VpcPrivateSubnet1Subnet536B997A"
+                    },
+                    {
+                        "Ref": "VpcPrivateSubnet2Subnet3788AAA1"
+                    }
+                ],
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "AxioraPulseStackQa/Vpc"
+                    }
+                ],
+                "VpcEndpointType": "Interface",
+                "VpcId": {
+                    "Ref": "Vpc8378EB38"
+                }
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Vpc/CloudWatchLogsEndpoint/Resource"
+            }
+        },
+        "VpcSsmEndpointSecurityGroup579ACE06": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": "AxioraPulseStackQa/Vpc/SsmEndpoint/SecurityGroup",
+                "SecurityGroupEgress": [
+                    {
+                        "CidrIp": "0.0.0.0/0",
+                        "Description": "Allow all outbound traffic by default",
+                        "IpProtocol": "-1"
+                    }
+                ],
+                "SecurityGroupIngress": [
+                    {
+                        "CidrIp": {
+                            "Fn::GetAtt": [
+                                "Vpc8378EB38",
+                                "CidrBlock"
+                            ]
+                        },
+                        "Description": {
+                            "Fn::Join": [
+                                "",
+                                [
+                                    "from ",
+                                    {
+                                        "Fn::GetAtt": [
+                                            "Vpc8378EB38",
+                                            "CidrBlock"
+                                        ]
+                                    },
+                                    ":443"
+                                ]
+                            ]
+                        },
+                        "FromPort": 443,
+                        "IpProtocol": "tcp",
+                        "ToPort": 443
+                    }
+                ],
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "AxioraPulseStackQa/Vpc"
+                    }
+                ],
+                "VpcId": {
+                    "Ref": "Vpc8378EB38"
+                }
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Vpc/SsmEndpoint/SecurityGroup/Resource"
+            }
+        },
+        "VpcSsmEndpointC46DB833": {
+            "Type": "AWS::EC2::VPCEndpoint",
+            "Properties": {
+                "PrivateDnsEnabled": true,
+                "SecurityGroupIds": [
+                    {
+                        "Fn::GetAtt": [
+                            "VpcSsmEndpointSecurityGroup579ACE06",
+                            "GroupId"
+                        ]
+                    }
+                ],
+                "ServiceName": "com.amazonaws.ap-south-1.ssm",
+                "SubnetIds": [
+                    {
+                        "Ref": "VpcPrivateSubnet1Subnet536B997A"
+                    },
+                    {
+                        "Ref": "VpcPrivateSubnet2Subnet3788AAA1"
+                    }
+                ],
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "AxioraPulseStackQa/Vpc"
+                    }
+                ],
+                "VpcEndpointType": "Interface",
+                "VpcId": {
+                    "Ref": "Vpc8378EB38"
+                }
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Vpc/SsmEndpoint/Resource"
+            }
+        },
+        "CustomVpcRestrictDefaultSGCustomResourceProviderRole26592FE0": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Action": "sts:AssumeRole",
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": "lambda.amazonaws.com"
+                            }
+                        }
+                    ]
+                },
+                "ManagedPolicyArns": [
+                    {
+                        "Fn::Sub": "arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+                    }
+                ],
+                "Policies": [
+                    {
+                        "PolicyName": "Inline",
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "ec2:AuthorizeSecurityGroupIngress",
+                                        "ec2:AuthorizeSecurityGroupEgress",
+                                        "ec2:RevokeSecurityGroupIngress",
+                                        "ec2:RevokeSecurityGroupEgress"
+                                    ],
+                                    "Resource": [
+                                        {
+                                            "Fn::Join": [
+                                                "",
+                                                [
+                                                    "arn:aws:ec2:ap-south-1:399894608507:security-group/",
+                                                    {
+                                                        "Fn::GetAtt": [
+                                                            "Vpc8378EB38",
+                                                            "DefaultSecurityGroup"
+                                                        ]
+                                                    }
+                                                ]
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                ]
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Custom::VpcRestrictDefaultSGCustomResourceProvider/Role"
+            }
+        },
+        "CustomVpcRestrictDefaultSGCustomResourceProviderHandlerDC833E5E": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+                "Code": {
+                    "S3Bucket": "cdk-hnb659fds-assets-399894608507-ap-south-1",
+                    "S3Key": "7fa1e366ee8a9ded01fc355f704cff92bfd179574e6f9cfee800a3541df1b200.zip"
+                },
+                "Timeout": 900,
+                "MemorySize": 128,
+                "Handler": "__entrypoint__.handler",
+                "Role": {
+                    "Fn::GetAtt": [
+                        "CustomVpcRestrictDefaultSGCustomResourceProviderRole26592FE0",
+                        "Arn"
+                    ]
+                },
+                "Runtime": "nodejs22.x",
+                "Description": "Lambda function for removing all inbound/outbound rules from the VPC default security group"
+            },
+            "DependsOn": [
+                "CustomVpcRestrictDefaultSGCustomResourceProviderRole26592FE0"
+            ],
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Custom::VpcRestrictDefaultSGCustomResourceProvider/Handler",
+                "aws:asset:path": "asset.7fa1e366ee8a9ded01fc355f704cff92bfd179574e6f9cfee800a3541df1b200",
+                "aws:asset:property": "Code"
+            }
+        },
+        "ClusterEB0386A7": {
+            "Type": "AWS::ECS::Cluster",
+            "Properties": {
+                "ClusterName": "axiorapulse-qa-cluster",
+                "ClusterSettings": [
+                    {
+                        "Name": "containerInsights",
+                        "Value": "enabled"
+                    }
+                ]
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Cluster/Resource"
+            }
+        },
+        "ClusterDefaultServiceDiscoveryNamespaceC336F9B4": {
+            "Type": "AWS::ServiceDiscovery::PrivateDnsNamespace",
+            "Properties": {
+                "Name": "qa.local",
+                "Vpc": {
+                    "Ref": "Vpc8378EB38"
+                }
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Cluster/DefaultServiceDiscoveryNamespace/Resource"
+            }
+        },
+        "BackendRepo7FFBAD06": {
+            "Type": "AWS::ECR::Repository",
+            "Properties": {
+                "EmptyOnDelete": true,
+                "RepositoryName": "axiora/pulse-fastapi-qa",
+                "RepositoryPolicyText": {
+                    "Statement": [
+                        {
+                            "Action": [
+                                "ecr:BatchCheckLayerAvailability",
+                                "ecr:BatchGetImage",
+                                "ecr:GetDownloadUrlForLayer"
+                            ],
+                            "Effect": "Allow",
+                            "Principal": {
+                                "AWS": "arn:aws:iam::217757579310:root"
+                            },
+                            "Sid": "AllowProdPull"
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                }
+            },
+            "UpdateReplacePolicy": "Delete",
+            "DeletionPolicy": "Delete",
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/BackendRepo/Resource"
+            }
+        },
+        "FrontendRepoF80FCC01": {
+            "Type": "AWS::ECR::Repository",
+            "Properties": {
+                "EmptyOnDelete": true,
+                "RepositoryName": "axiora/pulse-frontend-qa",
+                "RepositoryPolicyText": {
+                    "Statement": [
+                        {
+                            "Action": [
+                                "ecr:BatchCheckLayerAvailability",
+                                "ecr:BatchGetImage",
+                                "ecr:GetDownloadUrlForLayer"
+                            ],
+                            "Effect": "Allow",
+                            "Principal": {
+                                "AWS": "arn:aws:iam::217757579310:root"
+                            },
+                            "Sid": "AllowProdPull"
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                }
+            },
+            "UpdateReplacePolicy": "Delete",
+            "DeletionPolicy": "Delete",
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/FrontendRepo/Resource"
+            }
+        },
+        "UserPool6BA7E5F2": {
+            "Type": "AWS::Cognito::UserPool",
+            "Properties": {
+                "AccountRecoverySetting": {
+                    "RecoveryMechanisms": [
+                        {
+                            "Name": "verified_phone_number",
+                            "Priority": 1
+                        },
+                        {
+                            "Name": "verified_email",
+                            "Priority": 2
+                        }
+                    ]
+                },
+                "AdminCreateUserConfig": {
+                    "AllowAdminCreateUserOnly": false
+                },
+                "AutoVerifiedAttributes": [
+                    "email"
+                ],
+                "EmailVerificationMessage": "The verification code to your new account is {####}",
+                "EmailVerificationSubject": "Verify your new account",
+                "SmsVerificationMessage": "The verification code to your new account is {####}",
+                "UserPoolName": "AxioraPulseUserPool-qa",
+                "UsernameAttributes": [
+                    "email"
+                ],
+                "VerificationMessageTemplate": {
+                    "DefaultEmailOption": "CONFIRM_WITH_CODE",
+                    "EmailMessage": "The verification code to your new account is {####}",
+                    "EmailSubject": "Verify your new account",
+                    "SmsMessage": "The verification code to your new account is {####}"
+                }
+            },
+            "UpdateReplacePolicy": "Delete",
+            "DeletionPolicy": "Delete",
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/UserPool/Resource",
+                "cdk_nag": {
+                    "rules_to_suppress": [
+                        {
+                            "reason": "QA/Dev Cognito user pool does not require advanced security features (plus tier) to manage costs.",
+                            "id": "AwsSolutions-COG8"
+                        }
+                    ]
+                }
+            }
+        },
+        "UserPoolUserPoolClient40176907": {
+            "Type": "AWS::Cognito::UserPoolClient",
+            "Properties": {
+                "AllowedOAuthFlows": [
+                    "implicit",
+                    "code"
+                ],
+                "AllowedOAuthFlowsUserPoolClient": true,
+                "AllowedOAuthScopes": [
+                    "profile",
+                    "phone",
+                    "email",
+                    "openid",
+                    "aws.cognito.signin.user.admin"
+                ],
+                "CallbackURLs": [
+                    "https://example.com"
+                ],
+                "ClientName": "AxioraPulseClient-qa",
+                "ExplicitAuthFlows": [
+                    "ALLOW_USER_PASSWORD_AUTH",
+                    "ALLOW_USER_SRP_AUTH",
+                    "ALLOW_REFRESH_TOKEN_AUTH"
+                ],
+                "SupportedIdentityProviders": [
+                    "COGNITO"
+                ],
+                "UserPoolId": {
+                    "Ref": "UserPool6BA7E5F2"
+                }
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/UserPool/UserPoolClient/Resource"
+            }
+        },
+        "EcsTaskExecutionRoleC0B6A84D": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Statement": [
+                        {
+                            "Action": "sts:AssumeRole",
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": "ecs-tasks.amazonaws.com"
+                            }
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                },
+                "ManagedPolicyArns": [
+                    {
+                        "Fn::Join": [
+                            "",
+                            [
+                                "arn:",
+                                {
+                                    "Ref": "AWS::Partition"
+                                },
+                                ":iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+                            ]
+                        ]
+                    }
+                ]
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/EcsTaskExecutionRole/Resource"
+            }
+        },
+        "EcsTaskExecutionRoleDefaultPolicyDCEEFDC3": {
+            "Type": "AWS::IAM::Policy",
+            "Properties": {
+                "PolicyDocument": {
+                    "Statement": [
+                        {
+                            "Action": [
+                                "ecr:BatchCheckLayerAvailability",
+                                "ecr:BatchGetImage",
+                                "ecr:GetDownloadUrlForLayer"
+                            ],
+                            "Effect": "Allow",
+                            "Resource": [
+                                {
+                                    "Fn::GetAtt": [
+                                        "BackendRepo7FFBAD06",
+                                        "Arn"
+                                    ]
+                                },
+                                {
+                                    "Fn::GetAtt": [
+                                        "FrontendRepoF80FCC01",
+                                        "Arn"
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "Action": "ecr:GetAuthorizationToken",
+                            "Effect": "Allow",
+                            "Resource": "*"
+                        },
+                        {
+                            "Action": [
+                                "ssm:GetParameter",
+                                "ssm:GetParameters"
+                            ],
+                            "Effect": "Allow",
+                            "Resource": [
+                                "arn:aws:ssm:ap-south-1:399894608507:parameter/axiorapulse/*",
+                                "arn:aws:ssm:ap-south-1:399894608507:parameter/axiorapulse/qa/*"
+                            ]
+                        },
+                        {
+                            "Action": [
+                                "logs:CreateLogStream",
+                                "logs:PutLogEvents"
+                            ],
+                            "Effect": "Allow",
+                            "Resource": [
+                                {
+                                    "Fn::GetAtt": [
+                                        "BackendLogGroupDA10F1B2",
+                                        "Arn"
+                                    ]
+                                },
+                                {
+                                    "Fn::GetAtt": [
+                                        "FrontendLogGroupCE4F14E0",
+                                        "Arn"
+                                    ]
+                                },
+                                {
+                                    "Fn::GetAtt": [
+                                        "PostgresLogGroup3ED00616",
+                                        "Arn"
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "Action": [
+                                "ssm:DescribeParameters",
+                                "ssm:GetParameter",
+                                "ssm:GetParameterHistory",
+                                "ssm:GetParameters"
+                            ],
+                            "Effect": "Allow",
+                            "Resource": [
+                                "arn:aws:ssm:ap-south-1:399894608507:parameter/axiorapulse/qa/ANTHROPIC_KEY",
+                                "arn:aws:ssm:ap-south-1:399894608507:parameter/axiorapulse/qa/COGNITO_APP_CLIENT_ID",
+                                "arn:aws:ssm:ap-south-1:399894608507:parameter/axiorapulse/qa/COGNITO_USER_POOL_ID",
+                                "arn:aws:ssm:ap-south-1:399894608507:parameter/axiorapulse/qa/DATABASE_URL",
+                                "arn:aws:ssm:ap-south-1:399894608507:parameter/axiorapulse/qa/EMAIL_FROM",
+                                "arn:aws:ssm:ap-south-1:399894608507:parameter/axiorapulse/qa/FRONTEND_URL",
+                                "arn:aws:ssm:ap-south-1:399894608507:parameter/axiorapulse/qa/GEMINI_KEY",
+                                "arn:aws:ssm:ap-south-1:399894608507:parameter/axiorapulse/qa/OPENAI_KEY",
+                                "arn:aws:ssm:ap-south-1:399894608507:parameter/axiorapulse/qa/RAZORPAY_KEY_ID",
+                                "arn:aws:ssm:ap-south-1:399894608507:parameter/axiorapulse/qa/RAZORPAY_KEY_SECRET",
+                                "arn:aws:ssm:ap-south-1:399894608507:parameter/axiorapulse/qa/SECRET_KEY"
+                            ]
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                },
+                "PolicyName": "EcsTaskExecutionRoleDefaultPolicyDCEEFDC3",
+                "Roles": [
+                    {
+                        "Ref": "EcsTaskExecutionRoleC0B6A84D"
+                    }
+                ]
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/EcsTaskExecutionRole/DefaultPolicy/Resource"
+            }
+        },
+        "EcsTaskRole8DFA0181": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Statement": [
+                        {
+                            "Action": "sts:AssumeRole",
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": "ecs-tasks.amazonaws.com"
+                            }
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                },
+                "ManagedPolicyArns": [
+                    {
+                        "Fn::Join": [
+                            "",
+                            [
+                                "arn:",
+                                {
+                                    "Ref": "AWS::Partition"
+                                },
+                                ":iam::aws:policy/AmazonSSMReadOnlyAccess"
+                            ]
+                        ]
+                    }
+                ]
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/EcsTaskRole/Resource"
+            }
+        },
+        "BackendTaskDef6ECE986E": {
+            "Type": "AWS::ECS::TaskDefinition",
+            "Properties": {
+                "ContainerDefinitions": [
+                    {
+                        "Environment": [
+                            {
+                                "Name": "ENVIRONMENT",
+                                "Value": "qa"
+                            },
+                            {
+                                "Name": "COGNITO_REGION",
+                                "Value": "ap-south-1"
+                            },
+                            {
+                                "Name": "AWS_SES_REGION",
+                                "Value": "ap-south-1"
+                            }
+                        ],
+                        "Essential": true,
+                        "HealthCheck": {
+                            "Command": [
+                                "CMD-SHELL",
+                                "curl -f http://localhost:8000/health || exit 1"
+                            ],
+                            "Interval": 30,
+                            "Retries": 3,
+                            "StartPeriod": 60,
+                            "Timeout": 10
+                        },
+                        "Image": {
+                            "Fn::Join": [
+                                "",
+                                [
+                                    {
+                                        "Fn::Select": [
+                                            4,
+                                            {
+                                                "Fn::Split": [
+                                                    ":",
+                                                    {
+                                                        "Fn::GetAtt": [
+                                                            "BackendRepo7FFBAD06",
+                                                            "Arn"
+                                                        ]
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    },
+                                    ".dkr.ecr.",
+                                    {
+                                        "Fn::Select": [
+                                            3,
+                                            {
+                                                "Fn::Split": [
+                                                    ":",
+                                                    {
+                                                        "Fn::GetAtt": [
+                                                            "BackendRepo7FFBAD06",
+                                                            "Arn"
+                                                        ]
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    },
+                                    ".",
+                                    {
+                                        "Ref": "AWS::URLSuffix"
+                                    },
+                                    "/",
+                                    {
+                                        "Ref": "BackendRepo7FFBAD06"
+                                    },
+                                    ":latest"
+                                ]
+                            ]
+                        },
+                        "LogConfiguration": {
+                            "LogDriver": "awslogs",
+                            "Options": {
+                                "awslogs-group": {
+                                    "Ref": "BackendLogGroupDA10F1B2"
+                                },
+                                "awslogs-stream-prefix": "ecs",
+                                "awslogs-region": "ap-south-1"
+                            }
+                        },
+                        "Name": "BackendContainer",
+                        "PortMappings": [
+                            {
+                                "ContainerPort": 8000,
+                                "Protocol": "tcp"
+                            }
+                        ],
+                        "Secrets": [
+                            {
+                                "Name": "SECRET_KEY",
+                                "ValueFrom": "arn:aws:ssm:ap-south-1:399894608507:parameter/axiorapulse/qa/SECRET_KEY"
+                            },
+                            {
+                                "Name": "DATABASE_URL",
+                                "ValueFrom": "arn:aws:ssm:ap-south-1:399894608507:parameter/axiorapulse/qa/DATABASE_URL"
+                            },
+                            {
+                                "Name": "ANTHROPIC_KEY",
+                                "ValueFrom": "arn:aws:ssm:ap-south-1:399894608507:parameter/axiorapulse/qa/ANTHROPIC_KEY"
+                            },
+                            {
+                                "Name": "GEMINI_KEY",
+                                "ValueFrom": "arn:aws:ssm:ap-south-1:399894608507:parameter/axiorapulse/qa/GEMINI_KEY"
+                            },
+                            {
+                                "Name": "OPENAI_KEY",
+                                "ValueFrom": "arn:aws:ssm:ap-south-1:399894608507:parameter/axiorapulse/qa/OPENAI_KEY"
+                            },
+                            {
+                                "Name": "EMAIL_FROM",
+                                "ValueFrom": "arn:aws:ssm:ap-south-1:399894608507:parameter/axiorapulse/qa/EMAIL_FROM"
+                            },
+                            {
+                                "Name": "FRONTEND_URL",
+                                "ValueFrom": "arn:aws:ssm:ap-south-1:399894608507:parameter/axiorapulse/qa/FRONTEND_URL"
+                            },
+                            {
+                                "Name": "RAZORPAY_KEY_ID",
+                                "ValueFrom": "arn:aws:ssm:ap-south-1:399894608507:parameter/axiorapulse/qa/RAZORPAY_KEY_ID"
+                            },
+                            {
+                                "Name": "RAZORPAY_KEY_SECRET",
+                                "ValueFrom": "arn:aws:ssm:ap-south-1:399894608507:parameter/axiorapulse/qa/RAZORPAY_KEY_SECRET"
+                            },
+                            {
+                                "Name": "COGNITO_USER_POOL_ID",
+                                "ValueFrom": "arn:aws:ssm:ap-south-1:399894608507:parameter/axiorapulse/qa/COGNITO_USER_POOL_ID"
+                            },
+                            {
+                                "Name": "COGNITO_APP_CLIENT_ID",
+                                "ValueFrom": "arn:aws:ssm:ap-south-1:399894608507:parameter/axiorapulse/qa/COGNITO_APP_CLIENT_ID"
+                            }
+                        ]
+                    },
+                    {
+                        "Environment": [
+                            {
+                                "Name": "POSTGRES_USER",
+                                "Value": "user"
+                            },
+                            {
+                                "Name": "POSTGRES_PASSWORD",
+                                "Value": "pass"
+                            },
+                            {
+                                "Name": "POSTGRES_DB",
+                                "Value": "db"
+                            }
+                        ],
+                        "Essential": true,
+                        "Image": "postgres:16-alpine",
+                        "LogConfiguration": {
+                            "LogDriver": "awslogs",
+                            "Options": {
+                                "awslogs-group": {
+                                    "Ref": "PostgresLogGroup3ED00616"
+                                },
+                                "awslogs-stream-prefix": "ecs-postgres",
+                                "awslogs-region": "ap-south-1"
+                            }
+                        },
+                        "Name": "PostgresContainer",
+                        "PortMappings": [
+                            {
+                                "ContainerPort": 5432,
+                                "Protocol": "tcp"
+                            }
+                        ]
+                    }
+                ],
+                "Cpu": "512",
+                "ExecutionRoleArn": {
+                    "Fn::GetAtt": [
+                        "EcsTaskExecutionRoleC0B6A84D",
+                        "Arn"
+                    ]
+                },
+                "Family": "pulse-backend-qa",
+                "Memory": "1024",
+                "NetworkMode": "awsvpc",
+                "RequiresCompatibilities": [
+                    "FARGATE"
+                ],
+                "TaskRoleArn": {
+                    "Fn::GetAtt": [
+                        "EcsTaskRole8DFA0181",
+                        "Arn"
+                    ]
+                }
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/BackendTaskDef/Resource"
+            }
+        },
+        "BackendLogGroupDA10F1B2": {
+            "Type": "AWS::Logs::LogGroup",
+            "Properties": {
+                "LogGroupName": "/ecs/pulse-backend-qa",
+                "RetentionInDays": 731
+            },
+            "UpdateReplacePolicy": "Delete",
+            "DeletionPolicy": "Delete",
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/BackendLogGroup/Resource"
+            }
+        },
+        "PostgresLogGroup3ED00616": {
+            "Type": "AWS::Logs::LogGroup",
+            "Properties": {
+                "LogGroupName": "/ecs/pulse-postgres-qa",
+                "RetentionInDays": 731
+            },
+            "UpdateReplacePolicy": "Delete",
+            "DeletionPolicy": "Delete",
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/PostgresLogGroup/Resource"
+            }
+        },
+        "BackendService7A4224EE": {
+            "Type": "AWS::ECS::Service",
+            "Properties": {
+                "Cluster": {
+                    "Ref": "ClusterEB0386A7"
+                },
+                "DeploymentConfiguration": {
+                    "MaximumPercent": 200,
+                    "MinimumHealthyPercent": 50
+                },
+                "DesiredCount": 1,
+                "EnableECSManagedTags": false,
+                "HealthCheckGracePeriodSeconds": 60,
+                "LaunchType": "FARGATE",
+                "LoadBalancers": [
+                    {
+                        "ContainerName": "BackendContainer",
+                        "ContainerPort": 8000,
+                        "TargetGroupArn": {
+                            "Ref": "AlbBackendListenerBackendTargetGroup105EF743"
+                        }
+                    }
+                ],
+                "NetworkConfiguration": {
+                    "AwsvpcConfiguration": {
+                        "AssignPublicIp": "DISABLED",
+                        "SecurityGroups": [
+                            {
+                                "Fn::GetAtt": [
+                                    "BackendServiceSecurityGroup0865F57D",
+                                    "GroupId"
+                                ]
+                            }
+                        ],
+                        "Subnets": [
+                            {
+                                "Ref": "VpcPrivateSubnet1Subnet536B997A"
+                            },
+                            {
+                                "Ref": "VpcPrivateSubnet2Subnet3788AAA1"
+                            }
+                        ]
+                    }
+                },
+                "ServiceName": "pulse-backend-qa",
+                "ServiceRegistries": [
+                    {
+                        "RegistryArn": {
+                            "Fn::GetAtt": [
+                                "BackendServiceCloudmapService7E353D12",
+                                "Arn"
+                            ]
+                        }
+                    }
+                ],
+                "TaskDefinition": {
+                    "Ref": "BackendTaskDef6ECE986E"
+                }
+            },
+            "DependsOn": [
+                "AlbBackendListenerBackendTargetGroup105EF743",
+                "AlbBackendListener02E69581",
+                "EcsTaskRole8DFA0181"
+            ],
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/BackendService/Service"
+            }
+        },
+        "BackendServiceCloudmapService7E353D12": {
+            "Type": "AWS::ServiceDiscovery::Service",
+            "Properties": {
+                "DnsConfig": {
+                    "DnsRecords": [
+                        {
+                            "TTL": 60,
+                            "Type": "A"
+                        }
+                    ],
+                    "NamespaceId": {
+                        "Fn::GetAtt": [
+                            "ClusterDefaultServiceDiscoveryNamespaceC336F9B4",
+                            "Id"
+                        ]
+                    },
+                    "RoutingPolicy": "MULTIVALUE"
+                },
+                "HealthCheckCustomConfig": {
+                    "FailureThreshold": 1
+                },
+                "Name": "backend",
+                "NamespaceId": {
+                    "Fn::GetAtt": [
+                        "ClusterDefaultServiceDiscoveryNamespaceC336F9B4",
+                        "Id"
+                    ]
+                }
+            },
+            "DependsOn": [
+                "EcsTaskRole8DFA0181"
+            ],
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/BackendService/CloudmapService/Resource"
+            }
+        },
+        "BackendServiceSecurityGroup0865F57D": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": "AxioraPulseStackQa/BackendService/SecurityGroup",
+                "SecurityGroupEgress": [
+                    {
+                        "CidrIp": "0.0.0.0/0",
+                        "Description": "Allow all outbound traffic by default",
+                        "IpProtocol": "-1"
+                    }
+                ],
+                "VpcId": {
+                    "Ref": "Vpc8378EB38"
+                }
+            },
+            "DependsOn": [
+                "EcsTaskRole8DFA0181"
+            ],
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/BackendService/SecurityGroup/Resource"
+            }
+        },
+        "BackendServiceSecurityGroupfromAxioraPulseStackQaAlbSecurityGroupEC00AA40800071CE1B6A": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "Description": "Load balancer to target",
+                "FromPort": 8000,
+                "GroupId": {
+                    "Fn::GetAtt": [
+                        "BackendServiceSecurityGroup0865F57D",
+                        "GroupId"
+                    ]
+                },
+                "IpProtocol": "tcp",
+                "SourceSecurityGroupId": {
+                    "Fn::GetAtt": [
+                        "AlbSecurityGroup580F65A6",
+                        "GroupId"
+                    ]
+                },
+                "ToPort": 8000
+            },
+            "DependsOn": [
+                "EcsTaskRole8DFA0181"
+            ],
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/BackendService/SecurityGroup/from AxioraPulseStackQaAlbSecurityGroupEC00AA40:8000"
+            }
+        },
+        "BackendServiceSecurityGroupfromAxioraPulseStackQaFrontendServiceSecurityGroup1685C9348000F9593A9B": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "Description": "Allow internal frontend to backend traffic",
+                "FromPort": 8000,
+                "GroupId": {
+                    "Fn::GetAtt": [
+                        "BackendServiceSecurityGroup0865F57D",
+                        "GroupId"
+                    ]
+                },
+                "IpProtocol": "tcp",
+                "SourceSecurityGroupId": {
+                    "Fn::GetAtt": [
+                        "FrontendServiceSecurityGroup85470DEC",
+                        "GroupId"
+                    ]
+                },
+                "ToPort": 8000
+            },
+            "DependsOn": [
+                "EcsTaskRole8DFA0181"
+            ],
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/BackendService/SecurityGroup/from AxioraPulseStackQaFrontendServiceSecurityGroup1685C934:8000"
+            }
+        },
+        "FrontendTaskDef7D3FD156": {
+            "Type": "AWS::ECS::TaskDefinition",
+            "Properties": {
+                "ContainerDefinitions": [
+                    {
+                        "Environment": [
+                            {
+                                "Name": "BACKEND_INTERNAL_URL",
+                                "Value": "backend.qa.local:8000"
+                            },
+                            {
+                                "Name": "NGINX_ENVSUBST_FILTER",
+                                "Value": "BACKEND_INTERNAL_URL"
+                            }
+                        ],
+                        "Essential": true,
+                        "HealthCheck": {
+                            "Command": [
+                                "CMD-SHELL",
+                                "wget -qO- http://localhost:80/ || exit 1"
+                            ],
+                            "Interval": 30,
+                            "Retries": 3,
+                            "StartPeriod": 10,
+                            "Timeout": 5
+                        },
+                        "Image": {
+                            "Fn::Join": [
+                                "",
+                                [
+                                    {
+                                        "Fn::Select": [
+                                            4,
+                                            {
+                                                "Fn::Split": [
+                                                    ":",
+                                                    {
+                                                        "Fn::GetAtt": [
+                                                            "FrontendRepoF80FCC01",
+                                                            "Arn"
+                                                        ]
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    },
+                                    ".dkr.ecr.",
+                                    {
+                                        "Fn::Select": [
+                                            3,
+                                            {
+                                                "Fn::Split": [
+                                                    ":",
+                                                    {
+                                                        "Fn::GetAtt": [
+                                                            "FrontendRepoF80FCC01",
+                                                            "Arn"
+                                                        ]
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    },
+                                    ".",
+                                    {
+                                        "Ref": "AWS::URLSuffix"
+                                    },
+                                    "/",
+                                    {
+                                        "Ref": "FrontendRepoF80FCC01"
+                                    },
+                                    ":latest"
+                                ]
+                            ]
+                        },
+                        "LogConfiguration": {
+                            "LogDriver": "awslogs",
+                            "Options": {
+                                "awslogs-group": {
+                                    "Ref": "FrontendLogGroupCE4F14E0"
+                                },
+                                "awslogs-stream-prefix": "ecs",
+                                "awslogs-region": "ap-south-1"
+                            }
+                        },
+                        "Name": "FrontendContainer",
+                        "PortMappings": [
+                            {
+                                "ContainerPort": 80,
+                                "Protocol": "tcp"
+                            }
+                        ]
+                    }
+                ],
+                "Cpu": "256",
+                "ExecutionRoleArn": {
+                    "Fn::GetAtt": [
+                        "EcsTaskExecutionRoleC0B6A84D",
+                        "Arn"
+                    ]
+                },
+                "Family": "pulse-frontend-qa",
+                "Memory": "512",
+                "NetworkMode": "awsvpc",
+                "RequiresCompatibilities": [
+                    "FARGATE"
+                ],
+                "TaskRoleArn": {
+                    "Fn::GetAtt": [
+                        "EcsTaskRole8DFA0181",
+                        "Arn"
+                    ]
+                }
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/FrontendTaskDef/Resource"
+            }
+        },
+        "FrontendLogGroupCE4F14E0": {
+            "Type": "AWS::Logs::LogGroup",
+            "Properties": {
+                "LogGroupName": "/ecs/pulse-frontend-qa",
+                "RetentionInDays": 731
+            },
+            "UpdateReplacePolicy": "Delete",
+            "DeletionPolicy": "Delete",
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/FrontendLogGroup/Resource"
+            }
+        },
+        "FrontendServiceBC94BA93": {
+            "Type": "AWS::ECS::Service",
+            "Properties": {
+                "Cluster": {
+                    "Ref": "ClusterEB0386A7"
+                },
+                "DeploymentConfiguration": {
+                    "MaximumPercent": 200,
+                    "MinimumHealthyPercent": 50
+                },
+                "DesiredCount": 1,
+                "EnableECSManagedTags": false,
+                "HealthCheckGracePeriodSeconds": 60,
+                "LaunchType": "FARGATE",
+                "LoadBalancers": [
+                    {
+                        "ContainerName": "FrontendContainer",
+                        "ContainerPort": 80,
+                        "TargetGroupArn": {
+                            "Ref": "AlbFrontendListenerFrontendTargetGroupB1A3E51B"
+                        }
+                    }
+                ],
+                "NetworkConfiguration": {
+                    "AwsvpcConfiguration": {
+                        "AssignPublicIp": "DISABLED",
+                        "SecurityGroups": [
+                            {
+                                "Fn::GetAtt": [
+                                    "FrontendServiceSecurityGroup85470DEC",
+                                    "GroupId"
+                                ]
+                            }
+                        ],
+                        "Subnets": [
+                            {
+                                "Ref": "VpcPrivateSubnet1Subnet536B997A"
+                            },
+                            {
+                                "Ref": "VpcPrivateSubnet2Subnet3788AAA1"
+                            }
+                        ]
+                    }
+                },
+                "ServiceName": "pulse-frontend-qa",
+                "TaskDefinition": {
+                    "Ref": "FrontendTaskDef7D3FD156"
+                }
+            },
+            "DependsOn": [
+                "AlbFrontendListenerFrontendTargetGroupB1A3E51B",
+                "AlbFrontendListenerD342624A",
+                "EcsTaskRole8DFA0181"
+            ],
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/FrontendService/Service"
+            }
+        },
+        "FrontendServiceSecurityGroup85470DEC": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": "AxioraPulseStackQa/FrontendService/SecurityGroup",
+                "SecurityGroupEgress": [
+                    {
+                        "CidrIp": "0.0.0.0/0",
+                        "Description": "Allow all outbound traffic by default",
+                        "IpProtocol": "-1"
+                    }
+                ],
+                "VpcId": {
+                    "Ref": "Vpc8378EB38"
+                }
+            },
+            "DependsOn": [
+                "EcsTaskRole8DFA0181"
+            ],
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/FrontendService/SecurityGroup/Resource"
+            }
+        },
+        "FrontendServiceSecurityGroupfromAxioraPulseStackQaAlbSecurityGroupEC00AA4080D2CDE530": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "Description": "Load balancer to target",
+                "FromPort": 80,
+                "GroupId": {
+                    "Fn::GetAtt": [
+                        "FrontendServiceSecurityGroup85470DEC",
+                        "GroupId"
+                    ]
+                },
+                "IpProtocol": "tcp",
+                "SourceSecurityGroupId": {
+                    "Fn::GetAtt": [
+                        "AlbSecurityGroup580F65A6",
+                        "GroupId"
+                    ]
+                },
+                "ToPort": 80
+            },
+            "DependsOn": [
+                "EcsTaskRole8DFA0181"
+            ],
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/FrontendService/SecurityGroup/from AxioraPulseStackQaAlbSecurityGroupEC00AA40:80"
+            }
+        },
+        "Alb16C2F182": {
+            "Type": "AWS::ElasticLoadBalancingV2::LoadBalancer",
+            "Properties": {
+                "LoadBalancerAttributes": [
+                    {
+                        "Key": "deletion_protection.enabled",
+                        "Value": "false"
+                    }
+                ],
+                "Name": "axiorapulse-qa-alb",
+                "Scheme": "internet-facing",
+                "SecurityGroups": [
+                    {
+                        "Fn::GetAtt": [
+                            "AlbSecurityGroup580F65A6",
+                            "GroupId"
+                        ]
+                    }
+                ],
+                "Subnets": [
+                    {
+                        "Ref": "VpcPublicSubnet1Subnet5C2D37C4"
+                    },
+                    {
+                        "Ref": "VpcPublicSubnet2Subnet691E08A3"
+                    }
+                ],
+                "Type": "application"
+            },
+            "DependsOn": [
+                "VpcPublicSubnet1DefaultRoute3DA9E72A",
+                "VpcPublicSubnet1RouteTableAssociation97140677",
+                "VpcPublicSubnet2DefaultRoute97F91067",
+                "VpcPublicSubnet2RouteTableAssociationDD5762D8"
+            ],
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Alb/Resource"
+            }
+        },
+        "AlbSecurityGroup580F65A6": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": "Automatically created Security Group for ELB AxioraPulseStackQaAlbBDEF4FBC",
+                "SecurityGroupIngress": [
+                    {
+                        "CidrIp": "0.0.0.0/0",
+                        "Description": "Allow from anyone on port 80",
+                        "FromPort": 80,
+                        "IpProtocol": "tcp",
+                        "ToPort": 80
+                    },
+                    {
+                        "CidrIp": "0.0.0.0/0",
+                        "Description": "Allow from anyone on port 8000",
+                        "FromPort": 8000,
+                        "IpProtocol": "tcp",
+                        "ToPort": 8000
+                    }
+                ],
+                "VpcId": {
+                    "Ref": "Vpc8378EB38"
+                }
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Alb/SecurityGroup/Resource"
+            }
+        },
+        "AlbSecurityGrouptoAxioraPulseStackQaFrontendServiceSecurityGroup1685C9348080878954": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "Description": "Load balancer to target",
+                "DestinationSecurityGroupId": {
+                    "Fn::GetAtt": [
+                        "FrontendServiceSecurityGroup85470DEC",
+                        "GroupId"
+                    ]
+                },
+                "FromPort": 80,
+                "GroupId": {
+                    "Fn::GetAtt": [
+                        "AlbSecurityGroup580F65A6",
+                        "GroupId"
+                    ]
+                },
+                "IpProtocol": "tcp",
+                "ToPort": 80
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Alb/SecurityGroup/to AxioraPulseStackQaFrontendServiceSecurityGroup1685C934:80"
+            }
+        },
+        "AlbSecurityGrouptoAxioraPulseStackQaBackendServiceSecurityGroupC0465BF380008D8FBE6D": {
+            "Type": "AWS::EC2::SecurityGroupEgress",
+            "Properties": {
+                "Description": "Load balancer to target",
+                "DestinationSecurityGroupId": {
+                    "Fn::GetAtt": [
+                        "BackendServiceSecurityGroup0865F57D",
+                        "GroupId"
+                    ]
+                },
+                "FromPort": 8000,
+                "GroupId": {
+                    "Fn::GetAtt": [
+                        "AlbSecurityGroup580F65A6",
+                        "GroupId"
+                    ]
+                },
+                "IpProtocol": "tcp",
+                "ToPort": 8000
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Alb/SecurityGroup/to AxioraPulseStackQaBackendServiceSecurityGroupC0465BF3:8000"
+            }
+        },
+        "AlbFrontendListenerD342624A": {
+            "Type": "AWS::ElasticLoadBalancingV2::Listener",
+            "Properties": {
+                "DefaultActions": [
+                    {
+                        "TargetGroupArn": {
+                            "Ref": "AlbFrontendListenerFrontendTargetGroupB1A3E51B"
+                        },
+                        "Type": "forward"
+                    }
+                ],
+                "LoadBalancerArn": {
+                    "Ref": "Alb16C2F182"
+                },
+                "Port": 80,
+                "Protocol": "HTTP"
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Alb/FrontendListener/Resource"
+            }
+        },
+        "AlbFrontendListenerFrontendTargetGroupB1A3E51B": {
+            "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+            "Properties": {
+                "HealthCheckPath": "/",
+                "Port": 80,
+                "Protocol": "HTTP",
+                "TargetGroupAttributes": [
+                    {
+                        "Key": "stickiness.enabled",
+                        "Value": "false"
+                    }
+                ],
+                "TargetType": "ip",
+                "VpcId": {
+                    "Ref": "Vpc8378EB38"
+                }
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Alb/FrontendListener/FrontendTargetGroup/Resource"
+            }
+        },
+        "AlbBackendListener02E69581": {
+            "Type": "AWS::ElasticLoadBalancingV2::Listener",
+            "Properties": {
+                "DefaultActions": [
+                    {
+                        "TargetGroupArn": {
+                            "Ref": "AlbBackendListenerBackendTargetGroup105EF743"
+                        },
+                        "Type": "forward"
+                    }
+                ],
+                "LoadBalancerArn": {
+                    "Ref": "Alb16C2F182"
+                },
+                "Port": 8000,
+                "Protocol": "HTTP"
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Alb/BackendListener/Resource"
+            }
+        },
+        "AlbBackendListenerBackendTargetGroup105EF743": {
+            "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+            "Properties": {
+                "HealthCheckPath": "/health",
+                "Port": 8000,
+                "Protocol": "HTTP",
+                "TargetGroupAttributes": [
+                    {
+                        "Key": "stickiness.enabled",
+                        "Value": "false"
+                    }
+                ],
+                "TargetType": "ip",
+                "VpcId": {
+                    "Ref": "Vpc8378EB38"
+                }
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/Alb/BackendListener/BackendTargetGroup/Resource"
+            }
+        },
+        "UserPoolIdParam81D6760E": {
+            "Type": "AWS::SSM::Parameter",
+            "Properties": {
+                "Name": "/axiorapulse/qa/COGNITO_USER_POOL_ID",
+                "Type": "String",
+                "Value": {
+                    "Ref": "UserPool6BA7E5F2"
+                }
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/UserPoolIdParam/Resource"
+            }
+        },
+        "UserPoolClientIdParam5DF0EADC": {
+            "Type": "AWS::SSM::Parameter",
+            "Properties": {
+                "Name": "/axiorapulse/qa/COGNITO_APP_CLIENT_ID",
+                "Type": "String",
+                "Value": {
+                    "Ref": "UserPoolUserPoolClient40176907"
+                }
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/UserPoolClientIdParam/Resource"
+            }
+        },
+        "EcsClusterNameParam5328DD48": {
+            "Type": "AWS::SSM::Parameter",
+            "Properties": {
+                "Name": "/axiorapulse/qa/ECS_CLUSTER_NAME",
+                "Type": "String",
+                "Value": {
+                    "Ref": "ClusterEB0386A7"
+                }
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/EcsClusterNameParam/Resource"
+            }
+        },
+        "EcsTaskExecutionRoleArnParam23E99B91": {
+            "Type": "AWS::SSM::Parameter",
+            "Properties": {
+                "Name": "/axiorapulse/qa/ECS_TASK_EXECUTION_ROLE_ARN",
+                "Type": "String",
+                "Value": {
+                    "Fn::GetAtt": [
+                        "EcsTaskExecutionRoleC0B6A84D",
+                        "Arn"
+                    ]
+                }
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/EcsTaskExecutionRoleArnParam/Resource"
+            }
+        },
+        "EcsTaskRoleArnParamD0E2BAD5": {
+            "Type": "AWS::SSM::Parameter",
+            "Properties": {
+                "Name": "/axiorapulse/qa/ECS_TASK_ROLE_ARN",
+                "Type": "String",
+                "Value": {
+                    "Fn::GetAtt": [
+                        "EcsTaskRole8DFA0181",
+                        "Arn"
+                    ]
+                }
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/EcsTaskRoleArnParam/Resource"
+            }
+        },
+        "CDKMetadata": {
+            "Type": "AWS::CDK::Metadata",
+            "Properties": {
+                "Analytics": "v2:deflate64:H4sIAAAAAAAA/+1YX2/bOAz/LNPjoPl2xbaHvrlptwuwrUGS9eGCYmBkxtEqSzr9SS9n+LsPsmTHWa673tbigtsegkgkRf5IkzTlk+zk5Yvs+RO4tc9YcfNM8GVWzxywGwq39mON7CSrrzRb1KSCP/O/LDklTwklEtwbcHgL20hpruloJa8mIzrxS8HZzC8lukVNYANcwJIL7ra/K4np/EazcZHWjBfmTCh2k/YV6KhkrC/lW/CSrcmpMx4p4XrzavSFOFjLSznWm1d5URi09lKODILjSkZo9EhQtECK4n0fOnK6IE/J9dEAPA4UMZViAoXVVHmHc1gK3NF3tNxaxXiroBcOi4vxJPztgk0nhm/A4YNn5gqEPYKYfx+M40FyJDBiFo6lQyOxz6HY49Iudw7YukLpaKJcaXYhC624DAm20SzZs2g2nCE5rYmEKnrU9C2zO0Jbaytg+G/0UKKVcd0y5vi5tOe4Ai9crMUmxPX/p+aazpB5w932jVFeD0KVWu1YluHpTr1AcrqoCQM5loJLjJTYppiSEll49t3LzUv+h8eUbW1xBHKbT9dD7D+tPIiVIHpw4n5S36T34g6h4Nz1fm4WaJnhum8MlIAQ6jYX4tK7pfKySH3mccN3H9D/ofX4wh6W4gEhQTugR8UNRWazeiS8dWj2Wh6LtPe7zsCUdMAlmrG0vFw723lWxO4wEsoX70CHI1bDQWdxWx2W5+9nHyfT8VU+vyBNcvP8Tg2Lf1SRwpB8oK/BlBBmFHtzjisueYh4G7pH/rUo9s3SUReyAS0BnMXuuxieTrSGptZccMvUBs02qyd9L+6Dsx+aviJbTX8jTjuL8ViKb7pU9GoKaafIlCnmMdR5ePDeOlX9hiDcerTG8DavyQq48Abna4N2rUSXxEHB3IkBlN4pZCarp6iV5U6Z7aImpt8M0sxgpTYgJkpwtiWnoRU4o7aEEqy0217KcxToUlml/JmrKVrlDcPu2KJu2hp6bBOtizunGspUKblTWf3BopkoJRY18Wk5gGBRrGa8lB/0hQzjdNEVUzsgyVxwsGhDoLECLjooBLxTV2j4anvIu8utCLLDQ7vFSHBs55wOXteW9vgDzODd+rVQty2sVgqsvVWmxx5oM6N3Y8LAbNTWUA5VVk+VCHkI1voKi7PWF224ZFyDyBlTXnZDSJQJB3I2mBNJBRJKLFpneYhUe1Pe0ba5SbLX/ROcdCa+zBJoJ8rYs3tef0X8KvPrer+b++AKf3J/UO4311rS/W5YXF8tt9gTlUAaWXFwSXU0V4FzUF6H5KKYOXAYrnl2z8mf5B+PHIeaNpsaKlRps/qtKrvbp0jLe7zig4FHFG9xdsgaigKs40woKJYgQDIuy81JVudaC87a7x5vFRRnLQ/N4stxcsikw0PcOpT7B+6cSTvhoYI5mBJdf2UYbBtqbRU+RRsuywkYqDBeDXS3Hk4xrdQVCI/9dfCo5WIedZJNQ7uhjo7aIbfbLrrg3cGfGLXhBZozsEhza9HNHJRclnv6w+bSO+1dQ6UqMPtkf9mcvMh+fZk9f/LJcv7MeOl4hdk0/n8GLZ0vDBYYAAA="
+            },
+            "Metadata": {
+                "aws:cdk:path": "AxioraPulseStackQa/CDKMetadata/Default"
+            }
+        }
+    },
+    "Parameters": {
+        "SsmSECRETKEYParameter": {
+            "Type": "AWS::SSM::Parameter::Value<String>",
+            "Default": "/axiorapulse/qa/SECRET_KEY"
+        },
+        "SsmDATABASEURLParameter": {
+            "Type": "AWS::SSM::Parameter::Value<String>",
+            "Default": "/axiorapulse/qa/DATABASE_URL"
+        },
+        "SsmANTHROPICKEYParameter": {
+            "Type": "AWS::SSM::Parameter::Value<String>",
+            "Default": "/axiorapulse/qa/ANTHROPIC_KEY"
+        },
+        "SsmGEMINIKEYParameter": {
+            "Type": "AWS::SSM::Parameter::Value<String>",
+            "Default": "/axiorapulse/qa/GEMINI_KEY"
+        },
+        "SsmOPENAIKEYParameter": {
+            "Type": "AWS::SSM::Parameter::Value<String>",
+            "Default": "/axiorapulse/qa/OPENAI_KEY"
+        },
+        "SsmEMAILFROMParameter": {
+            "Type": "AWS::SSM::Parameter::Value<String>",
+            "Default": "/axiorapulse/qa/EMAIL_FROM"
+        },
+        "SsmFRONTENDURLParameter": {
+            "Type": "AWS::SSM::Parameter::Value<String>",
+            "Default": "/axiorapulse/qa/FRONTEND_URL"
+        },
+        "SsmRAZORPAYKEYIDParameter": {
+            "Type": "AWS::SSM::Parameter::Value<String>",
+            "Default": "/axiorapulse/qa/RAZORPAY_KEY_ID"
+        },
+        "SsmRAZORPAYKEYSECRETParameter": {
+            "Type": "AWS::SSM::Parameter::Value<String>",
+            "Default": "/axiorapulse/qa/RAZORPAY_KEY_SECRET"
+        },
+        "SsmCOGNITOUSERPOOLIDParameter": {
+            "Type": "AWS::SSM::Parameter::Value<String>",
+            "Default": "/axiorapulse/qa/COGNITO_USER_POOL_ID"
+        },
+        "SsmCOGNITOAPPCLIENTIDParameter": {
+            "Type": "AWS::SSM::Parameter::Value<String>",
+            "Default": "/axiorapulse/qa/COGNITO_APP_CLIENT_ID"
+        },
+        "BootstrapVersion": {
+            "Type": "AWS::SSM::Parameter::Value<String>",
+            "Default": "/cdk-bootstrap/hnb659fds/version",
+            "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]"
+        }
+    },
+    "Outputs": {
+        "BackendServiceName": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "BackendService7A4224EE",
+                    "Name"
+                ]
+            }
+        },
+        "FrontendServiceName": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "FrontendServiceBC94BA93",
+                    "Name"
+                ]
+            }
+        },
+        "EcsClusterName": {
+            "Value": {
+                "Ref": "ClusterEB0386A7"
+            }
+        },
+        "LoadBalancerDNS": {
+            "Value": {
+                "Fn::GetAtt": [
+                    "Alb16C2F182",
+                    "DNSName"
+                ]
+            }
+        }
+    },
+    "Rules": {
+        "CheckBootstrapVersion": {
+            "Assertions": [
+                {
+                    "Assert": {
+                        "Fn::Not": [
+                            {
+                                "Fn::Contains": [
+                                    [
+                                        "1",
+                                        "2",
+                                        "3",
+                                        "4",
+                                        "5"
+                                    ],
+                                    {
+                                        "Ref": "BootstrapVersion"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI."
+                }
+            ]
+        }
+    }
+}
