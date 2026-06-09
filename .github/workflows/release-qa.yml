@@ -10,8 +10,50 @@ permissions:
   contents: read
 
 jobs:
-  deploy-qa:
-    name: Deploy to QA ECS
+  # 1. Validation Checks
+  backend-validation:
+    name: Validate Backend Code
+    uses: ./.github/workflows/backend-validation.yml
+    with:
+      is-pr: false
+      base-ref: ''
+
+  cdk-validation:
+    name: Validate CDK Templates
+    uses: ./.github/workflows/cdk-validation.yml
+
+  # 2. CDK Infrastructure Deploy (runs after validation passes)
+  deploy-infra:
+    name: Deploy CDK Infrastructure
+    needs: cdk-validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::399894608507:role/GitHubActionsDeployerRole
+          aws-region: ap-south-1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install CDK Dependencies
+        run: npm install --prefix infra/cdk
+
+      - name: Deploy QA Infrastructure
+        run: |
+          cd infra/cdk
+          npx cdk deploy AxioraPulseStackQa --require-approval never
+
+  # 3. Build & Push Docker Images (runs after infrastructure and tests pass)
+  build-push-images:
+    name: Build & Push Docker Images
+    needs: [backend-validation, deploy-infra]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -27,11 +69,49 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Deploy Infrastructure (If needed)
-        run: |
-          npm install --prefix infra/cdk
-          cd infra/cdk
-          npx cdk deploy AxioraPulseStackQa --require-approval never
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and Push Backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile.prod
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-fastapi-qa:sha-${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-fastapi-qa:qa
+            ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-fastapi-qa:latest
+
+      - name: Build and Push Frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-frontend-qa:sha-${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-frontend-qa:qa
+            ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-frontend-qa:latest
+
+  # 4. Deploy to ECS Fargate (runs after ECR images are pushed successfully)
+  deploy-ecs:
+    name: Deploy to QA ECS
+    needs: build-push-images
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::399894608507:role/GitHubActionsDeployerRole
+          aws-region: ap-south-1
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
       - name: Prepare Task Definitions
         run: |
