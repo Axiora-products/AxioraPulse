@@ -10,13 +10,14 @@ def test_feature_gate_by_calling():
     db = SessionLocal()
     try:
         # Create a temporary tenant, plan, and user to avoid interfering with seed data
-        tenant = Tenant(id=uuid.uuid4(), name="Feature Gate Tenant", slug="fg-tenant")
+        suffix = uuid.uuid4().hex[:8]
+        tenant = Tenant(id=uuid.uuid4(), name=f"Feature Gate Tenant {suffix}", slug=f"fg-tenant-{suffix}")
         db.add(tenant)
 
         # Plan with limits
         plan = Plan(
             id=uuid.uuid4(),
-            code="fg-pro",
+            code=f"fg-pro-{suffix}",
             name="FG Pro",
             price_paise=9900,
             billing_period="monthly",
@@ -29,7 +30,7 @@ def test_feature_gate_by_calling():
 
         user = UserProfile(
             id=uuid.uuid4(),
-            email="fg-user@example.com",
+            email=f"fg-user-{suffix}@example.com",
             full_name="FG User",
             tenant_id=tenant.id,
             is_active=True,
@@ -82,7 +83,7 @@ def test_feature_gate_by_calling():
         survey = Survey(
             id=uuid.uuid4(),
             title="FG Survey",
-            slug="fg-survey",
+            slug=f"fg-survey-{suffix}",
             tenant_id=tenant.id,
             created_by=user.id,
             status=SurveyStatusEnum.draft,
@@ -103,7 +104,7 @@ def test_feature_gate_by_calling():
         # Add another team member
         user2 = UserProfile(
             id=uuid.uuid4(),
-            email="fg-user2@example.com",
+            email=f"fg-user2-{suffix}@example.com",
             full_name="FG User 2",
             tenant_id=tenant.id,
             is_active=True,
@@ -125,7 +126,11 @@ def test_feature_gate_by_calling():
     finally:
         # Clean up all created test entities
         # Note: cascade delete from tenant will clean up users and surveys and subscriptions
-        db.delete(tenant)
-        db.delete(plan)
-        db.commit()
+        db.rollback()
+        try:
+            db.query(Tenant).filter(Tenant.id == tenant.id).delete()
+            db.query(Plan).filter(Plan.id == plan.id).delete()
+            db.commit()
+        except Exception:
+            db.rollback()
         db.close()
