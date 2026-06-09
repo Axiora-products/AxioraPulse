@@ -1,6 +1,8 @@
 import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
+import * as rds from 'aws-cdk-lib/aws-rds';
+import * as cr from 'aws-cdk-lib/custom-resources';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as ecr from 'aws-cdk-lib/aws-ecr';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
@@ -52,6 +54,89 @@ export class AxioraPulseStack extends cdk.Stack {
         name: `${shortEnv}.local`,
         type: cloudmap.NamespaceType.DNS_PRIVATE,
       }
+    });
+
+    // RDS Database Security Group
+    const dbSecurityGroup = new ec2.SecurityGroup(this, 'DbSecurityGroup', {
+      vpc,
+      description: 'Security group for RDS PostgreSQL',
+      allowAllOutbound: true,
+    });
+
+    // Database credentials secret (generates username & password in Secrets Manager)
+    const dbSecret = new rds.DatabaseSecret(this, 'DbSecret', {
+      username: 'postgres',
+      secretName: `/axiorapulse/${shortEnv}/db-credentials`,
+    });
+
+    // RDS PostgreSQL database instance
+    const database = new rds.DatabaseInstance(this, 'Database', {
+      engine: rds.DatabaseInstanceEngine.postgres({
+        version: rds.PostgresEngineVersion.VER_16_6,
+      }),
+      instanceType: ec2.InstanceType.of(ec2.InstanceClass.BURSTABLE3, ec2.InstanceSize.MICRO),
+      vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      securityGroups: [dbSecurityGroup],
+      databaseName: 'nexpulse',
+      credentials: rds.Credentials.fromSecret(dbSecret),
+      removalPolicy: shortEnv === 'prod' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
+    });
+
+    // Custom Resource to write the constructed DATABASE_URL to SSM Parameter Store as a SecureString
+    new cr.AwsCustomResource(this, 'DatabaseUrlWriter', {
+      onCreate: {
+        service: 'SSM',
+        action: 'putParameter',
+        parameters: {
+          Name: `/axiorapulse/${shortEnv}/DATABASE_URL`,
+          Value: cdk.Fn.join('', [
+            'postgresql://',
+            dbSecret.secretValueFromJson('username').unsafeUnwrap(),
+            ':',
+            dbSecret.secretValueFromJson('password').unsafeUnwrap(),
+            '@',
+            database.dbInstanceEndpointAddress,
+            ':',
+            database.dbInstanceEndpointPort,
+            '/nexpulse'
+          ]),
+          Type: 'SecureString',
+          Overwrite: true,
+        },
+        physicalResourceId: cr.PhysicalResourceId.of('DatabaseUrlWriter'),
+      },
+      onUpdate: {
+        service: 'SSM',
+        action: 'putParameter',
+        parameters: {
+          Name: `/axiorapulse/${shortEnv}/DATABASE_URL`,
+          Value: cdk.Fn.join('', [
+            'postgresql://',
+            dbSecret.secretValueFromJson('username').unsafeUnwrap(),
+            ':',
+            dbSecret.secretValueFromJson('password').unsafeUnwrap(),
+            '@',
+            database.dbInstanceEndpointAddress,
+            ':',
+            database.dbInstanceEndpointPort,
+            '/nexpulse'
+          ]),
+          Type: 'SecureString',
+          Overwrite: true,
+        },
+        physicalResourceId: cr.PhysicalResourceId.of('DatabaseUrlWriter'),
+      },
+      onDelete: {
+        service: 'SSM',
+        action: 'deleteParameter',
+        parameters: {
+          Name: `/axiorapulse/${shortEnv}/DATABASE_URL`,
+        },
+      },
+      policy: cr.AwsCustomResourcePolicy.fromSdkCalls({
+        resources: cr.AwsCustomResourcePolicy.ANY_RESOURCE,
+      }),
     });
 
     // 1. ECR Repositories
@@ -191,6 +276,8 @@ export class AxioraPulseStack extends cdk.Stack {
       },
     });
 
+    database.connections.allowFrom(backendService, ec2.Port.tcp(5432), 'Allow backend to access database');
+
     // Frontend Fargate Service
     const frontendTaskDef = new ecs.FargateTaskDefinition(this, 'FrontendTaskDef', {
       memoryLimitMiB: 512,
@@ -278,6 +365,11 @@ export class AxioraPulseStack extends cdk.Stack {
     new ssm.StringParameter(this, 'EcsClusterNameParam', {
       parameterName: `/axiorapulse/${shortEnv}/ECS_CLUSTER_NAME`,
       stringValue: cluster.clusterName,
+    });
+
+    new ssm.StringParameter(this, 'FrontendUrlParam', {
+      parameterName: `/axiorapulse/${shortEnv}/FRONTEND_URL`,
+      stringValue: `http://${alb.loadBalancerDnsName}`,
     });
 
     // Outputs
