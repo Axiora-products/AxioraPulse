@@ -102,7 +102,7 @@ jobs:
             if [[ "$STACK_STATUS" == "CREATE_COMPLETE" || "$STACK_STATUS" == "UPDATE_COMPLETE" || "$STACK_STATUS" == "ROLLBACK_COMPLETE" || "$STACK_STATUS" == "UPDATE_ROLLBACK_COMPLETE" ]]; then
               echo "Stack is in stable state"
               break
-            elif [[ "$STACK_STATUS" == "UPDATE_IN_PROGRESS" || "$STACK_STATUS" == "CREATE_IN_PROGRESS" || "$STACK_STATUS" == "UPDATE_ROLLBACK_IN_PROGRESS" || "$STACK_STATUS" == "ROLLBACK_IN_PROGRESS" || "$STACK_STATUS" == "UPDATE_COMPLETE_CLEANUP_IN_PROGRESS" || "$STACK_STATUS" == "UPDATE_ROLLBACK_COLLAPSED" ]]; then
+            elif [[ "$STACK_STATUS" == *IN_PROGRESS* ]]; then
               echo "Stack is transitioning... waiting (Attempt $((ATTEMPT+1))/$MAX_ATTEMPTS)"
               sleep 10
             elif [[ "$STACK_STATUS" == "" ]]; then
