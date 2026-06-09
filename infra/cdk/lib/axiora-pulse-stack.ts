@@ -63,9 +63,10 @@ export class AxioraPulseStack extends cdk.Stack {
     const rootDomain = 'axiorapulse.com';
     const domainName = shortEnv === 'prod' ? rootDomain : `${shortEnv}.${rootDomain}`;
 
-    // Lookup the existing parent hosted zone
+    // Lookup the environment account hosted zone. For QA, the parent zone
+    // delegates qa.axiorapulse.com to this hosted zone before CDK deploys.
     const hostedZone = route53.HostedZone.fromLookup(this, 'HostedZone', {
-      domainName: 'axiorapulse.com',
+      domainName: rootDomain,
     });
 
     // Request a wildcard SSL certificate for the domain (e.g. *.qa.axiorapulse.com or *.axiorapulse.com)
@@ -493,4 +494,3 @@ export class AxioraPulseStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'LoadBalancerDNS', { value: alb.loadBalancerDnsName });
   }
 }
-
