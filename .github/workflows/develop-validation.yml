@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - develop
+      - 'release/test/*'
 
 permissions:
   id-token: write
@@ -17,9 +18,20 @@ jobs:
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
       infra: ${{ steps.filter.outputs.infra }}
+      branch-type: ${{ steps.branch-type.outputs.type }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+      
+      - name: Determine Branch Type
+        id: branch-type
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
+            echo "type=develop" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" =~ ^refs/heads/release/test/ ]]; then
+            echo "type=release-test" >> $GITHUB_OUTPUT
+          fi
+      
       - name: Detect Changes
         uses: dorny/paths-filter@v3
         id: filter
@@ -50,12 +62,13 @@ jobs:
 
   cdk-validation:
     needs: changes
-    if: ${{ needs.changes.outputs.infra == 'true' }}
+    if: ${{ needs.changes.outputs.infra == 'true' && needs.changes.outputs.branch-type == 'release-test' }}
     uses: ./.github/workflows/cdk-validation.yml
 
+  # 🔄 ONLY for release/test/* branches
   infra-deploy-qa:
     needs: [changes, cdk-validation]
-    if: ${{ always() && needs.changes.outputs.infra == 'true' && (needs.cdk-validation.result == 'success' || needs.cdk-validation.result == 'skipped') }}
+    if: ${{ always() && needs.changes.outputs.infra == 'true' && needs.changes.outputs.branch-type == 'release-test' && (needs.cdk-validation.result == 'success' || needs.cdk-validation.result == 'skipped') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -80,9 +93,17 @@ jobs:
           cd infra/cdk
           npx cdk deploy AxioraPulseStackQa --require-approval never
 
+  # 🐳 ECR Push for BOTH branches (but only if infra is ready for release branches)
   backend-docker-qa:
     needs: [changes, backend-tests, infra-deploy-qa]
-    if: ${{ always() && needs.changes.outputs.backend == 'true' && (needs.infra-deploy-qa.result == 'success' || needs.infra-deploy-qa.result == 'skipped') && needs.backend-tests.result == 'success' }}
+    if: |
+      always() &&
+      needs.changes.outputs.backend == 'true' &&
+      needs.backend-tests.result == 'success' &&
+      (
+        (needs.changes.outputs.branch-type == 'release-test' && (needs.infra-deploy-qa.result == 'success' || needs.infra-deploy-qa.result == 'skipped')) ||
+        needs.changes.outputs.branch-type == 'develop'
+      )
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -114,7 +135,13 @@ jobs:
 
   frontend-docker-qa:
     needs: [changes, infra-deploy-qa]
-    if: ${{ always() && needs.changes.outputs.frontend == 'true' && (needs.infra-deploy-qa.result == 'success' || needs.infra-deploy-qa.result == 'skipped') }}
+    if: |
+      always() &&
+      needs.changes.outputs.frontend == 'true' &&
+      (
+        (needs.changes.outputs.branch-type == 'release-test' && (needs.infra-deploy-qa.result == 'success' || needs.infra-deploy-qa.result == 'skipped')) ||
+        needs.changes.outputs.branch-type == 'develop'
+      )
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
