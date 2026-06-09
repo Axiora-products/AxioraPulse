@@ -81,8 +81,8 @@ jobs:
           npx cdk deploy AxioraPulseStackQa --require-approval never
 
   backend-docker-qa:
-    needs: [changes, backend-tests]
-    if: ${{ needs.changes.outputs.backend == 'true' }}
+    needs: [changes, backend-tests, infra-deploy-qa]
+    if: ${{ always() && needs.changes.outputs.backend == 'true' && (needs.infra-deploy-qa.result == 'success' || needs.infra-deploy-qa.result == 'skipped') && needs.backend-tests.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -113,8 +113,8 @@ jobs:
             ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-fastapi-qa:latest
 
   frontend-docker-qa:
-    needs: [changes]
-    if: ${{ needs.changes.outputs.frontend == 'true' }}
+    needs: [changes, infra-deploy-qa]
+    if: ${{ always() && needs.changes.outputs.frontend == 'true' && (needs.infra-deploy-qa.result == 'success' || needs.infra-deploy-qa.result == 'skipped') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
