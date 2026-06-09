@@ -63,9 +63,9 @@ export class AxioraPulseStack extends cdk.Stack {
     const rootDomain = 'axiorapulse.com';
     const domainName = shortEnv === 'prod' ? rootDomain : `${shortEnv}.${rootDomain}`;
 
-    // Create the public hosted zone for the environment domain
-    const hostedZone = new route53.PublicHostedZone(this, 'HostedZone', {
-      zoneName: domainName,
+    // Lookup the existing parent hosted zone
+    const hostedZone = route53.HostedZone.fromLookup(this, 'HostedZone', {
+      domainName: 'axiorapulse.com',
     });
 
     // Request a wildcard SSL certificate for the domain (e.g. *.qa.axiorapulse.com or *.axiorapulse.com)
@@ -362,13 +362,14 @@ export class AxioraPulseStack extends cdk.Stack {
     // Alias for frontend (e.g. qa.axiorapulse.com or axiorapulse.com)
     new route53.ARecord(this, 'FrontendAliasRecord', {
       zone: hostedZone,
+      recordName: shortEnv === 'prod' ? undefined : shortEnv,
       target: route53.RecordTarget.fromAlias(new targets.LoadBalancerTarget(alb)),
     });
 
     // Alias for backend API (e.g. api.qa.axiorapulse.com or api.axiorapulse.com)
     new route53.ARecord(this, 'BackendAliasRecord', {
       zone: hostedZone,
-      recordName: 'api',
+      recordName: shortEnv === 'prod' ? 'api' : `api.${shortEnv}`,
       target: route53.RecordTarget.fromAlias(new targets.LoadBalancerTarget(alb)),
     });
 
