@@ -27,35 +27,6 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Wait for Stack Stability
-        run: |
-          echo "Checking CloudFormation stack status..."
-          MAX_ATTEMPTS=30
-          ATTEMPT=0
-          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
-            STACK_STATUS=$(aws cloudformation describe-stacks --stack-name AxioraPulseStackQa --region ap-south-1 --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "")
-            echo "Stack status: $STACK_STATUS"
-            
-            if [[ "$STACK_STATUS" == "CREATE_COMPLETE" || "$STACK_STATUS" == "UPDATE_COMPLETE" ]]; then
-              echo "Stack is in stable state"
-              break
-            elif [[ "$STACK_STATUS" == "UPDATE_IN_PROGRESS" || "$STACK_STATUS" == "CREATE_IN_PROGRESS" ]]; then
-              echo "Stack is updating... waiting (Attempt $((ATTEMPT+1))/$MAX_ATTEMPTS)"
-              sleep 10
-            elif [[ "$STACK_STATUS" == "" ]]; then
-              echo "Stack does not exist yet, will be created"
-              break
-            else
-              echo "Unexpected stack status: $STACK_STATUS"
-              break
-            fi
-            ATTEMPT=$((ATTEMPT+1))
-          done
-          
-          if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
-            echo "Warning: Stack did not reach stable state after $(($MAX_ATTEMPTS * 10)) seconds"
-          fi
-
       - name: Deploy Infrastructure (If needed)
         run: |
           npm install --prefix infra/cdk
