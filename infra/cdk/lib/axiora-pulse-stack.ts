@@ -104,7 +104,7 @@ export class AxioraPulseStack extends cdk.Stack {
     });
 
     // Custom Resource to write the constructed DATABASE_URL to SSM Parameter Store as a SecureString
-    new cr.AwsCustomResource(this, 'DatabaseUrlWriter', {
+    const databaseUrlWriter = new cr.AwsCustomResource(this, 'DatabaseUrlWriter', {
       onCreate: {
         service: 'SSM',
         action: 'putParameter',
@@ -211,6 +211,14 @@ export class AxioraPulseStack extends cdk.Stack {
       {
         id: 'AwsSolutions-COG8',
         reason: 'QA/Dev Cognito user pool does not require advanced security features (plus tier) to manage costs.'
+      },
+      {
+        id: 'AwsSolutions-COG1',
+        reason: 'QA/Dev Cognito user pool does not require custom complex password policies.'
+      },
+      {
+        id: 'AwsSolutions-COG2',
+        reason: 'QA/Dev Cognito user pool does not require MFA to simplify developer access.'
       }
     ]);
 
@@ -419,6 +427,105 @@ export class AxioraPulseStack extends cdk.Stack {
       parameterName: `/axiorapulse/${shortEnv}/FRONTEND_URL`,
       stringValue: `https://${domainName}`,
     });
+
+    // CDK-Nag Suppressions
+    NagSuppressions.addResourceSuppressions(alb, [
+      {
+        id: 'AwsSolutions-ELB2',
+        reason: 'QA/Dev Application Load Balancer does not require access logging to manage costs and complexity.'
+      }
+    ]);
+
+    NagSuppressions.addResourceSuppressions(alb.connections.securityGroups[0], [
+      {
+        id: 'AwsSolutions-EC23',
+        reason: 'ALB is public-facing and must allow inbound HTTP/HTTPS traffic on ports 80, 443, and 8000.'
+      }
+    ]);
+
+    NagSuppressions.addResourceSuppressions(vpc, [
+      {
+        id: 'AwsSolutions-VPC7',
+        reason: 'VPC Flow Logs are not enabled to reduce costs in QA and development environments.'
+      }
+    ]);
+
+    NagSuppressions.addResourceSuppressions(dbSecret, [
+      {
+        id: 'AwsSolutions-SMG4',
+        reason: 'QA/Dev database secret rotation is managed manually or not required.'
+      }
+    ]);
+
+    NagSuppressions.addResourceSuppressions(database, [
+      {
+        id: 'AwsSolutions-RDS2',
+        reason: 'QA database does not require storage encryption to reduce costs/complexity.'
+      },
+      {
+        id: 'AwsSolutions-RDS3',
+        reason: 'QA database is single-AZ to minimize costs.'
+      },
+      {
+        id: 'AwsSolutions-RDS10',
+        reason: 'QA database deletion protection is disabled to allow easy teardown.'
+      },
+      {
+        id: 'AwsSolutions-RDS11',
+        reason: 'QA database uses the default PostgreSQL port for simple local development/debugging connections.'
+      }
+    ]);
+
+    NagSuppressions.addResourceSuppressions(taskExecutionRole, [
+      {
+        id: 'AwsSolutions-IAM4',
+        reason: 'ECS Task Execution role requires the AWS managed AmazonECSTaskExecutionRolePolicy.'
+      },
+      {
+        id: 'AwsSolutions-IAM5',
+        reason: 'ECS Task Execution role needs wildcard permissions to read SSM parameters in its namespace.'
+      }
+    ], true);
+
+    NagSuppressions.addResourceSuppressions(taskRole, [
+      {
+        id: 'AwsSolutions-IAM4',
+        reason: 'ECS Task role requires AmazonSSMReadOnlyAccess to read parameters from SSM.'
+      }
+    ], true);
+
+    NagSuppressions.addResourceSuppressions(backendTaskDef, [
+      {
+        id: 'AwsSolutions-ECS2',
+        reason: 'Backend environment variables only contain non-sensitive configuration values.'
+      }
+    ]);
+
+    NagSuppressions.addResourceSuppressions(databaseUrlWriter, [
+      {
+        id: 'AwsSolutions-IAM5',
+        reason: 'Custom resource policy requires wildcard permissions to put/delete parameters on SSM.'
+      }
+    ], true);
+
+    // Suppress cdk-nag errors on the CDK-generated custom resource Lambda singleton
+    const customResourceLambda = this.node.tryFindChild('AWS679f53fac002430cb0da5b7982bd2287');
+    if (customResourceLambda) {
+      NagSuppressions.addResourceSuppressions(customResourceLambda, [
+        {
+          id: 'AwsSolutions-IAM4',
+          reason: 'CDK-generated custom resource Lambda uses standard AWSLambdaBasicExecutionRole.'
+        },
+        {
+          id: 'AwsSolutions-IAM5',
+          reason: 'CDK-generated custom resource Lambda policy requires wildcard resources.'
+        },
+        {
+          id: 'AwsSolutions-L1',
+          reason: 'CDK-generated custom resource Lambda uses standard internal runtime.'
+        }
+      ], true);
+    }
 
     // Outputs
     new cdk.CfnOutput(this, 'BackendServiceName', { value: backendService.serviceName });
