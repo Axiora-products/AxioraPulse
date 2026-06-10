@@ -681,7 +681,7 @@ async def generate_insights(
 ):
     # AI provider is resolved automatically by call_ai_sync
 
-    prompt = f"""You are a senior survey research analyst performing a comprehensive, multi-dimensional analysis.
+    prompt = f"""You are a Chief Research Officer performing a comprehensive, multi-dimensional analysis.
 Analyze the following survey data with the depth and rigor of a professional research report.
 
 == SURVEY DATA ==
@@ -703,43 +703,37 @@ Question-by-Question Data:
 Perform ALL of the following analyses. Be specific, quantitative, and evidence-based.
 Reference exact response counts, percentages, and specific answer text wherever possible.
 
-1. **Executive Summary** — A 3-5 sentence strategic overview covering the most important findings, the overall health of the survey, and the single most actionable takeaway. Write as if briefing a CEO.
+1. **Executive Summary Bullets** — Write 4-5 sharp, decision-driving bullet points. Each bullet MUST: (a) state a specific finding backed by a number or percentage from the data, then (b) immediately state the business decision or action that finding implies. Structure every bullet as: "[specific finding with evidence] — [what the business should do or decide]". Example: "7 of 7 respondents said a guaranteed delivery window would increase their likelihood to use the service — make a delivery time guarantee the #1 marketing message." Avoid generic observations. Every bullet must be directly actionable.
 
-2. **Overall Score** — Rate the survey results 0-100 based on: response quality (engagement depth, completion rate), sentiment balance, actionability of responses, and NPS if available. Be realistic — don't inflate.
+2. **Overall Score** — Rate the survey results 0-100 based on: sentiment balance, actionability of responses, response depth, and NPS if available. Be realistic — don't inflate.
 
-3. **NPS Analysis** — If NPS data exists, provide a detailed interpretation: what the score means in context, comparison to typical benchmarks, and what's driving promoters vs detractors. If no NPS, set to null.
+3. **NPS Analysis** — If NPS data exists, explain in plain language what the score means for the business and what's driving it. If no NPS, set to null.
 
-4. **Response Quality** — Assess engagement quality: are respondents giving thoughtful answers or rushing? Look at completion rate, time spent, text response length/quality, and answer patterns.
+4. **Sentiment Breakdown** — Estimate the overall sentiment distribution across all responses as percentages (positive/neutral/negative must sum to 100). Look at text responses, ratings, and choice patterns.
 
-5. **Sentiment Breakdown** — Estimate the overall sentiment distribution across all responses as percentages (positive/neutral/negative must sum to 100). Look at text responses, ratings, and choice patterns.
+5. **Key Findings** (insights) — Generate 5-8 specific, data-backed findings. Each must cite evidence from the responses. Mix types: positive (strengths), warning (concerns), info (patterns), action (opportunities).
 
-6. **Key Findings** (insights) — Generate 5-8 specific, data-backed findings. Each must cite evidence from the responses. Mix types: positive (strengths), warning (concerns), info (patterns), action (opportunities).
+6. **Key Themes** — Identify 3-5 thematic clusters that emerge across multiple questions. For each theme, note frequency, overall sentiment, and include 1-2 direct quotes from text responses if available.
 
-7. **Key Themes** — Identify 3-5 thematic clusters that emerge across multiple questions. For each theme, note frequency, overall sentiment, and include 1-2 direct quotes from text responses if available.
+7. **Respondent Segments** — Identify 2-4 distinct respondent groups based on their answer patterns. Describe each segment's size, characteristics, sentiment, and what differentiates them.
 
-8. **Cross-Question Patterns** — Find 2-4 correlations or patterns across different questions. Example: "Respondents who rated X highly also tended to choose Y in Q3." Rate significance as high/medium/low.
+8. **Urgency Matrix** — Classify 3-5 issues by urgency (critical/high/medium/low) and impact (high/medium/low). Provide evidence for each classification.
 
-9. **Respondent Segments** — Identify 2-4 distinct respondent groups based on their answer patterns. Describe each segment's size, characteristics, sentiment, and what differentiates them.
+9. **Top Strengths** — List 3-5 clear strengths evidenced by the data.
 
-10. **Urgency Matrix** — Classify 3-5 issues by urgency (critical/high/medium/low) and impact (high/medium/low). Provide evidence for each classification.
+10. **Improvement Areas** — List 3-5 areas needing improvement with specific evidence.
 
-11. **Benchmark Comparison** — Compare 3-5 key metrics against typical survey/industry benchmarks. For example: completion rate vs typical survey benchmarks, NPS vs industry averages, response time vs expected.
-
-12. **Data Quality Flags** — Flag 1-3 potential data quality concerns: possible survey fatigue, contradictory answers, suspiciously fast completions, leading question effects, low sample size caveats, etc. Include constructive suggestions.
-
-13. **Top Strengths** — List 3-5 clear strengths evidenced by the data.
-
-14. **Improvement Areas** — List 3-5 areas needing improvement with specific evidence.
-
-15. **Recommended Actions** — Provide 4-6 prioritized, specific, actionable recommendations. Each must include priority (high/medium/low), the concrete action to take, and the expected impact.
+11. **Recommended Actions** — Provide 4-6 prioritized, specific, actionable recommendations. Each must include priority (high/medium/low), the concrete action to take, and the expected impact.
 
 == OUTPUT FORMAT ==
 Return ONLY valid JSON with this exact structure (no markdown, no explanation):
 {{
-  "executiveSummary": "string",
+  "executiveSummaryBullets": [
+    "specific finding with number — what the business should do",
+    "specific finding with number — what the business should do"
+  ],
   "overallScore": 72,
   "npsAnalysis": "string or null",
-  "responseQuality": "string describing quality assessment",
   "sentimentBreakdown": {{
     "positive": 45,
     "neutral": 35,
@@ -752,20 +746,11 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
   "keyThemes": [
     {{ "theme": "string", "frequency": "mentioned by X% of respondents", "sentiment": "positive|negative|mixed|neutral", "quotes": ["direct quote 1"], "relatedQuestions": ["Q1 text snippet"] }}
   ],
-  "crossQuestionPatterns": [
-    {{ "pattern": "string", "questions": ["Q1 snippet", "Q3 snippet"], "significance": "high|medium|low", "detail": "string" }}
-  ],
   "respondentSegments": [
     {{ "segment": "name", "size": "~X% of respondents", "characteristics": "string", "sentiment": "positive|negative|mixed|neutral", "keyDifference": "string" }}
   ],
   "urgencyMatrix": [
     {{ "issue": "string", "urgency": "critical|high|medium|low", "impact": "high|medium|low", "evidence": "string" }}
-  ],
-  "benchmarkComparison": [
-    {{ "metric": "string", "value": "actual value", "benchmark": "typical value", "status": "above|at|below", "context": "string" }}
-  ],
-  "dataQualityFlags": [
-    {{ "flag": "string", "severity": "warning|info", "detail": "string", "suggestion": "string" }}
   ],
   "topStrengths": ["string with evidence"],
   "improvementAreas": ["string with evidence"],
@@ -788,8 +773,16 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
         result_json = json.loads(text)
 
         # ── Normalize AI response: fill missing required fields with defaults ──
-        if "executiveSummary" not in result_json:
-            result_json["executiveSummary"] = "No executive summary was generated."
+        # Normalize executiveSummaryBullets — fall back to splitting executiveSummary if missing
+        bullets = result_json.get("executiveSummaryBullets")
+        if not bullets or not isinstance(bullets, list):
+            legacy = result_json.get("executiveSummary", "")
+            if legacy:
+                import re
+                result_json["executiveSummaryBullets"] = [s.strip() for s in re.split(r'(?<=[.!?])\s+', legacy) if s.strip()]
+            else:
+                result_json["executiveSummaryBullets"] = []
+        result_json["executiveSummaryBullets"] = [b for b in result_json["executiveSummaryBullets"] if isinstance(b, str) and b.strip()]
         if "insights" not in result_json:
             result_json["insights"] = []
         if "topStrengths" not in result_json:
