@@ -111,6 +111,14 @@ export class GitHubOidcStack extends cdk.Stack {
       ],
     }));
 
+    // 6. Add Secrets Manager permissions (required since this role is reused as ECS Task/Execution Role)
+    githubDeployerRole.addToPolicy(new iam.PolicyStatement({
+      actions: ['secretsmanager:GetSecretValue'],
+      resources: [
+        `arn:aws:secretsmanager:${this.region}:${this.account}:secret:/axiorapulse/*`,
+      ],
+    }));
+
     // CDK-Nag Suppressions
     NagSuppressions.addResourceSuppressions(githubDeployerRole, [
       {
