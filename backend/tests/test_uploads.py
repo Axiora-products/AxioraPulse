@@ -45,9 +45,10 @@ def test_upload_audio(auth_headers):
     audio_content = b"dummy audio bytes"
     audio_obj = io.BytesIO(audio_content)
 
+    # Use a filename without an extension to trigger the MIME-type suffix fallback
     response = client.post(
         "/uploads/audio",
-        files={"file": ("recording.mp3", audio_obj, "audio/mp3")},
+        files={"file": ("recording", audio_obj, "audio/wav")},
         data={"language": "english"},
         headers=auth_headers,
     )
@@ -71,6 +72,86 @@ def test_transcribe_audio(auth_headers):
     data = response.json()
     assert "text" in data
     assert data["text"] == "This is a mocked audio transcription from Whisper."
+
+
+def test_transcribe_audio_empty(auth_headers):
+    response = client.post(
+        "/uploads/audio/transcribe",
+        files={"audio": ("recording.mp3", io.BytesIO(b""), "audio/mp3")},
+        data={"language": "auto"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 400
+    assert "empty" in response.json()["detail"]
+
+
+def test_transcribe_audio_invalid_type(auth_headers):
+    response = client.post(
+        "/uploads/audio/transcribe",
+        files={"audio": ("recording.mp3", io.BytesIO(b"dummy"), "text/plain")},
+        data={"language": "auto"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 400
+    assert "Unsupported audio type" in response.json()["detail"]
+
+
+def test_transcribe_audio_exception(auth_headers, monkeypatch):
+    import routes.uploads
+
+    model = routes.uploads.get_whisper_model()
+
+    def mock_transcribe(*args, **kwargs):
+        raise ValueError("Transcription error")
+
+    monkeypatch.setattr(model, "transcribe", mock_transcribe)
+
+    audio_obj = io.BytesIO(b"dummy audio bytes")
+    response = client.post(
+        "/uploads/audio/transcribe",
+        files={"audio": ("recording.mp3", audio_obj, "audio/mp3")},
+        data={"language": "auto"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 500
+    assert "Audio transcription failed" in response.json()["detail"]
+
+
+def test_upload_audio_exception(auth_headers, monkeypatch):
+    import routes.uploads
+
+    model = routes.uploads.get_whisper_model()
+
+    def mock_transcribe(*args, **kwargs):
+        raise ValueError("Transcription error")
+
+    monkeypatch.setattr(model, "transcribe", mock_transcribe)
+
+    audio_obj = io.BytesIO(b"dummy audio bytes")
+    response = client.post(
+        "/uploads/audio",
+        files={"file": ("recording.mp3", audio_obj, "audio/mp3")},
+        data={"language": "english"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 500
+    assert "Audio transcription failed" in response.json()["detail"]
+
+
+def test_transcribe_audio_ffmpeg_missing(auth_headers, monkeypatch):
+    import shutil
+
+    monkeypatch.setattr(shutil, "which", lambda cmd: None)
+
+    audio_obj = io.BytesIO(b"dummy audio bytes")
+    response = client.post(
+        "/uploads/audio/transcribe",
+        files={"audio": ("recording.mp3", audio_obj, "audio/mp3")},
+        data={"language": "auto"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 503
+    assert "FFmpeg is required" in response.json()["detail"]
 
 
 def test_get_files(auth_headers):
