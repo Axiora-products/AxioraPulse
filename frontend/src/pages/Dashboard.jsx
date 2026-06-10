@@ -7,11 +7,7 @@ import { hasPermission, timeAgo, SURVEY_STATUS } from '../lib/constants';
 import { useLoading } from '../context/LoadingContext';
 import OnboardingChecklist from '../components/OnboardingChecklist';
 import { checkMilestone } from '../components/MilestoneToast';
-import DocumentFilesPane from '../components/DocumentFilesPane';
-import {
-  PanelRightClose,
-  PanelRightOpen
-} from 'lucide-react';
+
 
 // ── Animated counter hook ─────────────────────────────────────────────────
 function useCountUp(target, duration = 700) {
@@ -82,7 +78,7 @@ export default function Dashboard() {
   const { stopLoading } = useLoading();
   const [stats, setStats] = useState({ surveys: 0, responses: 0, completions: 0, team: 0 });
   const [recent, setRecent] = useState([]);
-  const [isRightCollapsed, setIsRightCollapsed] = useState(false);
+
   const prevResponses = useRef(null);
 
   const location = useLocation();
@@ -227,24 +223,7 @@ export default function Dashboard() {
         )}
       </div>
 
-      <aside className={`db-right-pane${isRightCollapsed ? ' collapsed' : ''}`}>
-        <>
-          <DocumentFilesPane onCollapse={() => setIsRightCollapsed(true)} />
-        </>
-      </aside>
 
-      {isRightCollapsed && (
-        <button
-          onClick={() => setIsRightCollapsed(false)}
-          className="right-expand-floating-btn"
-          title="Expand Files"
-        >
-          <PanelRightClose
-            size={18}
-            strokeWidth={2}
-          />
-        </button>
-      )}
 
       <style>{`
         .db-layout {

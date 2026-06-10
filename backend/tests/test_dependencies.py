@@ -163,3 +163,52 @@ def test_dependencies_get_optional_user(monkeypatch):
         assert user.email == "dev@axiorapulse.com"
     finally:
         db.close()
+
+
+def test_dependencies_get_current_user_self_healing_link_by_phone(monkeypatch):
+    import dependencies
+
+    new_sub = f"healing-sub-phone-{uuid.uuid4()}"
+    phone = "+15550199239"
+
+    # Seed a user with a verified phone but NO cognito_sub
+    db = SessionLocal()
+    try:
+        tenant = db.query(Tenant).first()
+        user = UserProfile(
+            id=uuid.uuid4(),
+            email=f"healing_phone_{uuid.uuid4().hex[:6]}@example.com",
+            phone_number=phone,
+            phone_verified=True,
+            tenant_id=tenant.id if tenant else None,
+            is_active=True,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        user_id = user.id
+    finally:
+        db.close()
+
+    def mock_verify(token):
+        return {
+            "sub": new_sub,
+            "email": f"healing_phone_{uuid.uuid4().hex[:6]}@example.com",
+            "phone_number": phone,
+            "token_use": "id",
+        }
+
+    monkeypatch.setattr(dependencies, "verify_cognito_token", mock_verify)
+
+    db = SessionLocal()
+    try:
+        credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials="valid-token")
+        resolved_user = get_current_user(credentials=credentials, db=db)
+        assert resolved_user.id == user_id
+        assert resolved_user.cognito_sub == new_sub
+
+        # Cleanup
+        db.delete(resolved_user)
+        db.commit()
+    finally:
+        db.close()

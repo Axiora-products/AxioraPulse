@@ -12,6 +12,7 @@ import threading
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request, Form
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
@@ -259,6 +260,7 @@ async def upload_file(
     extracted = _extract_text_from_file(filepath, file.content_type)
 
     db_file = UploadedFile(
+        id=uuid.UUID(file_id),
         filename=file.filename or "Untitled",
         content_type=file.content_type,
         file_size=len(contents),
@@ -272,6 +274,7 @@ async def upload_file(
     db.commit()
     db.refresh(db_file)
 
+    base_url = str(request.base_url).rstrip("/")
     return {
         "id": str(db_file.id),
         "filename": db_file.filename,
@@ -279,6 +282,7 @@ async def upload_file(
         "file_size": db_file.file_size,
         "extracted_text": extracted,
         "upload_type": "file",
+        "file_url": f"{base_url}/uploads/download/{db_file.id}",
     }
 
 
@@ -347,6 +351,7 @@ async def upload_from_drive(
 
         # Save to DB
         db_file = UploadedFile(
+            id=uuid.UUID(file_id),
             filename=body.filename,
             content_type=content_type,
             file_size=len(contents),
@@ -359,6 +364,7 @@ async def upload_from_drive(
         db.commit()
         db.refresh(db_file)
 
+        base_url = str(request.base_url).rstrip("/")
         return {
             "id": str(db_file.id),
             "filename": db_file.filename,
@@ -366,6 +372,7 @@ async def upload_from_drive(
             "file_size": db_file.file_size,
             "extracted_text": extracted,
             "upload_type": "file",
+            "file_url": f"{base_url}/uploads/download/{db_file.id}",
         }
 
     except Exception as e:
@@ -415,6 +422,7 @@ async def upload_audio(
         ) from e
 
     db_file = UploadedFile(
+        id=uuid.UUID(file_id),
         filename=file.filename or "Audio recording",
         content_type=file.content_type,
         file_size=len(contents),
@@ -428,6 +436,7 @@ async def upload_audio(
     db.commit()
     db.refresh(db_file)
 
+    base_url = str(request.base_url).rstrip("/")
     return {
         "id": str(db_file.id),
         "filename": db_file.filename,
@@ -437,6 +446,7 @@ async def upload_audio(
         "text": transcript,
         "language": detected_language,
         "upload_type": "audio",
+        "file_url": f"{base_url}/uploads/download/{db_file.id}",
     }
 
 
@@ -505,6 +515,7 @@ async def list_uploaded_files(
         .all()
     )
 
+    base_url = str(request.base_url).rstrip("/")
     return [
         {
             "id": str(f.id),
@@ -513,7 +524,89 @@ async def list_uploaded_files(
             "file_size": f.file_size,
             "upload_type": f.upload_type,
             "extracted_text": f.extracted_text,
+            "file_url": f"{base_url}/uploads/download/{f.id}",
             "created_at": f.created_at.isoformat() if f.created_at else None,
         }
         for f in files
     ]
+
+
+@router.get("/download/{file_id}")
+async def download_file(
+    file_id: str,
+    db: Session = Depends(get_db),
+):
+    try:
+        file_uuid = uuid.UUID(file_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid file ID format")
+
+    db_file = db.query(UploadedFile).filter(UploadedFile.id == file_uuid).first()
+    if not db_file:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    ext = os.path.splitext(db_file.filename)[1]
+    stored_name = f"{db_file.id}{ext}"
+    filepath = os.path.join(UPLOAD_DIR, stored_name)
+
+    if not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail="File not found on disk")
+
+    return FileResponse(
+        path=filepath,
+        filename=db_file.filename,
+        media_type=db_file.content_type,
+    )
+
+
+@router.delete("/{file_id}")
+@limiter.limit("10/minute")
+async def delete_file(
+    request: Request,
+    file_id: str,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(get_current_user),
+):
+    print(
+        f"[DEBUG_DELETE] Incoming delete request: file_id={file_id}, user={current_user.email}, tenant={current_user.tenant_id}"
+    )
+    try:
+        file_uuid = uuid.UUID(file_id)
+        print(f"[DEBUG_DELETE] Successfully parsed UUID: {file_uuid}")
+    except ValueError:
+        print(f"[DEBUG_DELETE] Failed to parse UUID from: {file_id}")
+        raise HTTPException(status_code=400, detail="Invalid file ID format")
+
+    db_file = (
+        db.query(UploadedFile)
+        .filter(
+            UploadedFile.id == file_uuid,
+            UploadedFile.tenant_id == current_user.tenant_id,
+        )
+        .first()
+    )
+
+    if not db_file:
+        print(f"[DEBUG_DELETE] File not found in DB: id={file_uuid}, tenant={current_user.tenant_id}")
+        raise HTTPException(status_code=404, detail="File not found")
+
+    print(f"[DEBUG_DELETE] Found file in DB: filename={db_file.filename}")
+    ext = os.path.splitext(db_file.filename)[1]
+    stored_name = f"{db_file.id}{ext}"
+    filepath = os.path.join(UPLOAD_DIR, stored_name)
+    print(f"[DEBUG_DELETE] Looking for file on disk at: {filepath}")
+
+    if os.path.exists(filepath):
+        try:
+            os.remove(filepath)
+            print("[DEBUG_DELETE] Successfully deleted file from disk")
+        except Exception as e:
+            print(f"[DEBUG_DELETE] Failed to delete file from disk: {e}")
+    else:
+        print("[DEBUG_DELETE] File was not found on disk, skipping disk delete")
+
+    db.delete(db_file)
+    db.commit()
+    print("[DEBUG_DELETE] Successfully deleted database record")
+
+    return {"success": True, "message": "File deleted successfully"}
