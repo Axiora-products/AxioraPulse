@@ -3,9 +3,7 @@ import { Construct } from 'constructs';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import * as rds from 'aws-cdk-lib/aws-rds';
 import * as cr from 'aws-cdk-lib/custom-resources';
-import * as route53 from 'aws-cdk-lib/aws-route53';
-import * as acm from 'aws-cdk-lib/aws-certificatemanager';
-import * as targets from 'aws-cdk-lib/aws-route53-targets';
+
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as ecr from 'aws-cdk-lib/aws-ecr';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
@@ -59,23 +57,7 @@ export class AxioraPulseStack extends cdk.Stack {
       }
     });
 
-    // 0.1 DNS and SSL Certificate
-    const rootDomain = 'axiorapulse.com';
-    const domainName = shortEnv === 'prod' ? rootDomain : `${shortEnv}.${rootDomain}`;
 
-    // Lookup the environment account hosted zone. For QA, the parent zone
-    // delegates qa.axiorapulse.com to this hosted zone before CDK deploys.
-    const hostedZone = route53.HostedZone.fromLookup(this, 'HostedZone', {
-      domainName: rootDomain,
-    });
-
-    // Request a wildcard SSL certificate for the domain (e.g. *.qa.axiorapulse.com or *.axiorapulse.com)
-    // validated automatically via DNS using the hosted zone
-    const certificate = new acm.Certificate(this, 'Certificate', {
-      domainName: domainName,
-      subjectAlternativeNames: [`*.${domainName}`],
-      validation: acm.CertificateValidation.fromDns(hostedZone),
-    });
 
     // RDS Database Security Group
     const dbSecurityGroup = new ec2.SecurityGroup(this, 'DbSecurityGroup', {
@@ -319,10 +301,8 @@ export class AxioraPulseStack extends cdk.Stack {
     });
 
     const frontendListener = alb.addListener('FrontendListener', {
-      port: 443,
-      protocol: elbv2.ApplicationProtocol.HTTPS,
-      certificates: [elbv2.ListenerCertificate.fromCertificateManager(certificate)],
-      sslPolicy: elbv2.SslPolicy.RECOMMENDED_TLS,
+      port: 80,
+      protocol: elbv2.ApplicationProtocol.HTTP,
       open: true,
     });
 
@@ -334,20 +314,9 @@ export class AxioraPulseStack extends cdk.Stack {
       }
     });
 
-    // HTTP (80) to HTTPS (443) redirect
-    const redirectListener = alb.addRedirect({
-      sourceProtocol: elbv2.ApplicationProtocol.HTTP,
-      sourcePort: 80,
-      targetProtocol: elbv2.ApplicationProtocol.HTTPS,
-      targetPort: 443,
-    });
-    redirectListener.node.addDependency(frontendListener);
-
     const backendListener = alb.addListener('BackendListener', {
       port: 8000,
-      protocol: elbv2.ApplicationProtocol.HTTPS,
-      certificates: [elbv2.ListenerCertificate.fromCertificateManager(certificate)],
-      sslPolicy: elbv2.SslPolicy.RECOMMENDED_TLS,
+      protocol: elbv2.ApplicationProtocol.HTTP,
       open: true,
     });
 
@@ -359,20 +328,7 @@ export class AxioraPulseStack extends cdk.Stack {
       }
     });
 
-    // 4.1 Route 53 DNS Records
-    // Alias for frontend (e.g. qa.axiorapulse.com or axiorapulse.com)
-    new route53.ARecord(this, 'FrontendAliasRecord', {
-      zone: hostedZone,
-      recordName: shortEnv === 'prod' ? undefined : shortEnv,
-      target: route53.RecordTarget.fromAlias(new targets.LoadBalancerTarget(alb)),
-    });
 
-    // Alias for backend API (e.g. api.qa.axiorapulse.com or api.axiorapulse.com)
-    new route53.ARecord(this, 'BackendAliasRecord', {
-      zone: hostedZone,
-      recordName: shortEnv === 'prod' ? 'api' : `api.${shortEnv}`,
-      target: route53.RecordTarget.fromAlias(new targets.LoadBalancerTarget(alb)),
-    });
 
     // Allow frontend to communicate with backend internally
     backendService.connections.allowFrom(frontendService, ec2.Port.tcp(8000), 'Allow internal frontend to backend traffic');
@@ -395,7 +351,7 @@ export class AxioraPulseStack extends cdk.Stack {
 
     const frontendUrlParam = new ssm.StringParameter(this, 'FrontendUrlParam', {
       parameterName: `/axiorapulse/${shortEnv}/FRONTEND_URL`,
-      stringValue: `https://${domainName}`,
+      stringValue: `http://${alb.loadBalancerDnsName}`,
     });
 
     backendService.node.addDependency(dbHostParam);
