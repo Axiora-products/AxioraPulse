@@ -186,7 +186,7 @@ export default function Login() {
   const sendOtp = async (e) => {
     e?.preventDefault();
     if (!phone) return toast.error('Enter your mobile number');
-    if (!isValidIndianPhone(phone))
+    if (!isValidPhone(phone))
     return toast.error('Enter a valid 10-digit Indian mobile number');
     setOtpBusy(true);
     try {
