@@ -221,8 +221,8 @@ jobs:
             ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-fastapi-qa:sha-${{ github.sha }}
             ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-fastapi-qa:qa
             ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-fastapi-qa:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/axiora/pulse-fastapi-qa:buildcache
+          cache-to: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/axiora/pulse-fastapi-qa:buildcache,mode=max
 
       - name: Build and Push Frontend
         if: steps.check-images.outputs.frontend_needed == 'true'
@@ -240,8 +240,8 @@ jobs:
             ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-frontend-qa:sha-${{ github.sha }}
             ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-frontend-qa:qa
             ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-frontend-qa:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/axiora/pulse-frontend-qa:buildcache
+          cache-to: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/axiora/pulse-frontend-qa:buildcache,mode=max
 
   # 4. Deploy to ECS Fargate (runs after ECR images are pushed successfully)
   deploy-ecs:

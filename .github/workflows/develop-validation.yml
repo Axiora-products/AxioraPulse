@@ -96,8 +96,8 @@ jobs:
             ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-fastapi-qa:sha-${{ github.sha }}
             ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-fastapi-qa:qa
             ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-fastapi-qa:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/axiora/pulse-fastapi-qa:buildcache
+          cache-to: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/axiora/pulse-fastapi-qa:buildcache,mode=max
 
   frontend-docker-qa:
     needs: changes
@@ -149,5 +149,5 @@ jobs:
             ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-frontend-qa:sha-${{ github.sha }}
             ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-frontend-qa:qa
             ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-frontend-qa:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/axiora/pulse-frontend-qa:buildcache
+          cache-to: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/axiora/pulse-frontend-qa:buildcache,mode=max
