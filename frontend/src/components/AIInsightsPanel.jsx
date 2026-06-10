@@ -58,17 +58,6 @@ const URGENCY_COLORS = {
   low:      'rgba(22,15,8,0.25)',
 };
 
-const STATUS_COLORS = {
-  above: '#1E7A4A',
-  at:    '#A07000',
-  below: '#D63B1F',
-};
-
-const SIGNIFICANCE_STYLES = {
-  high:   { bg: 'rgba(255,69,0,0.1)', color: 'var(--coral)' },
-  medium: { bg: 'rgba(255,184,0,0.1)', color: '#A07000' },
-  low:    { bg: 'rgba(22,15,8,0.06)', color: 'rgba(22,15,8,0.4)' },
-};
 
 // ── Animated Score Ring ──────────────────────────────────────────────────────
 
@@ -244,21 +233,39 @@ export default function AIInsightsPanel({ survey, analytics, questionAnalytics }
 
         {/* ─── Score + Summary Hero ───────────────────────────────────────── */}
         <Section delay={0.05}>
-          <div style={{ ...S.card, display:'flex', gap:28, alignItems:'center', flexWrap:'wrap' }}>
+          <div style={{ ...S.card, display:'flex', gap:28, alignItems:'flex-start', flexWrap:'wrap' }}>
             {r.overallScore != null && (
               <div style={{ flexShrink:0 }}>
                 <ScoreRing score={r.overallScore} />
               </div>
             )}
             <div style={{ flex:1, minWidth:240 }}>
-              <div style={{ ...S.label, marginBottom:8 }}>Executive Summary</div>
-              <p style={{ ...S.body, margin:0, fontSize:15 }}>{r.executiveSummary}</p>
-              {r.responseQuality && (
-                <div style={{ marginTop:12, padding:'10px 14px', borderRadius:12, background:'rgba(22,15,8,0.03)', border:'1px solid rgba(22,15,8,0.05)' }}>
-                  <div style={{ fontFamily:FONTS.heading, fontSize:8, fontWeight:700, letterSpacing:'0.15em', textTransform:'uppercase', color:'rgba(22,15,8,0.3)', marginBottom:4 }}>Response Quality</div>
-                  <p style={{ ...S.body, margin:0, fontSize:13 }}>{r.responseQuality}</p>
+              <div style={{ ...S.label, marginBottom:12 }}>Executive Summary</div>
+              {r.executiveSummaryBullets?.length > 0 ? (
+                <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                  {r.executiveSummaryBullets.map((bullet, i) => {
+                    const [finding, action] = bullet.includes(' — ') ? bullet.split(/ — (.+)/) : [bullet, null];
+                    return (
+                      <motion.div key={i}
+                        initial={{ opacity:0, x:-6 }} animate={{ opacity:1, x:0 }}
+                        transition={{ delay: 0.1 + i * 0.07 }}
+                        style={{ display:'flex', gap:12, alignItems:'flex-start' }}>
+                        <div style={{ width:20, height:20, borderRadius:6, background:'rgba(255,69,0,0.1)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginTop:1 }}>
+                          <span style={{ fontFamily:FONTS.heading, fontWeight:700, fontSize:9, color:'var(--coral)' }}>{i + 1}</span>
+                        </div>
+                        <div style={{ flex:1 }}>
+                          <span style={{ ...S.body, fontSize:14, fontWeight:400, color:'var(--espresso)' }}>{finding}</span>
+                          {action && (
+                            <span style={{ ...S.body, fontSize:14, fontWeight:300, color:'rgba(22,15,8,0.5)' }}>{' — '}{action}</span>
+                          )}
+                        </div>
+                      </motion.div>
+                    );
+                  })}
                 </div>
-              )}
+              ) : r.executiveSummary ? (
+                <p style={{ ...S.body, margin:0, fontSize:15 }}>{r.executiveSummary}</p>
+              ) : null}
             </div>
           </div>
         </Section>
@@ -341,38 +348,6 @@ export default function AIInsightsPanel({ survey, analytics, questionAnalytics }
           </Section>
         )}
 
-        {/* ─── Cross-Question Patterns ────────────────────────────────────── */}
-        {r.crossQuestionPatterns?.length > 0 && (
-          <Section label="Cross-Question Patterns" delay={0.25}>
-            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-              {r.crossQuestionPatterns.map((p, i) => {
-                const sig = SIGNIFICANCE_STYLES[p.significance] || SIGNIFICANCE_STYLES.medium;
-                return (
-                  <motion.div key={i}
-                    initial={{ opacity:0, x:8 }} animate={{ opacity:1, x:0 }} transition={{ delay: 0.25 + i*0.06 }}
-                    style={{ ...S.card, padding:'16px 20px', display:'flex', gap:14, alignItems:'flex-start' }}>
-                    <div style={{ width:28, height:28, borderRadius:8, background:'rgba(0,71,255,0.08)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, color:'rgba(0,71,255,0.6)', fontSize:14 }}>⟷</div>
-                    <div style={{ flex:1 }}>
-                      <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:5 }}>
-                        <div style={{ fontFamily:FONTS.heading, fontWeight:700, fontSize:12, color:'var(--espresso)', letterSpacing:'0.02em' }}>{p.pattern}</div>
-                        <span style={{ fontFamily:FONTS.heading, fontSize:8, fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', padding:'2px 8px', borderRadius:999, background:sig.bg, color:sig.color }}>{p.significance}</span>
-                      </div>
-                      <p style={{ ...S.body, margin:0, fontSize:13 }}>{p.detail}</p>
-                      {p.questions?.length > 0 && (
-                        <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginTop:8 }}>
-                          {p.questions.map((q, qi) => (
-                            <span key={qi} style={{ fontFamily:FONTS.heading, fontSize:8, fontWeight:700, letterSpacing:'0.05em', padding:'3px 8px', borderRadius:6, background:'rgba(0,71,255,0.06)', color:'rgba(0,71,255,0.6)' }}>{q}</span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
-          </Section>
-        )}
-
         {/* ─── Respondent Segments ─────────────────────────────────────────── */}
         {r.respondentSegments?.length > 0 && (
           <Section label="Respondent Segments" delay={0.3}>
@@ -401,7 +376,7 @@ export default function AIInsightsPanel({ survey, analytics, questionAnalytics }
 
         {/* ─── Urgency Matrix ─────────────────────────────────────────────── */}
         {r.urgencyMatrix?.length > 0 && (
-          <Section label="Urgency Matrix" delay={0.35}>
+          <Section label="What Needs Your Attention" delay={0.35}>
             <div style={{ ...S.card }}>
               <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
                 {r.urgencyMatrix.map((item, i) => {
@@ -469,36 +444,6 @@ export default function AIInsightsPanel({ survey, analytics, questionAnalytics }
           </Section>
         )}
 
-        {/* ─── Benchmark Comparison ───────────────────────────────────────── */}
-        {r.benchmarkComparison?.length > 0 && (
-          <Section label="Benchmark Comparison" delay={0.45}>
-            <div style={{ ...S.card }}>
-              <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-                {r.benchmarkComparison.map((b, i) => {
-                  const sc = STATUS_COLORS[b.status] || STATUS_COLORS.at;
-                  return (
-                    <motion.div key={i}
-                      initial={{ opacity:0 }} animate={{ opacity:1 }} transition={{ delay: 0.45 + i*0.05 }}>
-                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
-                        <div style={{ fontFamily:FONTS.heading, fontWeight:700, fontSize:12, color:'var(--espresso)' }}>{b.metric}</div>
-                        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                          <span style={{ fontFamily:FONTS.display, fontWeight:900, fontSize:16, color:'var(--espresso)', letterSpacing:'-0.5px' }}>{b.value}</span>
-                          <span style={{ fontFamily:FONTS.heading, fontSize:8, fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', color:'rgba(22,15,8,0.3)' }}>vs {b.benchmark}</span>
-                          <span style={{ fontFamily:FONTS.heading, fontSize:8, fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', padding:'2px 7px', borderRadius:999, background:`${sc}18`, color:sc }}>
-                            {b.status === 'above' ? '▲' : b.status === 'below' ? '▼' : '●'} {b.status}
-                          </span>
-                        </div>
-                      </div>
-                      <p style={{ ...S.body, margin:0, fontSize:12, color:'rgba(22,15,8,0.45)' }}>{b.context}</p>
-                      {i < r.benchmarkComparison.length - 1 && <div style={{ borderBottom:'1px solid rgba(22,15,8,0.05)', marginTop:12 }} />}
-                    </motion.div>
-                  );
-                })}
-              </div>
-            </div>
-          </Section>
-        )}
-
         {/* ─── Recommended Actions ────────────────────────────────────────── */}
         {r.recommendedActions?.length > 0 && (
           <Section label="Recommended Actions" delay={0.5}>
@@ -526,30 +471,6 @@ export default function AIInsightsPanel({ survey, analytics, questionAnalytics }
           </Section>
         )}
 
-        {/* ─── Data Quality Flags ─────────────────────────────────────────── */}
-        {r.dataQualityFlags?.length > 0 && (
-          <Section label="Data Quality Notes" delay={0.55}>
-            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-              {r.dataQualityFlags.map((f, i) => {
-                const isWarn = f.severity === 'warning';
-                return (
-                  <motion.div key={i}
-                    initial={{ opacity:0, y:6 }} animate={{ opacity:1, y:0 }} transition={{ delay: 0.55 + i*0.05 }}
-                    style={{ padding:'14px 18px', borderRadius:14, background: isWarn ? 'rgba(255,184,0,0.06)' : 'rgba(0,71,255,0.04)', border:`1px solid ${isWarn ? 'rgba(255,184,0,0.15)' : 'rgba(0,71,255,0.1)'}`, display:'flex', gap:12, alignItems:'flex-start' }}>
-                    <div style={{ width:24, height:24, borderRadius:6, background: isWarn ? 'rgba(255,184,0,0.15)' : 'rgba(0,71,255,0.08)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, color: isWarn ? '#A07000' : 'rgba(0,71,255,0.6)', fontSize:12, fontWeight:700 }}>
-                      {isWarn ? '⚠' : 'ℹ'}
-                    </div>
-                    <div style={{ flex:1 }}>
-                      <div style={{ fontFamily:FONTS.heading, fontWeight:700, fontSize:12, color:'var(--espresso)', marginBottom:4 }}>{f.flag}</div>
-                      <p style={{ ...S.body, margin:'0 0 6px', fontSize:13 }}>{f.detail}</p>
-                      <div style={{ fontFamily:FONTS.body, fontWeight:300, fontSize:12, color: isWarn ? '#A07000' : 'rgba(0,71,255,0.6)', fontStyle:'italic' }}>💡 {f.suggestion}</div>
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
-          </Section>
-        )}
 
       </motion.div>
     </AnimatePresence>
