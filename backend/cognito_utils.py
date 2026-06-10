@@ -8,12 +8,11 @@ JWKS is cached for the process lifetime; Cognito rotates keys rarely.
 """
 
 import os
-
-import boto3
 import requests
-from dotenv import load_dotenv
+import boto3
 from functools import lru_cache
-from jose import JWTError, jwt
+from jose import jwt, JWTError
+from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -86,10 +85,7 @@ def _get_jwks() -> list:
     if endpoint_url:
         url = f"{endpoint_url.rstrip('/')}/{pool_id}/.well-known/jwks.json"
     else:
-        url = (
-            f"https://cognito-idp.{region}.amazonaws.com"
-            f"/{pool_id}/.well-known/jwks.json"
-        )
+        url = f"https://cognito-idp.{region}.amazonaws.com/{pool_id}/.well-known/jwks.json"
     resp = requests.get(url, timeout=5)
     resp.raise_for_status()
     return resp.json()["keys"]
@@ -107,9 +103,7 @@ def verify_cognito_token(token: str) -> dict | None:
     if mock:
         try:
             # Under mock mode, tokens are self-signed locally using HS256
-            payload = jwt.decode(
-                token, mock_secret, algorithms=["HS256"], audience=client_id
-            )
+            payload = jwt.decode(token, mock_secret, algorithms=["HS256"], audience=client_id)
             if payload.get("token_use") != "id":
                 return None
             return payload
@@ -144,9 +138,7 @@ def verify_cognito_token(token: str) -> dict | None:
     # If Cognito verification failed, try OTP token verification
     OTP_JWT_SECRET = os.getenv("OTP_JWT_SECRET", "otp-secret-key-change-in-production")
     try:
-        payload = jwt.decode(
-            token, OTP_JWT_SECRET, algorithms=["HS256"], audience=client_id
-        )
+        payload = jwt.decode(token, OTP_JWT_SECRET, algorithms=["HS256"], audience=client_id)
         if payload.get("token_use") != "id":
             return None
         return payload
