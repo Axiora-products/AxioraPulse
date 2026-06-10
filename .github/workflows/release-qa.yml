@@ -100,8 +100,10 @@ jobs:
           MAX_ATTEMPTS=45
           ATTEMPT=0
           while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+            set +e
             STACK_STATUS_ERR=$(aws cloudformation describe-stacks --stack-name AxioraPulseStackQa --region ap-south-1 --query 'Stacks[0].StackStatus' --output text 2>&1)
             STATUS_EXIT_CODE=$?
+            set -e
             
             if [ $STATUS_EXIT_CODE -eq 0 ]; then
               STACK_STATUS="$STACK_STATUS_ERR"
