@@ -8,11 +8,12 @@ JWKS is cached for the process lifetime; Cognito rotates keys rarely.
 """
 
 import os
-import requests
+
 import boto3
-from functools import lru_cache
-from jose import jwt, JWTError
+import requests
 from dotenv import load_dotenv
+from functools import lru_cache
+from jose import JWTError, jwt
 
 load_dotenv()
 
@@ -80,10 +81,15 @@ def admin_delete_user(email: str) -> bool:
 @lru_cache(maxsize=1)
 def _get_jwks() -> list:
     endpoint_url = os.getenv("AWS_ENDPOINT_URL")
+    pool_id = os.getenv("COGNITO_USER_POOL_ID")
+    region = os.getenv("COGNITO_REGION", "ap-south-1")
     if endpoint_url:
-        url = f"{endpoint_url.rstrip('/')}/{COGNITO_USER_POOL_ID}/.well-known/jwks.json"
+        url = f"{endpoint_url.rstrip('/')}/{pool_id}/.well-known/jwks.json"
     else:
-        url = f"https://cognito-idp.{COGNITO_REGION}.amazonaws.com/{COGNITO_USER_POOL_ID}/.well-known/jwks.json"
+        url = (
+            f"https://cognito-idp.{region}.amazonaws.com"
+            f"/{pool_id}/.well-known/jwks.json"
+        )
     resp = requests.get(url, timeout=5)
     resp.raise_for_status()
     return resp.json()["keys"]
@@ -132,7 +138,7 @@ def verify_cognito_token(token: str) -> dict | None:
             raise JWTError("Token use is not ID")
 
         return payload
-    except (JWTError, Exception):
+    except Exception:
         pass
 
     # If Cognito verification failed, try OTP token verification
@@ -144,5 +150,5 @@ def verify_cognito_token(token: str) -> dict | None:
         if payload.get("token_use") != "id":
             return None
         return payload
-    except (JWTError, Exception):
+    except Exception:
         return None
