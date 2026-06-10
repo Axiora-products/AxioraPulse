@@ -45,17 +45,39 @@ jobs:
           docker push $PROD_IMAGE
           docker push $LATEST_IMAGE
 
-      - name: Promote Frontend Image
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Fetch Frontend Config from SSM (Prod)
+        id: fetch-ssm
         run: |
-          QA_IMAGE=399894608507.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-frontend-qa:sha-${{ github.sha }}
-          PROD_IMAGE=${{ steps.login-ecr-prod.outputs.registry }}/axiora/pulse-frontend:sha-${{ github.sha }}
-          LATEST_IMAGE=${{ steps.login-ecr-prod.outputs.registry }}/axiora/pulse-frontend:prod
-          
-          docker pull $QA_IMAGE
-          docker tag $QA_IMAGE $PROD_IMAGE
-          docker tag $QA_IMAGE $LATEST_IMAGE
-          docker push $PROD_IMAGE
-          docker push $LATEST_IMAGE
+          echo "Fetching Production Cognito and URL configurations from SSM..."
+          USER_POOL_ID=$(aws ssm get-parameter --name "/axiorapulse/prod/COGNITO_USER_POOL_ID" --region ap-south-1 --query "Parameter.Value" --output text)
+          APP_CLIENT_ID=$(aws ssm get-parameter --name "/axiorapulse/prod/COGNITO_APP_CLIENT_ID" --region ap-south-1 --query "Parameter.Value" --output text)
+          FRONTEND_URL=$(aws ssm get-parameter --name "/axiorapulse/prod/FRONTEND_URL" --region ap-south-1 --query "Parameter.Value" --output text)
+          API_BASE_URL="${FRONTEND_URL}:8000"
+
+          echo "USER_POOL_ID=$USER_POOL_ID" >> $GITHUB_OUTPUT
+          echo "APP_CLIENT_ID=$APP_CLIENT_ID" >> $GITHUB_OUTPUT
+          echo "FRONTEND_URL=$FRONTEND_URL" >> $GITHUB_OUTPUT
+          echo "API_BASE_URL=$API_BASE_URL" >> $GITHUB_OUTPUT
+
+      - name: Rebuild and Push Frontend (Prod)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          build-args: |
+            VITE_COGNITO_USER_POOL_ID=${{ steps.fetch-ssm.outputs.USER_POOL_ID }}
+            VITE_COGNITO_APP_CLIENT_ID=${{ steps.fetch-ssm.outputs.APP_CLIENT_ID }}
+            VITE_FRONTEND_URL=${{ steps.fetch-ssm.outputs.FRONTEND_URL }}
+            VITE_API_BASE_URL=${{ steps.fetch-ssm.outputs.API_BASE_URL }}
+          tags: |
+            ${{ steps.login-ecr-prod.outputs.registry }}/axiora/pulse-frontend:sha-${{ github.sha }}
+            ${{ steps.login-ecr-prod.outputs.registry }}/axiora/pulse-frontend:prod
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Deploy Prod Infrastructure
         run: |
