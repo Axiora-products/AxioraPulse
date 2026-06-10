@@ -6,6 +6,10 @@ import cognito_utils
 from db.database import SessionLocal
 from db.models import UserProfile, Tenant
 
+# Capture the real implementation at module level, before any autouse fixture can
+# replace cognito_utils.verify_cognito_token with a mock.
+_real_verify_cognito_token = cognito_utils.verify_cognito_token
+
 
 def test_admin_get_user_status_mock(monkeypatch, clean_db_for_cognito):
     monkeypatch.setenv("MOCK_COGNITO", "true")
@@ -58,10 +62,8 @@ def test_verify_cognito_token_mock_invalid_token_use(monkeypatch):
     secret = os.getenv("MOCK_COGNITO_SECRET", "mock-secret-key-1234567890")
     token = jwt.encode(payload, secret, algorithm="HS256")
 
-    # Restore the original verification function for this test (since autouse fixture replaced it)
-    from cognito_utils import verify_cognito_token as original_verify
-
-    res = original_verify(token)
+    # Use the real implementation (autouse fixture replaces the module attribute with a mock)
+    res = _real_verify_cognito_token(token)
     assert res is None
 
 
@@ -71,10 +73,8 @@ def test_verify_cognito_token_real_flow_no_kid(monkeypatch):
     # Generate token with no kid header or invalid headers
     token = jwt.encode({"sub": "123"}, "secret", algorithm="HS256")
 
-    from cognito_utils import verify_cognito_token as original_verify
-
     # This will fail the cognito flow (as it has no kid) and also fail the OTP flow
-    assert original_verify(token) is None
+    assert _real_verify_cognito_token(token) is None
 
 
 def test_verify_cognito_token_real_flow_no_matching_public_key(monkeypatch):
@@ -86,10 +86,8 @@ def test_verify_cognito_token_real_flow_no_matching_public_key(monkeypatch):
     # Mock JWKS keys to have a different kid
     monkeypatch.setattr(cognito_utils, "_get_jwks", lambda: [{"kid": "expected-kid"}])
 
-    from cognito_utils import verify_cognito_token as original_verify
-
     # Falls through to OTP since kid doesn't match
-    assert original_verify(token) is None
+    assert _real_verify_cognito_token(token) is None
 
 
 def test_verify_cognito_token_real_flow_not_id_token(monkeypatch):
@@ -109,10 +107,8 @@ def test_verify_cognito_token_real_flow_not_id_token(monkeypatch):
 
     monkeypatch.setattr(jwt, "decode", mock_decode)
 
-    from cognito_utils import verify_cognito_token as original_verify
-
     # Should fail because token_use is not "id"
-    assert original_verify(token) is None
+    assert _real_verify_cognito_token(token) is None
 
 
 def test_verify_cognito_token_otp_fallback_success(monkeypatch):
@@ -130,9 +126,7 @@ def test_verify_cognito_token_otp_fallback_success(monkeypatch):
 
     monkeypatch.setattr(jwt, "get_unverified_headers", mock_get_unverified_headers)
 
-    from cognito_utils import verify_cognito_token as original_verify
-
-    res = original_verify(token)
+    res = _real_verify_cognito_token(token)
     assert res is not None
     assert res["sub"] == "user-123"
 
@@ -150,7 +144,5 @@ def test_verify_cognito_token_otp_fallback_invalid_token_use(monkeypatch):
 
     monkeypatch.setattr(jwt, "get_unverified_headers", mock_get_unverified_headers)
 
-    from cognito_utils import verify_cognito_token as original_verify
-
-    res = original_verify(token)
+    res = _real_verify_cognito_token(token)
     assert res is None
