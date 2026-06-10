@@ -91,13 +91,17 @@ jobs:
           pytest --cov=backend --cov-report=xml backend/tests
 
       - name: Generate Diff Coverage Report
-        if: ${{ inputs.is-pr }}
+        if: ${{ inputs.is-pr && (success() || failure()) }}
         run: |
-          git fetch origin ${{ inputs.base-ref }} --depth=1
-          diff-cover coverage.xml --compare-branch=origin/${{ inputs.base-ref }} --format markdown:diff-coverage.md
+          if [ -f coverage.xml ]; then
+            git fetch origin ${{ inputs.base-ref }} --depth=1
+            diff-cover coverage.xml --compare-branch=origin/${{ inputs.base-ref }} --format markdown:diff-coverage.md
+          else
+            echo "coverage.xml not found, skipping diff coverage generation."
+          fi
 
       - name: Comment PR with Diff Coverage
-        if: ${{ inputs.is-pr && (success() || failure()) }}
+        if: ${{ inputs.is-pr && (success() || failure()) && hashFiles('diff-coverage.md') != '' }}
         uses: marocchino/sticky-pull-request-comment@v2
         with:
           path: diff-coverage.md
