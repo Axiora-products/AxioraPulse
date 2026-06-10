@@ -128,6 +128,7 @@ def mock_whisper(monkeypatch):
         return MockWhisperModel()
 
     monkeypatch.setattr(routes.uploads, "get_whisper_model", mock_get_model)
+    monkeypatch.setattr(routes.uploads, "_ensure_ffmpeg_available", lambda: "/usr/bin/ffmpeg")
 
 
 # --- Mock Google Drive SDK ---
