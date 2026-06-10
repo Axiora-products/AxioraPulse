@@ -15,9 +15,9 @@ def send_otp_sms(phone_number: str, otp_code: str) -> bool:
     message = f"Your AxioraPulse verification code is: {otp_code}. Valid for 5 minutes. Do not share this code."
 
     if os.getenv("ENVIRONMENT", "development").lower() != "production":
-        print(f"\n{'='*50}")
+        print(f"\n{'=' * 50}")
         print(f"[DEV ONLY] OTP for {phone_number}: {otp_code}")
-        print(f"{'='*50}\n")
+        print(f"{'=' * 50}\n")
 
     if MOCK_MODE:
         return True
@@ -28,15 +28,9 @@ def send_otp_sms(phone_number: str, otp_code: str) -> bool:
             PhoneNumber=phone_number,
             Message=message,
             MessageAttributes={
-                "AWS.SNS.SMS.SMSType": {
-                    "DataType": "String",
-                    "StringValue": "Transactional"
-                },
-                "AWS.SNS.SMS.SenderID": {
-                    "DataType": "String",
-                    "StringValue": "AxioraPulse"
-                }
-            }
+                "AWS.SNS.SMS.SMSType": {"DataType": "String", "StringValue": "Transactional"},
+                "AWS.SNS.SMS.SenderID": {"DataType": "String", "StringValue": "AxioraPulse"},
+            },
         )
         return True
     except Exception as e:

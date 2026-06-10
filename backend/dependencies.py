@@ -60,7 +60,11 @@ def get_current_user(
             # Also try phone_number lookup for OTP-authenticated users
             phone_number = payload.get("phone_number", "")
             if not existing and phone_number:
-                existing = db.query(UserProfile).filter(UserProfile.phone_number == phone_number, UserProfile.phone_verified == True).first()
+                existing = (
+                    db.query(UserProfile)
+                    .filter(UserProfile.phone_number == phone_number, UserProfile.phone_verified == True)
+                    .first()
+                )
                 if existing:
                     existing.cognito_sub = cognito_sub
                     db.commit()

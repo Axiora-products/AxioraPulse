@@ -184,7 +184,7 @@ async def upload_file(
     db.commit()
     db.refresh(db_file)
 
-    base_url = str(request.base_url).rstrip('/')
+    base_url = str(request.base_url).rstrip("/")
     return {
         "id": str(db_file.id),
         "filename": db_file.filename,
@@ -274,7 +274,7 @@ async def upload_from_drive(
         db.commit()
         db.refresh(db_file)
 
-        base_url = str(request.base_url).rstrip('/')
+        base_url = str(request.base_url).rstrip("/")
         return {
             "id": str(db_file.id),
             "filename": db_file.filename,
@@ -344,7 +344,7 @@ async def upload_audio(
     db.commit()
     db.refresh(db_file)
 
-    base_url = str(request.base_url).rstrip('/')
+    base_url = str(request.base_url).rstrip("/")
     return {
         "id": str(db_file.id),
         "filename": db_file.filename,
@@ -412,7 +412,7 @@ async def list_uploaded_files(
         .all()
     )
 
-    base_url = str(request.base_url).rstrip('/')
+    base_url = str(request.base_url).rstrip("/")
     return [
         {
             "id": str(f.id),
@@ -464,7 +464,9 @@ async def delete_file(
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(get_current_user),
 ):
-    print(f"[DEBUG_DELETE] Incoming delete request: file_id={file_id}, user={current_user.email}, tenant={current_user.tenant_id}")
+    print(
+        f"[DEBUG_DELETE] Incoming delete request: file_id={file_id}, user={current_user.email}, tenant={current_user.tenant_id}"
+    )
     try:
         file_uuid = uuid.UUID(file_id)
         print(f"[DEBUG_DELETE] Successfully parsed UUID: {file_uuid}")
@@ -480,7 +482,7 @@ async def delete_file(
         )
         .first()
     )
-    
+
     if not db_file:
         print(f"[DEBUG_DELETE] File not found in DB: id={file_uuid}, tenant={current_user.tenant_id}")
         raise HTTPException(status_code=404, detail="File not found")
