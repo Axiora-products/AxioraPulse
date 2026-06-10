@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useLoading } from '../context/LoadingContext';
 import useAuthStore from "../hooks/useAuth";
 import { cognitoSignIn, cognitoForgotPassword, cognitoConfirmPassword, cognitoResendCode } from '../lib/cognito';
+import { sendLoginOTP, verifyLoginOTP } from '../lib/otp';
 
 const Logo = ({ dark }) => (
   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 0, lineHeight: 1 }}>
@@ -15,6 +16,12 @@ const Logo = ({ dark }) => (
     </div>
   </div>
 );
+
+
+function isValidPhone(num) {
+  return /^\+91\s[6-9]\d{9}$/.test(num.trim());
+}
+
 
 function friendlyAuthError(msg = '') {
   const m = msg.toLowerCase();
@@ -160,6 +167,56 @@ export default function Login() {
   const nav = useNavigate();
   useEffect(() => { stopLoading(); }, [stopLoading]);
 
+  // ── Phone OTP state ────────────────────────────────────────────
+  const [loginMode, setLoginMode] = useState('email'); // 'email' | 'phone'
+  const [phone, setPhone] = useState('+91 ');
+  const [otp, setOtp] = useState('');
+  const [otpStep, setOtpStep] = useState('phone'); // 'phone' | 'otp'
+  const [otpBusy, setOtpBusy] = useState(false);
+  const [resendTimer, setResendTimer] = useState(0);
+
+  // Resend countdown
+  useEffect(() => {
+    if (resendTimer <= 0) return;
+    const t = setTimeout(() => setResendTimer(r => r - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendTimer]);
+
+  // Send OTP
+  const sendOtp = async (e) => {
+    e?.preventDefault();
+    if (!phone) return toast.error('Enter your mobile number');
+    if (!isValidIndianPhone(phone))
+    return toast.error('Enter a valid 10-digit Indian mobile number');
+    setOtpBusy(true);
+    try {
+      await sendLoginOTP(phone);
+      setOtpStep('otp');
+      toast.success('OTP sent to your phone');
+      setResendTimer(30);
+    } catch (err) {
+      toast.error(err.message || 'Failed to send OTP');
+    } finally { setOtpBusy(false); }
+  };
+
+  // Verify OTP
+  const verifyOtp = async (e) => {
+    e?.preventDefault();
+    if (!otp) return toast.error('Enter the OTP');
+    setOtpBusy(true);
+    try {
+      const data = await verifyLoginOTP(phone, otp);
+      localStorage.setItem('token', data.id_token);
+      await initialize(true);
+      const storeUser = useAuthStore.getState().user;
+      if (!storeUser) throw new Error('Failed to sync session');
+      toast.success('Welcome back!');
+      window.location.href = '/dashboard';
+    } catch (err) {
+      toast.error(err.message || 'Verification failed');
+    } finally { setOtpBusy(false); }
+  };
+
   if (initialized && user) {
     return <Navigate to="/dashboard" replace />;
   }
@@ -230,42 +287,124 @@ export default function Login() {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} style={{ width: '100%', maxWidth: 340 }}>
           <Link to="/" style={{ textDecoration: 'none', display: 'block', marginBottom: 48 }}><Logo dark={false} /></Link>
 
-          <h2 style={{ fontFamily: 'Playfair Display, serif', fontWeight: 900, fontSize: 32, letterSpacing: '-1px', color: 'var(--espresso)', marginBottom: 8 }}>Sign in</h2>
-          <p style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 16, color: 'rgba(22,15,8,0.45)', marginBottom: 40 }}>Enter your credentials to continue</p>
-
-          <form onSubmit={go} style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
-            {[
-              { label: 'Email', type: 'email', val: email, set: setEmail, ph: 'you@company.com' },
-              { label: 'Password', type: 'password', val: pw, set: setPw, ph: '••••••••' },
-            ].map(f => (
-              <div key={f.label}>
-                <label style={{ fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.4)', display: 'block', marginBottom: 10 }}>{f.label}</label>
-                <input type={f.type} value={f.val} onChange={e => f.set(e.target.value)} placeholder={f.ph}
-                  style={{ width: '100%', boxSizing: 'border-box', padding: '0 0 12px', background: 'transparent', border: 'none', borderBottom: '2px solid rgba(22,15,8,0.12)', fontFamily: 'Fraunces, serif', fontSize: 17, color: 'var(--espresso)', outline: 'none', transition: 'border-color 0.2s' }}
-                  onFocus={e => e.target.style.borderBottomColor = 'var(--coral)'}
-                  onBlur={e => e.target.style.borderBottomColor = 'rgba(22,15,8,0.12)'}
-                />
-              </div>
-            ))}
-
-            {/* Forgot password */}
-            <div style={{ marginTop: -12, textAlign: 'right' }}>
-              <button type="button" onClick={() => setForgot(true)}
-                style={{ background: 'none', border: 'none', padding: 0, fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 13, color: 'rgba(22,15,8,0.4)', cursor: 'pointer', transition: 'color 0.2s', textDecoration: 'underline', textDecorationColor: 'transparent' }}
-                onMouseEnter={e => { e.currentTarget.style.color = 'var(--coral)'; e.currentTarget.style.textDecorationColor = 'var(--coral)'; }}
-                onMouseLeave={e => { e.currentTarget.style.color = 'rgba(22,15,8,0.4)'; e.currentTarget.style.textDecorationColor = 'transparent'; }}>
-                Forgot password?
+          {/* Login mode toggle */}
+          <div style={{ display: 'flex', background: 'rgba(22,15,8,0.06)', borderRadius: 999, padding: 3, marginBottom: 32, gap: 2 }}>
+            {['email', 'phone'].map(mode => (
+              <button key={mode} onClick={() => { setLoginMode(mode); setOtpStep('phone'); setOtp(''); }}
+                style={{
+                  flex: 1, padding: '10px 16px', borderRadius: 999, border: 'none',
+                  background: loginMode === mode ? 'var(--warm-white)' : 'transparent',
+                  boxShadow: loginMode === mode ? '0 1px 4px rgba(22,15,8,0.1)' : 'none',
+                  fontFamily: 'Syne, sans-serif', fontSize: 10, fontWeight: 700,
+                  letterSpacing: '0.12em', textTransform: 'uppercase',
+                  color: loginMode === mode ? 'var(--espresso)' : 'rgba(22,15,8,0.35)',
+                  cursor: 'pointer', transition: 'all 0.25s'
+                }}>
+                {mode === 'email' ? '✉ Email' : '📱 Phone'}
               </button>
-            </div>
+            ))}
+          </div>
 
-            <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }}
-              type="submit" disabled={busy}
-              style={{ marginTop: 4, padding: '16px 28px', background: busy ? 'rgba(22,15,8,0.4)' : 'var(--espresso)', color: 'var(--cream)', border: 'none', borderRadius: 999, fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 12, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: busy ? 'not-allowed' : 'pointer', transition: 'background 0.25s ease' }}
-              onMouseEnter={e => { if (!busy) e.currentTarget.style.background = 'var(--coral)'; }}
-              onMouseLeave={e => { if (!busy) e.currentTarget.style.background = 'var(--espresso)'; }}>
-              {busy ? 'Signing in…' : 'Sign in →'}
-            </motion.button>
-          </form>
+          <h2 style={{ fontFamily: 'Playfair Display, serif', fontWeight: 900, fontSize: 32, letterSpacing: '-1px', color: 'var(--espresso)', marginBottom: 8 }}>Sign in</h2>
+          <p style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 16, color: 'rgba(22,15,8,0.45)', marginBottom: 40 }}>
+            {loginMode === 'email' ? 'Enter your credentials to continue' : 'Sign in with your mobile number'}
+          </p>
+
+          {loginMode === 'email' ? (
+            /* ── Email / password form (original) ── */
+            <>
+              <form onSubmit={go} style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+                {[
+                  { label: 'Email', type: 'email', val: email, set: setEmail, ph: 'you@company.com' },
+                  { label: 'Password', type: 'password', val: pw, set: setPw, ph: '••••••••' },
+                ].map(f => (
+                  <div key={f.label}>
+                    <label style={{ fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.4)', display: 'block', marginBottom: 10 }}>{f.label}</label>
+                    <input type={f.type} value={f.val} onChange={e => f.set(e.target.value)} placeholder={f.ph}
+                      style={{ width: '100%', boxSizing: 'border-box', padding: '0 0 12px', background: 'transparent', border: 'none', borderBottom: '2px solid rgba(22,15,8,0.12)', fontFamily: 'Fraunces, serif', fontSize: 17, color: 'var(--espresso)', outline: 'none', transition: 'border-color 0.2s' }}
+                      onFocus={e => e.target.style.borderBottomColor = 'var(--coral)'}
+                      onBlur={e => e.target.style.borderBottomColor = 'rgba(22,15,8,0.12)'}
+                    />
+                  </div>
+                ))}
+
+                {/* Forgot password */}
+                <div style={{ marginTop: -12, textAlign: 'right' }}>
+                  <button type="button" onClick={() => setForgot(true)}
+                    style={{ background: 'none', border: 'none', padding: 0, fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 13, color: 'rgba(22,15,8,0.4)', cursor: 'pointer', transition: 'color 0.2s', textDecoration: 'underline', textDecorationColor: 'transparent' }}
+                    onMouseEnter={e => { e.currentTarget.style.color = 'var(--coral)'; e.currentTarget.style.textDecorationColor = 'var(--coral)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.color = 'rgba(22,15,8,0.4)'; e.currentTarget.style.textDecorationColor = 'transparent'; }}>
+                    Forgot password?
+                  </button>
+                </div>
+
+                <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }}
+                  type="submit" disabled={busy}
+                  style={{ marginTop: 4, padding: '16px 28px', background: busy ? 'rgba(22,15,8,0.4)' : 'var(--espresso)', color: 'var(--cream)', border: 'none', borderRadius: 999, fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 12, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: busy ? 'not-allowed' : 'pointer', transition: 'background 0.25s ease' }}
+                  onMouseEnter={e => { if (!busy) e.currentTarget.style.background = 'var(--coral)'; }}
+                  onMouseLeave={e => { if (!busy) e.currentTarget.style.background = 'var(--espresso)'; }}>
+                  {busy ? 'Signing in…' : 'Sign in →'}
+                </motion.button>
+              </form>
+            </>
+          ) : (
+            /* ── Phone / OTP form ── */
+            <>
+              {otpStep === 'phone' ? (
+                <form onSubmit={sendOtp} style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+                  <div>
+                    <label style={{ fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.4)', display: 'block', marginBottom: 10 }}>Mobile number</label>
+                    <input type="tel" value={phone} onChange={e => {
+                      const val = e.target.value;
+                      setPhone(val.startsWith('+91 ') ? val : '+91 ');
+                    }} placeholder="+91 98765 43210" autoFocus
+                      style={{ width: '100%', boxSizing: 'border-box', padding: '0 0 12px', background: 'transparent', border: 'none', borderBottom: '2px solid rgba(22,15,8,0.12)', fontFamily: 'Fraunces, serif', fontSize: 17, color: 'var(--espresso)', outline: 'none', transition: 'border-color 0.2s' }}
+                      onFocus={e => e.target.style.borderBottomColor = 'var(--coral)'}
+                      onBlur={e => e.target.style.borderBottomColor = 'rgba(22,15,8,0.12)'}
+                    />
+                  </div>
+                  <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }}
+                    type="submit" disabled={otpBusy}
+                    style={{ marginTop: 4, padding: '16px 28px', background: otpBusy ? 'rgba(22,15,8,0.4)' : 'var(--espresso)', color: 'var(--cream)', border: 'none', borderRadius: 999, fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 12, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: otpBusy ? 'not-allowed' : 'pointer', transition: 'background 0.25s ease' }}
+                    onMouseEnter={e => { if (!otpBusy) e.currentTarget.style.background = 'var(--coral)'; }}
+                    onMouseLeave={e => { if (!otpBusy) e.currentTarget.style.background = 'var(--espresso)'; }}>
+                    {otpBusy ? 'Sending…' : 'Send OTP →'}
+                  </motion.button>
+                </form>
+              ) : (
+                <form onSubmit={verifyOtp} style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+                  <div>
+                    <label style={{ fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.4)', display: 'block', marginBottom: 10 }}>Enter OTP</label>
+                    <input type="text" value={otp} onChange={e => setOtp(e.target.value.replace(/[^0-9]/g, ''))} placeholder="• • • • • •" autoFocus maxLength={6}
+                      style={{ width: '100%', boxSizing: 'border-box', padding: '0 0 12px', background: 'transparent', border: 'none', borderBottom: '2px solid rgba(22,15,8,0.12)', fontFamily: 'Fraunces, serif', fontSize: 24, letterSpacing: '0.3em', color: 'var(--espresso)', outline: 'none', transition: 'border-color 0.2s', textAlign: 'center' }}
+                      onFocus={e => e.target.style.borderBottomColor = 'var(--coral)'}
+                      onBlur={e => e.target.style.borderBottomColor = 'rgba(22,15,8,0.12)'}
+                    />
+                    <p style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 13, color: 'rgba(22,15,8,0.4)', marginTop: 10 }}>
+                      Sent to <strong style={{ color: 'var(--espresso)' }}>{phone}</strong>
+                    </p>
+                  </div>
+                  <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }}
+                    type="submit" disabled={otpBusy}
+                    style={{ marginTop: 4, padding: '16px 28px', background: otpBusy ? 'rgba(22,15,8,0.4)' : 'var(--espresso)', color: 'var(--cream)', border: 'none', borderRadius: 999, fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 12, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: otpBusy ? 'not-allowed' : 'pointer', transition: 'background 0.25s ease' }}
+                    onMouseEnter={e => { if (!otpBusy) e.currentTarget.style.background = 'var(--coral)'; }}
+                    onMouseLeave={e => { if (!otpBusy) e.currentTarget.style.background = 'var(--espresso)'; }}>
+                    {otpBusy ? 'Verifying…' : 'Verify & Sign in →'}
+                  </motion.button>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: -8 }}>
+                    <button type="button" onClick={sendOtp} disabled={resendTimer > 0 || otpBusy}
+                      style={{ background: 'none', border: 'none', padding: 0, fontFamily: 'Fraunces, serif', fontWeight: 500, fontSize: 13, color: resendTimer > 0 ? 'rgba(22,15,8,0.25)' : 'var(--espresso)', cursor: resendTimer > 0 ? 'not-allowed' : 'pointer', textDecoration: 'underline' }}>
+                      {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend OTP'}
+                    </button>
+                    <button type="button" onClick={() => { setOtpStep('phone'); setOtp(''); }}
+                      style={{ background: 'none', border: 'none', padding: 0, fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 13, color: 'rgba(22,15,8,0.4)', cursor: 'pointer', textDecoration: 'underline' }}>
+                      Change number
+                    </button>
+                  </div>
+                </form>
+              )}
+            </>
+          )}
 
           <p style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 14, color: 'rgba(22,15,8,0.4)', marginTop: 40, textAlign: 'center' }}>
             No account?{' '}

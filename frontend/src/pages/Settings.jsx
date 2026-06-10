@@ -4,6 +4,7 @@ import { hasPermission, ROLE_LABELS } from '../lib/constants';
 import toast from 'react-hot-toast';
 import { useLoading } from '../context/LoadingContext';
 import API from '../api/axios';
+import { sendPhoneLinkOTP, verifyPhoneLinkOTP, removePhone } from '../lib/otp';
 
 const card  = { background: 'var(--warm-white)', borderRadius: 20, border: '1px solid rgba(22,15,8,0.07)', padding: '36px 40px', marginBottom: 20 };
 const label = { fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.38)', display: 'block', marginBottom: 10 };
@@ -121,6 +122,69 @@ export default function Settings() {
   const [pwF, setPwF] = useState({ current: '', next: '', confirm: '' });
   const [sPw, setSPw] = useState(false);
 
+  // ── Phone management state ─────────────────────────────────────────────────
+  const [phoneForm, setPhoneForm] = useState({ number: '+91 ', otp: '' });
+  const [phoneStep, setPhoneStep] = useState('idle'); // 'idle' | 'input' | 'otp' | 'saving'
+  const [phoneBusy, setPhoneBusy] = useState(false);
+  const [removeConfirm, setRemoveConfirm] = useState(false);
+
+
+  function isValidPhone(num) {
+    return /^\+91\s[6-9]\d{9}$/.test(num.trim());
+  }
+
+  // Send OTP to link phone
+  async function sendPhoneOtp() {
+    if (!phoneForm.number) return toast.error('Enter your mobile number');
+    if (!isValidPhone(phoneForm.number))
+    return toast.error('Enter a valid 10-digit Indian mobile number');
+    setPhoneBusy(true);
+    try {
+      await sendPhoneLinkOTP(phoneForm.number);
+      setPhoneStep('otp');
+      toast.success('OTP sent to your phone');
+    } catch (err) {
+      toast.error(err.response?.data?.detail || err.message || 'Failed to send OTP');
+    } finally { setPhoneBusy(false); }
+  }
+
+  // Verify OTP and link phone
+  async function verifyPhoneOtp(e) {
+    e.preventDefault();
+    if (!phoneForm.otp) return toast.error('Enter the OTP');
+    setPhoneBusy(true);
+    try {
+      await verifyPhoneLinkOTP(phoneForm.number, phoneForm.otp);
+      await useAuthStore.getState().loadProfile();
+      setPhoneStep('idle');
+      setPhoneForm({ number: '+91 ', otp: '' });
+      toast.success('Phone number linked successfully!');
+    } catch (err) {
+      toast.error(err.response?.data?.detail || err.message || 'Verification failed');
+    } finally { setPhoneBusy(false); }
+  }
+
+  // Remove phone number
+  async function handleRemovePhone() {
+    setPhoneBusy(true);
+    try {
+      await removePhone();
+      await useAuthStore.getState().loadProfile();
+      setRemoveConfirm(false);
+      toast.success('Phone number removed');
+    } catch (err) {
+      toast.error(err.response?.data?.detail || err.message || 'Failed to remove');
+    } finally { setPhoneBusy(false); }
+  }
+
+  // Mask phone: +91 ••••• 4567
+  function maskPhone(ph) {
+    if (!ph || ph.length < 4) return ph || '';
+    const last4 = ph.slice(-4);
+    const prefix = ph.slice(0, Math.max(ph.length - 4 - 5, 0)) || '';
+    return `${prefix} ${'•'.repeat(5)} ${last4}`;
+  }
+
   async function savePw(e) {
     e.preventDefault();
     if (pwF.next.length < 8) return toast.error('Password must be at least 8 characters');
@@ -207,6 +271,120 @@ export default function Settings() {
             </button>
           </div>
         </form>
+      </div>
+
+      {/* Mobile Number */}
+      <div style={card}>
+        <div style={secH}>Mobile Number</div>
+
+        {phoneStep === 'idle' && (
+          <>
+            {profile?.phone_number && profile?.phone_verified ? (
+              /* Linked & verified */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span style={{ fontFamily: 'Fraunces, serif', fontSize: 18, color: 'var(--espresso)', letterSpacing: '0.05em' }}>{maskPhone(profile.phone_number)}</span>
+                  <span style={{ fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '3px 10px', borderRadius: 999, background: 'rgba(30,122,74,0.1)', color: 'var(--sage)', border: '1px solid rgba(30,122,74,0.15)' }}>✓ Verified</span>
+                </div>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button onClick={() => { setPhoneStep('input'); setPhoneForm({ number: '+91 ', otp: '' }); }} style={{ ...btn, fontSize: 10, padding: '10px 20px' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--coral)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'var(--espresso)'}>
+                    Update
+                  </button>
+                  {!removeConfirm ? (
+                    <button onClick={() => setRemoveConfirm(true)}
+                      style={{ ...btn, background: 'transparent', color: 'var(--espresso)', border: '1px solid rgba(22,15,8,0.15)', fontSize: 10, padding: '10px 20px' }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--coral)'; e.currentTarget.style.color = 'var(--coral)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(22,15,8,0.15)'; e.currentTarget.style.color = 'var(--espresso)'; }}>
+                      Remove
+                    </button>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontFamily: 'Fraunces, serif', fontSize: 13, color: 'rgba(22,15,8,0.5)' }}>Sure?</span>
+                      <button onClick={handleRemovePhone} disabled={phoneBusy}
+                        style={{ ...btn, background: 'var(--terracotta, #c0392b)', fontSize: 10, padding: '8px 16px', opacity: phoneBusy ? 0.5 : 1 }}>
+                        {phoneBusy ? 'Removing…' : 'Yes, remove'}
+                      </button>
+                      <button onClick={() => setRemoveConfirm(false)}
+                        style={{ background: 'none', border: 'none', fontFamily: 'Fraunces, serif', fontSize: 13, color: 'rgba(22,15,8,0.4)', cursor: 'pointer', textDecoration: 'underline' }}>
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* Not linked */
+              <div>
+                <p style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 14, color: 'rgba(22,15,8,0.5)', lineHeight: 1.65, marginBottom: 20, marginTop: -16 }}>
+                  Link a mobile number to enable phone-based login.
+                </p>
+                <button onClick={() => { setPhoneStep('input'); setPhoneForm({ number: '+91 ', otp: '' }); }} style={btn}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--coral)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'var(--espresso)'}>
+                  Link mobile number
+                </button>
+              </div>
+            )}
+          </>
+        )}
+
+        {phoneStep === 'input' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div>
+              <label style={label}>Mobile Number</label>
+              <input type="tel" value={phoneForm.number} onChange={e => {
+                const val = e.target.value;
+                setPhoneForm(p => ({ ...p, number: val.startsWith('+91 ') ? val : '+91 ' }));
+              }} placeholder="+91 98765 43210" autoFocus
+                style={inp}
+                onFocus={e => e.target.style.borderColor = 'var(--coral)'}
+                onBlur={e => e.target.style.borderColor = 'rgba(22,15,8,0.1)'} />
+            </div>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <button onClick={sendPhoneOtp} disabled={phoneBusy} style={{ ...btn, opacity: phoneBusy ? 0.5 : 1 }}
+                onMouseEnter={e => { if (!phoneBusy) e.currentTarget.style.background = 'var(--coral)'; }}
+                onMouseLeave={e => { if (!phoneBusy) e.currentTarget.style.background = 'var(--espresso)'; }}>
+                {phoneBusy ? 'Sending…' : 'Send OTP →'}
+              </button>
+              <button onClick={() => { setPhoneStep('idle'); setPhoneForm({ number: '+91 ', otp: '' }); }}
+                style={{ background: 'none', border: 'none', fontFamily: 'Fraunces, serif', fontSize: 13, color: 'rgba(22,15,8,0.4)', cursor: 'pointer', textDecoration: 'underline' }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {phoneStep === 'otp' && (
+          <form onSubmit={verifyPhoneOtp} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <p style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 14, color: 'rgba(22,15,8,0.5)', marginTop: -16, marginBottom: 4 }}>
+              Enter the 6-digit code sent to <strong style={{ color: 'var(--espresso)' }}>{phoneForm.number}</strong>
+            </p>
+            <div>
+              <label style={label}>Verification Code</label>
+              <input type="text" value={phoneForm.otp} onChange={e => setPhoneForm(p => ({ ...p, otp: e.target.value.replace(/[^0-9]/g, '') }))} placeholder="123456" autoFocus maxLength={6}
+                style={{ ...inp, letterSpacing: '0.3em', fontSize: 20, textAlign: 'center' }}
+                onFocus={e => e.target.style.borderColor = 'var(--coral)'}
+                onBlur={e => e.target.style.borderColor = 'rgba(22,15,8,0.1)'} />
+            </div>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <button type="submit" disabled={phoneBusy} style={{ ...btn, opacity: phoneBusy ? 0.5 : 1 }}
+                onMouseEnter={e => { if (!phoneBusy) e.currentTarget.style.background = 'var(--coral)'; }}
+                onMouseLeave={e => { if (!phoneBusy) e.currentTarget.style.background = 'var(--espresso)'; }}>
+                {phoneBusy ? 'Verifying…' : 'Verify →'}
+              </button>
+              <button type="button" onClick={sendPhoneOtp} disabled={phoneBusy}
+                style={{ background: 'none', border: 'none', fontFamily: 'Fraunces, serif', fontWeight: 500, fontSize: 13, color: 'var(--espresso)', cursor: phoneBusy ? 'not-allowed' : 'pointer', textDecoration: 'underline', opacity: phoneBusy ? 0.5 : 1 }}>
+                Resend
+              </button>
+              <button type="button" onClick={() => { setPhoneStep('idle'); setPhoneForm({ number: '+91 ', otp: '' }); }}
+                style={{ background: 'none', border: 'none', fontFamily: 'Fraunces, serif', fontSize: 13, color: 'rgba(22,15,8,0.4)', cursor: 'pointer', textDecoration: 'underline' }}>
+                Cancel
+              </button>
+            </div>
+          </form>
+        )}
       </div>
 
       {/* Password */}

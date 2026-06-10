@@ -22,6 +22,7 @@ import SurveyAnalytics from './pages/SurveyAnalytics';
 import SurveyRespond from './pages/SurveyRespond';
 import EmbedView from './pages/EmbedView';
 import TeamManagement from './pages/TeamManagement';
+import Files from './pages/Files';
 import Settings from './pages/Settings';
 import ResetPassword from './pages/ResetPassword';
 import UpdatePassword from './pages/UpdatePassword';
@@ -134,6 +135,7 @@ function AppRoutes() {
             <Route path="/surveys/:id/edit" element={<SurveyEdit />} />
             <Route path="/surveys/:id/analytics" element={<SurveyAnalytics />} />
             <Route path="/team" element={<TeamManagement />} />
+            <Route path="/files" element={<Files />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/billing" element={<Billing />} />
           </Route>

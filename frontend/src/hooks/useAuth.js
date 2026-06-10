@@ -13,6 +13,19 @@ const useAuthStore = create((set, get) => ({
   initialize: async (force = false, syncParams = {}) => {
     if (get().initialized && !force) return;
     set({ loading: true });
+
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        const res = await API.get('/auth/me');
+        const { user, profile, tenant } = res.data;
+        set({ user, profile, tenant, loading: false, initialized: true });
+        return;
+      } catch (meErr) {
+        // Token is invalid/expired; fall back to Cognito session restoration
+      }
+    }
+
     try {
       const session = await cognitoGetCurrentSession();
       const idToken = session.getIdToken().getJwtToken();
@@ -41,6 +54,18 @@ const useAuthStore = create((set, get) => ({
 
   // ── checkSession: validate stored session (called by ProtectedRoute) ──────
   checkSession: async () => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        const res = await API.get('/auth/me');
+        const { user, profile, tenant } = res.data;
+        set({ user, profile, tenant, loading: false, initialized: true });
+        return true;
+      } catch (meErr) {
+        // Token is invalid/expired; fall back to Cognito session restoration
+      }
+    }
+
     try {
       const session = await cognitoGetCurrentSession();
       const idToken = session.getIdToken().getJwtToken();
