@@ -4,6 +4,7 @@ from typing import Any, List, Optional
 from uuid import UUID
 from pydantic import BaseModel
 
+
 class QuestionIn(BaseModel):
     id: Optional[UUID] = None
     question_text: str
@@ -14,19 +15,21 @@ class QuestionIn(BaseModel):
     sort_order: int = 0
     validation_rules: Optional[Any] = None
 
+
 class QuestionOut(BaseModel):
     id: UUID
     survey_id: UUID
-    question_text: str
+    question_text: Any
     question_type: str
     options: Optional[Any] = None
     is_required: bool
-    description: Optional[str] = None
+    description: Optional[Any] = None
     sort_order: int
     validation_rules: Optional[Any] = None
     created_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
+
 
 class SurveyCreate(BaseModel):
     title: str
@@ -42,6 +45,7 @@ class SurveyCreate(BaseModel):
     status: str = "draft"
     questions: Optional[List[QuestionIn]] = []
 
+
 class SurveyUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
@@ -56,20 +60,23 @@ class SurveyUpdate(BaseModel):
     status: Optional[str] = None
     ai_intelligence: Optional[Any] = None
 
+
 class SurveyStatusUpdate(BaseModel):
     status: str
 
+
 class SurveyCreator(BaseModel):
     full_name: Optional[str] = None
-    
+
     model_config = {"from_attributes": True}
+
 
 class SurveyOut(BaseModel):
     id: UUID
-    title: str
-    description: Optional[str] = None
-    welcome_message: Optional[str] = None
-    thank_you_message: Optional[str] = None
+    title: Any
+    description: Optional[Any] = None
+    welcome_message: Optional[Any] = None
+    thank_you_message: Optional[Any] = None
     expires_at: Optional[datetime] = None
     allow_anonymous: bool
     require_email: bool

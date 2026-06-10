@@ -22,10 +22,13 @@ param (
     [Alias("r")]
     [Switch]$Rebuild,
 
+    [Alias("t","c")]
+    [Switch]$Test,
+
     [Alias("p")]
     [String]$Profile,
 
-    [Alias("e")]
+    [Alias("e","env")]
     [String]$EnvName,
 
     [Alias("h")]
@@ -41,6 +44,7 @@ if ($Help) {
     Write-Host "Options:"
     Write-Host "  -d, -Down           Stop and tear down the containers, networks, and keep volumes."
     Write-Host "  -r, -Rebuild        Force rebuild of Docker/Podman images during startup."
+    Write-Host "  -t, -Test           Run local linters and tests (starts DB & Floci, runs tests, then shuts down)."
     Write-Host "  -p, -Profile [prof] Override the AWS profile to use."
     Write-Host "  -e, -EnvName [env]  Override the SSM Parameter Store environment (production/development/staging)."
     Write-Host "  -h, -Help           Show this help message."
@@ -65,12 +69,30 @@ if ($LASTEXITCODE -ne 0) {
         Write-Host "🐳 Docker is not active, but Podman is running. Using Podman as the container engine."
     } else {
         Write-Host "❌ Error: Neither Docker nor Podman is active."
-        $DockerDesktopPath = "C:\Program Files\Docker\Docker\Docker Desktop.exe"
-        if (Test-Path -Path $DockerDesktopPath) {
-            Write-Host "💡 Docker Desktop is installed but not running. You can start it from your start menu or run:"
-            Write-Host "   Start-Process '$DockerDesktopPath'"
+        $isMac = $false
+        $isLinux = $false
+        if ($PSVersionTable.PSVersion.Major -ge 6) {
+            $isMac = $IsMacOS
+            $isLinux = $IsLinux
+        }
+        
+        if ($isMac) {
+            if (Test-Path -Path "/Applications/Docker.app") {
+                Write-Host "💡 Docker Desktop is installed but not running. You can launch it using:"
+                Write-Host "   open -a Docker"
+            } else {
+                Write-Host "   Please start Docker Desktop or your Podman machine."
+            }
+        } elseif ($isLinux) {
+            Write-Host "   Please start the docker service (e.g., 'sudo systemctl start docker') or your Podman service."
         } else {
-            Write-Host "   Please ensure Docker Desktop, the Docker daemon, or a Podman machine is running and try again."
+            $DockerDesktopPath = "C:\Program Files\Docker\Docker\Docker Desktop.exe"
+            if (Test-Path -Path $DockerDesktopPath) {
+                Write-Host "💡 Docker Desktop is installed but not running. You can start it from your start menu or run:"
+                Write-Host "   Start-Process '$DockerDesktopPath'"
+            } else {
+                Write-Host "   Please ensure Docker Desktop, the Docker daemon, or a Podman machine is running and try again."
+            }
         }
         exit 1
     }
@@ -85,7 +107,16 @@ if ($Down) {
 }
 
 # --- Architecture & Platform Check ---
-$HostArch = ($env:PROCESSOR_ARCHITEW6432, $env:PROCESSOR_ARCHITECTURE | Where-Object {$_} | Select-Object -First 1)
+$HostArch = ""
+if ($PSVersionTable.PSVersion.Major -ge 6) {
+    try {
+        $HostArch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLower()
+    } catch {}
+}
+if (-not $HostArch) {
+    $HostArch = ($env:PROCESSOR_ARCHITEW6432, $env:PROCESSOR_ARCHITECTURE | Where-Object {$_} | Select-Object -First 1)
+}
+
 if ($HostArch) {
     $HostArch = $HostArch.ToLower()
 } else {
@@ -93,9 +124,9 @@ if ($HostArch) {
 }
 
 $TargetPlatform = ""
-if ($HostArch -eq "amd64") {
+if ($HostArch -eq "amd64" -or $HostArch -eq "x64" -or $HostArch -eq "x86_64") {
     $TargetPlatform = "linux/amd64"
-} elseif ($HostArch -eq "arm64") {
+} elseif ($HostArch -eq "arm64" -or $HostArch -eq "aarch64") {
     $TargetPlatform = "linux/arm64"
 }
 
@@ -108,7 +139,7 @@ if ($TargetPlatform) {
     }
 
     # 2. Check for cached images with mismatched architectures
-    $Images = @("postgres:17", "motoserver/moto:latest", "axiorapulse-pulse-backend", "axiorapulse-pulse-frontend")
+    $Images = @("postgres:17", "floci/floci:latest", "axiorapulse-pulse-backend", "axiorapulse-pulse-frontend")
     foreach ($img in $Images) {
         & $DockerCmd image inspect $img >$null 2>&1
         if ($LASTEXITCODE -eq 0) {
@@ -193,16 +224,16 @@ if (-not (Test-Path -Path "frontend")) { New-Item -ItemType Directory -Path "fro
 if (-not (Test-Path -Path "backend\.env.docker")) { New-Item -ItemType File -Path "backend\.env.docker" | Out-Null }
 if (-not (Test-Path -Path "frontend\.env.local")) { New-Item -ItemType File -Path "frontend\.env.local" | Out-Null }
 
-# --- Startup Moto & Database First ---
-Write-Host "🌐 Spinning up Moto Server and Database containers..."
-& $DockerCmd compose -f docker-compose.local.yml up -d pulse-moto pulse-db
+# --- Startup Floci & Database First ---
+Write-Host "🌐 Spinning up Floci Server and Database containers..."
+& $DockerCmd compose -f docker-compose.local.yml up -d pulse-floci pulse-db
 
-# --- Build Backend Container to run Moto seed script ---
+# --- Build Backend Container to run Floci seed script ---
 Write-Host "📦 Building backend container..."
 & $DockerCmd compose -f docker-compose.local.yml build pulse-backend
 
-# --- Seed Moto Server (SSM & Cognito) ---
-Write-Host "🌱 Initializing local mock AWS resources (Moto)..."
+# --- Seed Floci Server (SSM & Cognito) ---
+Write-Host "🌱 Initializing local mock AWS resources (Floci)..."
 & $DockerCmd compose -f docker-compose.local.yml run --rm --entrypoint python pulse-backend init_local_aws.py
 
 # --- Move generated Frontend env file ---
@@ -210,8 +241,84 @@ if (Test-Path -Path "backend\.env.local") {
     Move-Item -Path "backend\.env.local" -Destination "frontend\.env.local" -Force
     Write-Host "✅ Mapped generated Cognito credentials to frontend."
 } else {
-    Write-Host "❌ Error: backend\.env.local not found. Moto initialization failed."
+    Write-Host "❌ Error: backend\.env.local not found. Floci initialization failed."
     exit 1
+}
+
+# --- Run Local Tests inside Backend Container if Flag is set ---
+if ($Test) {
+    # Startup Backend Container
+    Write-Host "🚀 Spinning up backend container for tests..."
+    & $DockerCmd compose -f docker-compose.local.yml up -d pulse-backend
+
+    Write-Host "⏳ Waiting for backend container to be healthy..."
+    $attempts = 0
+    $max_attempts = 30
+    $backend_ready = $false
+
+    while ($attempts -lt $max_attempts) {
+        try {
+            $response = Invoke-RestMethod -Uri "http://localhost:8000/health" -TimeoutSec 1 -ErrorAction SilentlyContinue
+            $backend_ready = $true
+            break
+        } catch {
+            # Not ready yet
+        }
+        Start-Sleep -Seconds 1
+        $attempts++
+    }
+
+    if ($backend_ready) {
+        Write-Host "======================================================================="
+        Write-Host "🔍 Running Local Linters and Tests inside Backend Container"
+        Write-Host "======================================================================="
+
+        Write-Host "📦 Installing test dependencies inside container..."
+        & $DockerCmd exec pulse-backend pip install pytest ruff alembic pytest-cov
+        $InstallExit = $LASTEXITCODE
+        if ($InstallExit -ne 0) {
+            Write-Host "❌ Error: Failed to install test dependencies inside container."
+            & $DockerCmd compose -f docker-compose.local.yml down
+            exit $InstallExit
+        }
+
+        Write-Host "👉 Running Ruff Check..."
+        & $DockerCmd exec pulse-backend ruff check .
+        $RuffCheckExit = $LASTEXITCODE
+
+        Write-Host "👉 Running Ruff Format Check..."
+        & $DockerCmd exec pulse-backend ruff format --check .
+        $RuffFormatExit = $LASTEXITCODE
+
+        Write-Host "👉 Running Alembic Migrations on Test DB..."
+        & $DockerCmd exec pulse-backend alembic upgrade head
+        $AlembicExit = $LASTEXITCODE
+
+        $TestExitCode = 0
+        if ($AlembicExit -eq 0) {
+            Write-Host "👉 Running Backend Pytest with Coverage..."
+            & $DockerCmd exec -e PYTHONPATH=. pulse-backend pytest --cov=. --cov-report=term-missing --cov-config=.coveragerc tests
+            $TestExitCode = $LASTEXITCODE
+        } else {
+            Write-Host "❌ Skipping pytest because database migrations failed."
+            $TestExitCode = $AlembicExit
+        }
+
+        Write-Host "🛑 Tearing down local test containers..."
+        & $DockerCmd compose -f docker-compose.local.yml down *>$null
+
+        if ($RuffCheckExit -eq 0 -and $RuffFormatExit -eq 0 -and $AlembicExit -eq 0 -and $TestExitCode -eq 0) {
+            Write-Host "✅ All checks and tests passed successfully!"
+            exit 0
+        } else {
+            Write-Host "❌ Some checks or tests failed."
+            exit 1
+        }
+    } else {
+        Write-Host "❌ Error: Backend did not become healthy in time."
+        & $DockerCmd compose -f docker-compose.local.yml down
+        exit 1
+    }
 }
 
 # --- Startup Services ---
@@ -221,7 +328,7 @@ Write-Host "🚀 Spining up local development container stack..."
 if ($Rebuild) {
     & $DockerCmd compose -f docker-compose.local.yml up --build -d -V --force-recreate pulse-backend pulse-frontend
 } else {
-    & $DockerCmd compose -f docker-compose.local.yml up -d --force-recreate pulse-backend pulse-frontend
+    & $DockerCmd compose -f docker-compose.local.yml up -d pulse-backend pulse-frontend
 }
 
 # --- Wait for Backend to be Healthy & Seed Users ---
@@ -268,7 +375,7 @@ try:
     print(f"Found {len(users)} users in dev Cognito pool.")
 except Exception as e:
     print(f"❌ Failed to fetch users from Cognito: {str(e)}")
-    print("Make sure the local Moto Server container is running and healthy.")
+    print("Make sure the local Floci Server container is running and healthy.")
     exit(0)
 
 db_url = os.getenv("DATABASE_URL")

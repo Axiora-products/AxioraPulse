@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 """
 app/main.py
 ───────────
@@ -17,41 +18,37 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from dotenv import load_dotenv
+
 load_dotenv()
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from db.database import engine, Base
+from db.database import engine
 from db import models  # noqa: F401 — needed so Base.metadata is populated
 from routes.demo import router as demo_router
-from routes.auth      import router as auth_router
-from routes.users     import router as users_router
-from routes.tenants   import router as tenants_router
-from routes.surveys   import router as surveys_router
+from routes.auth import router as auth_router
+from routes.users import router as users_router
+from routes.tenants import router as tenants_router
+from routes.surveys import router as surveys_router
 from routes.responses import router as responses_router
-from routes.feedback  import router as feedback_router
+from routes.feedback import router as feedback_router
 from routes.dashboard import router as dashboard_router
-from routes.utils     import router as utils_router
-from routes.ai        import router as ai_router
-from routes.payments  import router as payments_router
-from routes.public    import router as public_router
-from routes.uploads   import router as uploads_router
-from routes.investor  import router as investor_router
+from routes.utils import router as utils_router
+from routes.ai import router as ai_router
+from routes.payments import router as payments_router
+from routes.public import router as public_router
+from routes.uploads import router as uploads_router
+from routes.investor import router as investor_router
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
-from db.database import engine
-from routes.demo import router as demo_router
-from core import config
 from core.rate_limiter import limiter
-from routes.uploads import router as uploads_router
 
 
 # ── Create tables ─────────────────────────────────────────────────────────────
 # In production, replace this with Alembic migrations.
-
 
 
 # ── App ───────────────────────────────────────────────────────────────────────
@@ -68,7 +65,7 @@ app.add_middleware(SlowAPIMiddleware)
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
 # Use wildcard origins and disable credentials for maximum development compatibility.
-# Since we use Bearer tokens (Authorization header) rather than cookies, 
+# Since we use Bearer tokens (Authorization header) rather than cookies,
 # allow_credentials=True is NOT required.
 app.add_middleware(
     CORSMiddleware,
@@ -77,12 +74,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
 @app.exception_handler(RateLimitExceeded)
 def rate_limit_handler(request, exc):
     return JSONResponse(
         status_code=429,
         content={"detail": "Too many requests. Please slow down."},
     )
+
 
 # ── Routers ───────────────────────────────────────────────────────────────────
 app.include_router(auth_router)
@@ -99,28 +99,17 @@ app.include_router(uploads_router)
 app.include_router(demo_router)
 app.include_router(public_router)
 app.include_router(investor_router)
-app.include_router(uploads_router)
-
-
 
 
 # ── Health ────────────────────────────────────────────────────────────────────
-@app.get("/health", tags=["health"]) 
-def health(): 
-    try: 
-        with engine.connect() as connection: 
-            connection.execute( text("SELECT 1") ) 
-        return { 
-            "status": "healthy", 
-            "service": "Nexora Pulse API", 
-            "database": "connected" 
-            } 
-    except Exception as e: 
-        return { 
-            "status": "unhealthy",
-            "database": "disconnected",
-            "error": str(e) 
-            }
+@app.get("/health", tags=["health"])
+def health():
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+        return {"status": "healthy", "service": "Nexora Pulse API", "database": "connected"}
+    except Exception as e:
+        return {"status": "unhealthy", "database": "disconnected", "error": str(e)}
 
 
 @app.get("/", tags=["health"])
