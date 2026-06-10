@@ -220,7 +220,11 @@ export class AxioraPulseStack extends cdk.Stack {
 
     backendTaskDef.addContainer('BackendContainer', {
       image: ecs.ContainerImage.fromRegistry('public.ecr.aws/docker/library/python:3.11-alpine'),
-      command: ["python3", "-c", "import http.server; class H(http.server.BaseHTTPRequestHandler): def do_GET(self): self.send_response(200); self.end_headers(); self.wfile.write(b'OK'); http.server.HTTPServer(('0.0.0.0', 8000), H).serve_forever()"],
+      command: [
+        "python3",
+        "-c",
+        "import http.server\nclass H(http.server.BaseHTTPRequestHandler):\n    def do_GET(self):\n        self.send_response(200)\n        self.end_headers()\n        self.wfile.write(b'OK')\nhttp.server.HTTPServer(('0.0.0.0', 8000), H).serve_forever()"
+      ],
       portMappings: [{ containerPort: 8000 }],
       logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'ecs', logGroup: new cdk.aws_logs.LogGroup(this, 'BackendLogGroup', {
         logGroupName: `/ecs/pulse-backend-${shortEnv}`,
