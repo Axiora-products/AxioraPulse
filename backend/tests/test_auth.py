@@ -226,3 +226,108 @@ def test_get_auth_config(monkeypatch):
     assert data["COGNITO_APP_CLIENT_ID"] == "test-app-client-id"
     assert data["COGNITO_REGION"] == "us-east-1"
     assert data["MOCK_COGNITO"] is True
+
+
+def test_update_profile_phone(auth_headers):
+    # 1. Update phone number successfully
+    payload = {"phone_number": "+1 (555) 019-9236"}
+    response = client.patch("/auth/me/profile", json=payload, headers=auth_headers)
+    assert response.status_code == 200
+    assert response.json()["phone_number"] == "+15550199236"
+    assert response.json()["phone_verified"] is False
+
+    # 2. Invalid phone format
+    payload = {"phone_number": "invalid-phone"}
+    response = client.patch("/auth/me/profile", json=payload, headers=auth_headers)
+    assert response.status_code == 400
+    assert "Invalid phone number format" in response.json()["detail"]
+
+    # 3. Conflict: set to a phone number that is already verified by another user
+    from db.database import SessionLocal
+    from db.models import UserProfile
+
+    db = SessionLocal()
+    conflict_user_id = uuid.uuid4()
+    try:
+        # Create another user with a verified phone number
+        conflict_user = UserProfile(
+            id=conflict_user_id,
+            email="conflict_phone@example.com",
+            full_name="Conflict Phone User",
+            phone_number="+15550199237",
+            phone_verified=True,
+            is_active=True,
+        )
+        db.add(conflict_user)
+        db.commit()
+
+        # Try to update our phone to that verified number
+        payload = {"phone_number": "+15550199237"}
+        response = client.patch("/auth/me/profile", json=payload, headers=auth_headers)
+        assert response.status_code == 409
+        assert "already linked to another account" in response.json()["detail"]
+    finally:
+        # Cleanup
+        db_user = db.query(UserProfile).filter(UserProfile.id == conflict_user_id).first()
+        if db_user:
+            db.delete(db_user)
+            db.commit()
+        db.close()
+
+    # 4. Remove phone number (setting to empty string / None)
+    payload = {"phone_number": ""}
+    response = client.patch("/auth/me/profile", json=payload, headers=auth_headers)
+    assert response.status_code == 200
+    assert response.json()["phone_number"] is None
+    assert response.json()["phone_verified"] is False
+
+
+def test_auth_sync_existing_user_by_phone(monkeypatch):
+    import routes.auth
+    from db.database import SessionLocal
+    from db.models import UserProfile, Tenant
+
+    # Create a user with a verified phone number but NO cognito_sub
+    db = SessionLocal()
+    phone_user_id = uuid.uuid4()
+    tenant = db.query(Tenant).first()
+    try:
+        phone_user = UserProfile(
+            id=phone_user_id,
+            email="phone_sync@example.com",
+            full_name="Phone Sync User",
+            phone_number="+15550199238",
+            phone_verified=True,
+            tenant_id=tenant.id if tenant else None,
+            is_active=True,
+        )
+        db.add(phone_user)
+        db.commit()
+
+        # Mock verify_cognito_token to return a token containing this phone number and a new sub
+        new_sub = f"new-cognito-sub-{uuid.uuid4()}"
+
+        def mock_verify(token):
+            return {
+                "sub": new_sub,
+                "email": "phone_sync@example.com",
+                "phone_number": "+15550199238",
+                "token_use": "id",
+            }
+
+        monkeypatch.setattr(routes.auth, "verify_cognito_token", mock_verify)
+
+        response = client.post("/auth/sync", json={"id_token": "mock-token"})
+        assert response.status_code == 200
+        # Should link the sub and return user
+        assert response.json()["user"]["email"] == "phone_sync@example.com"
+
+        # Verify it was written to DB
+        db.refresh(phone_user)
+        assert phone_user.cognito_sub == new_sub
+    finally:
+        db_user = db.query(UserProfile).filter(UserProfile.id == phone_user_id).first()
+        if db_user:
+            db.delete(db_user)
+            db.commit()
+        db.close()

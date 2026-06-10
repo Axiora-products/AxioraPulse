@@ -117,6 +117,8 @@ class UserProfile(Base):
     full_name = Column(String(255), nullable=True)
     password_hash = Column(String(255), nullable=True)
     cognito_sub = Column(String(255), unique=True, index=True, nullable=True)
+    phone_number = Column(String(20), unique=True, index=True, nullable=True)
+    phone_verified = Column(Boolean, default=False)
     role = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.viewer)
     tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), index=True, nullable=True)
     is_active = Column(Boolean, default=True)
@@ -129,6 +131,22 @@ class UserProfile(Base):
     # relationships
     tenant = relationship("Tenant", back_populates="users")
     surveys_created = relationship("Survey", back_populates="creator", foreign_keys="Survey.created_by")
+
+
+class OTPVerification(Base):
+    """Stores OTP codes for phone verification and login."""
+
+    __tablename__ = "otp_verifications"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    phone_number = Column(String(20), index=True, nullable=False)
+    otp_code = Column(String(6), nullable=False)
+    purpose = Column(String(20), nullable=False)  # 'login' | 'link_phone'
+    user_id = Column(UUID(as_uuid=True), ForeignKey("user_profiles.id", ondelete="CASCADE"), nullable=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    verified = Column(Boolean, default=False)
+    attempts = Column(Integer, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
 class Survey(Base):

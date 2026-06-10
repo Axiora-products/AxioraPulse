@@ -22,6 +22,7 @@ export default function Register() {
     fullName: '', 
     email: location.state?.email || '', 
     password: '', 
+    phoneNumber: '+91 ',
     accountType: 'organization',
     tenantName: '', 
     tenantSlug: '' 
@@ -40,8 +41,12 @@ export default function Register() {
   }
 
   const s = (k, v) => sf(p => {
-    const n = { ...p, [k]: v };
-    if (k === 'tenantName') n.tenantSlug = v.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    let finalVal = v;
+    if (k === 'phoneNumber') {
+      finalVal = v.startsWith('+91 ') ? v : '+91 ';
+    }
+    const n = { ...p, [k]: finalVal };
+    if (k === 'tenantName') n.tenantSlug = finalVal.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
     if (k === 'accountType' && v === 'personal') {
       n.tenantName = '';
       n.tenantSlug = '';
@@ -154,6 +159,16 @@ export default function Register() {
       if (!storeUser) {
         throw new Error('Failed to synchronize user session with the backend. Please try again.');
       }
+
+      // Save phone number if provided during registration (and not just the default prefix)
+      if (f.phoneNumber && f.phoneNumber.trim() !== '+91') {
+        try {
+          await API.patch('/auth/me/profile', { phone_number: f.phoneNumber });
+        } catch (err) {
+          console.warn('Failed to save phone number:', err);
+        }
+      }
+
       toast.success('Welcome to Axiora Pulse!');
       nav('/dashboard');
     } catch (err) {
@@ -267,6 +282,7 @@ export default function Register() {
               { label: 'Your name', key: 'fullName', type: 'text', ph: 'Jane Smith' },
               { label: 'Work email', key: 'email', type: 'email', ph: 'jane@company.com' },
               { label: 'Password', key: 'password', type: 'password', ph: 'Min 6 characters' },
+              { label: 'Mobile number (optional)', key: 'phoneNumber', type: 'tel', ph: '+91 98765 43210' },
             ].map(field => (
               <div key={field.key}>
                 <label style={labelStyle}>{field.label}</label>
