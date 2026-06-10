@@ -1,5 +1,6 @@
 import pytest
 import os
+import uuid
 from jose import jwt, JWTError
 import cognito_utils
 from db.database import SessionLocal
@@ -21,12 +22,12 @@ def test_admin_get_user_status_mock(monkeypatch, clean_db_for_cognito):
 @pytest.fixture
 def clean_db_for_cognito():
     db = SessionLocal()
-    tenant = Tenant(id=cognito_utils.uuid.uuid4(), name="Cognito Org", slug="cognito-org")
+    tenant = Tenant(id=uuid.uuid4(), name="Cognito Org", slug="cognito-org")
     db.add(tenant)
     db.commit()
 
     user = UserProfile(
-        id=cognito_utils.uuid.uuid4(),
+        id=uuid.uuid4(),
         email="cognito_user@example.com",
         full_name="Cognito User",
         tenant_id=tenant.id,
@@ -53,9 +54,9 @@ def test_verify_cognito_token_mock_invalid_token_use(monkeypatch):
     monkeypatch.setenv("COGNITO_APP_CLIENT_ID", "mock-client")
 
     # Token signed with HS256 but token_use != "id"
-    payload = {"sub": "123", "token_use": "access"}
+    payload = {"sub": "123", "token_use": "access", "aud": "mock-client"}
     secret = os.getenv("MOCK_COGNITO_SECRET", "mock-secret-key-1234567890")
-    token = jwt.encode(payload, secret, algorithm="HS256", audience="mock-client")
+    token = jwt.encode(payload, secret, algorithm="HS256")
 
     # Restore the original verification function for this test (since autouse fixture replaced it)
     from cognito_utils import verify_cognito_token as original_verify
@@ -120,8 +121,8 @@ def test_verify_cognito_token_otp_fallback_success(monkeypatch):
 
     # Prepare a valid OTP token (HS256 signed using OTP_JWT_SECRET)
     OTP_JWT_SECRET = "otp-secret-key-change-in-production"
-    payload = {"sub": "user-123", "token_use": "id"}
-    token = jwt.encode(payload, OTP_JWT_SECRET, algorithm="HS256", audience="test-client")
+    payload = {"sub": "user-123", "token_use": "id", "aud": "test-client"}
+    token = jwt.encode(payload, OTP_JWT_SECRET, algorithm="HS256")
 
     # Make Cognito check fail (which will trigger fallback)
     def mock_get_unverified_headers(t):
@@ -141,8 +142,8 @@ def test_verify_cognito_token_otp_fallback_invalid_token_use(monkeypatch):
 
     # Prepare an OTP token but token_use != "id"
     OTP_JWT_SECRET = "otp-secret-key-change-in-production"
-    payload = {"sub": "user-123", "token_use": "access"}
-    token = jwt.encode(payload, OTP_JWT_SECRET, algorithm="HS256", audience="mock-client-id")
+    payload = {"sub": "user-123", "token_use": "access", "aud": "mock-client-id"}
+    token = jwt.encode(payload, OTP_JWT_SECRET, algorithm="HS256")
 
     def mock_get_unverified_headers(t):
         raise JWTError("Fail Cognito check")

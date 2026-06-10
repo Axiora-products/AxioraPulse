@@ -68,8 +68,13 @@ def update_profile(
         current_user.full_name = body.full_name
 
     if body.phone_number is not None:
-        phone_clean = re.sub(r"[^\d+]", "", body.phone_number)
-        if phone_clean:
+        raw_phone = body.phone_number.strip()
+        if raw_phone == "":
+            # Explicitly clearing the phone number
+            current_user.phone_number = None
+            current_user.phone_verified = False
+        else:
+            phone_clean = re.sub(r"[^\d+]", "", raw_phone)
             PHONE_REGEX = re.compile(r"^\+\d{10,15}$")
             if not PHONE_REGEX.match(phone_clean):
                 raise HTTPException(400, "Invalid phone number format. Must start with + and contain 10-15 digits.")
@@ -89,9 +94,6 @@ def update_profile(
             if current_user.phone_number != phone_clean:
                 current_user.phone_number = phone_clean
                 current_user.phone_verified = False
-        else:
-            current_user.phone_number = None
-            current_user.phone_verified = False
 
     db.commit()
     db.refresh(current_user)
@@ -132,6 +134,11 @@ def sync(
             .first()
         )
     if user:
+        # Link cognito_sub if not already set (e.g. user found by phone match)
+        if not user.cognito_sub:
+            user.cognito_sub = cognito_sub
+            db.commit()
+            db.refresh(user)
         tenant = db.query(Tenant).filter(Tenant.id == user.tenant_id).first()
         return SyncResponse(
             user=UserProfileOut.model_validate(user),
