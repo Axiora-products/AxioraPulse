@@ -122,12 +122,11 @@ class MockWhisperModel:
 
 @pytest.fixture(autouse=True)
 def mock_whisper(monkeypatch):
-    import routes.uploads
+    import whisper
+    import shutil
 
-    def mock_get_model():
-        return MockWhisperModel()
-
-    monkeypatch.setattr(routes.uploads, "get_whisper_model", mock_get_model)
+    monkeypatch.setattr(whisper, "load_model", lambda *args, **kwargs: MockWhisperModel())
+    monkeypatch.setattr(shutil, "which", lambda cmd: "/usr/bin/ffmpeg" if cmd == "ffmpeg" else None)
 
 
 # --- Mock Google Drive SDK ---

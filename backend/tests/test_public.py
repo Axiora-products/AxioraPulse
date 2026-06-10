@@ -48,9 +48,9 @@ def test_send_email_error(monkeypatch):
 
 
 def test_join_waitlist():
-    import random
+    import uuid
 
-    email = f"waitlist_{random.randint(10000, 99999)}@example.com"
+    email = f"waitlist_{uuid.uuid4().hex}@example.com"
     payload = {"email": email}
 
     # First signup

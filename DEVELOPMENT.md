@@ -9,6 +9,8 @@ For full-stack local development (Frontend, Backend, and Database) with AWS SSM 
 
 #### Prerequisites
 * **Docker & Docker Compose**: Ensure Docker Desktop (macOS/Windows) or Daemon (Linux) is running.
+* **FFmpeg for native backend development**: Whisper requires the system FFmpeg binary. On Windows run `winget install Gyan.FFmpeg`, then restart the terminal. On Debian/Ubuntu Linux run `sudo apt-get update && sudo apt-get install -y ffmpeg`. Docker builds install FFmpeg automatically.
+* **Non-Docker Linux deployment**: Install FFmpeg as a system package before Python dependencies. For a service type that permits `apt-get` in its build command, use `apt-get update && apt-get install -y ffmpeg && pip install -r requirements.txt`. Some managed native runtimes do not permit OS package installation; use the backend Dockerfile for those deployments.
 * **Local Mock Environment (Floci)**: Since we use Floci Server to mock AWS services (SSM Parameter Store, Cognito User Pool, etc.) locally, you do **not** need an active AWS session or real AWS credentials to run the development environment.
 * **AWS QA/Prod Access (Only for Deployment/Staging)**: If you need to deploy, test against the QA/Staging environment, or interact with real AWS accounts, ensure you have the appropriate AWS profiles (`qa` or `default`) configured and log in via AWS SSO:
   ```bash
