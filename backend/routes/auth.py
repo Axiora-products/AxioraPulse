@@ -274,3 +274,17 @@ def mock_login(body: dict, db: Session = Depends(get_db)):
     token = jwt.encode(payload, secret, algorithm="HS256")
 
     return {"id_token": token}
+
+
+@router.get("/config")
+def get_auth_config():
+    """
+    Exposes Cognito User Pool configuration dynamically to the frontend client.
+    Allows for environment-agnostic frontend builds that resolve configurations at runtime.
+    """
+    return {
+        "COGNITO_USER_POOL_ID": os.getenv("COGNITO_USER_POOL_ID"),
+        "COGNITO_APP_CLIENT_ID": os.getenv("COGNITO_APP_CLIENT_ID"),
+        "COGNITO_REGION": os.getenv("COGNITO_REGION", "ap-south-1"),
+        "MOCK_COGNITO": os.getenv("MOCK_COGNITO", "false").lower() == "true",
+    }

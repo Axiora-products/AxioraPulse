@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 from app.main import app
-import random
+import uuid
 
 client = TestClient(app)
 
@@ -22,7 +22,7 @@ def test_get_user_by_id(auth_headers):
 
 
 def test_invite_user(auth_headers):
-    email = f"new_team_member_{random.randint(1000, 9999)}@example.com"
+    email = f"new_team_member_{uuid.uuid4().hex}@example.com"
     payload = {"email": email, "full_name": "New Team Member", "role": "admin"}
     response = client.post("/users/invite", json=payload, headers=auth_headers)
     assert response.status_code == 200
@@ -32,8 +32,8 @@ def test_invite_user(auth_headers):
 
 
 def test_bulk_invite_users(auth_headers):
-    email1 = f"bulk1_{random.randint(1000, 9999)}@example.com"
-    email2 = f"bulk2_{random.randint(1000, 9999)}@example.com"
+    email1 = f"bulk1_{uuid.uuid4().hex}@example.com"
+    email2 = f"bulk2_{uuid.uuid4().hex}@example.com"
     payload = {"emails": [email1, email2], "role": "viewer"}
     response = client.post("/users/bulk-invite", json=payload, headers=auth_headers)
     assert response.status_code == 200
@@ -78,7 +78,7 @@ def test_update_user_status(auth_headers):
 
 
 def test_accept_invite(auth_headers):
-    email = f"accept_invite_{random.randint(1000, 9999)}@example.com"
+    email = f"accept_invite_{uuid.uuid4().hex}@example.com"
     # First, invite a user to get an invite_token
     payload = {"email": email, "full_name": "Accept User", "role": "viewer"}
     invite_resp = client.post("/users/invite", json=payload, headers=auth_headers)

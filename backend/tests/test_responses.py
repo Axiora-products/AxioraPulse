@@ -71,3 +71,38 @@ def test_submit_response(auth_headers):
     # Verify status via GET
     get_by_id2 = client.get(f"/responses/{response_id2}")
     assert get_by_id2.json()["status"] == "abandoned"
+
+
+def test_response_language_tracking(auth_headers):
+    # 1. Create a survey first
+    survey_payload = {
+        "title": "Language Test Survey",
+        "questions": [{"question_text": "Is this working?", "question_type": "yes_no"}],
+    }
+    create_survey_resp = client.post("/surveys/", json=survey_payload, headers=auth_headers)
+    assert create_survey_resp.status_code == 201
+    survey_id = create_survey_resp.json()["id"]
+
+    # 2. Create response with default language (en)
+    payload = {"survey_id": survey_id, "session_token": "lang-session-123", "language": "en"}
+    response = client.post("/responses/", json=payload)
+    assert response.status_code == 201
+    assert response.json()["language"] == "en"
+
+    # 3. Request creation again with the same session_token and different language (hi)
+    payload_again = {"survey_id": survey_id, "session_token": "lang-session-123", "language": "hi"}
+    response_again = client.post("/responses/", json=payload_again)
+    assert response_again.status_code == 201
+    assert response_again.json()["language"] == "hi"
+
+    # 4. Update language to 'te' via PATCH
+    update_payload = {"language": "te"}
+    update_resp = client.patch(f"/responses/{response_again.json()['id']}", json=update_payload)
+    assert update_resp.status_code == 200
+    assert update_resp.json()["language"] == "te"
+
+    # 5. Test with an invalid language (should default to en)
+    update_payload_invalid = {"language": "fr"}
+    update_resp_invalid = client.patch(f"/responses/{response_again.json()['id']}", json=update_payload_invalid)
+    assert update_resp_invalid.status_code == 200
+    assert update_resp_invalid.json()["language"] == "en"
