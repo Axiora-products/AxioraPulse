@@ -66,6 +66,8 @@ jobs:
 
       - name: Prepare Prod Task Definitions
         run: |
+          DB_SECRET_ARN=$(aws ssm get-parameter --name "/axiorapulse/prod/DB_SECRET_ARN" --region ap-south-1 --query "Parameter.Value" --output text)
+          sed -i "s|\${DB_SECRET_ARN}|$DB_SECRET_ARN|g" backend/ecs-task-def.json
           sed -i 's/${ENV}/prod/g' backend/ecs-task-def.json
           sed -i 's/${ROLE_ARN}/arn:aws:iam::217757579310:role\/GitHubActionsDeployerRole/g' backend/ecs-task-def.json
           sed -i 's/${ACCOUNT_ID}/217757579310/g' backend/ecs-task-def.json
