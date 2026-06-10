@@ -82,7 +82,8 @@ class AIInsightsRequest(BaseModel):
 
 class AIInsightsResponse(BaseModel):
     # Core (existing)
-    executiveSummary: str
+    executiveSummary: Optional[str] = None
+    executiveSummaryBullets: List[str] = Field(default_factory=list)
     npsAnalysis: Optional[str] = None
     insights: List[AIInsightItem] = Field(default_factory=list)
     topStrengths: List[str] = Field(default_factory=list)
@@ -90,14 +91,10 @@ class AIInsightsResponse(BaseModel):
     recommendedActions: List[AIActionItem] = Field(default_factory=list)
     # Deep analysis (new)
     overallScore: Optional[int] = None  # 0-100
-    responseQuality: Optional[str] = None
     sentimentBreakdown: Optional[AISentimentBreakdown] = None
     keyThemes: List[AIThemeItem] = Field(default_factory=list)
-    crossQuestionPatterns: List[AICrossPattern] = Field(default_factory=list)
     respondentSegments: List[AIRespondentSegment] = Field(default_factory=list)
     urgencyMatrix: List[AIUrgencyItem] = Field(default_factory=list)
-    benchmarkComparison: List[AIBenchmark] = Field(default_factory=list)
-    dataQualityFlags: List[AIDataQualityFlag] = Field(default_factory=list)
 
 
 class AISuggestionItem(BaseModel):
