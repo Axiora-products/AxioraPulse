@@ -66,6 +66,46 @@
         {
           "name": "COGNITO_APP_CLIENT_ID",
           "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/COGNITO_APP_CLIENT_ID"
+        },
+        {
+          "name": "MIGRATION_LAMBDA_SECRET",
+          "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/MIGRATION_LAMBDA_SECRET"
+        },
+        {
+          "name": "DISABLE_PAYMENTS",
+          "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/DISABLE_PAYMENTS"
+        },
+        {
+          "name": "ZOOM_ACCOUNT_ID",
+          "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/ZOOM_ACCOUNT_ID"
+        },
+        {
+          "name": "ZOOM_CLIENT_ID",
+          "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/ZOOM_CLIENT_ID"
+        },
+        {
+          "name": "ZOOM_CLIENT_SECRET",
+          "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/ZOOM_CLIENT_SECRET"
+        },
+        {
+          "name": "TWILIO_ACCOUNT_SID",
+          "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/TWILIO_ACCOUNT_SID"
+        },
+        {
+          "name": "TWILIO_AUTH_TOKEN",
+          "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/TWILIO_AUTH_TOKEN"
+        },
+        {
+          "name": "TWILIO_WHATSAPP_FROM",
+          "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/TWILIO_WHATSAPP_FROM"
+        },
+        {
+          "name": "META_WHATSAPP_ACCESS_TOKEN",
+          "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/META_WHATSAPP_ACCESS_TOKEN"
+        },
+        {
+          "name": "META_WHATSAPP_PHONE_NUMBER_ID",
+          "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/META_WHATSAPP_PHONE_NUMBER_ID"
         }
       ],
       "logConfiguration": {

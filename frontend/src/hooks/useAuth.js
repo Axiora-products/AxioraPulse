@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import API from '../api/axios';
-import { cognitoGetCurrentSession, cognitoSignOut } from '../lib/cognito';
+import { cognitoGetCurrentSession, cognitoSignOut, setAuthConfig } from '../lib/cognito';
 
 const useAuthStore = create((set, get) => ({
   user: null,
@@ -27,6 +27,10 @@ const useAuthStore = create((set, get) => ({
     }
 
     try {
+      // Fetch dynamic AWS Cognito credentials from backend before checking authentication session
+      const configRes = await API.get('/auth/config');
+      setAuthConfig(configRes.data);
+
       const session = await cognitoGetCurrentSession();
       const idToken = session.getIdToken().getJwtToken();
       localStorage.setItem('token', idToken);

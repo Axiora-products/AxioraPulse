@@ -107,6 +107,14 @@ export class GitHubOidcStack extends cdk.Stack {
       },
     }));
 
+    // 5. Add Permissions for CDK Deployments
+    githubDeployerRole.addToPolicy(new iam.PolicyStatement({
+      actions: ['sts:AssumeRole'],
+      resources: [
+        `arn:aws:iam::${this.account}:role/cdk-*`,
+      ],
+    }));
+
     // Outputs
     new cdk.CfnOutput(this, 'GitHubDeployerRoleArn', {
       value: githubDeployerRole.roleArn,

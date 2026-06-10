@@ -19,11 +19,11 @@ class QuestionIn(BaseModel):
 class QuestionOut(BaseModel):
     id: UUID
     survey_id: UUID
-    question_text: str
+    question_text: Any
     question_type: str
     options: Optional[Any] = None
     is_required: bool
-    description: Optional[str] = None
+    description: Optional[Any] = None
     sort_order: int
     validation_rules: Optional[Any] = None
     created_at: Optional[datetime] = None
@@ -73,10 +73,10 @@ class SurveyCreator(BaseModel):
 
 class SurveyOut(BaseModel):
     id: UUID
-    title: str
-    description: Optional[str] = None
-    welcome_message: Optional[str] = None
-    thank_you_message: Optional[str] = None
+    title: Any
+    description: Optional[Any] = None
+    welcome_message: Optional[Any] = None
+    thank_you_message: Optional[Any] = None
     expires_at: Optional[datetime] = None
     allow_anonymous: bool
     require_email: bool
