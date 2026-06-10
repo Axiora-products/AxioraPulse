@@ -244,7 +244,6 @@ def mock_cognito_and_email(monkeypatch):
         return True
 
     monkeypatch.setattr(cognito_utils, "get_cognito_client", mock_get_client)
-    monkeypatch.setattr(cognito_utils, "admin_delete_user", lambda sub: None)
     monkeypatch.setattr(services.email_service, "send_email", mock_send_email)
 
 

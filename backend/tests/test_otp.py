@@ -180,19 +180,32 @@ def test_phone_link_flows(clean_db, auth_headers):
 
 
 def test_phone_remove(clean_db, auth_headers):
-    db = clean_db["db"]
-    # Start with linked phone
-    clean_db["verified_user"].phone_number = "+15550199234"
-    clean_db["verified_user"].phone_verified = True
-    db.commit()
+    from db.database import SessionLocal
+    from db.models import UserProfile
+
+    # The endpoint removes the phone from the *authenticated* user (dev@axiorapulse.com),
+    # not from clean_db["verified_user"]. Set a phone on the auth user first.
+    db2 = SessionLocal()
+    try:
+        auth_user = db2.query(UserProfile).filter(UserProfile.email == "dev@axiorapulse.com").first()
+        assert auth_user is not None, "Authenticated dev user not found in DB"
+        auth_user.phone_number = "+15550199299"
+        auth_user.phone_verified = True
+        db2.commit()
+    finally:
+        db2.close()
 
     response = client.delete("/auth/otp/phone/remove", headers=auth_headers)
     assert response.status_code == 200
     assert response.json()["message"] == "Phone number removed"
 
-    db.refresh(clean_db["verified_user"])
-    assert clean_db["verified_user"].phone_number is None
-    assert clean_db["verified_user"].phone_verified is False
+    db3 = SessionLocal()
+    try:
+        auth_user = db3.query(UserProfile).filter(UserProfile.email == "dev@axiorapulse.com").first()
+        assert auth_user.phone_number is None
+        assert auth_user.phone_verified is False
+    finally:
+        db3.close()
 
 
 def test_sms_service_mock_mode(monkeypatch):
