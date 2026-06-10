@@ -11,3 +11,4 @@ from .dashboard import *
 from .ai import *
 from .share import *
 from .payment import *
+from .otp import *

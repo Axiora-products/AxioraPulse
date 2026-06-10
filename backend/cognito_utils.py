@@ -111,7 +111,7 @@ def verify_cognito_token(token: str) -> dict | None:
         keys = _get_jwks()
         key = next((k for k in keys if k["kid"] == kid), None)
         if key is None:
-            return None
+            raise JWTError("No matching public key found")
 
         payload = jwt.decode(
             token,
@@ -121,8 +121,18 @@ def verify_cognito_token(token: str) -> dict | None:
         )
 
         if payload.get("token_use") != "id":
-            return None
+            raise JWTError("Token use is not ID")
 
+        return payload
+    except (JWTError, Exception):
+        pass
+
+    # If Cognito verification failed, try OTP token verification
+    OTP_JWT_SECRET = os.getenv("OTP_JWT_SECRET", "otp-secret-key-change-in-production")
+    try:
+        payload = jwt.decode(token, OTP_JWT_SECRET, algorithms=["HS256"], audience=COGNITO_APP_CLIENT_ID or "mock-client-id")
+        if payload.get("token_use") != "id":
+            return None
         return payload
     except (JWTError, Exception):
         return None
