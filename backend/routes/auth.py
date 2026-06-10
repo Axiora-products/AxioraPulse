@@ -73,15 +73,19 @@ def update_profile(
             PHONE_REGEX = re.compile(r"^\+\d{10,15}$")
             if not PHONE_REGEX.match(phone_clean):
                 raise HTTPException(400, "Invalid phone number format. Must start with + and contain 10-15 digits.")
-            
-            existing = db.query(UserProfile).filter(
-                UserProfile.phone_number == phone_clean,
-                UserProfile.phone_verified == True,
-                UserProfile.id != current_user.id,
-            ).first()
+
+            existing = (
+                db.query(UserProfile)
+                .filter(
+                    UserProfile.phone_number == phone_clean,
+                    UserProfile.phone_verified == True,
+                    UserProfile.id != current_user.id,
+                )
+                .first()
+            )
             if existing:
                 raise HTTPException(409, "This phone number is already linked to another account")
-            
+
             if current_user.phone_number != phone_clean:
                 current_user.phone_number = phone_clean
                 current_user.phone_verified = False
@@ -92,7 +96,6 @@ def update_profile(
     db.commit()
     db.refresh(current_user)
     return UserProfileOut.model_validate(current_user)
-
 
 
 # ── /auth/sync ────────────────────────────────────────────────────────────────
@@ -123,7 +126,11 @@ def sync(
     # Already synced — just return the profile
     user = db.query(UserProfile).filter(UserProfile.cognito_sub == cognito_sub).first()
     if not user and phone_number:
-        user = db.query(UserProfile).filter(UserProfile.phone_number == phone_number, UserProfile.phone_verified == True).first()
+        user = (
+            db.query(UserProfile)
+            .filter(UserProfile.phone_number == phone_number, UserProfile.phone_verified == True)
+            .first()
+        )
     if user:
         tenant = db.query(Tenant).filter(Tenant.id == user.tenant_id).first()
         return SyncResponse(

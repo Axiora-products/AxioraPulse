@@ -130,7 +130,9 @@ def verify_cognito_token(token: str) -> dict | None:
     # If Cognito verification failed, try OTP token verification
     OTP_JWT_SECRET = os.getenv("OTP_JWT_SECRET", "otp-secret-key-change-in-production")
     try:
-        payload = jwt.decode(token, OTP_JWT_SECRET, algorithms=["HS256"], audience=COGNITO_APP_CLIENT_ID or "mock-client-id")
+        payload = jwt.decode(
+            token, OTP_JWT_SECRET, algorithms=["HS256"], audience=COGNITO_APP_CLIENT_ID or "mock-client-id"
+        )
         if payload.get("token_use") != "id":
             return None
         return payload

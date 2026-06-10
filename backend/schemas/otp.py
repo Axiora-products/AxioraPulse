@@ -41,4 +41,3 @@ class PhoneLinkVerifyRequest(BaseModel):
     @classmethod
     def clean_phone(cls, v: str) -> str:
         return re.sub(r"[^\d+]", "", v)
-

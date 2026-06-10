@@ -50,10 +50,14 @@ def otp_send(
     _validate_phone(body.phone_number)
 
     # Check if a verified user exists with this phone number
-    user = db.query(UserProfile).filter(
-        UserProfile.phone_number == body.phone_number,
-        UserProfile.phone_verified == True,
-    ).first()
+    user = (
+        db.query(UserProfile)
+        .filter(
+            UserProfile.phone_number == body.phone_number,
+            UserProfile.phone_verified == True,
+        )
+        .first()
+    )
     if not user:
         raise HTTPException(404, "No account linked to this number. Please register and link your phone in Settings.")
 
@@ -93,12 +97,17 @@ def otp_verify(
     body: OTPVerifyRequest,
     db: Session = Depends(get_db),
 ):
-    otp_record = db.query(OTPVerification).filter(
-        OTPVerification.phone_number == body.phone_number,
-        OTPVerification.purpose == "login",
-        OTPVerification.verified == False,
-        OTPVerification.expires_at > datetime.now(timezone.utc),
-    ).order_by(OTPVerification.created_at.desc()).first()
+    otp_record = (
+        db.query(OTPVerification)
+        .filter(
+            OTPVerification.phone_number == body.phone_number,
+            OTPVerification.purpose == "login",
+            OTPVerification.verified == False,
+            OTPVerification.expires_at > datetime.now(timezone.utc),
+        )
+        .order_by(OTPVerification.created_at.desc())
+        .first()
+    )
 
     if not otp_record:
         raise HTTPException(400, "OTP expired or not found")
@@ -117,9 +126,13 @@ def otp_verify(
     db.commit()
 
     # Look up user by phone number
-    user = db.query(UserProfile).filter(
-        UserProfile.phone_number == body.phone_number,
-    ).first()
+    user = (
+        db.query(UserProfile)
+        .filter(
+            UserProfile.phone_number == body.phone_number,
+        )
+        .first()
+    )
     if not user:
         raise HTTPException(404, "User not found")
 
@@ -163,11 +176,15 @@ def phone_link_send(
     _validate_phone(body.phone_number)
 
     # Check if another user already has this phone number verified
-    existing = db.query(UserProfile).filter(
-        UserProfile.phone_number == body.phone_number,
-        UserProfile.phone_verified == True,
-        UserProfile.id != current_user.id,
-    ).first()
+    existing = (
+        db.query(UserProfile)
+        .filter(
+            UserProfile.phone_number == body.phone_number,
+            UserProfile.phone_verified == True,
+            UserProfile.id != current_user.id,
+        )
+        .first()
+    )
     if existing:
         raise HTTPException(409, "This phone number is already linked to another account")
 
@@ -208,13 +225,18 @@ def phone_link_verify(
     current_user: UserProfile = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    otp_record = db.query(OTPVerification).filter(
-        OTPVerification.phone_number == body.phone_number,
-        OTPVerification.purpose == "link_phone",
-        OTPVerification.user_id == current_user.id,
-        OTPVerification.verified == False,
-        OTPVerification.expires_at > datetime.now(timezone.utc),
-    ).order_by(OTPVerification.created_at.desc()).first()
+    otp_record = (
+        db.query(OTPVerification)
+        .filter(
+            OTPVerification.phone_number == body.phone_number,
+            OTPVerification.purpose == "link_phone",
+            OTPVerification.user_id == current_user.id,
+            OTPVerification.verified == False,
+            OTPVerification.expires_at > datetime.now(timezone.utc),
+        )
+        .order_by(OTPVerification.created_at.desc())
+        .first()
+    )
 
     if not otp_record:
         raise HTTPException(400, "OTP expired or not found")

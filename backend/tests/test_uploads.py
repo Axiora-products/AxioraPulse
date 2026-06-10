@@ -85,10 +85,12 @@ def test_download_file(auth_headers):
     file_content = b"Content for testing file download endpoint."
     file_obj = io.BytesIO(file_content)
 
-    response = client.post("/uploads/file", files={"file": ("download_test.txt", file_obj, "text/plain")}, headers=auth_headers)
+    response = client.post(
+        "/uploads/file", files={"file": ("download_test.txt", file_obj, "text/plain")}, headers=auth_headers
+    )
     assert response.status_code == 200
     upload_data = response.json()
-    
+
     file_id = upload_data["id"]
     assert "file_url" in upload_data
     assert f"/uploads/download/{file_id}" in upload_data["file_url"]
@@ -100,6 +102,7 @@ def test_download_file(auth_headers):
 
     # Try downloading with non-existent UUID
     import uuid
+
     random_id = str(uuid.uuid4())
     response = client.get(f"/uploads/download/{random_id}", headers=auth_headers)
     assert response.status_code == 404
@@ -114,7 +117,9 @@ def test_delete_file_endpoint(auth_headers):
     file_content = b"Content for testing file delete endpoint."
     file_obj = io.BytesIO(file_content)
 
-    response = client.post("/uploads/file", files={"file": ("delete_test.txt", file_obj, "text/plain")}, headers=auth_headers)
+    response = client.post(
+        "/uploads/file", files={"file": ("delete_test.txt", file_obj, "text/plain")}, headers=auth_headers
+    )
     assert response.status_code == 200
     upload_data = response.json()
     file_id = upload_data["id"]
@@ -135,5 +140,3 @@ def test_delete_file_endpoint(auth_headers):
     # Try to delete with invalid UUID format (should fail with 400)
     response = client.delete("/uploads/not-a-valid-uuid", headers=auth_headers)
     assert response.status_code == 400
-
-
