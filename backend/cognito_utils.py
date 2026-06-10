@@ -31,7 +31,8 @@ def get_cognito_client():
 
 def admin_get_user_status(email: str) -> str | None:
     """Returns 'UNCONFIRMED', 'CONFIRMED', etc. or None if user doesn't exist."""
-    if MOCK_COGNITO:
+    mock = os.getenv("MOCK_COGNITO", "false").lower() == "true"
+    if mock:
         try:
             from db.database import SessionLocal
             from db.models import UserProfile
@@ -49,8 +50,9 @@ def admin_get_user_status(email: str) -> str | None:
             return None
 
     client = get_cognito_client()
+    pool_id = os.getenv("COGNITO_USER_POOL_ID")
     try:
-        resp = client.admin_get_user(UserPoolId=COGNITO_USER_POOL_ID, Username=email)
+        resp = client.admin_get_user(UserPoolId=pool_id, Username=email)
         return resp.get("UserStatus")
     except client.exceptions.UserNotFoundException:
         return None
@@ -61,12 +63,14 @@ def admin_get_user_status(email: str) -> str | None:
 
 def admin_delete_user(email: str) -> bool:
     """Force delete a user. Returns True if successful."""
-    if MOCK_COGNITO:
+    mock = os.getenv("MOCK_COGNITO", "false").lower() == "true"
+    if mock:
         return True
 
     client = get_cognito_client()
+    pool_id = os.getenv("COGNITO_USER_POOL_ID")
     try:
-        client.admin_delete_user(UserPoolId=COGNITO_USER_POOL_ID, Username=email)
+        client.admin_delete_user(UserPoolId=pool_id, Username=email)
         return True
     except Exception as e:
         print(f"COGNITO ERROR (delete_user): {str(e)}")
@@ -90,11 +94,15 @@ def verify_cognito_token(token: str) -> dict | None:
     Decode and verify a Cognito ID token.
     Returns the payload dict or None on any failure.
     """
-    if MOCK_COGNITO:
+    mock = os.getenv("MOCK_COGNITO", "false").lower() == "true"
+    client_id = os.getenv("COGNITO_APP_CLIENT_ID") or "mock-client-id"
+    mock_secret = os.getenv("MOCK_COGNITO_SECRET", "mock-secret-key-1234567890")
+
+    if mock:
         try:
             # Under mock mode, tokens are self-signed locally using HS256
             payload = jwt.decode(
-                token, MOCK_COGNITO_SECRET, algorithms=["HS256"], audience=COGNITO_APP_CLIENT_ID or "mock-client-id"
+                token, mock_secret, algorithms=["HS256"], audience=client_id
             )
             if payload.get("token_use") != "id":
                 return None
@@ -117,7 +125,7 @@ def verify_cognito_token(token: str) -> dict | None:
             token,
             key,
             algorithms=["RS256"],
-            audience=COGNITO_APP_CLIENT_ID,
+            audience=client_id,
         )
 
         if payload.get("token_use") != "id":
@@ -131,7 +139,7 @@ def verify_cognito_token(token: str) -> dict | None:
     OTP_JWT_SECRET = os.getenv("OTP_JWT_SECRET", "otp-secret-key-change-in-production")
     try:
         payload = jwt.decode(
-            token, OTP_JWT_SECRET, algorithms=["HS256"], audience=COGNITO_APP_CLIENT_ID or "mock-client-id"
+            token, OTP_JWT_SECRET, algorithms=["HS256"], audience=client_id
         )
         if payload.get("token_use") != "id":
             return None
