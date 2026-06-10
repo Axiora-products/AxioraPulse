@@ -1,15 +1,15 @@
 {
-  "family": "pulse-frontend",
+  "family": "pulse-frontend-${ENV}",
   "networkMode": "awsvpc",
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "256",
   "memory": "512",
-  "executionRoleArn": "arn:aws:iam::079975324160:role/GitHubActionsDeployerRole",
-  "taskRoleArn": "arn:aws:iam::079975324160:role/GitHubActionsDeployerRole",
+  "executionRoleArn": "${ROLE_ARN}",
+  "taskRoleArn": "${ROLE_ARN}",
   "containerDefinitions": [
     {
       "name": "FrontendContainer",
-      "image": "079975324160.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-frontend:latest",
+      "image": "FRONTEND_IMAGE",
       "essential": true,
       "portMappings": [
         {
@@ -17,10 +17,13 @@
           "protocol": "tcp"
         }
       ],
+      "environment": [
+        { "name": "BACKEND_INTERNAL_URL", "value": "backend.${ENV}.local:8000" }
+      ],
       "logConfiguration": {
         "logDriver": "awslogs",
         "options": {
-          "awslogs-group": "/ecs/pulse-frontend-dev",
+          "awslogs-group": "/ecs/pulse-frontend-${ENV}",
           "awslogs-region": "ap-south-1",
           "awslogs-stream-prefix": "ecs"
         }

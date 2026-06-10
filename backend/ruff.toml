@@ -1,0 +1,18 @@
+# Ruff configuration file
+# Ref: https://docs.astral.sh/ruff/configuration/
+
+# Targets Python 3.11
+target-version = "py311"
+
+line-length = 120
+
+[lint]
+# List of rules to ignore to accommodate legacy codebase style without breaking functionality
+ignore = [
+    "F403",  # star imports: `from .base import *`
+    "F405",  # undefined names due to star imports
+    "E402",  # module level import not at top of file (common in FastAPI setup)
+    "E701",  # multiple statements on one line (colon)
+    "E712",  # equality comparisons to True (e.g. Plan.is_active == True)
+    "F821",  # undefined name (e.g. uuid or datetime used without imports)
+]

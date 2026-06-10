@@ -14,7 +14,13 @@ export class GitHubOidcStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: GitHubOidcStackProps) {
     super(scope, id, props);
 
-    const githubProviderArn = `arn:aws:iam::${this.account}:oidc-provider/token.actions.githubusercontent.com`;
+    // 0. Create the GitHub OIDC Provider (if not already existing)
+    const githubProvider = new iam.OpenIdConnectProvider(this, 'GitHubProvider', {
+      url: 'https://token.actions.githubusercontent.com',
+      clientIds: ['sts.amazonaws.com'],
+    });
+
+    const githubProviderArn = githubProvider.openIdConnectProviderArn;
 
     // 1. Create the GitHub Deployer Role
     const githubDeployerRole = new iam.Role(this, 'GitHubDeployerRole', {
@@ -50,11 +56,9 @@ export class GitHubOidcStack extends cdk.Stack {
       resources: ['*'],
     }));
 
+    // Allow pushing only to local account repos
     githubDeployerRole.addToPolicy(new iam.PolicyStatement({
       actions: [
-        'ecr:BatchCheckLayerAvailability',
-        'ecr:GetDownloadUrlForLayer',
-        'ecr:BatchGetImage',
         'ecr:InitiateLayerUpload',
         'ecr:UploadLayerPart',
         'ecr:CompleteLayerUpload',
@@ -62,6 +66,18 @@ export class GitHubOidcStack extends cdk.Stack {
       ],
       resources: [
         `arn:aws:ecr:${this.region}:${this.account}:repository/axiora/*`,
+      ],
+    }));
+
+    // Allow pulling from any axiora repository (required for cross-account promotion)
+    githubDeployerRole.addToPolicy(new iam.PolicyStatement({
+      actions: [
+        'ecr:BatchCheckLayerAvailability',
+        'ecr:GetDownloadUrlForLayer',
+        'ecr:BatchGetImage',
+      ],
+      resources: [
+        `arn:aws:ecr:${this.region}:*:repository/axiora/*`,
       ],
     }));
 
@@ -89,6 +105,14 @@ export class GitHubOidcStack extends cdk.Stack {
           'iam:PassedToService': 'ecs-tasks.amazonaws.com',
         },
       },
+    }));
+
+    // 5. Add Permissions for CDK Deployments
+    githubDeployerRole.addToPolicy(new iam.PolicyStatement({
+      actions: ['sts:AssumeRole'],
+      resources: [
+        `arn:aws:iam::${this.account}:role/cdk-*`,
+      ],
     }));
 
     // Outputs
