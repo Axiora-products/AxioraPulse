@@ -778,11 +778,14 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
         if not bullets or not isinstance(bullets, list):
             legacy = result_json.get("executiveSummary", "")
             if legacy:
-                import re
-                result_json["executiveSummaryBullets"] = [s.strip() for s in re.split(r'(?<=[.!?])\s+', legacy) if s.strip()]
+                result_json["executiveSummaryBullets"] = [
+                    s.strip() for s in re.split(r"(?<=[.!?])\s+", legacy) if s.strip()
+                ]
             else:
                 result_json["executiveSummaryBullets"] = []
-        result_json["executiveSummaryBullets"] = [b for b in result_json["executiveSummaryBullets"] if isinstance(b, str) and b.strip()]
+        result_json["executiveSummaryBullets"] = [
+            b for b in result_json["executiveSummaryBullets"] if isinstance(b, str) and b.strip()
+        ]
         if "insights" not in result_json:
             result_json["insights"] = []
         if "topStrengths" not in result_json:
