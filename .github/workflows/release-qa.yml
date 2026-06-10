@@ -149,7 +149,7 @@ jobs:
   # 3. Build & Push Docker Images (runs after infrastructure and tests pass)
   build-push-images:
     name: Build & Push Docker Images
-    needs: [backend-validation, deploy-infra]
+    needs: [backend-validation]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -193,7 +193,7 @@ jobs:
   # 4. Deploy to ECS Fargate (runs after ECR images are pushed successfully)
   deploy-ecs:
     name: Deploy to QA ECS
-    needs: build-push-images
+    needs: [build-push-images, deploy-infra]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
