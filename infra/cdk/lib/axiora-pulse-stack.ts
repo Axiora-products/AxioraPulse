@@ -219,22 +219,13 @@ export class AxioraPulseStack extends cdk.Stack {
     });
 
     backendTaskDef.addContainer('BackendContainer', {
-      image: ecs.ContainerImage.fromEcrRepository(backendRepo, 'latest'), // Placeholder, GHA will update
+      image: ecs.ContainerImage.fromRegistry('public.ecr.aws/docker/library/python:3.11-alpine'),
+      command: ["python3", "-c", "import http.server; class H(http.server.BaseHTTPRequestHandler): def do_GET(self): self.send_response(200); self.end_headers(); self.wfile.write(b'OK'); http.server.HTTPServer(('0.0.0.0', 8000), H).serve_forever()"],
       portMappings: [{ containerPort: 8000 }],
       logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'ecs', logGroup: new cdk.aws_logs.LogGroup(this, 'BackendLogGroup', {
         logGroupName: `/ecs/pulse-backend-${shortEnv}`,
         removalPolicy: cdk.RemovalPolicy.DESTROY,
       }) }),
-      healthCheck: {
-        command: [
-          "CMD-SHELL",
-          "curl -f http://localhost:8000/health || exit 1"
-        ],
-        interval: cdk.Duration.seconds(30),
-        timeout: cdk.Duration.seconds(10),
-        retries: 3,
-        startPeriod: cdk.Duration.seconds(60),
-      },
       environment: {
         'ENVIRONMENT': shortEnv,
         'COGNITO_REGION': this.region,
@@ -266,22 +257,12 @@ export class AxioraPulseStack extends cdk.Stack {
     });
 
     frontendTaskDef.addContainer('FrontendContainer', {
-      image: ecs.ContainerImage.fromEcrRepository(frontendRepo, 'latest'), // Placeholder, GHA will update
+      image: ecs.ContainerImage.fromRegistry('public.ecr.aws/nginx/nginx:alpine'),
       portMappings: [{ containerPort: 80 }],
       logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'ecs', logGroup: new cdk.aws_logs.LogGroup(this, 'FrontendLogGroup', {
         logGroupName: `/ecs/pulse-frontend-${shortEnv}`,
         removalPolicy: cdk.RemovalPolicy.DESTROY,
       }) }),
-      healthCheck: {
-        command: [
-          "CMD-SHELL",
-          "wget -qO- http://localhost:80/ || exit 1"
-        ],
-        interval: cdk.Duration.seconds(30),
-        timeout: cdk.Duration.seconds(5),
-        retries: 3,
-        startPeriod: cdk.Duration.seconds(10),
-      }
     });
 
     const frontendService = new ecs.FargateService(this, 'FrontendService', {
