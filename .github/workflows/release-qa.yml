@@ -151,7 +151,7 @@ jobs:
   # 3. Build & Push Docker Images (runs after infrastructure and tests pass)
   build-push-images:
     name: Build & Push Docker Images
-    needs: [backend-validation]
+    needs: [backend-validation, deploy-infra]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
