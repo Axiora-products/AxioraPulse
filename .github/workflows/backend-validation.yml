@@ -55,14 +55,28 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
-          cache-dependency-path: 'backend/requirements.txt'
+
+      - name: Cache Virtual Environment
+        id: cache-venv
+        uses: actions/cache@v4
+        with:
+          path: backend/.venv
+          key: ${{ runner.os }}-venv-${{ hashFiles('backend/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-venv-
 
       - name: Install Backend Dependencies
+        if: steps.cache-venv.outputs.cache-hit != 'true'
         run: |
+          python -m venv backend/.venv
+          source backend/.venv/bin/activate
           pip install --upgrade pip
           pip install torch --index-url https://download.pytorch.org/whl/cpu
           pip install -r backend/requirements.txt pytest ruff alembic pytest-cov diff-cover
+
+      - name: Add Virtual Env to PATH
+        run: |
+          echo "$GITHUB_WORKSPACE/backend/.venv/bin" >> $GITHUB_PATH
 
       - name: Cache Ruff
         uses: actions/cache@v4
@@ -91,13 +105,17 @@ jobs:
           pytest --cov=backend --cov-report=xml backend/tests
 
       - name: Generate Diff Coverage Report
-        if: ${{ inputs.is-pr }}
+        if: ${{ inputs.is-pr && (success() || failure()) }}
         run: |
-          git fetch origin ${{ inputs.base-ref }} --depth=1
-          diff-cover coverage.xml --compare-branch=origin/${{ inputs.base-ref }} --format markdown:diff-coverage.md
+          if [ -f coverage.xml ]; then
+            git fetch origin ${{ inputs.base-ref }} --depth=1
+            diff-cover coverage.xml --compare-branch=origin/${{ inputs.base-ref }} --format markdown:diff-coverage.md
+          else
+            echo "coverage.xml not found, skipping diff coverage generation."
+          fi
 
       - name: Comment PR with Diff Coverage
-        if: ${{ inputs.is-pr && (success() || failure()) }}
+        if: ${{ inputs.is-pr && (success() || failure()) && hashFiles('diff-coverage.md') != '' }}
         uses: marocchino/sticky-pull-request-comment@v2
         with:
           path: diff-coverage.md

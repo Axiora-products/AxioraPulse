@@ -1,9 +1,14 @@
 #!/bin/bash
 
-# Ensure DATABASE_URL is set
+# Ensure DATABASE_URL is set or can be constructed
 if [ -z "$DATABASE_URL" ]; then
-    echo "ERROR: DATABASE_URL environment variable is not set."
-    exit 1
+    if [ -n "$DB_HOST" ] && [ -n "$DB_USER" ] && [ -n "$DB_PASSWORD" ]; then
+        echo "DATABASE_URL is not set. Constructing from database environment variables..."
+        export DATABASE_URL="postgresql://$DB_USER:$DB_PASSWORD@$DB_HOST:${DB_PORT:-5432}/${DB_NAME:-nexpulse}"
+    else
+        echo "ERROR: DATABASE_URL environment variable is not set and connection variables are missing."
+        exit 1
+    fi
 fi
 
 echo "Waiting for database to be ready..."

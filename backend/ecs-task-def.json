@@ -28,8 +28,24 @@
           "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/SECRET_KEY"
         },
         {
-          "name": "DATABASE_URL",
-          "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/DATABASE_URL"
+          "name": "DB_HOST",
+          "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/DB_HOST"
+        },
+        {
+          "name": "DB_PORT",
+          "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/DB_PORT"
+        },
+        {
+          "name": "DB_NAME",
+          "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/DB_NAME"
+        },
+        {
+          "name": "DB_USER",
+          "valueFrom": "${DB_SECRET_ARN}:username::"
+        },
+        {
+          "name": "DB_PASSWORD",
+          "valueFrom": "${DB_SECRET_ARN}:password::"
         },
         {
           "name": "ANTHROPIC_KEY",
