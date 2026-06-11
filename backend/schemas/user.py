@@ -19,12 +19,15 @@ class UserProfileOut(BaseModel):
     invite_token: Optional[str] = None
     invite_accepted_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
+    phone_number: Optional[str] = None
+    phone_verified: bool = False
 
     model_config = {"from_attributes": True}
 
 
 class UserProfileUpdate(BaseModel):
     full_name: Optional[str] = None
+    phone_number: Optional[str] = None
 
 
 class PasswordUpdate(BaseModel):

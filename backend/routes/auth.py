@@ -64,7 +64,37 @@ def update_profile(
     current_user: UserProfile = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    current_user.full_name = body.full_name
+    if body.full_name is not None:
+        current_user.full_name = body.full_name
+
+    if body.phone_number is not None:
+        raw_phone = body.phone_number.strip()
+        if raw_phone == "":
+            # Explicitly clearing the phone number
+            current_user.phone_number = None
+            current_user.phone_verified = False
+        else:
+            phone_clean = re.sub(r"[^\d+]", "", raw_phone)
+            PHONE_REGEX = re.compile(r"^\+\d{10,15}$")
+            if not PHONE_REGEX.match(phone_clean):
+                raise HTTPException(400, "Invalid phone number format. Must start with + and contain 10-15 digits.")
+
+            existing = (
+                db.query(UserProfile)
+                .filter(
+                    UserProfile.phone_number == phone_clean,
+                    UserProfile.phone_verified == True,
+                    UserProfile.id != current_user.id,
+                )
+                .first()
+            )
+            if existing:
+                raise HTTPException(409, "This phone number is already linked to another account")
+
+            if current_user.phone_number != phone_clean:
+                current_user.phone_number = phone_clean
+                current_user.phone_verified = False
+
     db.commit()
     db.refresh(current_user)
     return UserProfileOut.model_validate(current_user)
@@ -93,10 +123,22 @@ def sync(
     cognito_sub: str = payload["sub"]
     email: str = payload.get("email", "")
     name: str = payload.get("name", "")
+    phone_number: str = payload.get("phone_number", "")
 
     # Already synced — just return the profile
     user = db.query(UserProfile).filter(UserProfile.cognito_sub == cognito_sub).first()
+    if not user and phone_number:
+        user = (
+            db.query(UserProfile)
+            .filter(UserProfile.phone_number == phone_number, UserProfile.phone_verified == True)
+            .first()
+        )
     if user:
+        # Link cognito_sub if not already set (e.g. user found by phone match)
+        if not user.cognito_sub:
+            user.cognito_sub = cognito_sub
+            db.commit()
+            db.refresh(user)
         tenant = db.query(Tenant).filter(Tenant.id == user.tenant_id).first()
         return SyncResponse(
             user=UserProfileOut.model_validate(user),
