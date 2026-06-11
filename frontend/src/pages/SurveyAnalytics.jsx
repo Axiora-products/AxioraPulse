@@ -1194,9 +1194,14 @@ export default function SurveyAnalytics() {
         </motion.div>
       </AnimatePresence>
 
-      {/* ── Responses table (always below tabs, except AI) ── */}
-      {tab !== 'AI' && (
-        <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} transition={{ delay:0.3 }} style={{ marginTop:40 }}>
+      {/* ── Responses table only in Overview ── */}
+      {tab === 'Overview' && (
+        <motion.div
+          initial={{ opacity:0 }}
+          animate={{ opacity:1 }}
+          transition={{ delay:0.3 }}
+          style={{ marginTop:40 }}
+        >
           <ResponsesTable rs={rs} qs={qs} ans={ans} />
         </motion.div>
       )}
