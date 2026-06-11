@@ -187,7 +187,7 @@ export default function SurveyCreate() {
     expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16), 
     theme_color: '#FF4500', 
     allow_anonymous: true, 
-    require_email: false, 
+    require_email: true,
     show_progress_bar: true,
     ai_context: '',
     ai_mode: 'conversational',
@@ -196,6 +196,7 @@ export default function SurveyCreate() {
   const [qs, sQs] = useState([newQ()]);
   const [dirty, setDirty] = useState(false);
   const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiGenerated, setAiGenerated] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [modeOpen, setModeOpen] = useState(false);
   const modeRef = useRef(null);
@@ -287,6 +288,7 @@ export default function SurveyCreate() {
       })));
     }
     setDirty(true);
+    setAiGenerated(true);
     setPendingGen(null);
     setShowConfirm(false);
     toast.success('Survey generated successfully!');
@@ -714,7 +716,10 @@ export default function SurveyCreate() {
           {/* ── DETAILS TAB ── */}
           {tab === 'details' && (
             <div style={{ display:'flex',flexDirection:'column',gap:28 }}>
-              {/* AI Context Box */}
+              {/* AI Context Box — hidden once a survey has been generated, so the user
+                  can't overwrite the generated survey. To start over they close this
+                  survey and begin again from the prompt screen. */}
+              {!aiGenerated && (
               <div style={{ background: 'rgba(255,69,0,0.03)', padding: 24, borderRadius: 20, border: `1.5px solid ${tc}30` }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
                   <span style={{ fontSize: 16 }}>✨</span>
@@ -819,6 +824,7 @@ export default function SurveyCreate() {
                   )}
                 </div>
               </div>
+              )}
 
               <div>
                 <label style={LBL}>Survey Title *</label>
