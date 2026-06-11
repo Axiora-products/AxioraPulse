@@ -132,7 +132,7 @@ export default function Dashboard() {
         {/* Header */}
         <div style={S.header} className="np-page-header">
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}>
-            {tenant?.name && <div style={S.tag}>{tenant.name}</div>}
+            
             <h1 style={S.h1}>
               {greet}, <em style={{ fontStyle: 'italic', color: 'var(--coral)' }}>{firstName}</em>
             </h1>

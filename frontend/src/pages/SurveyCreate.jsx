@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import API from '../api/axios';
-import AISurveySuggestions from '../components/AISurveySuggestions';
-import SurveyPromptScreen, { SURVEY_MODES, getSurveyModeLabel } from '../components/SurveyPromptScreen';
+
+import SurveyPromptScreen from '../components/SurveyPromptScreen';
 import useAuthStore from '../hooks/useAuth';
 import { QUESTION_TYPES, SHORT_SURVEY_RULES, estimateSurveyMinutes, getFormatDiversityScore, getQuestionWordCount, isExpired } from '../lib/constants';
 import { Reorder, useDragControls, motion } from 'framer-motion';
@@ -197,9 +197,6 @@ export default function SurveyCreate() {
   const [dirty, setDirty] = useState(false);
   const [aiGenerating, setAiGenerating] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
-  const [modeOpen, setModeOpen] = useState(false);
-  const modeRef = useRef(null);
-  const [pendingGen, setPendingGen] = useState(null);
   const [showTemplates, setShowTemplates] = useState(false);
   const [tmplTab, setTmplTab] = useState('gallery');
   const [catFilter, setCatFilter] = useState('All');
@@ -214,14 +211,7 @@ export default function SurveyCreate() {
   });
 
   const persistCustom = list => { setCustomTemplates(list); localStorage.setItem('np-custom-templates', JSON.stringify(list)); };
-  const selectedAIMode = SURVEY_MODES.find(m => m.id === f.ai_mode) || SURVEY_MODES[0];
 
-  useEffect(() => {
-    if (!modeOpen) return;
-    const handler = e => { if (modeRef.current && !modeRef.current.contains(e.target)) setModeOpen(false); };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [modeOpen]);
 
   function saveAsTemplate() {
     if (!tmplName.trim()) return toast.error('Template name required');
@@ -269,6 +259,11 @@ export default function SurveyCreate() {
   const sOpt = (id, i, v, imageUrl) => { sQs(a => a.map(q => { if (q._id!==id) return q; const o=[...(q.options||[])]; o[i]={...o[i],label:v,value:v.toLowerCase().replace(/\s+/g,'_'),...(imageUrl !== undefined ? { image_url:imageUrl } : {})}; return {...q,options:o}; })); setDirty(true); };
   const delOpt = (id, i) => { sQs(a => a.map(q => q._id!==id ? q : { ...q, options:q.options.filter((_,j)=>j!==i) })); setDirty(true); };
 
+
+
+  // ── Prompt Screen Handlers ──
+
+
   const applyAIGeneration = (data) => {
     sf(p => ({
       ...p,
@@ -287,33 +282,8 @@ export default function SurveyCreate() {
       })));
     }
     setDirty(true);
-    setPendingGen(null);
     setShowConfirm(false);
     toast.success('Survey generated successfully!');
-  };
-
-  const handleAIGenerate = async () => {
-    if (!f.ai_context.trim()) return toast.error('Please describe your survey first');
-    if (f.ai_mode === 'custom' && !f.ai_custom_instruction.trim()) return toast.error('Add custom mode instructions first');
-    setAiGenerating(true);
-    try {
-      const { data } = await API.post('/ai/generate', {
-        aiContext: f.ai_context,
-        mode: f.ai_mode,
-        customInstruction: f.ai_custom_instruction || null,
-      });
-      if (f.title || qs.length > 1 || (qs.length === 1 && qs[0].question_text)) {
-        setPendingGen(data);
-        setShowConfirm(true);
-      } else {
-        applyAIGeneration(data);
-      }
-    } catch (e) {
-      toast.error('Failed to generate survey');
-      console.error(e);
-    } finally {
-      setAiGenerating(false);
-    }
   };
 
   // ── Prompt Screen Handlers ──
@@ -502,22 +472,7 @@ export default function SurveyCreate() {
         }
       `}</style>
 
-      {/* ── OVERWRITE CONFIRMATION MODAL ── */}
-      {showConfirm && (
-        <div style={{ position:'fixed',inset:0,zIndex:9999,background:'rgba(22,15,8,0.6)',backdropFilter:'blur(8px)',display:'flex',alignItems:'center',justifyContent:'center',padding:24 }}>
-          <div style={{ background:'var(--warm-white)',borderRadius:24,padding:32,width:'100%',maxWidth:480,boxShadow:'0 32px 80px rgba(22,15,8,0.2)' }}>
-            <div style={{ width: 48, height: 48, borderRadius: 16, background: 'rgba(214,59,31,0.1)', color: 'var(--terracotta)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, marginBottom: 20 }}>⚠️</div>
-            <h3 style={{ fontFamily:"'Playfair Display',serif",fontWeight:900,fontSize:24,margin:'0 0 12px 0',color:'var(--espresso)' }}>Overwrite existing survey?</h3>
-            <p style={{ fontFamily:"'Fraunces',serif",fontSize:15,color:'rgba(22,15,8,0.5)',lineHeight:1.6,margin:'0 0 24px 0' }}>
-              This will replace your current survey title, description, welcome message, and all questions with the newly AI-generated ones. This action cannot be undone.
-            </p>
-            <div style={{ display:'flex',gap:12,justifyContent:'flex-end' }}>
-              <button onClick={() => { setShowConfirm(false); setPendingGen(null); }} style={{ padding:'12px 24px',borderRadius:999,border:'1.5px solid rgba(22,15,8,0.1)',background:'transparent',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:11,letterSpacing:'0.1em',textTransform:'uppercase',color:'rgba(22,15,8,0.5)',cursor:'pointer' }}>Cancel</button>
-              <button onClick={() => applyAIGeneration(pendingGen)} style={{ padding:'12px 24px',borderRadius:999,border:'none',background:'var(--terracotta)',color:'#fff',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:11,letterSpacing:'0.1em',textTransform:'uppercase',cursor:'pointer' }}>Replace Everything</button>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {/* ── TEMPLATE GALLERY MODAL ── */}
       {showTemplates && (
@@ -714,111 +669,7 @@ export default function SurveyCreate() {
           {/* ── DETAILS TAB ── */}
           {tab === 'details' && (
             <div style={{ display:'flex',flexDirection:'column',gap:28 }}>
-              {/* AI Context Box */}
-              <div style={{ background: 'rgba(255,69,0,0.03)', padding: 24, borderRadius: 20, border: `1.5px solid ${tc}30` }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-                  <span style={{ fontSize: 16 }}>✨</span>
-                  <h3 style={{ margin: 0, fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 18, color: 'var(--espresso)' }}>AI Survey Generator</h3>
-                </div>
-                <label style={LBL}>Describe your survey</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
-                  <div className="cp-mode-selector" ref={modeRef}>
-                    <button
-                      type="button"
-                      className={`cp-mode-pill${modeOpen ? ' open' : ''}`}
-                      onClick={() => setModeOpen(o => !o)}
-                    >
-                      <span>{selectedAIMode.icon}</span>
-                      <span>{getSurveyModeLabel(selectedAIMode)}</span>
-                      <svg className="cp-chevron" width="8" height="5" viewBox="0 0 8 5" fill="currentColor">
-                        <path d="M0 0l4 5 4-5z" />
-                      </svg>
-                    </button>
 
-                    {modeOpen && (
-                      <div className="cp-mode-dropdown" style={{ bottom: 'auto', top: 'calc(100% + 8px)' }}>
-                        {SURVEY_MODES.map(mode => (
-                          <button
-                            key={mode.id}
-                            type="button"
-                            className={`cp-mode-option${f.ai_mode === mode.id ? ' active' : ''}`}
-                            onClick={() => { s('ai_mode', mode.id); setModeOpen(false); }}
-                          >
-                            <div className="cp-mode-icon">{mode.icon}</div>
-                            <div className="cp-mode-option-text">
-                              <div>{getSurveyModeLabel(mode)}</div>
-                              <div className="cp-mode-option-desc">{mode.desc}</div>
-                            </div>
-                            {f.ai_mode === mode.id && (
-                              <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="var(--coral)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M2 6l3 3 5-5" />
-                              </svg>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <textarea 
-                  value={f.ai_context} 
-                  onChange={e => s('ai_context', e.target.value)} 
-                  placeholder="e.g. I need a customer satisfaction survey for my new coffee shop. Ask about coffee quality, ambiance, and service." 
-                  rows={3} 
-                  style={{...INP, borderRadius: 16, marginBottom: 16, background: 'var(--warm-white)'}} 
-                  onFocus={fi} 
-                  onBlur={fo}
-                />
-                {f.ai_mode === 'custom' && (
-                  <textarea
-                    value={f.ai_custom_instruction}
-                    onChange={e => s('ai_custom_instruction', e.target.value)}
-                    placeholder="Custom survey mode instructions: tone, depth, question style, engagement level, structure..."
-                    rows={2}
-                    style={{...INP, borderRadius: 16, marginBottom: 16, background: 'var(--warm-white)'}}
-                    onFocus={fi}
-                    onBlur={fo}
-                  />
-                )}
-                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                  <button 
-                    onClick={handleAIGenerate} 
-                    disabled={aiGenerating || !f.ai_context.trim()}
-                    style={{
-                      padding: '12px 24px', borderRadius: 999, border: 'none', background: tc, color: '#fff', 
-                      fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', 
-                      cursor: (aiGenerating || !f.ai_context.trim()) ? 'not-allowed' : 'pointer', 
-                      opacity: (aiGenerating || !f.ai_context.trim()) ? 0.6 : 1,
-                      display: 'inline-flex', alignItems: 'center', gap: 8, transition: 'all 0.2s',
-                      boxShadow: (aiGenerating || !f.ai_context.trim()) ? 'none' : `0 4px 14px ${tc}40`
-                    }}
-                  >
-                    {aiGenerating ? (
-                      <>
-                        <motion.span animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }} style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%' }} />
-                        Generating...
-                      </>
-                    ) : (
-                      <>Generate Title, Description & Questions</>
-                    )}
-                  </button>
-                  {f.ai_context.trim() && (
-                    <button
-                      onClick={() => s('ai_context', '')}
-                      disabled={aiGenerating}
-                      style={{
-                        padding: '11px 20px', borderRadius: 999, border: `1.5px solid rgba(22,15,8,0.1)`, background: 'transparent',
-                        fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase',
-                        color: 'rgba(22,15,8,0.5)', cursor: aiGenerating ? 'not-allowed' : 'pointer', transition: 'all 0.2s', opacity: aiGenerating ? 0.6 : 1
-                      }}
-                      onMouseEnter={e => { if (!aiGenerating) { e.currentTarget.style.color = 'var(--terracotta)'; e.currentTarget.style.borderColor = 'rgba(214,59,31,0.3)'; e.currentTarget.style.background = 'rgba(214,59,31,0.05)'; } }}
-                      onMouseLeave={e => { if (!aiGenerating) { e.currentTarget.style.color = 'rgba(22,15,8,0.5)'; e.currentTarget.style.borderColor = 'rgba(22,15,8,0.1)'; e.currentTarget.style.background = 'transparent'; } }}
-                    >
-                      Clear
-                    </button>
-                  )}
-                </div>
-              </div>
 
               <div>
                 <label style={LBL}>Survey Title *</label>
@@ -879,8 +730,7 @@ export default function SurveyCreate() {
                 Add Question
               </button>
 
-              <AISurveySuggestions survey={f} questions={qs} tc={tc} aiContext={f.ai_context}
-                onAdd={q => { sQs(a => [...a, { ...newQ(), ...q, _id:'new_'+Math.random().toString(36).slice(2) }]); setDirty(true); }} />
+
             </div>
           )}
 
