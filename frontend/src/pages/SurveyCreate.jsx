@@ -187,7 +187,7 @@ export default function SurveyCreate() {
     expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16), 
     theme_color: '#FF4500', 
     allow_anonymous: true, 
-    require_email: false, 
+    require_email: true,
     show_progress_bar: true,
     ai_context: '',
     ai_mode: 'conversational',
@@ -196,6 +196,7 @@ export default function SurveyCreate() {
   const [qs, sQs] = useState([newQ()]);
   const [dirty, setDirty] = useState(false);
   const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiGenerated, setAiGenerated] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const [tmplTab, setTmplTab] = useState('gallery');
@@ -282,6 +283,8 @@ export default function SurveyCreate() {
       })));
     }
     setDirty(true);
+    setAiGenerated(true);
+    setPendingGen(null);
     setShowConfirm(false);
     toast.success('Survey generated successfully!');
   };
@@ -669,7 +672,115 @@ export default function SurveyCreate() {
           {/* ── DETAILS TAB ── */}
           {tab === 'details' && (
             <div style={{ display:'flex',flexDirection:'column',gap:28 }}>
+              {/* AI Context Box — hidden once a survey has been generated, so the user
+                  can't overwrite the generated survey. To start over they close this
+                  survey and begin again from the prompt screen. */}
+              {!aiGenerated && (
+              <div style={{ background: 'rgba(255,69,0,0.03)', padding: 24, borderRadius: 20, border: `1.5px solid ${tc}30` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                  <span style={{ fontSize: 16 }}>✨</span>
+                  <h3 style={{ margin: 0, fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 18, color: 'var(--espresso)' }}>AI Survey Generator</h3>
+                </div>
+                <label style={LBL}>Describe your survey</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
+                  <div className="cp-mode-selector" ref={modeRef}>
+                    <button
+                      type="button"
+                      className={`cp-mode-pill${modeOpen ? ' open' : ''}`}
+                      onClick={() => setModeOpen(o => !o)}
+                    >
+                      <span>{selectedAIMode.icon}</span>
+                      <span>{getSurveyModeLabel(selectedAIMode)}</span>
+                      <svg className="cp-chevron" width="8" height="5" viewBox="0 0 8 5" fill="currentColor">
+                        <path d="M0 0l4 5 4-5z" />
+                      </svg>
+                    </button>
 
+                    {modeOpen && (
+                      <div className="cp-mode-dropdown" style={{ bottom: 'auto', top: 'calc(100% + 8px)' }}>
+                        {SURVEY_MODES.map(mode => (
+                          <button
+                            key={mode.id}
+                            type="button"
+                            className={`cp-mode-option${f.ai_mode === mode.id ? ' active' : ''}`}
+                            onClick={() => { s('ai_mode', mode.id); setModeOpen(false); }}
+                          >
+                            <div className="cp-mode-icon">{mode.icon}</div>
+                            <div className="cp-mode-option-text">
+                              <div>{getSurveyModeLabel(mode)}</div>
+                              <div className="cp-mode-option-desc">{mode.desc}</div>
+                            </div>
+                            {f.ai_mode === mode.id && (
+                              <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="var(--coral)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M2 6l3 3 5-5" />
+                              </svg>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <textarea 
+                  value={f.ai_context} 
+                  onChange={e => s('ai_context', e.target.value)} 
+                  placeholder="e.g. I need a customer satisfaction survey for my new coffee shop. Ask about coffee quality, ambiance, and service." 
+                  rows={3} 
+                  style={{...INP, borderRadius: 16, marginBottom: 16, background: 'var(--warm-white)'}} 
+                  onFocus={fi} 
+                  onBlur={fo}
+                />
+                {f.ai_mode === 'custom' && (
+                  <textarea
+                    value={f.ai_custom_instruction}
+                    onChange={e => s('ai_custom_instruction', e.target.value)}
+                    placeholder="Custom survey mode instructions: tone, depth, question style, engagement level, structure..."
+                    rows={2}
+                    style={{...INP, borderRadius: 16, marginBottom: 16, background: 'var(--warm-white)'}}
+                    onFocus={fi}
+                    onBlur={fo}
+                  />
+                )}
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                  <button 
+                    onClick={handleAIGenerate} 
+                    disabled={aiGenerating || !f.ai_context.trim()}
+                    style={{
+                      padding: '12px 24px', borderRadius: 999, border: 'none', background: tc, color: '#fff', 
+                      fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', 
+                      cursor: (aiGenerating || !f.ai_context.trim()) ? 'not-allowed' : 'pointer', 
+                      opacity: (aiGenerating || !f.ai_context.trim()) ? 0.6 : 1,
+                      display: 'inline-flex', alignItems: 'center', gap: 8, transition: 'all 0.2s',
+                      boxShadow: (aiGenerating || !f.ai_context.trim()) ? 'none' : `0 4px 14px ${tc}40`
+                    }}
+                  >
+                    {aiGenerating ? (
+                      <>
+                        <motion.span animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }} style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%' }} />
+                        Generating...
+                      </>
+                    ) : (
+                      <>Generate Title, Description & Questions</>
+                    )}
+                  </button>
+                  {f.ai_context.trim() && (
+                    <button
+                      onClick={() => s('ai_context', '')}
+                      disabled={aiGenerating}
+                      style={{
+                        padding: '11px 20px', borderRadius: 999, border: `1.5px solid rgba(22,15,8,0.1)`, background: 'transparent',
+                        fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase',
+                        color: 'rgba(22,15,8,0.5)', cursor: aiGenerating ? 'not-allowed' : 'pointer', transition: 'all 0.2s', opacity: aiGenerating ? 0.6 : 1
+                      }}
+                      onMouseEnter={e => { if (!aiGenerating) { e.currentTarget.style.color = 'var(--terracotta)'; e.currentTarget.style.borderColor = 'rgba(214,59,31,0.3)'; e.currentTarget.style.background = 'rgba(214,59,31,0.05)'; } }}
+                      onMouseLeave={e => { if (!aiGenerating) { e.currentTarget.style.color = 'rgba(22,15,8,0.5)'; e.currentTarget.style.borderColor = 'rgba(22,15,8,0.1)'; e.currentTarget.style.background = 'transparent'; } }}
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+              )}
 
               <div>
                 <label style={LBL}>Survey Title *</label>
