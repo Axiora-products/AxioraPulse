@@ -35,15 +35,10 @@ function ApprovedDomainsCard({ tenant, onSaved }) {
         .map(d => d.trim().toLowerCase().replace(/^@/, ''))
         .filter(d => d && d.includes('.'));
 
-      if (parsed.length === 0) {
-        toast.error('Enter at least one valid domain (e.g. company.com)');
-        return;
-      }
-
       await API.patch('/tenants/me', { approved_domains: parsed });
       onSaved(parsed);
       setDomains(parsed.join(', '));
-      toast.success('Approved domains saved');
+      toast.success(parsed.length === 0 ? 'Domain restrictions cleared — all email addresses can now be invited' : 'Approved domains saved');
     } catch (err) {
       toast.error(err.response?.data?.detail || err.message || 'Failed to save domains');
     } finally {
@@ -57,8 +52,8 @@ function ApprovedDomainsCard({ tenant, onSaved }) {
     <div style={card}>
       <div style={secH}>Approved Email Domains</div>
       <p style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 14, color: 'rgba(22,15,8,0.5)', lineHeight: 1.65, marginBottom: 20, marginTop: -16 }}>
-        Invitations can only be sent to addresses belonging to these domains.
-        You must set at least one domain before any invites can be sent.
+        Optionally restrict invitations to specific email domains.
+        When set, only addresses from these domains can be invited. Leave empty to allow any email address.
       </p>
 
       {/* Current approved domains pill list */}
@@ -72,12 +67,7 @@ function ApprovedDomainsCard({ tenant, onSaved }) {
         </div>
       )}
 
-      {approvedList.length === 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderRadius: 12, background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.2)', marginBottom: 20 }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#A07000" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-          <span style={{ fontFamily: 'Syne, sans-serif', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', color: '#A07000' }}>No domains set — invitations are blocked until you add at least one.</span>
-        </div>
-      )}
+
 
       <form onSubmit={save} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div>
