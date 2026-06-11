@@ -2,11 +2,11 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useSubscription from '../hooks/useSubscription';
 
-const card = { background: 'var(--warm-white)', borderRadius: 20, border: '1px solid rgba(22,15,8,0.07)', padding: '36px 40px', marginBottom: 20 };
-const secH = { fontFamily: 'Syne, sans-serif', fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.35)', marginBottom: 24 };
-const row  = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 0', borderBottom: '1px solid rgba(22,15,8,0.06)' };
-const lbl  = { fontFamily: 'Syne, sans-serif', fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.35)' };
-const val  = { fontFamily: 'Fraunces, serif', fontWeight: 400, fontSize: 15, color: 'var(--espresso)' };
+const card = { background: 'var(--warm-white)', borderRadius: 20, border: '1px solid rgba(22,15,8,0.07)', padding: '24px 32px', marginBottom: 12 };
+const secH = { fontFamily: 'Syne, sans-serif', fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.35)', marginBottom: 14 };
+const row = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid rgba(22,15,8,0.06)' };
+const lbl = { fontFamily: 'Syne, sans-serif', fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.35)' };
+const val = { fontFamily: 'Fraunces, serif', fontWeight: 400, fontSize: 14, color: 'var(--espresso)' };
 
 function StatusBadge({ status }) {
   const colors = {
@@ -43,12 +43,12 @@ export default function Billing() {
   return (
     <div>
       {/* Page header */}
-      <div style={{ marginBottom: 36 }}>
+      <div style={{ marginBottom: 20 }}>
         <div className="sec-tag">Billing</div>
-        <h1 style={{ fontFamily: 'Playfair Display, serif', fontWeight: 900, fontSize: 32, letterSpacing: '-1.5px', color: 'var(--espresso)', lineHeight: 1.1, marginBottom: 8 }}>
+        <h1 style={{ fontFamily: 'Playfair Display, serif', fontWeight: 900, fontSize: 28, letterSpacing: '-1.5px', color: 'var(--espresso)', lineHeight: 1.1, marginBottom: 4 }}>
           Subscription & billing
         </h1>
-        <p style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 15, color: 'rgba(22,15,8,0.45)', lineHeight: 1.6 }}>
+        <p style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 14, color: 'rgba(22,15,8,0.45)', lineHeight: 1.5 }}>
           Manage your plan and view subscription details.
         </p>
       </div>
@@ -63,7 +63,7 @@ export default function Billing() {
 
         {!loading && !plan && (
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
               <div>
                 <div style={{ fontFamily: 'Playfair Display, serif', fontWeight: 700, fontSize: 22, color: 'var(--espresso)', marginBottom: 4 }}>Free</div>
                 <div style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 14, color: 'rgba(22,15,8,0.4)' }}>
@@ -85,12 +85,12 @@ export default function Billing() {
 
         {!loading && plan && (
           <div>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, marginBottom: 28 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
               <div>
-                <div style={{ fontFamily: 'Playfair Display, serif', fontWeight: 700, fontSize: 22, color: 'var(--espresso)', marginBottom: 6 }}>
+                <div style={{ fontFamily: 'Playfair Display, serif', fontWeight: 700, fontSize: 20, color: 'var(--espresso)', marginBottom: 4 }}>
                   {plan.name}
                 </div>
-                <div style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 14, color: 'rgba(22,15,8,0.45)' }}>
+                <div style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 13, color: 'rgba(22,15,8,0.45)' }}>
                   {plan.price_paise > 0
                     ? `₹${(plan.price_paise / 100).toLocaleString('en-IN')} / ${plan.billing_period}`
                     : 'Free'}
@@ -118,7 +118,7 @@ export default function Billing() {
             </div>
 
             {plan.code !== 'enterprise' && (
-              <div style={{ marginTop: 28 }}>
+              <div style={{ marginTop: 16 }}>
                 <button
                   onClick={() => navigate('/pricing')}
                   style={{ padding: '13px 28px', borderRadius: 999, border: 'none', background: 'var(--espresso)', color: 'var(--cream)', fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}
