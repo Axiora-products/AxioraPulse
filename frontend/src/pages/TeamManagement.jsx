@@ -199,26 +199,15 @@ export default function TeamManagement() {
           <h1 style={{ fontFamily: 'Playfair Display, serif', fontWeight: 900, fontSize: 'clamp(32px,4vw,48px)', letterSpacing: '-2px', color: 'var(--espresso)', margin: 0 }}>Team</h1>
           <p style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 15, color: 'rgba(22,15,8,0.4)', marginTop: 6 }}>{members.length} member{members.length !== 1 ? 's' : ''}</p>
         </div>
-        {hasPermission(profile?.role, 'manage_team') && (() => {
-          const hasNoDomains = !tenant?.approved_domains?.length;
-          // req #6: super_admin must configure domains first; admins see the same gate
-          return (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-              {hasNoDomains && (
-                <span style={{ fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#A07000', background: 'rgba(255,184,0,0.1)', padding: '4px 12px', borderRadius: 999, border: '1px solid rgba(255,184,0,0.2)' }}>
-                  ⚠ Set approved domains in Settings first
-                </span>
-              )}
-              <button
-                onClick={() => { if (hasNoDomains) return toast.error('Configure approved email domains in Settings before inviting.'); setShowModal(true); }}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: hasNoDomains ? 'rgba(22,15,8,0.2)' : 'var(--espresso)', color: 'var(--cream)', fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', padding: '14px 28px', borderRadius: 999, border: 'none', cursor: hasNoDomains ? 'not-allowed' : 'pointer', transition: 'background 0.25s ease' }}
-                onMouseEnter={e => { if (!hasNoDomains) e.currentTarget.style.background = 'var(--coral)'; }}
-                onMouseLeave={e => { if (!hasNoDomains) e.currentTarget.style.background = 'var(--espresso)'; }}>
-                + Invite member
-              </button>
-            </div>
-          );
-        })()}
+        {hasPermission(profile?.role, 'manage_team') && (
+          <button
+            onClick={() => setShowModal(true)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'var(--espresso)', color: 'var(--cream)', fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', padding: '14px 28px', borderRadius: 999, border: 'none', cursor: 'pointer', transition: 'background 0.25s ease' }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--coral)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'var(--espresso)'; }}>
+            + Invite member
+          </button>
+        )}
       </div>
 
       {/* Member grid */}
