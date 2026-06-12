@@ -28,7 +28,6 @@ from core.rate_limiter import limiter
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
-from fastapi.concurrency import run_in_threadpool
 
 router = APIRouter(prefix="/uploads", tags=["uploads"])
 logger = logging.getLogger("uvicorn.error")
