@@ -4,14 +4,16 @@ Whisper-only file and audio upload endpoints.
 """
 
 import io
+import asyncio
 import logging
 import os
 import shutil
+import subprocess
 import tempfile
 import threading
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -24,7 +26,6 @@ from core.rate_limiter import limiter
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
-from fastapi.concurrency import run_in_threadpool
 
 router = APIRouter(prefix="/uploads", tags=["uploads"])
 logger = logging.getLogger(__name__)
@@ -84,18 +85,12 @@ AUDIO_SUFFIX_BY_CONTENT_TYPE = {
     "audio/x-m4a": ".m4a",
 }
 
-LANGUAGE_MAP = {
-    "auto": None,
-    "english": "en",
-    "hindi": "hi",
-    "telugu": "te",
-    "en": "en",
-    "hi": "hi",
-    "te": "te",
-}
-
 WHISPER_CACHE_DIR = os.path.join(UPLOAD_DIR, "whisper_cache")
 os.makedirs(WHISPER_CACHE_DIR, exist_ok=True)
+
+FFMPEG_TIMEOUT_SECONDS = 60
+TRANSCRIPTION_TIMEOUT_SECONDS = 180
+MAX_AUDIO_DURATION_SECONDS = 10 * 60
 
 _whisper_model = None
 _whisper_model_lock = threading.Lock()
@@ -147,9 +142,13 @@ def _get_audio_suffix(filename: str | None, content_type: str | None) -> str:
         return filename_suffix
 
     return AUDIO_SUFFIX_BY_CONTENT_TYPE.get(
-        (content_type or "").lower(),
+        _normalize_content_type(content_type),
         ".webm",
     )
+
+
+def _normalize_content_type(content_type: str | None) -> str:
+    return (content_type or "").split(";", 1)[0].strip().lower()
 
 
 def get_whisper_model():
@@ -209,25 +208,90 @@ def _extract_text_from_file(filepath: str, content_type: str) -> str:
     return ""
 
 
-def _transcribe_with_whisper(audio_path: str, language: str = "auto") -> dict:
-    _ensure_ffmpeg_available()
-
-    lang_code = LANGUAGE_MAP.get((language or "auto").lower(), None)
-    model = get_whisper_model()
-
-    result = model.transcribe(
-        audio_path,
-        language=lang_code,
-        task="transcribe",
-        fp16=False,
-        temperature=0,
-        condition_on_previous_text=False,
-        initial_prompt="This audio may contain English, Hindi, or Telugu.",
+def _get_audio_duration(audio_path: str) -> float:
+    ffmpeg_path = _ensure_ffmpeg_available()
+    ffprobe_path = shutil.which("ffprobe") or os.path.join(
+        os.path.dirname(ffmpeg_path),
+        "ffprobe.exe" if os.name == "nt" else "ffprobe",
     )
+
+    try:
+        result = subprocess.run(
+            [
+                ffprobe_path,
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
+                audio_path,
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=FFMPEG_TIMEOUT_SECONDS,
+        )
+        return float(result.stdout.strip())
+    except (FileNotFoundError, ValueError, subprocess.CalledProcessError) as exc:
+        raise ValueError("Could not determine audio duration") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise TimeoutError("Audio duration check timed out") from exc
+
+
+def _convert_to_whisper_wav(audio_path: str, wav_path: str) -> None:
+    ffmpeg_path = _ensure_ffmpeg_available()
+
+    try:
+        subprocess.run(
+            [
+                ffmpeg_path,
+                "-y",
+                "-i",
+                audio_path,
+                "-vn",
+                "-ac",
+                "1",
+                "-ar",
+                "16000",
+                "-c:a",
+                "pcm_s16le",
+                wav_path,
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=FFMPEG_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise TimeoutError("Audio conversion timed out") from exc
+    except (FileNotFoundError, subprocess.CalledProcessError) as exc:
+        raise ValueError("FFmpeg could not decode the uploaded audio") from exc
+
+
+def _transcribe_with_whisper(audio_path: str) -> dict:
+    duration = _get_audio_duration(audio_path)
+    if duration <= 0:
+        raise ValueError("Uploaded audio has no playable content")
+    if duration > MAX_AUDIO_DURATION_SECONDS:
+        raise ValueError("Audio is too long (max 10 minutes)")
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        wav_path = os.path.join(temp_dir, "audio.wav")
+        _convert_to_whisper_wav(audio_path, wav_path)
+
+        result = get_whisper_model().transcribe(
+            wav_path,
+            task="translate",
+            language=None,
+            fp16=False,
+            temperature=0,
+            condition_on_previous_text=False,
+        )
 
     return {
         "text": result.get("text", "").strip(),
-        "language": result.get("language"),
+        "language": "en",
     }
 
 
@@ -385,11 +449,11 @@ async def upload_from_drive(
 async def upload_audio(
     request: Request,
     file: UploadFile = File(...),
-    language: str = Form("auto"),
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(get_current_user),
 ):
-    if file.content_type not in ALLOWED_AUDIO_TYPES:
+    content_type = _normalize_content_type(file.content_type)
+    if content_type not in ALLOWED_AUDIO_TYPES:
         raise HTTPException(
             status_code=400,
             detail=f"Unsupported audio type: {file.content_type}",
@@ -400,7 +464,7 @@ async def upload_audio(
         raise HTTPException(status_code=400, detail="Audio file too large (max 25 MB)")
 
     file_id = str(uuid.uuid4())
-    ext = _get_audio_suffix(file.filename, file.content_type)
+    ext = _get_audio_suffix(file.filename, content_type)
     stored_name = f"{file_id}{ext}"
     filepath = os.path.join(UPLOAD_DIR, stored_name)
 
@@ -408,17 +472,35 @@ async def upload_audio(
         f.write(contents)
 
     try:
-        result = await run_in_threadpool(_transcribe_with_whisper, filepath, language)
+        result = await asyncio.wait_for(
+            asyncio.to_thread(_transcribe_with_whisper, filepath),
+            timeout=TRANSCRIPTION_TIMEOUT_SECONDS,
+        )
         transcript = result["text"]
         detected_language = result["language"]
 
+    except asyncio.TimeoutError as exc:
+        raise HTTPException(
+            status_code=504,
+            detail="Audio transcription timed out",
+        ) from exc
     except HTTPException:
         raise
+    except (TimeoutError, ValueError) as exc:
+        logger.warning(
+            "Uploaded audio processing failed (%s): %s",
+            type(exc).__name__,
+            str(exc),
+        )
+        raise HTTPException(
+            status_code=400,
+            detail="Audio could not be processed. Check the file and try again.",
+        ) from exc
     except Exception as e:
         logger.exception("Whisper transcription failed for uploaded audio")
         raise HTTPException(
             status_code=500,
-            detail=f"Audio transcription failed: {str(e)}",
+            detail="Audio transcription failed. Please try again.",
         ) from e
 
     db_file = UploadedFile(
@@ -454,17 +536,25 @@ async def upload_audio(
 @limiter.limit("5/minute")
 async def transcribe_audio(
     request: Request,
-    audio: UploadFile = File(...),
-    language: str = Form("auto"),
+    audio: UploadFile | None = File(None),
+    file: UploadFile | None = File(None),
     current_user: UserProfile = Depends(get_current_user),
 ):
-    if audio.content_type not in ALLOWED_AUDIO_TYPES:
+    upload = audio or file
+    if upload is None:
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported audio type: {audio.content_type}",
+            detail="No audio file uploaded. Expected form field 'audio' or 'file'.",
         )
 
-    contents = await audio.read()
+    content_type = _normalize_content_type(upload.content_type)
+    if content_type not in ALLOWED_AUDIO_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported audio type: {upload.content_type}",
+        )
+
+    contents = await upload.read()
 
     if not contents:
         raise HTTPException(status_code=400, detail="Uploaded audio file is empty")
@@ -472,7 +562,7 @@ async def transcribe_audio(
     if len(contents) > 25 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="Audio file too large (max 25 MB)")
 
-    suffix = _get_audio_suffix(audio.filename, audio.content_type)
+    suffix = _get_audio_suffix(upload.filename, content_type)
     temp_path = None
 
     try:
@@ -480,20 +570,38 @@ async def transcribe_audio(
             temp.write(contents)
             temp_path = temp.name
 
-        result = await run_in_threadpool(_transcribe_with_whisper, temp_path, language)
+        result = await asyncio.wait_for(
+            asyncio.to_thread(_transcribe_with_whisper, temp_path),
+            timeout=TRANSCRIPTION_TIMEOUT_SECONDS,
+        )
 
         return {
             "text": result["text"],
-            "language": result["language"],
+            "language": "en",
         }
 
+    except asyncio.TimeoutError as exc:
+        raise HTTPException(
+            status_code=504,
+            detail="Audio transcription timed out",
+        ) from exc
     except HTTPException:
         raise
+    except (TimeoutError, ValueError) as exc:
+        logger.warning(
+            "Temporary audio processing failed (%s): %s",
+            type(exc).__name__,
+            str(exc),
+        )
+        raise HTTPException(
+            status_code=400,
+            detail="Audio could not be processed. Check the recording and try again.",
+        ) from exc
     except Exception as e:
         logger.exception("Whisper transcription failed for temporary audio upload")
         raise HTTPException(
             status_code=500,
-            detail=f"Audio transcription failed: {str(e)}",
+            detail="Audio transcription failed. Please try again.",
         ) from e
 
     finally:
