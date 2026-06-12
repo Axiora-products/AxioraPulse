@@ -33,6 +33,12 @@ const QUICK_TEMPLATES = [
   { name: 'Exit Interview', icon: '🚪', category: 'HR' },
 ];
 
+const MIN_RECORDING_DURATION_MS = 2000;
+const MIN_RECORDING_BYTES = 4000;
+const MAX_RECORDING_DURATION_MS = 29000;
+const TRANSCRIPTION_REQUEST_TIMEOUT_MS = 120000;
+const TRANSCRIPTION_TIMEOUT_MESSAGE = 'Transcription is taking too long. Please try a shorter recording.';
+
 export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate, galleryTemplates, aiGenerating, initialData }) {
   const [prompt, setPrompt] = useState('');
   const [selectedMode, setSelectedMode] = useState(SURVEY_MODES[0]);
@@ -41,7 +47,8 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
   const [uploadOpen, setUploadOpen] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState([]);
   const [attachedAudio, setAttachedAudio] = useState([]);
-  const [uploading, setUploading] = useState(false);
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
+  const [isTranscribingMic, setIsTranscribingMic] = useState(false);
   const [draftId, setDraftId] = useState(null);
   const [draftSaved, setDraftSaved] = useState(false);
   const [libraryFiles, setLibraryFiles] = useState([]);
@@ -54,15 +61,28 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
   const [isRecording, setIsRecording] = useState(false);
   const [audioChunks, setAudioChunks] = useState([]);
   const mediaRecorderRef = useRef(null);
+  const recordingStartedAtRef = useRef(0);
+  const recordingTimeoutRef = useRef(null);
 
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        },
       });
 
-      const mediaRecorder = new MediaRecorder(stream);
+      const preferredMimeType = 'audio/webm;codecs=opus';
+      const supportsOpus = MediaRecorder.isTypeSupported?.(preferredMimeType);
+      const recorderOptions = {
+        audioBitsPerSecond: 128000,
+        ...(supportsOpus ? { mimeType: preferredMimeType } : {}),
+      };
+      const mediaRecorder = new MediaRecorder(stream, recorderOptions);
       mediaRecorderRef.current = mediaRecorder;
+      recordingStartedAtRef.current = Date.now();
 
       const chunks = [];
 
@@ -73,45 +93,68 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
       };
 
       mediaRecorder.onstop = async () => {
+        clearTimeout(recordingTimeoutRef.current);
+        recordingTimeoutRef.current = null;
+        const recordingDuration = Date.now() - recordingStartedAtRef.current;
         const recorderMimeType = mediaRecorder.mimeType || 'audio/webm';
         const uploadMimeType = recorderMimeType.split(';')[0];
-        const extension = uploadMimeType.includes('mp4')
-          ? 'mp4'
-          : uploadMimeType.includes('ogg')
-            ? 'ogg'
-            : 'webm';
         const audioBlob = new Blob(chunks, { type: uploadMimeType });
+
+        if (recordingDuration < MIN_RECORDING_DURATION_MS || audioBlob.size < MIN_RECORDING_BYTES) {
+          toast.error('Please record for at least 2 seconds and speak clearly.');
+          setAudioChunks([]);
+          stream.getTracks().forEach(track => track.stop());
+          return;
+        }
+
         const formData = new FormData();
-        formData.append('audio', audioBlob, `recording.${extension}`);
-        formData.append('language', 'auto');
+        formData.append('audio', audioBlob, 'recording.webm');
 
         console.log('Microphone blob size:', audioBlob.size);
         console.log('Microphone blob type:', audioBlob.type);
         console.log('Microphone FormData keys:', Array.from(formData.keys()));
 
-        setUploading(true);
+        setIsTranscribingMic(true);
         try {
-          const { data } = await API.post('/uploads/audio/transcribe', formData);
+          const response = await API.post('/uploads/audio/transcribe', formData, {
+            timeout: TRANSCRIPTION_REQUEST_TIMEOUT_MS,
+          });
+          console.log('Transcription response:', response.data);
+          const { data } = response;
           const transcript = data.text?.trim();
           if (transcript) {
             setPrompt(prev => `${prev}${prev.trim() ? ' ' : ''}${transcript}`);
             toast.success('Recording transcribed');
           }
         } catch (err) {
+          const errorText = typeof err.response?.data === 'string'
+            ? err.response.data
+            : JSON.stringify(err.response?.data || { message: err.message });
           console.error(
             'Audio transcription response:',
             err.response?.status,
-            err.response?.data,
+            errorText,
           );
-          toast.error(err.response?.data?.detail || 'Audio transcription failed');
+          toast.error(
+            err.code === 'ECONNABORTED'
+              ? TRANSCRIPTION_TIMEOUT_MESSAGE
+              : err.response?.data?.detail || 'Audio transcription failed',
+          );
         } finally {
-          setUploading(false);
+          setIsTranscribingMic(false);
           setAudioChunks([]);
           stream.getTracks().forEach(track => track.stop());
         }
       };
 
       mediaRecorder.start();
+      recordingTimeoutRef.current = setTimeout(() => {
+        if (mediaRecorder.state === 'recording') {
+          mediaRecorder.stop();
+          setIsRecording(false);
+          toast('Recording stopped before the 30-second limit.');
+        }
+      }, MAX_RECORDING_DURATION_MS);
       setAudioChunks(chunks);
       setIsRecording(true);
     } catch (err) {
@@ -120,6 +163,8 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
   };
 
   const stopRecording = () => {
+    clearTimeout(recordingTimeoutRef.current);
+    recordingTimeoutRef.current = null;
     mediaRecorderRef.current?.stop();
     setIsRecording(false);
   };
@@ -135,7 +180,7 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
       multiselect: false,
       callbackFunction: async (data) => {
         if (data.action === 'picked') {
-          setUploading(true);
+          setIsUploadingFile(true);
           try {
             const file = data.docs[0];
             const res = await API.post('/uploads/drive', {
@@ -155,7 +200,7 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
             toast.error(err.response?.data?.detail || "Drive import failed");
             console.error(err);
           } finally {
-            setUploading(false);
+            setIsUploadingFile(false);
           }
         }
       },
@@ -273,7 +318,7 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setUploading(true);
+    setIsUploadingFile(true);
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -290,7 +335,7 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Upload failed');
     }
-    setUploading(false);
+    setIsUploadingFile(false);
     e.target.value = '';
   };
 
@@ -298,13 +343,16 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
   const handleAudioUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setUploading(true);
+    setIsUploadingFile(true);
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const { data } = await API.post('/uploads/audio', formData, {
+      const response = await API.post('/uploads/audio', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: TRANSCRIPTION_REQUEST_TIMEOUT_MS,
       });
+      console.log('Transcription response:', response.data);
+      const { data } = response;
       setAttachedAudio(prev => [...prev, {
         id: data.id,
         filename: data.filename,
@@ -313,9 +361,21 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
       }]);
       toast.success(`"${data.filename}" attached`);
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Audio upload failed');
+      const errorText = typeof err.response?.data === 'string'
+        ? err.response.data
+        : JSON.stringify(err.response?.data || { message: err.message });
+      console.error(
+        'Audio upload response:',
+        err.response?.status,
+        errorText,
+      );
+      toast.error(
+        err.code === 'ECONNABORTED'
+          ? TRANSCRIPTION_TIMEOUT_MESSAGE
+          : err.response?.data?.detail || 'Audio upload failed',
+      );
     }
-    setUploading(false);
+    setIsUploadingFile(false);
     e.target.value = '';
   };
 
@@ -445,9 +505,9 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
                 type="button"
                 className={`cp-tool-btn premium-upload-btn ${uploadOpen ? ' open' : ''}`}
                 onClick={() => setUploadOpen(o => !o)}
-                disabled={uploading}
+                disabled={isUploadingFile}
               >
-                {uploading ? (
+                {isUploadingFile ? (
                   <motion.span
                     animate={{ rotate: 360 }}
                     transition={{
@@ -675,22 +735,42 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
               type="button"
               className={`cp-tool-btn ${isRecording ? "recording" : ""}`}
               onClick={isRecording ? stopRecording : startRecording}
+              disabled={isTranscribingMic}
             >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill={isRecording ? "currentColor" : "none"}
-                stroke={isRecording ? "#ff5a1f" : "currentColor"}
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                <line x1="12" y1="19" x2="12" y2="23" />
-                <line x1="8" y1="23" x2="16" y2="23" />
-              </svg>
+              {isTranscribingMic ? (
+                <motion.span
+                  animate={{ rotate: 360 }}
+                  transition={{
+                    repeat: Infinity,
+                    duration: 1,
+                    ease: 'linear'
+                  }}
+                  style={{
+                    display: 'inline-block',
+                    width: 14,
+                    height: 14,
+                    border: '2px solid rgba(255,120,40,0.15)',
+                    borderTopColor: '#ff5a1f',
+                    borderRadius: '50%',
+                  }}
+                />
+              ) : (
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill={isRecording ? "currentColor" : "none"}
+                  stroke={isRecording ? "#ff5a1f" : "currentColor"}
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                  <line x1="12" y1="19" x2="12" y2="23" />
+                  <line x1="8" y1="23" x2="16" y2="23" />
+                </svg>
+              )}
 
               <div className="voice-record-container">
                 {/* <span className="recording-text">
