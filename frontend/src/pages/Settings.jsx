@@ -6,12 +6,12 @@ import { useLoading } from '../context/LoadingContext';
 import API from '../api/axios';
 import { sendPhoneLinkOTP, verifyPhoneLinkOTP, removePhone } from '../lib/otp';
 
-const card  = { background: 'var(--warm-white)', borderRadius: 20, border: '1px solid rgba(22,15,8,0.07)', padding: '36px 40px', marginBottom: 20 };
+const card = { background: 'var(--warm-white)', borderRadius: 20, border: '1px solid rgba(22,15,8,0.07)', padding: '36px 40px', marginBottom: 20 };
 const label = { fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.38)', display: 'block', marginBottom: 10 };
-const inp   = { width: '100%', boxSizing: 'border-box', padding: '14px 18px', background: 'var(--cream)', border: '1px solid rgba(22,15,8,0.1)', borderRadius: 12, fontFamily: 'Fraunces, serif', fontSize: 16, color: 'var(--espresso)', outline: 'none', transition: 'border-color 0.2s' };
-const dis   = { ...inp, background: 'var(--cream-deep)', color: 'rgba(22,15,8,0.3)', cursor: 'not-allowed' };
-const btn   = { padding: '13px 28px', borderRadius: 999, border: 'none', background: 'var(--espresso)', color: 'var(--cream)', fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', transition: 'background 0.25s ease' };
-const secH  = { fontFamily: 'Syne, sans-serif', fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.35)', marginBottom: 28 };
+const inp = { width: '100%', boxSizing: 'border-box', padding: '14px 18px', background: 'var(--cream)', border: '1px solid rgba(22,15,8,0.1)', borderRadius: 12, fontFamily: 'Fraunces, serif', fontSize: 16, color: 'var(--espresso)', outline: 'none', transition: 'border-color 0.2s' };
+const dis = { ...inp, background: 'var(--cream-deep)', color: 'rgba(22,15,8,0.3)', cursor: 'not-allowed' };
+const btn = { padding: '13px 28px', borderRadius: 999, border: 'none', background: 'var(--espresso)', color: 'var(--cream)', fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', transition: 'background 0.25s ease' };
+const secH = { fontFamily: 'Syne, sans-serif', fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.35)', marginBottom: 28 };
 
 // ── ApprovedDomainsCard ───────────────────────────────────────────────────────
 // req #5/#6/#12/#13: only super_admin can view/edit; saved per tenant
@@ -127,7 +127,7 @@ export default function Settings() {
   async function sendPhoneOtp() {
     if (!phoneForm.number) return toast.error('Enter your mobile number');
     if (!isValidPhone(phoneForm.number))
-    return toast.error('Enter a valid 10-digit Indian mobile number');
+      return toast.error('Enter a valid 10-digit Indian mobile number');
     setPhoneBusy(true);
     try {
       await sendPhoneLinkOTP(phoneForm.number);
@@ -189,14 +189,14 @@ export default function Settings() {
     } finally { setSPw(false); }
   }
 
-  const [dark, setDark] = useState(() => document.documentElement.getAttribute('data-theme') === 'dark');
+  // const [dark, setDark] = useState(() => document.documentElement.getAttribute('data-theme') === 'dark');
 
-  function toggleDark() {
-    const next = !dark;
-    setDark(next);
-    document.documentElement.setAttribute('data-theme', next ? 'dark' : 'light');
-    localStorage.setItem('np-theme', next ? 'dark' : 'light');
-  }
+  // function toggleDark() {
+  //   const next = !dark;
+  //   setDark(next);
+  //   document.documentElement.setAttribute('data-theme', next ? 'dark' : 'light');
+  //   localStorage.setItem('np-theme', next ? 'dark' : 'light');
+  // }
 
   // Sync approved_domains back into the Zustand store after save
   // (updateTenant re-fetches the whole row; this is a lightweight local patch)
@@ -462,20 +462,20 @@ export default function Settings() {
       )}
 
       {/* Preferences */}
-      <div style={card}>
+      {/* <div style={card}>
         <div style={secH}>Preferences</div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 0' }}>
           <div>
             <div style={{ fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 13, color: 'var(--espresso)', marginBottom: 4 }}>Dark mode</div>
             <div style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 13, color: 'rgba(22,15,8,0.5)' }}>Easy on the eyes at night</div>
-          </div>
-          {/* Toggle switch */}
-          <button onClick={toggleDark} role="switch" aria-checked={dark}
+          </div> */}
+      {/* Toggle switch */}
+      {/* <button onClick={toggleDark} role="switch" aria-checked={dark}
             style={{ width: 48, height: 26, borderRadius: 999, border: 'none', background: dark ? 'var(--coral)' : 'rgba(22,15,8,0.15)', cursor: 'pointer', position: 'relative', transition: 'background 0.25s', flexShrink: 0 }}>
             <span style={{ position: 'absolute', top: 3, left: dark ? 24 : 4, width: 20, height: 20, borderRadius: '50%', background: '#fff', boxShadow: '0 1px 4px rgba(0,0,0,0.2)', transition: 'left 0.25s cubic-bezier(0.34,1.56,0.64,1)' }} />
           </button>
         </div>
-      </div>
+      </div> */}
     </div>
   );
 }
