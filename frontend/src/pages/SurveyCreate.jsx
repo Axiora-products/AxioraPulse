@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import API from '../api/axios';
 
-import SurveyPromptScreen from '../components/SurveyPromptScreen';
+import SurveyPromptScreen, { SURVEY_MODES, getSurveyModeLabel } from '../components/SurveyPromptScreen';
 import useAuthStore from '../hooks/useAuth';
 import { QUESTION_TYPES, SHORT_SURVEY_RULES, estimateSurveyMinutes, getFormatDiversityScore, getQuestionWordCount, isExpired } from '../lib/constants';
 import { Reorder, useDragControls, motion } from 'framer-motion';
@@ -207,6 +207,8 @@ export default function SurveyCreate() {
   const [tmplDesc, setTmplDesc] = useState('');
   const [tmplNewCat, setTmplNewCat] = useState('');
   const [tmplQs, setTmplQs] = useState([{ _id: 'tq0', question_text: '', question_type: 'short_text', is_required: false }]);
+  const [modeOpen, setModeOpen] = useState(false);
+  const modeRef = useRef(null);
   const [customTemplates, setCustomTemplates] = useState(() => {
     try { return JSON.parse(localStorage.getItem('np-custom-templates') || '[]'); } catch { return []; }
   });
@@ -251,6 +253,13 @@ export default function SurveyCreate() {
     return () => window.removeEventListener('beforeunload', h);
   }, [dirty]);
 
+  useEffect(() => {
+    if (!modeOpen) return;
+    const handler = e => { if (modeRef.current && !modeRef.current.contains(e.target)) setModeOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [modeOpen]);
+
   const s = (k, v) => { sf(p => ({ ...p, [k]: v })); setDirty(true); };
   const sQ = (id, k, v) => { sQs(a => a.map(q => q._id === id ? { ...q, [k]: v } : q)); setDirty(true); };
   const addQ = () => { sQs(a => [...a, newQ()]); setDirty(true); };
@@ -264,6 +273,7 @@ export default function SurveyCreate() {
 
   // ── Prompt Screen Handlers ──
 
+  const selectedAIMode = SURVEY_MODES.find(m => m.id === f.ai_mode) || SURVEY_MODES[0];
 
   const applyAIGeneration = (data) => {
     sf(p => ({
@@ -284,9 +294,27 @@ export default function SurveyCreate() {
     }
     setDirty(true);
     setAiGenerated(true);
-    setPendingGen(null);
     setShowConfirm(false);
     toast.success('Survey generated successfully!');
+  };
+
+  const handleAIGenerate = async () => {
+    if (!f.ai_context.trim()) return toast.error('Describe your survey first');
+    setAiGenerating(true);
+    try {
+      const { data } = await API.post('/ai/generate', {
+        aiContext: f.ai_context,
+        mode: f.ai_mode || 'conversational',
+        customInstruction: f.ai_custom_instruction || null,
+      });
+      applyAIGeneration(data);
+      setTab('questions');
+    } catch (e) {
+      toast.error('Failed to generate survey');
+      console.error(e);
+    } finally {
+      setAiGenerating(false);
+    }
   };
 
   // ── Prompt Screen Handlers ──
@@ -437,7 +465,7 @@ export default function SurveyCreate() {
     return (
       <SurveyPromptScreen
         onGenerate={handlePromptGenerate}
-        onSkip={() => setPhase('builder')}
+        onSkip={() => { setAiGenerated(true); setPhase('builder'); }}
         onLoadTemplate={handlePromptTemplate}
         galleryTemplates={GALLERY_TEMPLATES}
         aiGenerating={aiGenerating}
