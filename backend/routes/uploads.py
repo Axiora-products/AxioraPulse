@@ -3,7 +3,6 @@ routes/uploads.py
 Whisper-only file and audio upload endpoints.
 """
 
-import io
 import asyncio
 import logging
 import os
@@ -14,10 +13,9 @@ import tempfile
 import threading
 import time
 import uuid
-import tempfile
-
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -359,7 +357,7 @@ def _transcribe_with_whisper(audio_path: str) -> dict:
     if not os.path.isfile(audio_path):
         raise FileNotFoundError(f"Audio file does not exist before transcription: {audio_path}")
 
-    model = get_whisper_model()
+    model = _get_whisper_model()
     logger.info(
         "Waiting for Whisper inference lock: audio=%s size=%s memory=%s",
         audio_path,
@@ -744,7 +742,7 @@ async def transcribe_audio(
             status_code=exc.status_code,
             content={"error": error_code, "detail": str(exc.detail)},
         )
-    except Exception as exc:
+    except Exception:
         logger.exception(
             "[%s] Audio transcription failed: filename=%s mime_type=%s "
             "temp_path=%s wav_path=%s elapsed=%.3fs memory=%s",
@@ -760,7 +758,7 @@ async def transcribe_audio(
             status_code=500,
             content={
                 "error": "transcription_failed",
-                "detail": "An internal error has occurred.",
+                "detail": "Audio transcription failed. See backend logs for details.",
             },
         )
 
