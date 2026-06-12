@@ -52,6 +52,7 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
 
   const [openPicker, authResponse] = useDrivePicker();
   const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribingMic, setIsTranscribingMic] = useState(false);
   const [audioChunks, setAudioChunks] = useState([]);
   const mediaRecorderRef = useRef(null);
 
@@ -74,38 +75,28 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
 
       mediaRecorder.onstop = async () => {
         const recorderMimeType = mediaRecorder.mimeType || 'audio/webm';
-        const uploadMimeType = recorderMimeType.split(';')[0];
-        const extension = uploadMimeType.includes('mp4')
-          ? 'mp4'
-          : uploadMimeType.includes('ogg')
-            ? 'ogg'
-            : 'webm';
-        const audioBlob = new Blob(chunks, { type: uploadMimeType });
+        const audioBlob = new Blob(chunks, { type: recorderMimeType });
         const formData = new FormData();
-        formData.append('audio', audioBlob, `recording.${extension}`);
-        formData.append('language', 'auto');
+        formData.append('audio', audioBlob, 'recording.webm');
 
-        console.log('Microphone blob size:', audioBlob.size);
-        console.log('Microphone blob type:', audioBlob.type);
-        console.log('Microphone FormData keys:', Array.from(formData.keys()));
-
-        setUploading(true);
+        setIsTranscribingMic(true);
         try {
-          const { data } = await API.post('/uploads/audio/transcribe', formData);
-          const transcript = data.text?.trim();
+          const response = await API.post('/uploads/audio/transcribe', formData);
+          const transcript = typeof response.data?.text === 'string'
+            ? response.data.text.trim()
+            : '';
           if (transcript) {
             setPrompt(prev => `${prev}${prev.trim() ? ' ' : ''}${transcript}`);
             toast.success('Recording transcribed');
           }
         } catch (err) {
-          console.error(
-            'Audio transcription response:',
-            err.response?.status,
-            err.response?.data,
-          );
+          const errorText = typeof err.response?.data === 'string'
+            ? err.response.data
+            : JSON.stringify(err.response?.data || {});
+          console.error('Transcription failed:', err.response?.status, errorText);
           toast.error(err.response?.data?.detail || 'Audio transcription failed');
         } finally {
-          setUploading(false);
+          setIsTranscribingMic(false);
           setAudioChunks([]);
           stream.getTracks().forEach(track => track.stop());
         }
@@ -675,22 +666,38 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
               type="button"
               className={`cp-tool-btn ${isRecording ? "recording" : ""}`}
               onClick={isRecording ? stopRecording : startRecording}
+              disabled={isTranscribingMic}
             >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill={isRecording ? "currentColor" : "none"}
-                stroke={isRecording ? "#ff5a1f" : "currentColor"}
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                <line x1="12" y1="19" x2="12" y2="23" />
-                <line x1="8" y1="23" x2="16" y2="23" />
-              </svg>
+              {isTranscribingMic ? (
+                <motion.span
+                  animate={{ rotate: 360 }}
+                  transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                  style={{
+                    display: 'inline-block',
+                    width: 14,
+                    height: 14,
+                    border: '2px solid rgba(255,120,40,0.15)',
+                    borderTopColor: '#ff5a1f',
+                    borderRadius: '50%',
+                  }}
+                />
+              ) : (
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill={isRecording ? "currentColor" : "none"}
+                  stroke={isRecording ? "#ff5a1f" : "currentColor"}
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                  <line x1="12" y1="19" x2="12" y2="23" />
+                  <line x1="8" y1="23" x2="16" y2="23" />
+                </svg>
+              )}
 
               <div className="voice-record-container">
                 {/* <span className="recording-text">

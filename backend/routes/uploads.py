@@ -3,21 +3,29 @@ routes/uploads.py
 Whisper-only file and audio upload endpoints.
 """
 
-import os
-import uuid
-import tempfile
+import io
 import asyncio
 import logging
+import os
 import shutil
+import subprocess
+import tempfile
 import threading
+import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
 
 from db.database import get_db
 from db.models import UserProfile, UploadedFile
 from dependencies import get_current_user
 from core.rate_limiter import limiter
+
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseDownload
 
 router = APIRouter(prefix="/uploads", tags=["uploads"])
 logger = logging.getLogger(__name__)
@@ -77,18 +85,12 @@ AUDIO_SUFFIX_BY_CONTENT_TYPE = {
     "audio/x-m4a": ".m4a",
 }
 
-LANGUAGE_MAP = {
-    "auto": None,
-    "english": "en",
-    "hindi": "hi",
-    "telugu": "te",
-    "en": "en",
-    "hi": "hi",
-    "te": "te",
-}
-
 WHISPER_CACHE_DIR = os.path.join(UPLOAD_DIR, "whisper_cache")
 os.makedirs(WHISPER_CACHE_DIR, exist_ok=True)
+
+FFMPEG_TIMEOUT_SECONDS = 60
+TRANSCRIPTION_TIMEOUT_SECONDS = 180
+MAX_AUDIO_DURATION_SECONDS = 10 * 60
 
 _whisper_model = None
 _whisper_model_lock = threading.Lock()
@@ -140,12 +142,16 @@ def _get_audio_suffix(filename: str | None, content_type: str | None) -> str:
         return filename_suffix
 
     return AUDIO_SUFFIX_BY_CONTENT_TYPE.get(
-        (content_type or "").lower(),
+        _normalize_content_type(content_type),
         ".webm",
     )
 
 
-def _get_whisper_model():
+def _normalize_content_type(content_type: str | None) -> str:
+    return (content_type or "").split(";", 1)[0].strip().lower()
+
+
+def get_whisper_model():
     global _whisper_model
 
     if _whisper_model is None:
@@ -154,9 +160,7 @@ def _get_whisper_model():
                 try:
                     import whisper
                 except ImportError as exc:
-                    raise RuntimeError(
-                        "Whisper is not installed. Install backend requirements."
-                    ) from exc
+                    raise RuntimeError("Whisper is not installed. Install backend requirements.") from exc
 
                 _whisper_model = whisper.load_model(
                     "base",
@@ -204,25 +208,90 @@ def _extract_text_from_file(filepath: str, content_type: str) -> str:
     return ""
 
 
-def _transcribe_with_whisper(audio_path: str, language: str = "auto") -> dict:
-    _ensure_ffmpeg_available()
-
-    lang_code = LANGUAGE_MAP.get((language or "auto").lower(), None)
-    whisper_model = _get_whisper_model()
-
-    result = whisper_model.transcribe(
-        audio_path,
-        language=lang_code,
-        task="transcribe",
-        fp16=False,
-        temperature=0,
-        condition_on_previous_text=False,
-        initial_prompt="This audio may contain English, Hindi, or Telugu.",
+def _get_audio_duration(audio_path: str) -> float:
+    ffmpeg_path = _ensure_ffmpeg_available()
+    ffprobe_path = shutil.which("ffprobe") or os.path.join(
+        os.path.dirname(ffmpeg_path),
+        "ffprobe.exe" if os.name == "nt" else "ffprobe",
     )
+
+    try:
+        result = subprocess.run(
+            [
+                ffprobe_path,
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
+                audio_path,
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=FFMPEG_TIMEOUT_SECONDS,
+        )
+        return float(result.stdout.strip())
+    except (FileNotFoundError, ValueError, subprocess.CalledProcessError) as exc:
+        raise ValueError("Could not determine audio duration") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise TimeoutError("Audio duration check timed out") from exc
+
+
+def _convert_to_whisper_wav(audio_path: str, wav_path: str) -> None:
+    ffmpeg_path = _ensure_ffmpeg_available()
+
+    try:
+        subprocess.run(
+            [
+                ffmpeg_path,
+                "-y",
+                "-i",
+                audio_path,
+                "-vn",
+                "-ac",
+                "1",
+                "-ar",
+                "16000",
+                "-c:a",
+                "pcm_s16le",
+                wav_path,
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=FFMPEG_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise TimeoutError("Audio conversion timed out") from exc
+    except (FileNotFoundError, subprocess.CalledProcessError) as exc:
+        raise ValueError("FFmpeg could not decode the uploaded audio") from exc
+
+
+def _transcribe_with_whisper(audio_path: str) -> dict:
+    duration = _get_audio_duration(audio_path)
+    if duration <= 0:
+        raise ValueError("Uploaded audio has no playable content")
+    if duration > MAX_AUDIO_DURATION_SECONDS:
+        raise ValueError("Audio is too long (max 10 minutes)")
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        wav_path = os.path.join(temp_dir, "audio.wav")
+        _convert_to_whisper_wav(audio_path, wav_path)
+
+        result = get_whisper_model().transcribe(
+            wav_path,
+            task="translate",
+            language=None,
+            fp16=False,
+            temperature=0,
+            condition_on_previous_text=False,
+        )
 
     return {
         "text": result.get("text", "").strip(),
-        "language": result.get("language"),
+        "language": "en",
     }
 
 
@@ -255,6 +324,7 @@ async def upload_file(
     extracted = _extract_text_from_file(filepath, file.content_type)
 
     db_file = UploadedFile(
+        id=uuid.UUID(file_id),
         filename=file.filename or "Untitled",
         content_type=file.content_type,
         file_size=len(contents),
@@ -268,6 +338,7 @@ async def upload_file(
     db.commit()
     db.refresh(db_file)
 
+    base_url = str(request.base_url).rstrip("/")
     return {
         "id": str(db_file.id),
         "filename": db_file.filename,
@@ -275,7 +346,102 @@ async def upload_file(
         "file_size": db_file.file_size,
         "extracted_text": extracted,
         "upload_type": "file",
+        "file_url": f"{base_url}/uploads/download/{db_file.id}",
     }
+
+
+class DriveUploadRequest(BaseModel):
+    fileId: str
+    accessToken: str
+    filename: str
+    mimeType: str
+
+
+@router.post("/drive")
+@limiter.limit("10/minute")
+async def upload_from_drive(
+    request: Request,
+    body: DriveUploadRequest,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(get_current_user),
+):
+    """
+    Downloads a file from Google Drive and processes it like a normal upload.
+    """
+    try:
+        creds = Credentials(token=body.accessToken)
+        service = build("drive", "v3", credentials=creds)
+
+        # Handle Google Docs formats by exporting them as PDF
+        is_google_doc = body.mimeType.startswith("application/vnd.google-apps.")
+
+        file_id = str(uuid.uuid4())
+        ext = os.path.splitext(body.filename)[1]
+
+        # If it's a Google Doc (Doc, Sheet, Slide), export as PDF
+        content_type = body.mimeType
+        if is_google_doc:
+            if "spreadsheet" in body.mimeType:
+                export_mime = "application/pdf"
+            elif "presentation" in body.mimeType:
+                export_mime = "application/pdf"
+            else:
+                export_mime = "application/pdf"
+
+            drive_request = service.files().export_media(fileId=body.fileId, mimeType=export_mime)
+            ext = ".pdf"
+            content_type = "application/pdf"
+        else:
+            drive_request = service.files().get_media(fileId=body.fileId)
+
+        stored_name = f"{file_id}{ext}"
+        filepath = os.path.join(UPLOAD_DIR, stored_name)
+
+        fh = io.BytesIO()
+        downloader = MediaIoBaseDownload(fh, drive_request)
+        done = False
+        while done is False:
+            status, done = downloader.next_chunk()
+
+        contents = fh.getvalue()
+        if len(contents) > 15 * 1024 * 1024:  # 15 MB limit for Drive
+            raise HTTPException(status_code=400, detail="File too large (max 15 MB)")
+
+        with open(filepath, "wb") as f:
+            f.write(contents)
+
+        # Extract text using existing logic
+        extracted = _extract_text_from_file(filepath, content_type)
+
+        # Save to DB
+        db_file = UploadedFile(
+            id=uuid.UUID(file_id),
+            filename=body.filename,
+            content_type=content_type,
+            file_size=len(contents),
+            extracted_text=extracted,
+            upload_type="file",
+            tenant_id=current_user.tenant_id,
+            created_by=current_user.id,
+        )
+        db.add(db_file)
+        db.commit()
+        db.refresh(db_file)
+
+        base_url = str(request.base_url).rstrip("/")
+        return {
+            "id": str(db_file.id),
+            "filename": db_file.filename,
+            "content_type": db_file.content_type,
+            "file_size": db_file.file_size,
+            "extracted_text": extracted,
+            "upload_type": "file",
+            "file_url": f"{base_url}/uploads/download/{db_file.id}",
+        }
+
+    except Exception as e:
+        print(f"Drive upload error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Google Drive error: {str(e)}")
 
 
 @router.post("/audio")
@@ -283,11 +449,11 @@ async def upload_file(
 async def upload_audio(
     request: Request,
     file: UploadFile = File(...),
-    language: str = Form("auto"),
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(get_current_user),
 ):
-    if file.content_type not in ALLOWED_AUDIO_TYPES:
+    content_type = _normalize_content_type(file.content_type)
+    if content_type not in ALLOWED_AUDIO_TYPES:
         raise HTTPException(
             status_code=400,
             detail=f"Unsupported audio type: {file.content_type}",
@@ -298,7 +464,7 @@ async def upload_audio(
         raise HTTPException(status_code=400, detail="Audio file too large (max 25 MB)")
 
     file_id = str(uuid.uuid4())
-    ext = _get_audio_suffix(file.filename, file.content_type)
+    ext = _get_audio_suffix(file.filename, content_type)
     stored_name = f"{file_id}{ext}"
     filepath = os.path.join(UPLOAD_DIR, stored_name)
 
@@ -306,20 +472,39 @@ async def upload_audio(
         f.write(contents)
 
     try:
-        result = await asyncio.to_thread(_transcribe_with_whisper, filepath, language)
+        result = await asyncio.wait_for(
+            asyncio.to_thread(_transcribe_with_whisper, filepath),
+            timeout=TRANSCRIPTION_TIMEOUT_SECONDS,
+        )
         transcript = result["text"]
         detected_language = result["language"]
 
+    except asyncio.TimeoutError as exc:
+        raise HTTPException(
+            status_code=504,
+            detail="Audio transcription timed out",
+        ) from exc
     except HTTPException:
         raise
+    except (TimeoutError, ValueError) as exc:
+        logger.warning(
+            "Uploaded audio processing failed (%s): %s",
+            type(exc).__name__,
+            str(exc),
+        )
+        raise HTTPException(
+            status_code=400,
+            detail="Audio could not be processed. Check the file and try again.",
+        ) from exc
     except Exception as e:
         logger.exception("Whisper transcription failed for uploaded audio")
         raise HTTPException(
             status_code=500,
-            detail=f"Audio transcription failed: {str(e)}",
+            detail="Audio transcription failed. Please try again.",
         ) from e
 
     db_file = UploadedFile(
+        id=uuid.UUID(file_id),
         filename=file.filename or "Audio recording",
         content_type=file.content_type,
         file_size=len(contents),
@@ -333,6 +518,7 @@ async def upload_audio(
     db.commit()
     db.refresh(db_file)
 
+    base_url = str(request.base_url).rstrip("/")
     return {
         "id": str(db_file.id),
         "filename": db_file.filename,
@@ -342,21 +528,33 @@ async def upload_audio(
         "text": transcript,
         "language": detected_language,
         "upload_type": "audio",
+        "file_url": f"{base_url}/uploads/download/{db_file.id}",
     }
 
 
 @router.post("/audio/transcribe")
+@limiter.limit("5/minute")
 async def transcribe_audio(
-    audio: UploadFile = File(...),
-    language: str = Form("auto"),
+    request: Request,
+    audio: UploadFile | None = File(None),
+    file: UploadFile | None = File(None),
+    current_user: UserProfile = Depends(get_current_user),
 ):
-    if audio.content_type not in ALLOWED_AUDIO_TYPES:
+    upload = audio or file
+    if upload is None:
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported audio type: {audio.content_type}",
+            detail="No audio file uploaded. Expected form field 'audio' or 'file'.",
         )
 
-    contents = await audio.read()
+    content_type = _normalize_content_type(upload.content_type)
+    if content_type not in ALLOWED_AUDIO_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported audio type: {upload.content_type}",
+        )
+
+    contents = await upload.read()
 
     if not contents:
         raise HTTPException(status_code=400, detail="Uploaded audio file is empty")
@@ -364,7 +562,7 @@ async def transcribe_audio(
     if len(contents) > 25 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="Audio file too large (max 25 MB)")
 
-    suffix = _get_audio_suffix(audio.filename, audio.content_type)
+    suffix = _get_audio_suffix(upload.filename, content_type)
     temp_path = None
 
     try:
@@ -372,20 +570,38 @@ async def transcribe_audio(
             temp.write(contents)
             temp_path = temp.name
 
-        result = await asyncio.to_thread(_transcribe_with_whisper, temp_path, language)
+        result = await asyncio.wait_for(
+            asyncio.to_thread(_transcribe_with_whisper, temp_path),
+            timeout=TRANSCRIPTION_TIMEOUT_SECONDS,
+        )
 
         return {
             "text": result["text"],
-            "language": result["language"],
+            "language": "en",
         }
 
+    except asyncio.TimeoutError as exc:
+        raise HTTPException(
+            status_code=504,
+            detail="Audio transcription timed out",
+        ) from exc
     except HTTPException:
         raise
+    except (TimeoutError, ValueError) as exc:
+        logger.warning(
+            "Temporary audio processing failed (%s): %s",
+            type(exc).__name__,
+            str(exc),
+        )
+        raise HTTPException(
+            status_code=400,
+            detail="Audio could not be processed. Check the recording and try again.",
+        ) from exc
     except Exception as e:
         logger.exception("Whisper transcription failed for temporary audio upload")
         raise HTTPException(
             status_code=500,
-            detail=f"Audio transcription failed: {str(e)}",
+            detail="Audio transcription failed. Please try again.",
         ) from e
 
     finally:
@@ -407,6 +623,7 @@ async def list_uploaded_files(
         .all()
     )
 
+    base_url = str(request.base_url).rstrip("/")
     return [
         {
             "id": str(f.id),
@@ -415,7 +632,89 @@ async def list_uploaded_files(
             "file_size": f.file_size,
             "upload_type": f.upload_type,
             "extracted_text": f.extracted_text,
+            "file_url": f"{base_url}/uploads/download/{f.id}",
             "created_at": f.created_at.isoformat() if f.created_at else None,
         }
         for f in files
     ]
+
+
+@router.get("/download/{file_id}")
+async def download_file(
+    file_id: str,
+    db: Session = Depends(get_db),
+):
+    try:
+        file_uuid = uuid.UUID(file_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid file ID format")
+
+    db_file = db.query(UploadedFile).filter(UploadedFile.id == file_uuid).first()
+    if not db_file:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    ext = os.path.splitext(db_file.filename)[1]
+    stored_name = f"{db_file.id}{ext}"
+    filepath = os.path.join(UPLOAD_DIR, stored_name)
+
+    if not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail="File not found on disk")
+
+    return FileResponse(
+        path=filepath,
+        filename=db_file.filename,
+        media_type=db_file.content_type,
+    )
+
+
+@router.delete("/{file_id}")
+@limiter.limit("10/minute")
+async def delete_file(
+    request: Request,
+    file_id: str,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(get_current_user),
+):
+    print(
+        f"[DEBUG_DELETE] Incoming delete request: file_id={file_id}, user={current_user.email}, tenant={current_user.tenant_id}"
+    )
+    try:
+        file_uuid = uuid.UUID(file_id)
+        print(f"[DEBUG_DELETE] Successfully parsed UUID: {file_uuid}")
+    except ValueError:
+        print(f"[DEBUG_DELETE] Failed to parse UUID from: {file_id}")
+        raise HTTPException(status_code=400, detail="Invalid file ID format")
+
+    db_file = (
+        db.query(UploadedFile)
+        .filter(
+            UploadedFile.id == file_uuid,
+            UploadedFile.tenant_id == current_user.tenant_id,
+        )
+        .first()
+    )
+
+    if not db_file:
+        print(f"[DEBUG_DELETE] File not found in DB: id={file_uuid}, tenant={current_user.tenant_id}")
+        raise HTTPException(status_code=404, detail="File not found")
+
+    print(f"[DEBUG_DELETE] Found file in DB: filename={db_file.filename}")
+    ext = os.path.splitext(db_file.filename)[1]
+    stored_name = f"{db_file.id}{ext}"
+    filepath = os.path.join(UPLOAD_DIR, stored_name)
+    print(f"[DEBUG_DELETE] Looking for file on disk at: {filepath}")
+
+    if os.path.exists(filepath):
+        try:
+            os.remove(filepath)
+            print("[DEBUG_DELETE] Successfully deleted file from disk")
+        except Exception as e:
+            print(f"[DEBUG_DELETE] Failed to delete file from disk: {e}")
+    else:
+        print("[DEBUG_DELETE] File was not found on disk, skipping disk delete")
+
+    db.delete(db_file)
+    db.commit()
+    print("[DEBUG_DELETE] Successfully deleted database record")
+
+    return {"success": True, "message": "File deleted successfully"}
