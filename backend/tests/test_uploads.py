@@ -102,7 +102,7 @@ def test_transcribe_audio_exception(auth_headers, monkeypatch):
     model = routes.uploads.get_whisper_model()
 
     def mock_transcribe(*args, **kwargs):
-        raise ValueError("Transcription error")
+        raise Exception("Transcription error")
 
     monkeypatch.setattr(model, "transcribe", mock_transcribe)
 
@@ -123,7 +123,7 @@ def test_upload_audio_exception(auth_headers, monkeypatch):
     model = routes.uploads.get_whisper_model()
 
     def mock_transcribe(*args, **kwargs):
-        raise ValueError("Transcription error")
+        raise Exception("Transcription error")
 
     monkeypatch.setattr(model, "transcribe", mock_transcribe)
 
@@ -139,9 +139,20 @@ def test_upload_audio_exception(auth_headers, monkeypatch):
 
 
 def test_transcribe_audio_ffmpeg_missing(auth_headers, monkeypatch):
-    import shutil
+    import routes.uploads
+    from fastapi import HTTPException
 
-    monkeypatch.setattr(shutil, "which", lambda cmd: None)
+    def mock_ensure_ffmpeg_available():
+        raise HTTPException(
+            status_code=503,
+            detail="FFmpeg is required for audio transcription but was not found.",
+        )
+
+    monkeypatch.setattr(
+        routes.uploads,
+        "_ensure_ffmpeg_available",
+        mock_ensure_ffmpeg_available,
+    )
 
     audio_obj = io.BytesIO(b"dummy audio bytes")
     response = client.post(
@@ -221,3 +232,145 @@ def test_delete_file_endpoint(auth_headers):
     # Try to delete with invalid UUID format (should fail with 400)
     response = client.delete("/uploads/not-a-valid-uuid", headers=auth_headers)
     assert response.status_code == 400
+
+
+def test_get_audio_duration_exceptions(monkeypatch):
+    import routes.uploads
+    import subprocess
+
+    # Test ValueError when ffprobe returns invalid duration
+    def mock_run_invalid_duration(*args, **kwargs):
+        class MockProcess:
+            stdout = "invalid\n"
+            stderr = ""
+            returncode = 0
+
+        return MockProcess()
+
+    monkeypatch.setattr(subprocess, "run", mock_run_invalid_duration)
+    try:
+        routes.uploads._get_audio_duration("dummy_path")
+        assert False, "Expected ValueError"
+    except ValueError as e:
+        assert "Could not determine audio duration" in str(e)
+
+    # Test TimeoutExpired
+    def mock_run_timeout(*args, **kwargs):
+        raise subprocess.TimeoutExpired(cmd=args[0], timeout=60)
+
+    monkeypatch.setattr(subprocess, "run", mock_run_timeout)
+    try:
+        routes.uploads._get_audio_duration("dummy_path")
+        assert False, "Expected TimeoutError"
+    except TimeoutError as e:
+        assert "Audio duration check timed out" in str(e)
+
+
+def test_convert_to_whisper_wav_exceptions(monkeypatch):
+    import routes.uploads
+    import subprocess
+
+    # Test CalledProcessError
+    def mock_run_error(*args, **kwargs):
+        raise subprocess.CalledProcessError(returncode=1, cmd=args[0])
+
+    monkeypatch.setattr(subprocess, "run", mock_run_error)
+    try:
+        routes.uploads._convert_to_whisper_wav("dummy_path", "wav_path")
+        assert False, "Expected ValueError"
+    except ValueError as e:
+        assert "FFmpeg could not decode the uploaded audio" in str(e)
+
+    # Test TimeoutExpired
+    def mock_run_timeout(*args, **kwargs):
+        raise subprocess.TimeoutExpired(cmd=args[0], timeout=60)
+
+    monkeypatch.setattr(subprocess, "run", mock_run_timeout)
+    try:
+        routes.uploads._convert_to_whisper_wav("dummy_path", "wav_path")
+        assert False, "Expected TimeoutError"
+    except TimeoutError as e:
+        assert "Audio conversion timed out" in str(e)
+
+
+def test_transcribe_audio_timeout(auth_headers, monkeypatch):
+    import asyncio
+
+    async def mock_wait_for(*args, **kwargs):
+        raise asyncio.TimeoutError()
+
+    monkeypatch.setattr(asyncio, "wait_for", mock_wait_for)
+
+    audio_obj = io.BytesIO(b"dummy audio bytes")
+    response = client.post(
+        "/uploads/audio/transcribe",
+        files={"audio": ("recording.mp3", audio_obj, "audio/mp3")},
+        data={"language": "auto"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 504
+    assert "timed out" in response.json()["detail"]
+
+
+def test_upload_audio_timeout(auth_headers, monkeypatch):
+    import asyncio
+
+    async def mock_wait_for(*args, **kwargs):
+        raise asyncio.TimeoutError()
+
+    monkeypatch.setattr(asyncio, "wait_for", mock_wait_for)
+
+    audio_obj = io.BytesIO(b"dummy audio bytes")
+    response = client.post(
+        "/uploads/audio",
+        files={"file": ("recording.mp3", audio_obj, "audio/mp3")},
+        data={"language": "english"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 504
+    assert "timed out" in response.json()["detail"]
+
+
+def test_upload_audio_value_error(auth_headers, monkeypatch):
+    import routes.uploads
+
+    def mock_transcribe_error(*args, **kwargs):
+        raise ValueError("Invalid audio duration")
+
+    monkeypatch.setattr(routes.uploads, "_transcribe_with_whisper", mock_transcribe_error)
+
+    audio_obj = io.BytesIO(b"dummy audio bytes")
+    response = client.post(
+        "/uploads/audio",
+        files={"file": ("recording.mp3", audio_obj, "audio/mp3")},
+        headers=auth_headers,
+    )
+    assert response.status_code == 400
+    assert "could not be processed" in response.json()["detail"]
+
+
+def test_transcribe_audio_value_error(auth_headers, monkeypatch):
+    import routes.uploads
+
+    def mock_transcribe_error(*args, **kwargs):
+        raise ValueError("Invalid audio duration")
+
+    monkeypatch.setattr(routes.uploads, "_transcribe_with_whisper", mock_transcribe_error)
+
+    audio_obj = io.BytesIO(b"dummy audio bytes")
+    response = client.post(
+        "/uploads/audio/transcribe",
+        files={"audio": ("recording.mp3", audio_obj, "audio/mp3")},
+        headers=auth_headers,
+    )
+    assert response.status_code == 400
+    assert "could not be processed" in response.json()["detail"]
+
+
+def test_transcribe_audio_no_file(auth_headers):
+    response = client.post(
+        "/uploads/audio/transcribe",
+        headers=auth_headers,
+    )
+    assert response.status_code == 400
+    assert "No audio file uploaded" in response.json()["detail"]

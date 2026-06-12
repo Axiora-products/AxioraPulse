@@ -46,24 +46,66 @@ else:
 
 
 def seed_ssm():
-    print("📥 Seeding Floci SSM parameters from template...")
-    template_path = "/app/.env.local.template"
-    if not os.path.exists(template_path):
-        # Fallback to local execution path if any
-        template_path = "backend/.env.local.template"
-        if not os.path.exists(template_path):
-            print(f"❌ Error: Template file not found at {template_path}")
-            return {}
+    print("📥 Seeding Floci SSM parameters...")
 
-    parameters = {}
-    with open(template_path, "r") as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            if "=" in line:
-                key, val = line.split("=", 1)
-                parameters[key] = val
+    # Default mock/non-sensitive parameters for local development
+    parameters = {
+        "SECRET_KEY": "local-development-secret-key-1234567890",
+        "ENVIRONMENT": "development",
+        "FRONTEND_URL": "http://localhost:5173",
+        "DATABASE_URL": "postgresql://postgres:root@pulse-db:5432/nexpulse",
+        "MIGRATION_LAMBDA_SECRET": "local-migration-secret-token",
+        "GEMINI_KEY": "mock-gemini-api-key",
+        "ANTHROPIC_KEY": "mock-anthropic-api-key",
+        "OPENAI_KEY": "mock-openai-api-key",
+        "RAZORPAY_KEY_ID": "rzp_test_mockkeyid123",
+        "RAZORPAY_KEY_SECRET": "mockkeysecret123",
+        "DISABLE_PAYMENTS": "true",
+        "ZOOM_ACCOUNT_ID": "mock-zoom-account-id",
+        "ZOOM_CLIENT_ID": "mock-zoom-client-id",
+        "ZOOM_CLIENT_SECRET": "mock-zoom-client-secret",
+        "AWS_SES_REGION": "ap-south-1",
+        "EMAIL_FROM": "Axiora Pulse <noreply@axiorapulse.com>",
+        "TWILIO_ACCOUNT_SID": "ACmockaccountsid1234567890",
+        "TWILIO_AUTH_TOKEN": "mocktwilioauthtoken1234567890",
+        "TWILIO_WHATSAPP_FROM": "+14155238886",
+        "META_WHATSAPP_ACCESS_TOKEN": "EAAmockaccesstoken1234567890",
+        "META_WHATSAPP_PHONE_NUMBER_ID": "10987654321",
+        "COGNITO_REGION": "ap-south-1",
+        "MOCK_COGNITO": "false",
+    }
+
+    # Attempt to load custom configurations from template file if it exists
+    template_path = "/app/.env.local.template"
+    if not os.path.isdir("/app"):
+        template_path = "backend/.env.local.template"
+
+    if os.path.exists(template_path):
+        print(f"📖 Found template file at {template_path}, loading custom values...")
+        with open(template_path, "r") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if "=" in line:
+                    key, val = line.split("=", 1)
+                    parameters[key] = val
+    else:
+        print(f"📝 Template file not found. Creating a default template at {template_path}...")
+        try:
+            with open(template_path, "w") as f:
+                f.write("# ==============================================================================\n")
+                f.write("# AxioraPulse — Local Development Environment Configuration Template\n")
+                f.write("# ==============================================================================\n")
+                f.write("# This template acts as the local source of truth for your configuration.\n")
+                f.write("# Place custom secrets here (it is gitignored). The seeding script will overlay\n")
+                f.write("# these parameters on next container startup.\n")
+                f.write("# ==============================================================================\n\n")
+                for k, v in parameters.items():
+                    f.write(f"{k}={v}\n")
+            print(f"✅ Created default template file at: {template_path}")
+        except Exception as e:
+            print(f"⚠️ Failed to write template file: {str(e)}")
 
     for key, val in parameters.items():
         # Exclude variables we generate/override dynamically
