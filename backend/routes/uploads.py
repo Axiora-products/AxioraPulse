@@ -323,18 +323,14 @@ def _validate_repetition(text: str) -> None:
             detail="Low-confidence transcription detected. Please retry.",
         )
 
-    words = [
-        word
-        for word in re.findall(r"[^\W\d_]+", text.casefold(), flags=re.UNICODE)
-        if word
-    ]
+    words = [word for word in re.findall(r"[^\W\d_]+", text.casefold(), flags=re.UNICODE) if word]
 
     repeated = False
     for phrase_length in range(1, min(6, len(words) + 1)):
         for start in range(0, len(words) - phrase_length * 11 + 1):
-            phrase = words[start:start + phrase_length]
+            phrase = words[start : start + phrase_length]
             if all(
-                words[start + repeat * phrase_length:start + (repeat + 1) * phrase_length] == phrase
+                words[start + repeat * phrase_length : start + (repeat + 1) * phrase_length] == phrase
                 for repeat in range(1, 11)
             ):
                 repeated = True
@@ -732,11 +728,7 @@ async def transcribe_audio(
             exc.status_code,
             exc.detail,
         )
-        error_code = (
-            "transcription_timeout"
-            if exc.status_code == 504
-            else "transcription_failed"
-        )
+        error_code = "transcription_timeout" if exc.status_code == 504 else "transcription_failed"
         return JSONResponse(
             status_code=exc.status_code,
             content={"error": error_code, "detail": str(exc.detail)},

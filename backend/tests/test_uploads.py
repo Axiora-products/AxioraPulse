@@ -50,10 +50,7 @@ def test_whisper_rejects_wrong_script_for_selected_telugu(monkeypatch):
         routes.uploads._transcribe_with_whisper("recording.wav", "te")
 
     assert exc_info.value.status_code == 422
-    assert exc_info.value.detail == (
-        "Selected language output is not valid te script. "
-        "Please retry clearly."
-    )
+    assert exc_info.value.detail == ("Selected language output is not valid te script. Please retry clearly.")
 
 
 def test_whisper_accepts_telugu_mixed_with_english(monkeypatch):
@@ -94,10 +91,7 @@ def test_whisper_rejects_devanagari_for_selected_malayalam(monkeypatch):
         routes.uploads._transcribe_with_whisper("recording.wav", "ml")
 
     assert exc_info.value.status_code == 422
-    assert exc_info.value.detail == (
-        "Selected language output is not valid ml script. "
-        "Please retry clearly."
-    )
+    assert exc_info.value.detail == ("Selected language output is not valid ml script. Please retry clearly.")
 
 
 def test_whisper_rejects_repeated_hallucination(monkeypatch):
