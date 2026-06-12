@@ -5,7 +5,7 @@ import useAuthStore from '../hooks/useAuth';
 
 // ── Launch target ─────────────────────────────────────────────────────────────
 
-const LAUNCH_DATE = new Date('2026-06-14T23:59:59');
+const LAUNCH_DATE = new Date('2026-06-30T23:59:59');
 
 function getTimeLeft() {
   const diff = LAUNCH_DATE - Date.now();
