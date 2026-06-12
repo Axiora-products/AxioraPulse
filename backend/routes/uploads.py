@@ -654,7 +654,7 @@ async def transcribe_audio(
             status_code=500,
             content={
                 "error": "transcription_failed",
-                "detail": str(exc),
+                "detail": "An internal error has occurred.",
             },
         )
 
