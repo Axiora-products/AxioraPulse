@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import API from '../api/axios';
-import { cognitoGetCurrentSession, cognitoSignOut } from '../lib/cognito';
+import { cognitoGetCurrentSession, cognitoSignOut, setAuthConfig } from '../lib/cognito';
 
 const useAuthStore = create((set, get) => ({
   user: null,
@@ -13,7 +13,24 @@ const useAuthStore = create((set, get) => ({
   initialize: async (force = false, syncParams = {}) => {
     if (get().initialized && !force) return;
     set({ loading: true });
+
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        const res = await API.get('/auth/me');
+        const { user, profile, tenant } = res.data;
+        set({ user, profile, tenant, loading: false, initialized: true });
+        return;
+      } catch (meErr) {
+        // Token is invalid/expired; fall back to Cognito session restoration
+      }
+    }
+
     try {
+      // Fetch dynamic AWS Cognito credentials from backend before checking authentication session
+      const configRes = await API.get('/auth/config');
+      setAuthConfig(configRes.data);
+
       const session = await cognitoGetCurrentSession();
       const idToken = session.getIdToken().getJwtToken();
       localStorage.setItem('token', idToken);
@@ -41,6 +58,18 @@ const useAuthStore = create((set, get) => ({
 
   // ── checkSession: validate stored session (called by ProtectedRoute) ──────
   checkSession: async () => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        const res = await API.get('/auth/me');
+        const { user, profile, tenant } = res.data;
+        set({ user, profile, tenant, loading: false, initialized: true });
+        return true;
+      } catch (meErr) {
+        // Token is invalid/expired; fall back to Cognito session restoration
+      }
+    }
+
     try {
       const session = await cognitoGetCurrentSession();
       const idToken = session.getIdToken().getJwtToken();

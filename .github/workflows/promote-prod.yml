@@ -1,0 +1,129 @@
+name: Promote to Production
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  promote:
+    name: Promote Image & Deploy Prod
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials (Prod)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::217757579310:role/GitHubActionsDeployerRole
+          aws-region: ap-south-1
+
+      - name: Login to Amazon ECR (Prod)
+        id: login-ecr-prod
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Login to Amazon ECR (QA)
+        id: login-ecr-qa
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          registries: "399894608507"
+
+      - name: Promote Backend Image
+        run: |
+          QA_IMAGE=399894608507.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-fastapi-qa:sha-${{ github.sha }}
+          PROD_IMAGE=${{ steps.login-ecr-prod.outputs.registry }}/axiora/pulse-fastapi:sha-${{ github.sha }}
+          LATEST_IMAGE=${{ steps.login-ecr-prod.outputs.registry }}/axiora/pulse-fastapi:prod
+          
+          docker pull $QA_IMAGE
+          docker tag $QA_IMAGE $PROD_IMAGE
+          docker tag $QA_IMAGE $LATEST_IMAGE
+          docker push $PROD_IMAGE
+          docker push $LATEST_IMAGE
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Fetch Frontend Config from SSM (Prod)
+        id: fetch-ssm
+        run: |
+          echo "Fetching Production Cognito and URL configurations from SSM..."
+          USER_POOL_ID=$(aws ssm get-parameter --name "/axiorapulse/prod/COGNITO_USER_POOL_ID" --region ap-south-1 --query "Parameter.Value" --output text)
+          APP_CLIENT_ID=$(aws ssm get-parameter --name "/axiorapulse/prod/COGNITO_APP_CLIENT_ID" --region ap-south-1 --query "Parameter.Value" --output text)
+          FRONTEND_URL=$(aws ssm get-parameter --name "/axiorapulse/prod/FRONTEND_URL" --region ap-south-1 --query "Parameter.Value" --output text)
+          API_BASE_URL="${FRONTEND_URL}:8000"
+
+          echo "USER_POOL_ID=$USER_POOL_ID" >> $GITHUB_OUTPUT
+          echo "APP_CLIENT_ID=$APP_CLIENT_ID" >> $GITHUB_OUTPUT
+          echo "FRONTEND_URL=$FRONTEND_URL" >> $GITHUB_OUTPUT
+          echo "API_BASE_URL=$API_BASE_URL" >> $GITHUB_OUTPUT
+
+      - name: Rebuild and Push Frontend (Prod)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          build-args: |
+            VITE_COGNITO_USER_POOL_ID=${{ steps.fetch-ssm.outputs.USER_POOL_ID }}
+            VITE_COGNITO_APP_CLIENT_ID=${{ steps.fetch-ssm.outputs.APP_CLIENT_ID }}
+            VITE_FRONTEND_URL=${{ steps.fetch-ssm.outputs.FRONTEND_URL }}
+            VITE_API_BASE_URL=${{ steps.fetch-ssm.outputs.API_BASE_URL }}
+          tags: |
+            ${{ steps.login-ecr-prod.outputs.registry }}/axiora/pulse-frontend:sha-${{ github.sha }}
+            ${{ steps.login-ecr-prod.outputs.registry }}/axiora/pulse-frontend:prod
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Deploy Prod Infrastructure
+        run: |
+          npm install --prefix infra/cdk
+          cd infra/cdk
+          export CDK_PROD_ENABLED=true
+          npx cdk deploy AxioraPulseStackProd --require-approval never
+
+      - name: Prepare Prod Task Definitions
+        run: |
+          DB_SECRET_ARN=$(aws ssm get-parameter --name "/axiorapulse/prod/DB_SECRET_ARN" --region ap-south-1 --query "Parameter.Value" --output text)
+          sed -i "s|\${DB_SECRET_ARN}|$DB_SECRET_ARN|g" backend/ecs-task-def.json
+          sed -i 's/${ENV}/prod/g' backend/ecs-task-def.json
+          sed -i 's/${ROLE_ARN}/arn:aws:iam::217757579310:role\/GitHubActionsDeployerRole/g' backend/ecs-task-def.json
+          sed -i 's/${ACCOUNT_ID}/217757579310/g' backend/ecs-task-def.json
+          sed -i 's/${ENV}/prod/g' frontend/ecs-task-def.json
+          sed -i 's/${ROLE_ARN}/arn:aws:iam::217757579310:role\/GitHubActionsDeployerRole/g' frontend/ecs-task-def.json
+
+      - name: Render Backend Task Definition
+        id: render-backend
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: backend/ecs-task-def.json
+          container-name: BackendContainer
+          image: ${{ steps.login-ecr-prod.outputs.registry }}/axiora/pulse-fastapi:sha-${{ github.sha }}
+
+      - name: Deploy Backend to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render-backend.outputs.task-definition }}
+          service: pulse-backend-prod
+          cluster: axiorapulse-prod-cluster
+          wait-for-service-stability: true
+
+      - name: Render Frontend Task Definition
+        id: render-frontend
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: frontend/ecs-task-def.json
+          container-name: FrontendContainer
+          image: ${{ steps.login-ecr-prod.outputs.registry }}/axiora/pulse-frontend:sha-${{ github.sha }}
+
+      - name: Deploy Frontend to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render-frontend.outputs.task-definition }}
+          service: pulse-frontend-prod
+          cluster: axiorapulse-prod-cluster
+          wait-for-service-stability: true

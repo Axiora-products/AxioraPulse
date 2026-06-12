@@ -47,7 +47,7 @@ def get_current_user(
         # Self-healing on-the-fly user synchronization
         email = payload.get("email", "")
         name = payload.get("name", "")
-        
+
         if email:
             # 1. Existing user migrated or invited - link by email
             existing = db.query(UserProfile).filter(UserProfile.email == email).first()
@@ -56,6 +56,20 @@ def get_current_user(
                 db.commit()
                 db.refresh(existing)
                 user = existing
+
+            # Also try phone_number lookup for OTP-authenticated users
+            phone_number = payload.get("phone_number", "")
+            if not existing and phone_number:
+                existing = (
+                    db.query(UserProfile)
+                    .filter(UserProfile.phone_number == phone_number, UserProfile.phone_verified == True)
+                    .first()
+                )
+                if existing:
+                    existing.cognito_sub = cognito_sub
+                    db.commit()
+                    db.refresh(existing)
+                    user = existing
 
         if user is None:
             # 2. Brand new user - create tenant + profile
@@ -69,7 +83,7 @@ def get_current_user(
                 text = re.sub(r"[\s_-]+", "-", text)
                 return text.strip("-") or "org"
 
-            derived_tenant_name = email.split('@')[1].split('.')[0].title() if email else 'My Organisation'
+            derived_tenant_name = email.split("@")[1].split(".")[0].title() if email else "My Organisation"
             derived_tenant_slug = _slugify(derived_tenant_name)
 
             # Check if a tenant with this slug already exists — reuse it or find a fallback

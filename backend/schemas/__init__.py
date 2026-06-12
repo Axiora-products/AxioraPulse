@@ -1,3 +1,4 @@
+# ruff: noqa: F401, F403
 from .base import *
 from .tenant import *
 from .user import *
@@ -10,3 +11,4 @@ from .dashboard import *
 from .ai import *
 from .share import *
 from .payment import *
+from .otp import *

@@ -1,14 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import API from '../api/axios';
-import AISurveySuggestions from '../components/AISurveySuggestions';
+
 import SurveyPromptScreen, { SURVEY_MODES, getSurveyModeLabel } from '../components/SurveyPromptScreen';
 import useAuthStore from '../hooks/useAuth';
 import { QUESTION_TYPES, SHORT_SURVEY_RULES, estimateSurveyMinutes, getFormatDiversityScore, getQuestionWordCount, isExpired } from '../lib/constants';
 import { Reorder, useDragControls, motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { useLoading } from '../context/LoadingContext';
-import { TRUST_SCREEN_COPY } from '../config/trustScreen';
 
 const newQ = () => ({ _id: Math.random().toString(36).slice(2), question_text: '', question_type: 'short_text', options: [], is_required: false, description: '' });
 const hasO = t => ['single_choice', 'multiple_choice', 'dropdown', 'ranking', 'emoji_reaction', 'swipe_choice', 'visual_choice'].includes(t);
@@ -177,8 +176,6 @@ export default function SurveyCreate() {
   const resumeDraftId = searchParams.get('draftId');
   useEffect(() => { stopLoading(); }, [stopLoading]);
 
-  const [trustAccepted, setTrustAccepted] = useState(() => Boolean(resumeDraftId));
-  const [trustLeaving, setTrustLeaving] = useState(false);
   const [phase, setPhase] = useState('prompt'); // 'prompt' | 'builder'
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState('details');
@@ -190,7 +187,7 @@ export default function SurveyCreate() {
     expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16), 
     theme_color: '#FF4500', 
     allow_anonymous: true, 
-    require_email: false, 
+    require_email: true,
     show_progress_bar: true,
     ai_context: '',
     ai_mode: 'conversational',
@@ -199,10 +196,8 @@ export default function SurveyCreate() {
   const [qs, sQs] = useState([newQ()]);
   const [dirty, setDirty] = useState(false);
   const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiGenerated, setAiGenerated] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
-  const [modeOpen, setModeOpen] = useState(false);
-  const modeRef = useRef(null);
-  const [pendingGen, setPendingGen] = useState(null);
   const [showTemplates, setShowTemplates] = useState(false);
   const [tmplTab, setTmplTab] = useState('gallery');
   const [catFilter, setCatFilter] = useState('All');
@@ -212,19 +207,14 @@ export default function SurveyCreate() {
   const [tmplDesc, setTmplDesc] = useState('');
   const [tmplNewCat, setTmplNewCat] = useState('');
   const [tmplQs, setTmplQs] = useState([{ _id: 'tq0', question_text: '', question_type: 'short_text', is_required: false }]);
+  const [modeOpen, setModeOpen] = useState(false);
+  const modeRef = useRef(null);
   const [customTemplates, setCustomTemplates] = useState(() => {
     try { return JSON.parse(localStorage.getItem('np-custom-templates') || '[]'); } catch { return []; }
   });
 
   const persistCustom = list => { setCustomTemplates(list); localStorage.setItem('np-custom-templates', JSON.stringify(list)); };
-  const selectedAIMode = SURVEY_MODES.find(m => m.id === f.ai_mode) || SURVEY_MODES[0];
 
-  useEffect(() => {
-    if (!modeOpen) return;
-    const handler = e => { if (modeRef.current && !modeRef.current.contains(e.target)) setModeOpen(false); };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [modeOpen]);
 
   function saveAsTemplate() {
     if (!tmplName.trim()) return toast.error('Template name required');
@@ -263,6 +253,13 @@ export default function SurveyCreate() {
     return () => window.removeEventListener('beforeunload', h);
   }, [dirty]);
 
+  useEffect(() => {
+    if (!modeOpen) return;
+    const handler = e => { if (modeRef.current && !modeRef.current.contains(e.target)) setModeOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [modeOpen]);
+
   const s = (k, v) => { sf(p => ({ ...p, [k]: v })); setDirty(true); };
   const sQ = (id, k, v) => { sQs(a => a.map(q => q._id === id ? { ...q, [k]: v } : q)); setDirty(true); };
   const addQ = () => { sQs(a => [...a, newQ()]); setDirty(true); };
@@ -271,6 +268,12 @@ export default function SurveyCreate() {
   const addOpt = id => { sQs(a => a.map(q => q._id===id ? { ...q, options:[...(q.options||[]),{label:'',value:''}] } : q)); setDirty(true); };
   const sOpt = (id, i, v, imageUrl) => { sQs(a => a.map(q => { if (q._id!==id) return q; const o=[...(q.options||[])]; o[i]={...o[i],label:v,value:v.toLowerCase().replace(/\s+/g,'_'),...(imageUrl !== undefined ? { image_url:imageUrl } : {})}; return {...q,options:o}; })); setDirty(true); };
   const delOpt = (id, i) => { sQs(a => a.map(q => q._id!==id ? q : { ...q, options:q.options.filter((_,j)=>j!==i) })); setDirty(true); };
+
+
+
+  // ── Prompt Screen Handlers ──
+
+  const selectedAIMode = SURVEY_MODES.find(m => m.id === f.ai_mode) || SURVEY_MODES[0];
 
   const applyAIGeneration = (data) => {
     sf(p => ({
@@ -290,27 +293,22 @@ export default function SurveyCreate() {
       })));
     }
     setDirty(true);
-    setPendingGen(null);
+    setAiGenerated(true);
     setShowConfirm(false);
     toast.success('Survey generated successfully!');
   };
 
   const handleAIGenerate = async () => {
-    if (!f.ai_context.trim()) return toast.error('Please describe your survey first');
-    if (f.ai_mode === 'custom' && !f.ai_custom_instruction.trim()) return toast.error('Add custom mode instructions first');
+    if (!f.ai_context.trim()) return toast.error('Describe your survey first');
     setAiGenerating(true);
     try {
       const { data } = await API.post('/ai/generate', {
         aiContext: f.ai_context,
-        mode: f.ai_mode,
+        mode: f.ai_mode || 'conversational',
         customInstruction: f.ai_custom_instruction || null,
       });
-      if (f.title || qs.length > 1 || (qs.length === 1 && qs[0].question_text)) {
-        setPendingGen(data);
-        setShowConfirm(true);
-      } else {
-        applyAIGeneration(data);
-      }
+      applyAIGeneration(data);
+      setTab('questions');
     } catch (e) {
       toast.error('Failed to generate survey');
       console.error(e);
@@ -462,44 +460,12 @@ export default function SurveyCreate() {
   }, [resumeDraftId]);
 
   // ── Prompt Phase ──
-  if (!trustAccepted) {
-    return (
-      <div className="trust-screen-shell">
-        <motion.div
-          className="trust-screen-panel"
-          initial={{ opacity: 0, y: 18, scale: 0.985 }}
-          animate={trustLeaving ? { opacity: 0, y: -10, scale: 0.985 } : { opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.36, ease: [0.16, 1, 0.3, 1] }}
-        >
-          <div className="trust-screen-kicker">Idea Protection</div>
-          <h1>{TRUST_SCREEN_COPY.title}</h1>
-          <p>
-            {TRUST_SCREEN_COPY.subheading.split('\n').map((line, index) => (
-              <React.Fragment key={line}>
-                {index > 0 && <br />}
-                {line}
-              </React.Fragment>
-            ))}
-          </p>
-          <button
-            type="button"
-            onClick={() => {
-              setTrustLeaving(true);
-              window.setTimeout(() => setTrustAccepted(true), 220);
-            }}
-          >
-            {TRUST_SCREEN_COPY.continueLabel}
-          </button>
-        </motion.div>
-      </div>
-    );
-  }
 
   if (phase === 'prompt') {
     return (
       <SurveyPromptScreen
         onGenerate={handlePromptGenerate}
-        onSkip={() => setPhase('builder')}
+        onSkip={() => { setAiGenerated(true); setPhase('builder'); }}
         onLoadTemplate={handlePromptTemplate}
         galleryTemplates={GALLERY_TEMPLATES}
         aiGenerating={aiGenerating}
@@ -537,22 +503,7 @@ export default function SurveyCreate() {
         }
       `}</style>
 
-      {/* ── OVERWRITE CONFIRMATION MODAL ── */}
-      {showConfirm && (
-        <div style={{ position:'fixed',inset:0,zIndex:9999,background:'rgba(22,15,8,0.6)',backdropFilter:'blur(8px)',display:'flex',alignItems:'center',justifyContent:'center',padding:24 }}>
-          <div style={{ background:'var(--warm-white)',borderRadius:24,padding:32,width:'100%',maxWidth:480,boxShadow:'0 32px 80px rgba(22,15,8,0.2)' }}>
-            <div style={{ width: 48, height: 48, borderRadius: 16, background: 'rgba(214,59,31,0.1)', color: 'var(--terracotta)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, marginBottom: 20 }}>⚠️</div>
-            <h3 style={{ fontFamily:"'Playfair Display',serif",fontWeight:900,fontSize:24,margin:'0 0 12px 0',color:'var(--espresso)' }}>Overwrite existing survey?</h3>
-            <p style={{ fontFamily:"'Fraunces',serif",fontSize:15,color:'rgba(22,15,8,0.5)',lineHeight:1.6,margin:'0 0 24px 0' }}>
-              This will replace your current survey title, description, welcome message, and all questions with the newly AI-generated ones. This action cannot be undone.
-            </p>
-            <div style={{ display:'flex',gap:12,justifyContent:'flex-end' }}>
-              <button onClick={() => { setShowConfirm(false); setPendingGen(null); }} style={{ padding:'12px 24px',borderRadius:999,border:'1.5px solid rgba(22,15,8,0.1)',background:'transparent',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:11,letterSpacing:'0.1em',textTransform:'uppercase',color:'rgba(22,15,8,0.5)',cursor:'pointer' }}>Cancel</button>
-              <button onClick={() => applyAIGeneration(pendingGen)} style={{ padding:'12px 24px',borderRadius:999,border:'none',background:'var(--terracotta)',color:'#fff',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:11,letterSpacing:'0.1em',textTransform:'uppercase',cursor:'pointer' }}>Replace Everything</button>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {/* ── TEMPLATE GALLERY MODAL ── */}
       {showTemplates && (
@@ -749,7 +700,10 @@ export default function SurveyCreate() {
           {/* ── DETAILS TAB ── */}
           {tab === 'details' && (
             <div style={{ display:'flex',flexDirection:'column',gap:28 }}>
-              {/* AI Context Box */}
+              {/* AI Context Box — hidden once a survey has been generated, so the user
+                  can't overwrite the generated survey. To start over they close this
+                  survey and begin again from the prompt screen. */}
+              {!aiGenerated && (
               <div style={{ background: 'rgba(255,69,0,0.03)', padding: 24, borderRadius: 20, border: `1.5px solid ${tc}30` }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
                   <span style={{ fontSize: 16 }}>✨</span>
@@ -854,6 +808,7 @@ export default function SurveyCreate() {
                   )}
                 </div>
               </div>
+              )}
 
               <div>
                 <label style={LBL}>Survey Title *</label>
@@ -914,8 +869,7 @@ export default function SurveyCreate() {
                 Add Question
               </button>
 
-              <AISurveySuggestions survey={f} questions={qs} tc={tc} aiContext={f.ai_context}
-                onAdd={q => { sQs(a => [...a, { ...newQ(), ...q, _id:'new_'+Math.random().toString(36).slice(2) }]); setDirty(true); }} />
+
             </div>
           )}
 

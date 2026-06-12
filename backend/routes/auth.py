@@ -9,7 +9,14 @@ from core.rate_limiter import limiter
 from db.database import get_db
 from db.models import Tenant, UserProfile, RoleEnum
 from schemas import (
-    MeResponse, UserProfileOut, TenantOut, UserProfileUpdate, SyncRequest, SyncResponse, MigrateCheckRequest, CleanupRequest
+    MeResponse,
+    UserProfileOut,
+    TenantOut,
+    UserProfileUpdate,
+    SyncRequest,
+    SyncResponse,
+    MigrateCheckRequest,
+    CleanupRequest,
 )
 from cognito_utils import verify_cognito_token, admin_get_user_status, admin_delete_user
 from auth_utils import verify_password
@@ -29,6 +36,7 @@ def _slugify(text: str) -> str:
 
 # ── /auth/me ─────────────────────────────────────────────────────────────────
 
+
 @router.get("/me", response_model=MeResponse)
 @limiter.limit("30/minute")
 def me(
@@ -47,6 +55,7 @@ def me(
 
 # ── /auth/me/profile ──────────────────────────────────────────────────────────
 
+
 @router.patch("/me/profile")
 @limiter.limit("20/minute")
 def update_profile(
@@ -55,13 +64,44 @@ def update_profile(
     current_user: UserProfile = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    current_user.full_name = body.full_name
+    if body.full_name is not None:
+        current_user.full_name = body.full_name
+
+    if body.phone_number is not None:
+        raw_phone = body.phone_number.strip()
+        if raw_phone == "":
+            # Explicitly clearing the phone number
+            current_user.phone_number = None
+            current_user.phone_verified = False
+        else:
+            phone_clean = re.sub(r"[^\d+]", "", raw_phone)
+            PHONE_REGEX = re.compile(r"^\+\d{10,15}$")
+            if not PHONE_REGEX.match(phone_clean):
+                raise HTTPException(400, "Invalid phone number format. Must start with + and contain 10-15 digits.")
+
+            existing = (
+                db.query(UserProfile)
+                .filter(
+                    UserProfile.phone_number == phone_clean,
+                    UserProfile.phone_verified == True,
+                    UserProfile.id != current_user.id,
+                )
+                .first()
+            )
+            if existing:
+                raise HTTPException(409, "This phone number is already linked to another account")
+
+            if current_user.phone_number != phone_clean:
+                current_user.phone_number = phone_clean
+                current_user.phone_verified = False
+
     db.commit()
     db.refresh(current_user)
     return UserProfileOut.model_validate(current_user)
 
 
 # ── /auth/sync ────────────────────────────────────────────────────────────────
+
 
 @router.post("/sync", response_model=SyncResponse)
 @limiter.limit("10/minute")
@@ -83,10 +123,22 @@ def sync(
     cognito_sub: str = payload["sub"]
     email: str = payload.get("email", "")
     name: str = payload.get("name", "")
+    phone_number: str = payload.get("phone_number", "")
 
     # Already synced — just return the profile
     user = db.query(UserProfile).filter(UserProfile.cognito_sub == cognito_sub).first()
+    if not user and phone_number:
+        user = (
+            db.query(UserProfile)
+            .filter(UserProfile.phone_number == phone_number, UserProfile.phone_verified == True)
+            .first()
+        )
     if user:
+        # Link cognito_sub if not already set (e.g. user found by phone match)
+        if not user.cognito_sub:
+            user.cognito_sub = cognito_sub
+            db.commit()
+            db.refresh(user)
         tenant = db.query(Tenant).filter(Tenant.id == user.tenant_id).first()
         return SyncResponse(
             user=UserProfileOut.model_validate(user),
@@ -94,20 +146,21 @@ def sync(
         )
 
     # Existing user migrated from Supabase — link cognito_sub by email
-    existing = db.query(UserProfile).filter(UserProfile.email == email).first()
-    if existing:
-        existing.cognito_sub = cognito_sub
-        db.commit()
-        db.refresh(existing)
-        tenant = db.query(Tenant).filter(Tenant.id == existing.tenant_id).first()
-        return SyncResponse(
-            user=UserProfileOut.model_validate(existing),
-            tenant=TenantOut.model_validate(tenant) if tenant else None,
-        )
+    if email:
+        existing = db.query(UserProfile).filter(UserProfile.email == email).first()
+        if existing:
+            existing.cognito_sub = cognito_sub
+            db.commit()
+            db.refresh(existing)
+            tenant = db.query(Tenant).filter(Tenant.id == existing.tenant_id).first()
+            return SyncResponse(
+                user=UserProfileOut.model_validate(existing),
+                tenant=TenantOut.model_validate(tenant) if tenant else None,
+            )
 
     # Brand new user — create tenant + profile
     # Auto-derive tenant name from email domain if not provided (handles local dev with fresh DB)
-    derived_tenant_name = body.tenant_name or email.split('@')[1].split('.')[0].title() if email else 'My Organisation'
+    derived_tenant_name = body.tenant_name or email.split("@")[1].split(".")[0].title() if email else "My Organisation"
     derived_tenant_slug = body.tenant_slug or _slugify(derived_tenant_name)
 
     # Check if a tenant with this slug already exists — reuse it instead of crashing
@@ -149,6 +202,7 @@ def sync(
 
 
 # ── /auth/migrate-check ───────────────────────────────────────────────────────
+
 
 @router.post("/migrate-check")
 def migrate_check(
@@ -213,13 +267,14 @@ def mock_login(body: dict, db: Session = Depends(get_db)):
     sub = user.cognito_sub if (user and user.cognito_sub) else f"mock-sub-{uuid.uuid4()}"
 
     from jose import jwt
+
     payload = {
         "sub": sub,
         "email": email,
         "name": name,
         "token_use": "id",
         "aud": os.getenv("COGNITO_APP_CLIENT_ID") or "mock-client-id",
-        "iss": f"https://cognito-idp.{os.getenv('COGNITO_REGION', 'ap-south-1')}.amazonaws.com/{os.getenv('COGNITO_USER_POOL_ID') or 'mock-user-pool-id'}"
+        "iss": f"https://cognito-idp.{os.getenv('COGNITO_REGION', 'ap-south-1')}.amazonaws.com/{os.getenv('COGNITO_USER_POOL_ID') or 'mock-user-pool-id'}",
     }
 
     secret = os.getenv("MOCK_COGNITO_SECRET", "mock-secret-key-1234567890")
@@ -227,3 +282,16 @@ def mock_login(body: dict, db: Session = Depends(get_db)):
 
     return {"id_token": token}
 
+
+@router.get("/config")
+def get_auth_config():
+    """
+    Exposes Cognito User Pool configuration dynamically to the frontend client.
+    Allows for environment-agnostic frontend builds that resolve configurations at runtime.
+    """
+    return {
+        "COGNITO_USER_POOL_ID": os.getenv("COGNITO_USER_POOL_ID"),
+        "COGNITO_APP_CLIENT_ID": os.getenv("COGNITO_APP_CLIENT_ID"),
+        "COGNITO_REGION": os.getenv("COGNITO_REGION", "ap-south-1"),
+        "MOCK_COGNITO": os.getenv("MOCK_COGNITO", "false").lower() == "true",
+    }

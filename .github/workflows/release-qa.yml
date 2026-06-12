@@ -1,0 +1,310 @@
+name: Release to QA
+
+on:
+  push:
+    branches:
+      - 'release/test/**'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  # 1. Validation Checks
+  backend-validation:
+    name: Validate Backend Code
+    uses: ./.github/workflows/backend-validation.yml
+    with:
+      is-pr: false
+      base-ref: ''
+
+  cdk-validation:
+    name: Validate CDK Templates
+    uses: ./.github/workflows/cdk-validation.yml
+
+  # 2. CDK Infrastructure Deploy (runs after validation passes)
+  deploy-infra:
+    name: Deploy CDK Infrastructure
+    needs: cdk-validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::399894608507:role/GitHubActionsDeployerRole
+          aws-region: ap-south-1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install CDK Dependencies
+        run: npm install --prefix infra/cdk
+
+      - name: Cancel Stuck CloudFormation Update
+        run: |
+          echo "Attempting to cancel any stuck CloudFormation update..."
+          CDK_ROLE_ARN="arn:aws:iam::399894608507:role/cdk-hnb659fds-deploy-role-399894608507-ap-south-1"
+          ASSUME_ROLE_OUTPUT=$(aws sts assume-role --role-arn "$CDK_ROLE_ARN" --role-session-name "CancelUpdate" --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" --output text 2>/dev/null || echo "")
+          
+          if [ -n "$ASSUME_ROLE_OUTPUT" ]; then
+            export AWS_ACCESS_KEY_ID=$(echo "$ASSUME_ROLE_OUTPUT" | awk '{print $1}')
+            export AWS_SECRET_ACCESS_KEY=$(echo "$ASSUME_ROLE_OUTPUT" | awk '{print $2}')
+            export AWS_SESSION_TOKEN=$(echo "$ASSUME_ROLE_OUTPUT" | awk '{print $3}')
+            echo "Successfully assumed CDK deploy role"
+            
+            # Try to cancel the update
+            aws cloudformation cancel-update-stack --stack-name AxioraPulseStackQa --region ap-south-1 2>&1 || echo "No active update to cancel or cancel failed"
+          else
+            echo "Failed to assume CDK deploy role"
+          fi
+
+      - name: Print Stuck Stack Events
+        run: |
+          echo "Describing stack events to find stuck resources..."
+          CDK_ROLE_ARN="arn:aws:iam::399894608507:role/cdk-hnb659fds-lookup-role-399894608507-ap-south-1"
+          ASSUME_ROLE_OUTPUT=$(aws sts assume-role --role-arn "$CDK_ROLE_ARN" --role-session-name "StackEventsCheck" --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" --output text 2>/dev/null || echo "")
+          
+          if [ -n "$ASSUME_ROLE_OUTPUT" ]; then
+            export AWS_ACCESS_KEY_ID=$(echo "$ASSUME_ROLE_OUTPUT" | awk '{print $1}')
+            export AWS_SECRET_ACCESS_KEY=$(echo "$ASSUME_ROLE_OUTPUT" | awk '{print $2}')
+            export AWS_SESSION_TOKEN=$(echo "$ASSUME_ROLE_OUTPUT" | awk '{print $3}')
+            aws cloudformation describe-stack-events --stack-name AxioraPulseStackQa --region ap-south-1 --query 'StackEvents[0..20].[Timestamp,ResourceStatus,ResourceType,LogicalResourceId,ResourceStatusReason]' --output table 2>&1 || echo "Failed to describe stack events"
+          else
+            echo "Failed to assume CDK lookup role"
+          fi
+
+      - name: Wait for Stack Stability
+        run: |
+          echo "Checking CloudFormation stack status..."
+          
+          # Assume CDK lookup role to have permissions for describe-stacks
+          CDK_ROLE_ARN="arn:aws:iam::399894608507:role/cdk-hnb659fds-lookup-role-399894608507-ap-south-1"
+          ASSUME_ROLE_OUTPUT=$(aws sts assume-role --role-arn "$CDK_ROLE_ARN" --role-session-name "StackStabilityCheck" --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" --output text 2>/dev/null || echo "")
+          
+          if [ -n "$ASSUME_ROLE_OUTPUT" ]; then
+            export AWS_ACCESS_KEY_ID=$(echo "$ASSUME_ROLE_OUTPUT" | awk '{print $1}')
+            export AWS_SECRET_ACCESS_KEY=$(echo "$ASSUME_ROLE_OUTPUT" | awk '{print $2}')
+            export AWS_SESSION_TOKEN=$(echo "$ASSUME_ROLE_OUTPUT" | awk '{print $3}')
+            echo "Successfully assumed CDK lookup role"
+          else
+            echo "Warning: Failed to assume CDK lookup role, proceeding with default credentials"
+          fi
+
+          MAX_ATTEMPTS=45
+          ATTEMPT=0
+          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+            set +e
+            STACK_STATUS_ERR=$(aws cloudformation describe-stacks --stack-name AxioraPulseStackQa --region ap-south-1 --query 'Stacks[0].StackStatus' --output text 2>&1)
+            STATUS_EXIT_CODE=$?
+            set -e
+            
+            if [ $STATUS_EXIT_CODE -eq 0 ]; then
+              STACK_STATUS="$STACK_STATUS_ERR"
+            else
+              if [[ "$STACK_STATUS_ERR" == *"does not exist"* ]]; then
+                STACK_STATUS=""
+              else
+                echo "Error describing stack: $STACK_STATUS_ERR"
+                STACK_STATUS="UNKNOWN_ERROR"
+              fi
+            fi
+            
+            echo "Stack status: $STACK_STATUS"
+            
+            if [[ "$STACK_STATUS" == "CREATE_COMPLETE" || "$STACK_STATUS" == "UPDATE_COMPLETE" || "$STACK_STATUS" == "ROLLBACK_COMPLETE" || "$STACK_STATUS" == "UPDATE_ROLLBACK_COMPLETE" ]]; then
+              echo "Stack is in stable state"
+              break
+            elif [[ "$STACK_STATUS" == *IN_PROGRESS* ]]; then
+              echo "Stack is transitioning... waiting (Attempt $((ATTEMPT+1))/$MAX_ATTEMPTS)"
+              sleep 10
+            elif [[ "$STACK_STATUS" == "" ]]; then
+              echo "Stack does not exist"
+              break
+            else
+              echo "Unexpected stack status or error: $STACK_STATUS"
+              if [[ "$STACK_STATUS" == "UNKNOWN_ERROR" ]]; then
+                echo "Waiting 10 seconds in case error is transient..."
+                sleep 10
+              else
+                break
+              fi
+            fi
+            ATTEMPT=$((ATTEMPT+1))
+          done
+          
+          if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+            echo "Warning: Stack did not reach stable state after $(($MAX_ATTEMPTS * 10)) seconds"
+          fi
+
+      - name: Deploy QA Infrastructure
+        run: |
+          cd infra/cdk
+          npx cdk deploy AxioraPulseStackQa --require-approval never
+
+  # 3. Build & Push Docker Images (runs after infrastructure and tests pass)
+  build-push-images:
+    name: Build & Push Docker Images
+    needs: [backend-validation, deploy-infra]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::399894608507:role/GitHubActionsDeployerRole
+          aws-region: ap-south-1
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Check if ECR images already exist
+        id: check-images
+        run: |
+          BACKEND_TAG="sha-${{ github.sha }}"
+          FRONTEND_TAG="sha-${{ github.sha }}"
+          
+          echo "Checking if backend image exists in ECR..."
+          if aws ecr describe-images --repository-name axiora/pulse-fastapi-qa --image-ids imageTag=$BACKEND_TAG --region ap-south-1 >/dev/null 2>&1; then
+            echo "Backend image already exists. Skipping build."
+            echo "backend_needed=false" >> $GITHUB_OUTPUT
+          else
+            echo "Backend image not found. Will build."
+            echo "backend_needed=true" >> $GITHUB_OUTPUT
+          fi
+
+          echo "Checking if frontend image exists in ECR..."
+          if aws ecr describe-images --repository-name axiora/pulse-frontend-qa --image-ids imageTag=$FRONTEND_TAG --region ap-south-1 >/dev/null 2>&1; then
+            echo "Frontend image already exists. Skipping build."
+            echo "frontend_needed=false" >> $GITHUB_OUTPUT
+          else
+            echo "Frontend image not found. Will build."
+            echo "frontend_needed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Docker Buildx
+        if: steps.check-images.outputs.backend_needed == 'true' || steps.check-images.outputs.frontend_needed == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Fetch Frontend Config from SSM
+        id: fetch-ssm
+        if: steps.check-images.outputs.frontend_needed == 'true'
+        run: |
+          echo "Fetching Cognito and URL configurations from SSM..."
+          USER_POOL_ID=$(aws ssm get-parameter --name "/axiorapulse/qa/COGNITO_USER_POOL_ID" --region ap-south-1 --query "Parameter.Value" --output text)
+          APP_CLIENT_ID=$(aws ssm get-parameter --name "/axiorapulse/qa/COGNITO_APP_CLIENT_ID" --region ap-south-1 --query "Parameter.Value" --output text)
+          FRONTEND_URL=$(aws ssm get-parameter --name "/axiorapulse/qa/FRONTEND_URL" --region ap-south-1 --query "Parameter.Value" --output text)
+          API_BASE_URL="${FRONTEND_URL}:8000"
+
+          echo "USER_POOL_ID=$USER_POOL_ID" >> $GITHUB_OUTPUT
+          echo "APP_CLIENT_ID=$APP_CLIENT_ID" >> $GITHUB_OUTPUT
+          echo "FRONTEND_URL=$FRONTEND_URL" >> $GITHUB_OUTPUT
+          echo "API_BASE_URL=$API_BASE_URL" >> $GITHUB_OUTPUT
+
+      - name: Build and Push Backend
+        if: steps.check-images.outputs.backend_needed == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile.prod
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-fastapi-qa:sha-${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-fastapi-qa:qa
+            ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-fastapi-qa:latest
+          cache-from: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/axiora/pulse-fastapi-qa:buildcache
+          cache-to: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/axiora/pulse-fastapi-qa:buildcache,mode=max
+
+      - name: Build and Push Frontend
+        if: steps.check-images.outputs.frontend_needed == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          build-args: |
+            VITE_COGNITO_USER_POOL_ID=${{ steps.fetch-ssm.outputs.USER_POOL_ID }}
+            VITE_COGNITO_APP_CLIENT_ID=${{ steps.fetch-ssm.outputs.APP_CLIENT_ID }}
+            VITE_FRONTEND_URL=${{ steps.fetch-ssm.outputs.FRONTEND_URL }}
+            VITE_API_BASE_URL=${{ steps.fetch-ssm.outputs.API_BASE_URL }}
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-frontend-qa:sha-${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-frontend-qa:qa
+            ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-frontend-qa:latest
+          cache-from: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/axiora/pulse-frontend-qa:buildcache
+          cache-to: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/axiora/pulse-frontend-qa:buildcache,mode=max
+
+  # 4. Deploy to ECS Fargate (runs after ECR images are pushed successfully)
+  deploy-ecs:
+    name: Deploy to QA ECS
+    needs: [build-push-images, deploy-infra]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::399894608507:role/GitHubActionsDeployerRole
+          aws-region: ap-south-1
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Prepare Task Definitions
+        run: |
+          DB_SECRET_ARN=$(aws ssm get-parameter --name "/axiorapulse/qa/DB_SECRET_ARN" --region ap-south-1 --query "Parameter.Value" --output text)
+          sed -i "s|\${DB_SECRET_ARN}|$DB_SECRET_ARN|g" backend/ecs-task-def.json
+          sed -i 's/${ENV}/qa/g' backend/ecs-task-def.json
+          sed -i 's/${ROLE_ARN}/arn:aws:iam::399894608507:role\/GitHubActionsDeployerRole/g' backend/ecs-task-def.json
+          sed -i 's/${ACCOUNT_ID}/399894608507/g' backend/ecs-task-def.json
+          sed -i 's/${ENV}/qa/g' frontend/ecs-task-def.json
+          sed -i 's/${ROLE_ARN}/arn:aws:iam::399894608507:role\/GitHubActionsDeployerRole/g' frontend/ecs-task-def.json
+
+      - name: Render Backend Task Definition
+        id: render-backend
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: backend/ecs-task-def.json
+          container-name: BackendContainer
+          image: ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-fastapi-qa:sha-${{ github.sha }}
+
+      - name: Deploy Backend to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render-backend.outputs.task-definition }}
+          service: pulse-backend-qa
+          cluster: axiorapulse-qa-cluster
+          wait-for-service-stability: true
+
+      - name: Render Frontend Task Definition
+        id: render-frontend
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: frontend/ecs-task-def.json
+          container-name: FrontendContainer
+          image: ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-frontend-qa:sha-${{ github.sha }}
+
+      - name: Deploy Frontend to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render-frontend.outputs.task-definition }}
+          service: pulse-frontend-qa
+          cluster: axiorapulse-qa-cluster
+          wait-for-service-stability: true
+
+      - name: Run Smoke Tests
+        run: |
+          echo "Running smoke tests against QA environment..."
+          # Example: curl -f https://qa-api.axiorapulse.com/health

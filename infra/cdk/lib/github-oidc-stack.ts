@@ -1,6 +1,7 @@
 import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import { NagSuppressions } from 'cdk-nag';
 
 export interface GitHubOidcStackProps extends cdk.StackProps {
   repositoryConfig: {
@@ -14,6 +15,7 @@ export class GitHubOidcStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: GitHubOidcStackProps) {
     super(scope, id, props);
 
+    // 0. Reference the existing GitHub OIDC Provider
     const githubProviderArn = `arn:aws:iam::${this.account}:oidc-provider/token.actions.githubusercontent.com`;
 
     // 1. Create the GitHub Deployer Role
@@ -50,11 +52,9 @@ export class GitHubOidcStack extends cdk.Stack {
       resources: ['*'],
     }));
 
+    // Allow pushing only to local account repos
     githubDeployerRole.addToPolicy(new iam.PolicyStatement({
       actions: [
-        'ecr:BatchCheckLayerAvailability',
-        'ecr:GetDownloadUrlForLayer',
-        'ecr:BatchGetImage',
         'ecr:InitiateLayerUpload',
         'ecr:UploadLayerPart',
         'ecr:CompleteLayerUpload',
@@ -62,6 +62,18 @@ export class GitHubOidcStack extends cdk.Stack {
       ],
       resources: [
         `arn:aws:ecr:${this.region}:${this.account}:repository/axiora/*`,
+      ],
+    }));
+
+    // Allow pulling from any axiora repository (required for cross-account promotion)
+    githubDeployerRole.addToPolicy(new iam.PolicyStatement({
+      actions: [
+        'ecr:BatchCheckLayerAvailability',
+        'ecr:GetDownloadUrlForLayer',
+        'ecr:BatchGetImage',
+      ],
+      resources: [
+        `arn:aws:ecr:${this.region}:*:repository/axiora/*`,
       ],
     }));
 
@@ -90,6 +102,34 @@ export class GitHubOidcStack extends cdk.Stack {
         },
       },
     }));
+
+    // 5. Add Permissions for CDK Deployments
+    githubDeployerRole.addToPolicy(new iam.PolicyStatement({
+      actions: ['sts:AssumeRole'],
+      resources: [
+        `arn:aws:iam::${this.account}:role/cdk-*`,
+      ],
+    }));
+
+    // 6. Add Secrets Manager permissions (required since this role is reused as ECS Task/Execution Role)
+    githubDeployerRole.addToPolicy(new iam.PolicyStatement({
+      actions: ['secretsmanager:GetSecretValue'],
+      resources: [
+        `arn:aws:secretsmanager:${this.region}:${this.account}:secret:/axiorapulse/*`,
+      ],
+    }));
+
+    // CDK-Nag Suppressions
+    NagSuppressions.addResourceSuppressions(githubDeployerRole, [
+      {
+        id: 'AwsSolutions-IAM4',
+        reason: 'OIDC deployer role requires standard managed policies for ECS task execution and SSM read access.'
+      },
+      {
+        id: 'AwsSolutions-IAM5',
+        reason: 'OIDC deployer role requires wildcard permissions for ECR authorization, pushing/pulling images, ECS task management, and PassRole/AssumeRole for CDK and ECS.'
+      }
+    ], true);
 
     // Outputs
     new cdk.CfnOutput(this, 'GitHubDeployerRoleArn', {

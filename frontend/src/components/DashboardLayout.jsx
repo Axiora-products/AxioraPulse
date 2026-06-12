@@ -79,6 +79,13 @@ export default function DashboardLayout() {
     }
   }, [loc.pathname, profile]);
 
+  const refreshFiles = async () => {
+    try {
+      const res = await API.get('/uploads/files');
+      setFiles(res.data || []);
+    } catch { }
+  };
+
   // ── Auto sign-out after inactivity ───────────────────────────────────────
   const IDLE_LIMIT = 30 * 60 * 1000;
   const WARN_BEFORE = 1 * 60 * 1000;
@@ -345,20 +352,16 @@ export default function DashboardLayout() {
           )}
 
           {/* Uploaded Files */}
-          {files.length > 0 && (
-            <div className="ws-sidebar-section">
-              <div className="ws-sidebar-section-label">Files ({files.length})</div>
-              {files.slice(0, 10).map(f => (
-                <div key={f.id} className="ws-sidebar-item" style={{ cursor: 'default' }}>
-                  <div className="ws-sidebar-item-icon">{fileIcon(f.content_type)}</div>
-                  <div className="ws-sidebar-item-text">
-                    <span className="ws-sidebar-item-title">{f.filename}</span>
-                    <span className="ws-sidebar-item-meta">{f.upload_type} · {f.file_size ? (f.file_size / 1024).toFixed(0) + ' KB' : ''}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="ws-sidebar-section">
+            <div className="ws-sidebar-section-label">Files</div>
+            <NavLink to="/files" className={`ws-sidebar-item${loc.pathname === '/files' ? ' active' : ''}`} onClick={() => setMobileOpen(false)}>
+              <div className="ws-sidebar-item-icon">📁</div>
+              <div className="ws-sidebar-item-text">
+                <span className="ws-sidebar-item-title">All Files</span>
+                <span className="ws-sidebar-item-meta">{files.length} uploaded</span>
+              </div>
+            </NavLink>
+          </div>
         </div>
 
         {/* User Section at bottom */}
@@ -413,7 +416,7 @@ export default function DashboardLayout() {
       {/* ── CONTENT AREA ── */}
       <div className="ws-content">
         <main className="ws-content-main">
-          <Outlet />
+          <Outlet context={{ refreshFiles }} />
         </main>
 
         {/* Footer */}

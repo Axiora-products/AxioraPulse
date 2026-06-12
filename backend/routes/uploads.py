@@ -20,11 +20,17 @@ import tempfile
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
 
 from db.database import get_db
 from db.models import UserProfile, UploadedFile
 from dependencies import get_current_user
 from core.rate_limiter import limiter
+
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseDownload
+from fastapi.concurrency import run_in_threadpool
 
 router = APIRouter(prefix="/uploads", tags=["uploads"])
 logger = logging.getLogger("uvicorn.error")
@@ -229,7 +235,7 @@ def _get_audio_suffix(filename: str | None, content_type: str | None) -> str:
     )
 
 
-def _get_whisper_model():
+def get_whisper_model():
     global _whisper_model
 
     if _whisper_model is None:
@@ -238,9 +244,7 @@ def _get_whisper_model():
                 try:
                     import whisper
                 except ImportError as exc:
-                    raise RuntimeError(
-                        "Whisper is not installed. Install backend requirements."
-                    ) from exc
+                    raise RuntimeError("Whisper is not installed. Install backend requirements.") from exc
 
                 checkpoint_path = os.path.join(
                     WHISPER_CACHE_DIR,
@@ -450,6 +454,7 @@ async def upload_file(
     extracted = _extract_text_from_file(filepath, file.content_type)
 
     db_file = UploadedFile(
+        id=uuid.UUID(file_id),
         filename=file.filename or "Untitled",
         content_type=file.content_type,
         file_size=len(contents),
@@ -463,6 +468,7 @@ async def upload_file(
     db.commit()
     db.refresh(db_file)
 
+    base_url = str(request.base_url).rstrip("/")
     return {
         "id": str(db_file.id),
         "filename": db_file.filename,
@@ -470,7 +476,102 @@ async def upload_file(
         "file_size": db_file.file_size,
         "extracted_text": extracted,
         "upload_type": "file",
+        "file_url": f"{base_url}/uploads/download/{db_file.id}",
     }
+
+
+class DriveUploadRequest(BaseModel):
+    fileId: str
+    accessToken: str
+    filename: str
+    mimeType: str
+
+
+@router.post("/drive")
+@limiter.limit("10/minute")
+async def upload_from_drive(
+    request: Request,
+    body: DriveUploadRequest,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(get_current_user),
+):
+    """
+    Downloads a file from Google Drive and processes it like a normal upload.
+    """
+    try:
+        creds = Credentials(token=body.accessToken)
+        service = build("drive", "v3", credentials=creds)
+
+        # Handle Google Docs formats by exporting them as PDF
+        is_google_doc = body.mimeType.startswith("application/vnd.google-apps.")
+
+        file_id = str(uuid.uuid4())
+        ext = os.path.splitext(body.filename)[1]
+
+        # If it's a Google Doc (Doc, Sheet, Slide), export as PDF
+        content_type = body.mimeType
+        if is_google_doc:
+            if "spreadsheet" in body.mimeType:
+                export_mime = "application/pdf"
+            elif "presentation" in body.mimeType:
+                export_mime = "application/pdf"
+            else:
+                export_mime = "application/pdf"
+
+            drive_request = service.files().export_media(fileId=body.fileId, mimeType=export_mime)
+            ext = ".pdf"
+            content_type = "application/pdf"
+        else:
+            drive_request = service.files().get_media(fileId=body.fileId)
+
+        stored_name = f"{file_id}{ext}"
+        filepath = os.path.join(UPLOAD_DIR, stored_name)
+
+        fh = io.BytesIO()
+        downloader = MediaIoBaseDownload(fh, drive_request)
+        done = False
+        while done is False:
+            status, done = downloader.next_chunk()
+
+        contents = fh.getvalue()
+        if len(contents) > 15 * 1024 * 1024:  # 15 MB limit for Drive
+            raise HTTPException(status_code=400, detail="File too large (max 15 MB)")
+
+        with open(filepath, "wb") as f:
+            f.write(contents)
+
+        # Extract text using existing logic
+        extracted = _extract_text_from_file(filepath, content_type)
+
+        # Save to DB
+        db_file = UploadedFile(
+            id=uuid.UUID(file_id),
+            filename=body.filename,
+            content_type=content_type,
+            file_size=len(contents),
+            extracted_text=extracted,
+            upload_type="file",
+            tenant_id=current_user.tenant_id,
+            created_by=current_user.id,
+        )
+        db.add(db_file)
+        db.commit()
+        db.refresh(db_file)
+
+        base_url = str(request.base_url).rstrip("/")
+        return {
+            "id": str(db_file.id),
+            "filename": db_file.filename,
+            "content_type": db_file.content_type,
+            "file_size": db_file.file_size,
+            "extracted_text": extracted,
+            "upload_type": "file",
+            "file_url": f"{base_url}/uploads/download/{db_file.id}",
+        }
+
+    except Exception as e:
+        print(f"Drive upload error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Google Drive error: {str(e)}")
 
 
 @router.post("/audio")
@@ -526,6 +627,7 @@ async def upload_audio(
             os.remove(wav_path)
 
     db_file = UploadedFile(
+        id=uuid.UUID(file_id),
         filename=file.filename or "Audio recording",
         content_type=file.content_type,
         file_size=len(contents),
@@ -539,6 +641,7 @@ async def upload_audio(
     db.commit()
     db.refresh(db_file)
 
+    base_url = str(request.base_url).rstrip("/")
     return {
         "id": str(db_file.id),
         "filename": db_file.filename,
@@ -548,11 +651,14 @@ async def upload_audio(
         "text": transcript,
         "language": detected_language,
         "upload_type": "audio",
+        "file_url": f"{base_url}/uploads/download/{db_file.id}",
     }
 
 
 @router.post("/audio/transcribe")
+@limiter.limit("5/minute")
 async def transcribe_audio(
+    request: Request,
     audio: UploadFile = File(...),
     current_user: UserProfile = Depends(get_current_user),
 ):
@@ -679,6 +785,7 @@ async def list_uploaded_files(
         .all()
     )
 
+    base_url = str(request.base_url).rstrip("/")
     return [
         {
             "id": str(f.id),
@@ -687,7 +794,89 @@ async def list_uploaded_files(
             "file_size": f.file_size,
             "upload_type": f.upload_type,
             "extracted_text": f.extracted_text,
+            "file_url": f"{base_url}/uploads/download/{f.id}",
             "created_at": f.created_at.isoformat() if f.created_at else None,
         }
         for f in files
     ]
+
+
+@router.get("/download/{file_id}")
+async def download_file(
+    file_id: str,
+    db: Session = Depends(get_db),
+):
+    try:
+        file_uuid = uuid.UUID(file_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid file ID format")
+
+    db_file = db.query(UploadedFile).filter(UploadedFile.id == file_uuid).first()
+    if not db_file:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    ext = os.path.splitext(db_file.filename)[1]
+    stored_name = f"{db_file.id}{ext}"
+    filepath = os.path.join(UPLOAD_DIR, stored_name)
+
+    if not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail="File not found on disk")
+
+    return FileResponse(
+        path=filepath,
+        filename=db_file.filename,
+        media_type=db_file.content_type,
+    )
+
+
+@router.delete("/{file_id}")
+@limiter.limit("10/minute")
+async def delete_file(
+    request: Request,
+    file_id: str,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(get_current_user),
+):
+    print(
+        f"[DEBUG_DELETE] Incoming delete request: file_id={file_id}, user={current_user.email}, tenant={current_user.tenant_id}"
+    )
+    try:
+        file_uuid = uuid.UUID(file_id)
+        print(f"[DEBUG_DELETE] Successfully parsed UUID: {file_uuid}")
+    except ValueError:
+        print(f"[DEBUG_DELETE] Failed to parse UUID from: {file_id}")
+        raise HTTPException(status_code=400, detail="Invalid file ID format")
+
+    db_file = (
+        db.query(UploadedFile)
+        .filter(
+            UploadedFile.id == file_uuid,
+            UploadedFile.tenant_id == current_user.tenant_id,
+        )
+        .first()
+    )
+
+    if not db_file:
+        print(f"[DEBUG_DELETE] File not found in DB: id={file_uuid}, tenant={current_user.tenant_id}")
+        raise HTTPException(status_code=404, detail="File not found")
+
+    print(f"[DEBUG_DELETE] Found file in DB: filename={db_file.filename}")
+    ext = os.path.splitext(db_file.filename)[1]
+    stored_name = f"{db_file.id}{ext}"
+    filepath = os.path.join(UPLOAD_DIR, stored_name)
+    print(f"[DEBUG_DELETE] Looking for file on disk at: {filepath}")
+
+    if os.path.exists(filepath):
+        try:
+            os.remove(filepath)
+            print("[DEBUG_DELETE] Successfully deleted file from disk")
+        except Exception as e:
+            print(f"[DEBUG_DELETE] Failed to delete file from disk: {e}")
+    else:
+        print("[DEBUG_DELETE] File was not found on disk, skipping disk delete")
+
+    db.delete(db_file)
+    db.commit()
+    print("[DEBUG_DELETE] Successfully deleted database record")
+
+    return {"success": True, "message": "File deleted successfully"}

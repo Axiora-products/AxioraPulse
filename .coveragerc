@@ -1,0 +1,5 @@
+[run]
+omit =
+    backend/init_local_aws.py
+    backend/tests/*
+    backend/alembic/*

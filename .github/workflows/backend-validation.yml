@@ -1,0 +1,126 @@
+name: Backend Validation
+
+on:
+  workflow_call:
+    inputs:
+      is-pr:
+        required: true
+        type: boolean
+      base-ref:
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  validate:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:root@localhost:5432/nexpulse
+      AWS_ENDPOINT_URL: http://localhost:4566
+      AWS_DEFAULT_REGION: ap-south-1
+      AWS_ACCESS_KEY_ID: mock
+      AWS_SECRET_ACCESS_KEY: mock
+      SECRET_KEY: mock_secret_key_for_testing_purposes_only
+      PYTHONPATH: backend
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: nexpulse
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: root
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          --tmpfs /var/lib/postgresql/data
+          
+      floci:
+        image: floci/floci:latest
+        ports:
+          - 4566:4566
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache Virtual Environment
+        id: cache-venv
+        uses: actions/cache@v4
+        with:
+          path: backend/.venv
+          key: ${{ runner.os }}-venv-${{ hashFiles('backend/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-venv-
+
+      - name: Install Backend Dependencies
+        if: steps.cache-venv.outputs.cache-hit != 'true'
+        run: |
+          python -m venv backend/.venv
+          source backend/.venv/bin/activate
+          pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r backend/requirements.txt pytest ruff alembic pytest-cov diff-cover
+
+      - name: Add Virtual Env to PATH
+        run: |
+          echo "$GITHUB_WORKSPACE/backend/.venv/bin" >> $GITHUB_PATH
+
+      - name: Cache Ruff
+        uses: actions/cache@v4
+        with:
+          path: .ruff_cache
+          key: ${{ runner.os }}-ruff-${{ github.ref_name }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-ruff-${{ github.ref_name }}-
+            ${{ runner.os }}-ruff-
+
+      - name: Run Ruff Lint Check
+        run: |
+          ruff check backend
+
+      - name: Run Ruff Format Check
+        run: |
+          ruff format --check backend
+
+      - name: Run Alembic Migrations on Test DB
+        run: |
+          cd backend
+          alembic upgrade head
+
+      - name: Run Backend Pytest
+        run: |
+          pytest --cov=backend --cov-report=xml backend/tests
+
+      - name: Generate Diff Coverage Report
+        if: ${{ inputs.is-pr && (success() || failure()) }}
+        run: |
+          if [ -f coverage.xml ]; then
+            git fetch origin ${{ inputs.base-ref }} --depth=1
+            diff-cover coverage.xml --compare-branch=origin/${{ inputs.base-ref }} --format markdown:diff-coverage.md
+          else
+            echo "coverage.xml not found, skipping diff coverage generation."
+          fi
+
+      - name: Comment PR with Diff Coverage
+        if: ${{ inputs.is-pr && (success() || failure()) && hashFiles('diff-coverage.md') != '' }}
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          path: diff-coverage.md
+
+      - name: Enforce Diff Coverage Threshold
+        if: ${{ inputs.is-pr }}
+        run: |
+          diff-cover coverage.xml --compare-branch=origin/${{ inputs.base-ref }} --fail-under=80

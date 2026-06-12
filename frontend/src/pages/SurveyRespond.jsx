@@ -56,6 +56,215 @@ function getLanguageFromCookie() {
   return 'en';
 }
 
+const LANG_LABELS = {
+  en: 'English',
+  hi: 'हिंदी',
+  te: 'తెలుగు',
+};
+
+const UI_TEXT = {
+  en: {
+    questions: n => `${n} question${n !== 1 ? 's' : ''}`,
+    of: 'of',
+    required: 'Required',
+    optional: 'Optional',
+    begin: 'Begin',
+    back: 'Back',
+    continue: 'Continue',
+    almostDone: 'Almost done',
+    submit: 'Submit',
+    submitting: 'Submitting...',
+    enterHint: 'or press Enter',
+    saved: 'Saved',
+    min: 'min',
+    answer: 'Your answer...',
+    selectOption: 'Select an option...',
+    requiredToast: 'This question is required',
+    pleaseAnswer: text => `Please answer: "${text}"`,
+    submitFailed: 'Submission failed - your answers are saved. Try again.',
+    emailBadge: 'Almost there',
+    emailTitle: 'Where should we send your results?',
+    emailBody: 'Your responses are safe. We only use your email to share follow-up insights.',
+    notAtAll: 'Not at all',
+    extremely: 'Extremely',
+    dragRank: 'Drag to rank - 1 = top',
+    top: 'Top',
+    selected: 'selected',
+    dragSelect: 'drag to select',
+    allRows: 'All rows answered',
+    noOptions: 'No options for this question.',
+    noSwipe: 'No swipe options for this question.',
+    noVisual: 'No visual options for this question.',
+    matrixEmpty: 'This matrix question has no rows or columns yet.',
+    matrixHelp: 'Open the survey editor and add rows and columns to this question, then save.',
+    prev: 'Previous',
+    swipeTap: 'Swipe or tap',
+    translating: lang => `Translating survey to ${LANG_LABELS[lang] || lang}...`,
+    selectLanguage: 'Select Language',
+    chooseLanguage: 'Choose your preferred language for the survey. You can change this at any time from the top menu.',
+    englishDefault: 'English (Default)',
+    hindi: 'हिंदी (Hindi)',
+    telugu: 'తెలుగు (Telugu)',
+    saveContinue: 'Save & Continue',
+    skip: 'Skip',
+    experience: 'Experience',
+    smooth: 'How smooth was the survey experience?',
+    next: 'Next',
+    skipAll: 'Skip all',
+    thoughts: 'Thoughts',
+    improve: 'Anything we should improve?',
+    feedbackPlaceholder: 'Question wording, length, clarity... anything helps.',
+    recommend: 'Recommend',
+    recommendAxiora: 'How likely are you to recommend Axiora?',
+    npsHint: '0 = Not at all likely - 10 = Extremely likely',
+    sending: 'Sending...',
+    submitFeedback: 'Submit feedback',
+    yes: 'Yes',
+    no: 'No',
+    thankYou: 'Thank you.',
+    responseRecorded: 'Your response has been recorded. We appreciate you taking the time.',
+  },
+  hi: {
+    questions: n => `${n} प्रश्न`,
+    of: 'में से',
+    required: 'आवश्यक',
+    optional: 'वैकल्पिक',
+    begin: 'शुरू करें',
+    back: 'वापस',
+    continue: 'जारी रखें',
+    almostDone: 'लगभग पूरा',
+    submit: 'जमा करें',
+    submitting: 'जमा हो रहा है...',
+    enterHint: 'या Enter दबाएं',
+    saved: 'सेव किया गया',
+    min: 'मिनट',
+    answer: 'आपका उत्तर...',
+    selectOption: 'एक विकल्प चुनें...',
+    requiredToast: 'यह प्रश्न आवश्यक है',
+    pleaseAnswer: text => `कृपया उत्तर दें: "${text}"`,
+    submitFailed: 'जमा नहीं हुआ - आपके उत्तर सेव हैं। फिर कोशिश करें।',
+    emailBadge: 'लगभग पूरा',
+    emailTitle: 'हम आपके परिणाम कहां भेजें?',
+    emailBody: 'आपके उत्तर सुरक्षित हैं। हम ईमेल का उपयोग केवल फॉलो-अप जानकारी भेजने के लिए करते हैं।',
+    notAtAll: 'बिल्कुल नहीं',
+    extremely: 'बहुत अधिक',
+    dragRank: 'रैंक करने के लिए खींचें - 1 = सबसे ऊपर',
+    top: 'शीर्ष',
+    selected: 'चुना गया',
+    dragSelect: 'चुनने के लिए खींचें',
+    allRows: 'सभी पंक्तियों के उत्तर दिए गए',
+    noOptions: 'इस प्रश्न के लिए कोई विकल्प नहीं है।',
+    noSwipe: 'इस प्रश्न के लिए कोई स्वाइप विकल्प नहीं है।',
+    noVisual: 'इस प्रश्न के लिए कोई दृश्य विकल्प नहीं है।',
+    matrixEmpty: 'इस मैट्रिक्स प्रश्न में अभी पंक्तियां या कॉलम नहीं हैं।',
+    matrixHelp: 'सर्वे एडिटर खोलें, पंक्तियां और कॉलम जोड़ें, फिर सेव करें।',
+    prev: 'पिछला',
+    swipeTap: 'स्वाइप या टैप करें',
+    translating: lang => `${LANG_LABELS[lang] || lang} में सर्वे का अनुवाद हो रहा है...`,
+    selectLanguage: 'भाषा चुनें',
+    chooseLanguage: 'सर्वे के लिए अपनी पसंदीदा भाषा चुनें। आप इसे ऊपर के मेनू से कभी भी बदल सकते हैं।',
+    englishDefault: 'English (Default)',
+    hindi: 'हिंदी (Hindi)',
+    telugu: 'తెలుగు (Telugu)',
+    saveContinue: 'सेव करें और आगे बढ़ें',
+    skip: 'छोड़ें',
+    experience: 'अनुभव',
+    smooth: 'सर्वे अनुभव कितना सहज था?',
+    next: 'आगे',
+    skipAll: 'सब छोड़ें',
+    thoughts: 'विचार',
+    improve: 'हमें क्या बेहतर करना चाहिए?',
+    feedbackPlaceholder: 'प्रश्नों की भाषा, लंबाई, स्पष्टता... कुछ भी बताएं।',
+    recommend: 'सिफारिश',
+    recommendAxiora: 'आप Axiora की सिफारिश करने की कितनी संभावना रखते हैं?',
+    npsHint: '0 = बिल्कुल संभावना नहीं - 10 = बहुत अधिक संभावना',
+    sending: 'भेजा जा रहा है...',
+    submitFeedback: 'फीडबैक जमा करें',
+    yes: 'हां',
+    no: 'नहीं',
+    thankYou: 'धन्यवाद।',
+    responseRecorded: 'आपका उत्तर दर्ज कर लिया गया है। समय देने के लिए धन्यवाद।',
+  },
+  te: {
+    questions: n => `${n} ప్రశ్నలు`,
+    of: 'లో',
+    required: 'తప్పనిసరి',
+    optional: 'ఐచ్చికం',
+    begin: 'ప్రారంభించండి',
+    back: 'వెనక్కి',
+    continue: 'కొనసాగించండి',
+    almostDone: 'దాదాపు పూర్తైంది',
+    submit: 'సమర్పించండి',
+    submitting: 'సమర్పిస్తోంది...',
+    enterHint: 'లేదా Enter నొక్కండి',
+    saved: 'సేవ్ అయింది',
+    min: 'నిమి',
+    answer: 'మీ సమాధానం...',
+    selectOption: 'ఒక ఎంపికను ఎంచుకోండి...',
+    requiredToast: 'ఈ ప్రశ్న తప్పనిసరి',
+    pleaseAnswer: text => `దయచేసి సమాధానం ఇవ్వండి: "${text}"`,
+    submitFailed: 'సమర్పణ విఫలమైంది - మీ సమాధానాలు సేవ్ అయ్యాయి. మళ్లీ ప్రయత్నించండి.',
+    emailBadge: 'దాదాపు పూర్తైంది',
+    emailTitle: 'మీ ఫలితాలను ఎక్కడికి పంపాలి?',
+    emailBody: 'మీ సమాధానాలు సురక్షితం. ఫాలో-అప్ సమాచారం పంపడానికి మాత్రమే మీ ఇమెయిల్ ఉపయోగిస్తాము.',
+    notAtAll: 'అసలు కాదు',
+    extremely: 'చాలా ఎక్కువ',
+    dragRank: 'ర్యాంక్ చేయడానికి లాగండి - 1 = అగ్రస్థానం',
+    top: 'అగ్రం',
+    selected: 'ఎంచుకున్నారు',
+    dragSelect: 'ఎంచుకోవడానికి లాగండి',
+    allRows: 'అన్ని వరుసలకు సమాధానం ఇచ్చారు',
+    noOptions: 'ఈ ప్రశ్నకు ఎంపికలు లేవు.',
+    noSwipe: 'ఈ ప్రశ్నకు స్వైప్ ఎంపికలు లేవు.',
+    noVisual: 'ఈ ప్రశ్నకు విజువల్ ఎంపికలు లేవు.',
+    matrixEmpty: 'ఈ మ్యాట్రిక్స్ ప్రశ్నలో ఇంకా వరుసలు లేదా కాలమ్స్ లేవు.',
+    matrixHelp: 'సర్వే ఎడిటర్ తెరిచి వరుసలు మరియు కాలమ్స్ జోడించి సేవ్ చేయండి.',
+    prev: 'మునుపటి',
+    swipeTap: 'స్వైప్ చేయండి లేదా ట్యాప్ చేయండి',
+    translating: lang => `సర్వే ${LANG_LABELS[lang] || lang} లోకి అనువదిస్తోంది...`,
+    selectLanguage: 'భాషను ఎంచుకోండి',
+    chooseLanguage: 'సర్వే కోసం మీకు ఇష్టమైన భాషను ఎంచుకోండి. పై మెనూ నుంచి ఎప్పుడైనా మార్చవచ్చు.',
+    englishDefault: 'English (Default)',
+    hindi: 'हिंदी (Hindi)',
+    telugu: 'తెలుగు (Telugu)',
+    saveContinue: 'సేవ్ చేసి కొనసాగించండి',
+    skip: 'దాటవేయండి',
+    experience: 'అనుభవం',
+    smooth: 'సర్వే అనుభవం ఎంత సులభంగా అనిపించింది?',
+    next: 'తర్వాత',
+    skipAll: 'అన్నీ దాటవేయండి',
+    thoughts: 'ఆలోచనలు',
+    improve: 'మేము ఏమి మెరుగుపరచాలి?',
+    feedbackPlaceholder: 'ప్రశ్నల పదాలు, పొడవు, స్పష్టత... ఏదైనా చెప్పండి.',
+    recommend: 'సిఫార్సు',
+    recommendAxiora: 'మీరు Axiora ను సిఫార్సు చేసే అవకాశం ఎంత?',
+    npsHint: '0 = అసలు అవకాశం లేదు - 10 = చాలా ఎక్కువ అవకాశం',
+    sending: 'పంపుతోంది...',
+    submitFeedback: 'ఫీడ్‌బ్యాక్ సమర్పించండి',
+    yes: 'అవును',
+    no: 'కాదు',
+    thankYou: 'ధన్యవాదాలు.',
+    responseRecorded: 'మీ సమాధానం నమోదు చేయబడింది. సమయం కేటాయించినందుకు ధన్యవాదాలు.',
+  },
+};
+
+function textFor(value, lang = 'en') {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value[lang] || value.en || value.te || value.hi || '';
+  }
+  return value ?? '';
+}
+
+function withTranslation(value, lang, translated) {
+  const en = textFor(value, 'en');
+  return {
+    en,
+    te: textFor(value, 'te') || en,
+    hi: textFor(value, 'hi') || en,
+    ...(lang && translated ? { [lang]: translated } : {}),
+  };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 export default function SurveyRespond() {
   const { slug } = useParams();
@@ -64,6 +273,26 @@ export default function SurveyRespond() {
   const [showLangPopup, setShowLangPopup] = useState(false);
   const [currentLang, setCurrentLang] = useState(getLanguageFromCookie());
   const [ans, setAns] = useState({});
+  // Restore cached answers
+useEffect(() => {
+  const cachedAnswers = localStorage.getItem(`survey_answers_${slug}`);
+
+  if (cachedAnswers) {
+    try {
+      setAns(JSON.parse(cachedAnswers));
+    } catch (err) {
+      console.error("Failed to parse cached answers", err);
+    }
+  }
+}, [slug]);
+
+// Save answers whenever they change
+useEffect(() => {
+  localStorage.setItem(
+    `survey_answers_${slug}`,
+    JSON.stringify(ans)
+  );
+}, [ans, slug]);
   const [step, setStep] = useState(-1);
   const [dir, setDir] = useState(1);
   const [busy, setBusy] = useState(false);
@@ -85,23 +314,31 @@ export default function SurveyRespond() {
 
   const activeSv = (currentLang !== 'en' && translatedData[currentLang]?.sv) ? translatedData[currentLang].sv : sv;
   const activeQs = (currentLang !== 'en' && translatedData[currentLang]?.qs) ? translatedData[currentLang].qs : qs;
+  const ui = UI_TEXT[currentLang] || UI_TEXT.en;
+
+  const hasBackendTranslation = (langCode) => {
+    if (!sv || langCode === 'en') return true;
+    if (textFor(sv.title, langCode) && textFor(sv.title, langCode) !== textFor(sv.title, 'en')) return true;
+    return qs.some(q => textFor(q.question_text, langCode) && textFor(q.question_text, langCode) !== textFor(q.question_text, 'en'));
+  };
 
   const fetchTranslation = async (langCode) => {
     if (langCode === 'en') return;
     if (translatedData[langCode]) return;
+    if (hasBackendTranslation(langCode)) return;
     
     setTranslating(true);
     try {
       const payload = {
-        title: sv.title,
-        description: sv.description,
-        welcome_message: sv.welcome_message,
-        thank_you_message: sv.thank_you_message,
+        title: textFor(sv.title, 'en'),
+        description: textFor(sv.description, 'en') || null,
+        welcome_message: textFor(sv.welcome_message, 'en') || null,
+        thank_you_message: textFor(sv.thank_you_message, 'en') || null,
         questions: qs.map(q => ({
           id: q.id,
-          type: q.type,
-          question_text: q.question_text,
-          description: q.description,
+          type: q.question_type,
+          question_text: textFor(q.question_text, 'en'),
+          description: textFor(q.description, 'en'),
           options: q.options
         })),
         language: langCode
@@ -113,9 +350,13 @@ export default function SurveyRespond() {
       const mergedQs = qs.map(originalQ => {
         const transQ = (translated.questions || []).find(t => t.id === originalQ.id);
         if (transQ) {
+          const enQuestionText = textFor(originalQ.question_text, 'en');
+          const translatedQuestionText = transQ.question_text && transQ.question_text !== enQuestionText
+            ? withTranslation(originalQ.question_text, langCode, transQ.question_text)
+            : originalQ.question_text;
           return {
             ...originalQ,
-            question_text: transQ.question_text,
+            question_text: translatedQuestionText,
             description: transQ.description,
             options: transQ.options ?? originalQ.options
           };
@@ -125,10 +366,10 @@ export default function SurveyRespond() {
       
       const mergedSv = {
         ...sv,
-        title: translated.title,
-        description: translated.description,
-        welcome_message: translated.welcome_message,
-        thank_you_message: translated.thank_you_message
+        title: translated.title && translated.title !== textFor(sv.title, 'en') ? withTranslation(sv.title, langCode, translated.title) : sv.title,
+        description: translated.description && translated.description !== textFor(sv.description, 'en') ? withTranslation(sv.description, langCode, translated.description) : sv.description,
+        welcome_message: translated.welcome_message && translated.welcome_message !== textFor(sv.welcome_message, 'en') ? withTranslation(sv.welcome_message, langCode, translated.welcome_message) : sv.welcome_message,
+        thank_you_message: translated.thank_you_message && translated.thank_you_message !== textFor(sv.thank_you_message, 'en') ? withTranslation(sv.thank_you_message, langCode, translated.thank_you_message) : sv.thank_you_message
       };
       
       setTranslatedData(prev => ({
@@ -151,6 +392,11 @@ export default function SurveyRespond() {
 
   const changeLanguage = (langCode) => {
     setCurrentLang(langCode);
+    if (rId.current) {
+      API.patch(`/responses/${rId.current}`, { language: langCode }).catch(e => {
+        console.warn('Failed to save response language:', e.message);
+      });
+    }
     
     // Clear existing cookie
     document.cookie = "googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
@@ -211,6 +457,9 @@ export default function SurveyRespond() {
       const ex = sessionRes.data;
       if (ex) {
         rId.current = ex.id;
+        if (ex.language) {
+          setCurrentLang(ex.language);
+        }
         const r = {};
         (ex.survey_answers || []).forEach(a => { r[a.question_id] = a.answer_json ?? a.answer_value ?? ''; });
         setAns(r);
@@ -240,6 +489,7 @@ export default function SurveyRespond() {
         survey_id: sv.id,
         session_token: token.current,
         respondent_email: email || null,
+        language: currentLang || 'en',
         status: 'in_progress',
       });
       rId.current = res.data.id;
@@ -283,7 +533,7 @@ export default function SurveyRespond() {
   // ── Submit ────────────────────────────────────────────────────────────────
   async function submit() {
     for (const q of visibleQuestions) {
-      if (q.is_required && !ans[q.id]) { goTo(activeQs.indexOf(q)); return toast.error(`Please answer: "${q.question_text}"`); }
+      if (q.is_required && !ans[q.id]) { goTo(activeQs.indexOf(q)); return toast.error(ui.pleaseAnswer(textFor(q.question_text, currentLang))); }
     }
     setBusy(true);
     try {
@@ -297,7 +547,8 @@ export default function SurveyRespond() {
       await API.post(`/responses/${id}/submit`, { metadata: { quality_score: quality } });
       setShowDemographics(true);
       localStorage.removeItem(`nx_${slug}`);
-    } catch (e) { toast.error('Submission failed — your answers are saved. Try again.'); }
+      localStorage.removeItem(`survey_answers_${slug}`);
+    } catch (e) { toast.error(ui.submitFailed); }
     finally { setBusy(false); }
   }
 
@@ -305,7 +556,7 @@ export default function SurveyRespond() {
   function goTo(n) { setDir(n > step ? 1 : -1); setStep(n); }
   function goNext() {
     const q = activeQs[step];
-    if (q?.is_required && !ans[q.id]) return toast.error('This question is required');
+    if (q?.is_required && !ans[q.id]) return toast.error(ui.requiredToast);
     if (q) tracker.onLeave(q.id);
     const next = nextVisible(step);
     if (next !== null) { setDir(1); setStep(next); tracker.onEnter(activeQs[next]?.id); }
@@ -729,7 +980,7 @@ export default function SurveyRespond() {
               boxShadow: "0 18px 45px rgba(255,90,0,0.38)"
             }}
           >
-            Save & Continue
+            {ui.saveContinue}
           </button>
 
           <button
@@ -751,7 +1002,7 @@ export default function SurveyRespond() {
               cursor: "pointer"
             }}
           >
-            Skip
+            {ui.skip}
           </button>
         </div>
       </motion.div>
@@ -762,6 +1013,23 @@ export default function SurveyRespond() {
     <div style={{ height: '100vh', background: '#100B05', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 32, position: 'relative', overflow: 'hidden' }}>
       <div aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
         <div style={{ position: 'absolute', top: '40%', left: '50%', transform: 'translate(-50%,-50%)', width: 700, height: 700, borderRadius: '50%', background: `radial-gradient(circle, ${tc}18, transparent 65%)`, filter: 'blur(80px)' }} />
+      </div>
+
+      <div style={{ position: 'absolute', top: 18, right: 24, zIndex: 5 }}>
+        <button onClick={() => setShowLangPopup(v => !v)}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 99, border: '1px solid rgba(237,232,223,0.15)', background: 'rgba(237,232,223,0.05)', color: '#EDE8DF', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}>
+          {LANG_LABELS[currentLang] || LANG_LABELS.en}
+        </button>
+        {showLangPopup && (
+          <div style={{ position: 'absolute', top: 38, right: 0, minWidth: 150, padding: 8, borderRadius: 14, background: '#FFFBF4', border: '1px solid rgba(22,15,8,0.08)', boxShadow: '0 18px 50px rgba(0,0,0,0.28)' }}>
+            {['en', 'hi', 'te'].map(lang => (
+              <button key={lang} onClick={() => { changeLanguage(lang); setShowLangPopup(false); }}
+                style={{ width: '100%', padding: '10px 12px', border: 'none', borderRadius: 10, background: currentLang === lang ? `${tc}12` : 'transparent', color: '#160F08', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 12, textAlign: 'left', cursor: 'pointer' }}>
+                {LANG_LABELS[lang]}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <AnimatePresence mode="wait">
@@ -781,9 +1049,9 @@ export default function SurveyRespond() {
             </div>
 
             {fbStep === 0 && (<>
-              <p style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(237,232,223,0.25)', marginBottom: 20 }}>Experience</p>
+              <p style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(237,232,223,0.25)', marginBottom: 20 }}>{ui.experience}</p>
               <h2 style={{ fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: 'clamp(24px,4vw,36px)', letterSpacing: '-1.5px', color: '#EDE8DF', marginBottom: 32, lineHeight: 1.1 }}>
-                How smooth was the survey experience?
+                {ui.smooth}
               </h2>
               <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginBottom: 36 }}>
                 {[1, 2, 3, 4, 5].map(n => (
@@ -796,22 +1064,22 @@ export default function SurveyRespond() {
               <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
                 <button onClick={() => fbRating > 0 && setFbStep(1)} disabled={fbRating === 0}
                   style={{ padding: '13px 32px', borderRadius: 999, border: 'none', background: fbRating === 0 ? 'rgba(237,232,223,0.08)' : tc, color: fbRating === 0 ? 'rgba(237,232,223,0.3)' : '#fff', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: fbRating === 0 ? 'not-allowed' : 'pointer', transition: 'all 0.25s' }}>
-                  Next →
+                  {ui.next}
                 </button>
                 <button onClick={() => setFbDone(true)}
                   style={{ padding: '13px 20px', borderRadius: 999, border: '1px solid rgba(237,232,223,0.12)', background: 'transparent', color: 'rgba(237,232,223,0.3)', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>
-                  Skip all
+                  {ui.skipAll}
                 </button>
               </div>
             </>)}
 
             {fbStep === 1 && (<>
-              <p style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(237,232,223,0.25)', marginBottom: 20 }}>Thoughts</p>
+              <p style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(237,232,223,0.25)', marginBottom: 20 }}>{ui.thoughts}</p>
               <h2 style={{ fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: 'clamp(22px,3.5vw,32px)', letterSpacing: '-1px', color: '#EDE8DF', marginBottom: 24, lineHeight: 1.15 }}>
-                Anything we should improve?
+                {ui.improve}
               </h2>
               <textarea value={fbComment} onChange={e => setFbComment(e.target.value)}
-                placeholder="Question wording, length, clarity… anything helps."
+                placeholder={ui.feedbackPlaceholder}
                 rows={3}
                 style={{ width: '100%', boxSizing: 'border-box', padding: '14px 18px', background: '#FDF5E8', border: '1px solid rgba(237,232,223,0.12)', borderRadius: 16, fontFamily: 'Fraunces,serif', fontWeight: 400, fontSize: 15, color: '#160F08', outline: 'none', resize: 'none', transition: 'all 0.2s', marginBottom: 20 }}
                 onFocus={e => { e.target.style.borderColor = tc; e.target.style.boxShadow = `0 0 0 4px ${tc}20`; }}
@@ -820,21 +1088,21 @@ export default function SurveyRespond() {
               <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
                 <button onClick={() => setFbStep(2)}
                   style={{ padding: '13px 32px', borderRadius: 999, border: 'none', background: tc, color: '#fff', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>
-                  Next →
+                  {ui.next}
                 </button>
                 <button onClick={() => { setFbStep(0); }}
                   style={{ padding: '13px 20px', borderRadius: 999, border: '1px solid rgba(237,232,223,0.12)', background: 'transparent', color: 'rgba(237,232,223,0.3)', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>
-                  ← Back
+                  {ui.back}
                 </button>
               </div>
             </>)}
 
             {fbStep === 2 && (<>
-              <p style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(237,232,223,0.25)', marginBottom: 20 }}>Recommend</p>
+              <p style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(237,232,223,0.25)', marginBottom: 20 }}>{ui.recommend}</p>
               <h2 style={{ fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: 'clamp(22px,3.5vw,32px)', letterSpacing: '-1px', color: '#EDE8DF', marginBottom: 12, lineHeight: 1.15 }}>
-                How likely are you to recommend Axiora?
+                {ui.recommendAxiora}
               </h2>
-              <p style={{ fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 13, color: 'rgba(237,232,223,0.3)', marginBottom: 24 }}>0 = Not at all likely · 10 = Extremely likely</p>
+              <p style={{ fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 13, color: 'rgba(237,232,223,0.3)', marginBottom: 24 }}>{ui.npsHint}</p>
               <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 28 }}>
                 {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
                   <button key={n} onClick={() => setFbNps(n)}
@@ -846,11 +1114,11 @@ export default function SurveyRespond() {
               <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
                 <button onClick={submitFeedback} disabled={fbBusy}
                   style={{ padding: '13px 32px', borderRadius: 999, border: 'none', background: tc, color: '#fff', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: fbBusy ? 'not-allowed' : 'pointer', transition: 'all 0.25s' }}>
-                  {fbBusy ? 'Sending…' : 'Submit feedback'}
+                  {fbBusy ? ui.sending : ui.submitFeedback}
                 </button>
                 <button onClick={() => setFbStep(1)}
                   style={{ padding: '13px 20px', borderRadius: 999, border: '1px solid rgba(237,232,223,0.12)', background: 'transparent', color: 'rgba(237,232,223,0.3)', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>
-                  ← Back
+                  {ui.back}
                 </button>
               </div>
             </>)}
@@ -871,11 +1139,11 @@ export default function SurveyRespond() {
             </motion.div>
             <motion.h1 initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
               style={{ fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: 'clamp(40px,6vw,64px)', letterSpacing: '-3px', color: '#EDE8DF', marginBottom: 20, lineHeight: 0.95 }}>
-              Thank you.
+              {ui.thankYou}
             </motion.h1>
             <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.45 }}
               style={{ fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 17, color: 'rgba(237,232,223,0.38)', lineHeight: 1.8, maxWidth: 320, margin: '0 auto' }}>
-              {sv.thank_you_message || 'Your response has been recorded. We appreciate you taking the time.'}
+              {textFor(sv?.thank_you_message, currentLang) || ui.responseRecorded}
             </motion.p>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.65 }}
               style={{ marginTop: 56, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
@@ -964,7 +1232,7 @@ export default function SurveyRespond() {
               onMouseEnter={e => { e.currentTarget.style.borderColor = tc; }}
               onMouseLeave={e => { e.currentTarget.style.borderColor = dark ? 'rgba(237,232,223,0.15)' : 'rgba(22,15,8,0.12)'; }}
             >
-              🌐 {currentLang === 'en' ? 'English' : currentLang === 'hi' ? 'हिंदी' : 'తెలుగు'}
+              {LANG_LABELS[currentLang] || LANG_LABELS.en}
             </button>
           </div>
           {/* Estimated time */}
@@ -972,14 +1240,14 @@ export default function SurveyRespond() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: sub }}>
               <Icons.Clock style={{ color: 'currentColor' }} />
               <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
-                ~{Math.max(1, Math.ceil(remaining.length * 0.4))} min
+                ~{Math.max(1, Math.ceil(remaining.length * 0.4))} {ui.min}
               </span>
             </div>
           )}
           {saved && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
               <div style={{ width: 5, height: 5, borderRadius: '50%', background: tc }} />
-              <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: sub }}>Saved</span>
+              <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: sub }}>{ui.saved}</span>
             </div>
           )}
           {step >= 0 && (
@@ -1016,23 +1284,23 @@ export default function SurveyRespond() {
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 14px', borderRadius: 999, border: `1px solid ${tc}2E`, background: `${tc}0D`, marginBottom: 32 }}>
                   <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: tc }}>
-                    {visTotal} question{visTotal !== 1 ? 's' : ''}
+                    {ui.questions(visTotal)}
                   </span>
                 </motion.div>
                 <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18, duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
                   style={{ fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: 'clamp(32px,5.5vw,62px)', letterSpacing: '-2.5px', color: '#EDE8DF', lineHeight: 1.02, marginBottom: 20 }}>
-                  {activeSv.title}
+                  {textFor(activeSv.title, currentLang)}
                 </motion.h1>
-                {activeSv.description && (
+                {textFor(activeSv.description, currentLang) && (
                   <motion.p initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28 }}
                     style={{ fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 18, color: 'rgba(237,232,223,0.42)', lineHeight: 1.75, marginBottom: 8 }}>
-                    {activeSv.description}
+                    {textFor(activeSv.description, currentLang)}
                   </motion.p>
                 )}
-                {activeSv.welcome_message && (
+                {textFor(activeSv.welcome_message, currentLang) && (
                   <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.35 }}
                     style={{ fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 15, color: 'rgba(237,232,223,0.28)', lineHeight: 1.7, marginBottom: 0 }}>
-                    {activeSv.welcome_message}
+                    {textFor(activeSv.welcome_message, currentLang)}
                   </motion.p>
                 )}
                 <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.44 }} style={{ marginTop: 36 }}>
@@ -1044,7 +1312,7 @@ export default function SurveyRespond() {
                       setStep(idx); tracker.onEnter(activeQs[idx]?.id);
                     }}
                     style={{ display: 'inline-flex', alignItems: 'center', gap: 10, padding: '15px 44px', borderRadius: 999, border: 'none', background: tc, color: '#fff', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 12, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', boxShadow: `0 8px 40px ${tc}40` }}>
-                    Begin
+                    {ui.begin}
                     <Icons.Arrow style={{ color: 'currentColor' }} />
                   </motion.button>
                 </motion.div>
@@ -1068,41 +1336,41 @@ export default function SurveyRespond() {
                     style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 28 }}>
                     <div style={{ width: 32, height: 1.5, background: `linear-gradient(90deg,${tc},${tc}00)`, borderRadius: 1 }} />
                     <span style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 8, letterSpacing: '0.22em', textTransform: 'uppercase', color: sub }}>
-                      {String(visPos).padStart(2, '0')} of {String(visTotal).padStart(2, '0')}
+                      {String(visPos).padStart(2, '0')} {ui.of} {String(visTotal).padStart(2, '0')}
                     </span>
                     {q.is_required
-                      ? <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: tc, background: `${tc}10`, padding: '3px 8px', borderRadius: 4 }}>Required</span>
-                      : <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.2)', background: 'rgba(22,15,8,0.05)', padding: '3px 8px', borderRadius: 4 }}>Optional</span>
+                      ? <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: tc, background: `${tc}10`, padding: '3px 8px', borderRadius: 4 }}>{ui.required}</span>
+                      : <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.2)', background: 'rgba(22,15,8,0.05)', padding: '3px 8px', borderRadius: 4 }}>{ui.optional}</span>
                     }
                   </motion.div>
 
                   {/* Question text */}
                   <motion.h2 initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
                     style={{ fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: 'clamp(26px,4vw,46px)', letterSpacing: '-1.5px', color: fg, lineHeight: 1.1, marginBottom: q.description ? 14 : 0 }}>
-                    {q.question_text}
+                    {textFor(q.question_text, currentLang)}
                   </motion.h2>
                   {q.description && (
                     <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}
                       style={{ fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 16, color: sub, lineHeight: 1.65, marginTop: 0 }}>
-                      {q.description}
+                      {textFor(q.description, currentLang)}
                     </motion.p>
                   )}
 
                   {/* Input */}
                   <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.22, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
                     style={{ marginTop: 36 }}>
-                    <QInput q={q} val={ans[q.id] ?? ''} set={v => setAn(q.id, v)} tc={tc} fg={fg} sub={sub} />
+                    <QInput q={q} val={ans[q.id] ?? ''} set={v => setAn(q.id, v)} tc={tc} fg={fg} sub={sub} lang={currentLang} ui={ui} />
                   </motion.div>
 
                   {/* Nav */}
                   <motion.div className="np-question-nav" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.38 }}
                     style={{ marginTop: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <button onClick={goBack} disabled={!canBack}
+                    <button id="back-btn" data-testid="back-btn" onClick={goBack} disabled={!canBack}
                       style={{ display: 'flex', alignItems: 'center', gap: 7, fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: sub, background: 'none', border: 'none', cursor: canBack ? 'pointer' : 'default', opacity: canBack ? 1 : 0, padding: '8px 0', transition: 'color 0.2s' }}
                       onMouseEnter={e => { if (canBack) e.currentTarget.style.color = fg; }}
                       onMouseLeave={e => e.currentTarget.style.color = sub}>
                       <Icons.Arrow d="M19 12H5M12 19l-7-7 7-7" style={{ color: 'currentColor' }} />
-                      Back
+                      {ui.back}
                     </button>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 7 }}>
                       {!isLast ? (
@@ -1110,26 +1378,26 @@ export default function SurveyRespond() {
                           style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 36px', borderRadius: 999, border: 'none', background: fg, color: dark ? '#100B05' : '#F7F5F0', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', transition: 'background 0.25s, box-shadow 0.25s' }}
                           onMouseEnter={e => { e.currentTarget.style.background = tc; e.currentTarget.style.color = '#fff'; e.currentTarget.style.boxShadow = `0 8px 32px ${tc}40`; }}
                           onMouseLeave={e => { e.currentTarget.style.background = fg; e.currentTarget.style.color = dark ? '#100B05' : '#F7F5F0'; e.currentTarget.style.boxShadow = 'none'; }}>
-                          Continue
+                          {ui.continue}
                           <Icons.Arrow style={{ color: 'currentColor' }} />
                         </motion.button>
                       ) : activeSv?.require_email ? (
                         <motion.button whileHover={{ scale: 1.02, y: -1 }} whileTap={{ scale: 0.97 }}
-                          onClick={() => { if (q?.is_required && !ans[q.id]) return toast.error('This question is required'); setDir(1); setStep(activeQs.length); }}
+                          onClick={() => { if (q?.is_required && !ans[q.id]) return toast.error(ui.requiredToast); setDir(1); setStep(activeQs.length); }}
                           style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 36px', borderRadius: 999, border: 'none', background: fg, color: dark ? '#100B05' : '#F7F5F0', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', transition: 'background 0.25s, box-shadow 0.25s' }}
                           onMouseEnter={e => { e.currentTarget.style.background = tc; e.currentTarget.style.color = '#fff'; e.currentTarget.style.boxShadow = `0 8px 32px ${tc}40`; }}
                           onMouseLeave={e => { e.currentTarget.style.background = fg; e.currentTarget.style.color = dark ? '#100B05' : '#F7F5F0'; e.currentTarget.style.boxShadow = 'none'; }}>
-                          Almost done
+                          {ui.almostDone}
                           <Icons.Arrow style={{ color: 'currentColor' }} />
                         </motion.button>
                       ) : (
                         <motion.button whileHover={{ scale: 1.02, y: -1 }} whileTap={{ scale: 0.97 }} onClick={submit} disabled={busy}
                           style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 36px', borderRadius: 999, border: 'none', background: tc, color: '#fff', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.65 : 1, boxShadow: `0 8px 32px ${tc}45` }}>
-                          {busy ? 'Submitting…' : <><span>Submit</span><Icons.Check style={{ color: 'currentColor' }} /></>}
+                          {busy ? ui.submitting : <><span>{ui.submit}</span><Icons.Check style={{ color: 'currentColor' }} /></>}
                         </motion.button>
                       )}
                       <span className="np-enter-hint" style={{ fontFamily: 'Syne,sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.16)' }}>
-                        or press Enter ↵
+                        {ui.enterHint}
                       </span>
                     </div>
                   </motion.div>
@@ -1146,19 +1414,21 @@ export default function SurveyRespond() {
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 14px', borderRadius: 999, border: `1px solid ${tc}2E`, background: `${tc}0D`, marginBottom: 28 }}>
                   <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: tc }}>
-                    Almost there
+                    {ui.emailBadge}
                   </span>
                 </motion.div>
                 <motion.h2 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12, duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
                   style={{ fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: 'clamp(28px,5vw,50px)', letterSpacing: '-2px', color: fg, lineHeight: 1.05, marginBottom: 16 }}>
-                  Where should we send your results?
+                  {ui.emailTitle}
                 </motion.h2>
                 <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.22 }}
                   style={{ fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 16, color: sub, lineHeight: 1.65, marginBottom: 36 }}>
-                  Your responses are safe. We only use your email to share follow-up insights.
+                  {ui.emailBody}
                 </motion.p>
                 <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28 }}>
                   <input
+                     id="respondent-email"
+                     data-testid="respondent-email"
                      type="email"
                      value={email}
                      onChange={e => setEmail(e.target.value)}
@@ -1170,10 +1440,10 @@ export default function SurveyRespond() {
                      onBlur={e => { e.target.style.borderColor = 'rgba(22,15,8,0.12)'; e.target.style.boxShadow = 'none'; }}
                   />
                   <div style={{ display: 'flex', gap: 12, justifyContent: 'center', alignItems: 'center' }}>
-                    <motion.button whileHover={{ scale: 1.02, y: -1 }} whileTap={{ scale: 0.97 }}
+                    <motion.button id="continue-btn" data-testid="continue-btn" whileHover={{ scale: 1.02, y: -1 }} whileTap={{ scale: 0.97 }}
                       onClick={submit} disabled={busy || !email}
                       style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '15px 44px', borderRadius: 999, border: 'none', background: email ? tc : 'rgba(22,15,8,0.1)', color: email ? '#fff' : sub, fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 12, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: (busy || !email) ? 'not-allowed' : 'pointer', opacity: busy ? 0.65 : 1, transition: 'all 0.25s', boxShadow: email ? `0 8px 32px ${tc}40` : 'none' }}>
-                      {busy ? 'Submitting…' : <><span>Submit</span><Icons.Check style={{ color: 'currentColor' }} /></>}
+                      {busy ? ui.submitting : <><span>{ui.submit}</span><Icons.Check style={{ color: 'currentColor' }} /></>}
                     </motion.button>
                   </div>
                 </motion.div>
@@ -1194,7 +1464,7 @@ export default function SurveyRespond() {
             }
           `}</style>
           <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 13, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: tc, marginTop: 24 }}>
-            Translating survey to {currentLang === 'hi' ? 'हिंदी' : 'తెలుగు'}...
+            {ui.translating(currentLang)}
           </span>
         </div>
       )}
@@ -1255,15 +1525,15 @@ export default function SurveyRespond() {
                 <Icons.X style={{ width: 16, height: 16 }} />
               </button>
 
-              <div style={{ width: 56, height: 56, borderRadius: 16, background: `${tc}12`, display: 'flex', alignItems: 'center', justifycontent: 'center', margin: '0 auto 20px', fontSize: 24 }}>
+              <div style={{ width: 56, height: 56, borderRadius: 16, background: `${tc}12`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: 24 }}>
                 🌐
               </div>
 
               <h2 style={{ fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: 26, letterSpacing: '-0.8px', color: '#160F08', marginBottom: 6, lineHeight: 1.2 }}>
-                Select Language
+                {ui.selectLanguage}
               </h2>
               <p style={{ fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 13, color: 'rgba(22,15,8,0.5)', lineHeight: 1.5, marginBottom: 28 }}>
-                Choose your preferred language for the survey. You can change this at any time from the top menu.
+                {ui.chooseLanguage}
               </p>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -1289,7 +1559,7 @@ export default function SurveyRespond() {
                   onMouseEnter={e => { if (currentLang !== 'en') e.currentTarget.style.borderColor = tc; }}
                   onMouseLeave={e => { if (currentLang !== 'en') e.currentTarget.style.borderColor = 'rgba(22,15,8,0.08)'; }}
                 >
-                  <span>🇺🇸 English (Default)</span>
+                  <span>{ui.englishDefault}</span>
                   {currentLang === 'en' && <span style={{ color: tc }}>✓</span>}
                 </button>
 
@@ -1315,7 +1585,7 @@ export default function SurveyRespond() {
                   onMouseEnter={e => { if (currentLang !== 'hi') e.currentTarget.style.borderColor = tc; }}
                   onMouseLeave={e => { if (currentLang !== 'hi') e.currentTarget.style.borderColor = 'rgba(22,15,8,0.08)'; }}
                 >
-                  <span>🇮🇳 हिंदी (Hindi)</span>
+                  <span>{ui.hindi}</span>
                   {currentLang === 'hi' && <span style={{ color: tc }}>✓</span>}
                 </button>
 
@@ -1341,7 +1611,7 @@ export default function SurveyRespond() {
                   onMouseEnter={e => { if (currentLang !== 'te') e.currentTarget.style.borderColor = tc; }}
                   onMouseLeave={e => { if (currentLang !== 'te') e.currentTarget.style.borderColor = 'rgba(22,15,8,0.08)'; }}
                 >
-                  <span>🇮🇳 తెలుగు (Telugu)</span>
+                  <span>{ui.telugu}</span>
                   {currentLang === 'te' && <span style={{ color: tc }}>✓</span>}
                 </button>
               </div>
@@ -1429,16 +1699,16 @@ export default function SurveyRespond() {
 }
 
 // ─── QInput ───────────────────────────────────────────────────────────────────
-function QInput({ q, val, set, tc, fg, sub }) {
+function QInput({ q, val, set, tc, fg, sub, lang, ui }) {
   const css = { '--qt-tc': tc };
 
   switch (q.question_type) {
 
     case 'short_text':
-      return <input type="text" value={val} onChange={e => set(e.target.value)} className="qt" placeholder="Your answer…" autoFocus style={css} />;
+      return <input type="text" value={val} onChange={e => set(e.target.value)} className="qt" placeholder={ui.answer} autoFocus style={css} />;
 
     case 'long_text':
-      return <textarea value={val} onChange={e => set(e.target.value)} className="qt" placeholder="Your answer…" autoFocus rows={4} style={{ ...css, lineHeight: 1.65 }} />;
+      return <textarea value={val} onChange={e => set(e.target.value)} className="qt" placeholder={ui.answer} autoFocus rows={4} style={{ ...css, lineHeight: 1.65 }} />;
 
     case 'email':
       return <input type="email" value={val} onChange={e => set(e.target.value)} className="qt" placeholder="name@company.com" autoFocus style={css} />;
@@ -1453,7 +1723,7 @@ function QInput({ q, val, set, tc, fg, sub }) {
     case 'yes_no':
       return (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, maxWidth: 440 }}>
-          {[{ l: 'Yes', v: 'yes' }, { l: 'No', v: 'no' }].map(o => (
+          {[{ l: ui.yes, v: 'yes' }, { l: ui.no, v: 'no' }].map(o => (
             <motion.button key={o.v} whileHover={{ y: -4 }} whileTap={{ scale: 0.97 }} onClick={() => set(o.v)}
               style={{ padding: '32px 0', borderRadius: 20, border: `1.5px solid ${val === o.v ? tc : 'rgba(22,15,8,0.08)'}`, background: val === o.v ? tc : 'rgba(255,255,255,0.6)', cursor: 'pointer', fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: 22, letterSpacing: '-0.5px', color: val === o.v ? '#fff' : '#160F08', transition: 'all 0.25s', backdropFilter: 'blur(6px)', boxShadow: val === o.v ? `0 12px 36px ${tc}35` : 'none' }}>
               {o.l}
@@ -1473,7 +1743,7 @@ function QInput({ q, val, set, tc, fg, sub }) {
                 <div className={`qdot r${on ? ' on' : ''}`}>
                   {on && <Icons.Check style={{ color: 'white' }} />}
                 </div>
-                <span className="qlbl">{o.label}</span>
+                <span className="qlbl">{textFor(o.label, lang)}</span>
                 <span className="qkey">{String.fromCharCode(65 + i)}</span>
               </motion.button>
             );
@@ -1494,7 +1764,7 @@ function QInput({ q, val, set, tc, fg, sub }) {
                 <div className={`qdot s${on ? ' on' : ''}`}>
                   {on && <Icons.Check style={{ color: 'white' }} />}
                 </div>
-                <span className="qlbl">{o.label}</span>
+                <span className="qlbl">{textFor(o.label, lang)}</span>
               </motion.button>
             );
           })}
@@ -1508,8 +1778,8 @@ function QInput({ q, val, set, tc, fg, sub }) {
           <select value={val} onChange={e => set(e.target.value)}
             style={{ width: '100%', padding: '16px 44px 16px 20px', appearance: 'none', WebkitAppearance: 'none', background: 'rgba(255,255,255,0.75)', border: '1.5px solid rgba(22,15,8,0.09)', borderRadius: 16, fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 19, color: val ? '#160F08' : 'rgba(22,15,8,0.28)', outline: 'none', cursor: 'pointer', backdropFilter: 'blur(6px)', transition: 'border-color 0.2s' }}
             onFocus={e => e.target.style.borderColor = tc} onBlur={e => e.target.style.borderColor = 'rgba(22,15,8,0.09)'}>
-            <option value="">Select an option…</option>
-            {(parseOpts(q.options) || []).map((o, i) => <option key={i} value={o.value}>{o.label}</option>)}
+            <option value="">{ui.selectOption}</option>
+            {(parseOpts(q.options) || []).map((o, i) => <option key={i} value={o.value}>{textFor(o.label, lang)}</option>)}
           </select>
           <Icons.Chevron style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'rgba(22,15,8,0.3)' }} />
         </div>
@@ -1523,17 +1793,17 @@ function QInput({ q, val, set, tc, fg, sub }) {
         { label: '🙂', value: 'positive' },
         { label: '😍', value: 'delighted' },
       ];
-      return <EmojiReactionInput opts={choices} val={val} set={set} tc={tc} />;
+      return <EmojiReactionInput opts={choices} val={val} set={set} tc={tc} lang={lang} />;
     }
 
     case 'swipe_choice': {
       const opts = optionList(q.options);
-      return <SwipeChoiceInput opts={opts} val={val} set={set} tc={tc} sub={sub} />;
+      return <SwipeChoiceInput opts={opts} val={val} set={set} tc={tc} sub={sub} lang={lang} ui={ui} />;
     }
 
     case 'visual_choice': {
       const opts = optionList(q.options);
-      return <VisualChoiceInput opts={opts} val={val} set={set} tc={tc} sub={sub} />;
+      return <VisualChoiceInput opts={opts} val={val} set={set} tc={tc} sub={sub} lang={lang} ui={ui} />;
     }
 
     case 'rating': {
@@ -1556,7 +1826,7 @@ function QInput({ q, val, set, tc, fg, sub }) {
       return (
         <div style={{ maxWidth: 580 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: sub }}>
-            <span>Not at all</span><span>Extremely</span>
+            <span>{ui.notAtAll}</span><span>{ui.extremely}</span>
           </div>
           <div style={{ display: 'flex', gap: 5 }}>
             {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
@@ -1578,15 +1848,15 @@ function QInput({ q, val, set, tc, fg, sub }) {
         if (Array.isArray(raw)) return raw;
         return [];
       })();
-      if (!opts.length) return <div style={{ fontFamily: 'Fraunces,serif', fontSize: 15, color: sub, padding: '16px 0' }}>No options for this question.</div>;
-      return <RankInput opts={opts} val={val} set={set} tc={tc} />;
+      if (!opts.length) return <div style={{ fontFamily: 'Fraunces,serif', fontSize: 15, color: sub, padding: '16px 0' }}>{ui.noOptions}</div>;
+      return <RankInput opts={opts} val={val} set={set} tc={tc} lang={lang} ui={ui} />;
     }
 
     case 'slider': {
       const rules = q.validation_rules || {};
       const min = Number(rules.min ?? 0), max = Number(rules.max ?? 100), step = Number(rules.step ?? 1);
       return <SliderInput val={val} set={set} tc={tc} min={min} max={max} step={step}
-        minLabel={rules.min_label || String(min)} maxLabel={rules.max_label || String(max)} />;
+        minLabel={textFor(rules.min_label, lang) || String(min)} maxLabel={textFor(rules.max_label, lang) || String(max)} ui={ui} />;
     }
 
     case 'matrix': {
@@ -1596,28 +1866,28 @@ function QInput({ q, val, set, tc, fg, sub }) {
       const cols = (opts && Array.isArray(opts.columns)) ? opts.columns : [];
       if (!rows.length || !cols.length) return (
         <div style={{ fontFamily: 'Fraunces,serif', fontSize: 15, color: sub, padding: '16px 0', lineHeight: 1.6 }}>
-          This matrix question has no rows or columns yet.<br />
+          {ui.matrixEmpty}<br />
           <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-            Open the survey editor and add rows &amp; columns to this question, then save.
+            {ui.matrixHelp}
           </span>
         </div>
       );
-      return <MatrixInput rows={rows} cols={cols} val={val || {}} set={set} tc={tc} sub={sub} />;
+      return <MatrixInput rows={rows} cols={cols} val={val || {}} set={set} tc={tc} sub={sub} lang={lang} ui={ui} />;
     }
 
     default:
-      return <input type="text" value={val} onChange={e => set(e.target.value)} className="qt" placeholder="Your answer…" style={css} />;
+      return <input type="text" value={val} onChange={e => set(e.target.value)} className="qt" placeholder={ui.answer} style={css} />;
   }
 }
 
 // ─── RankInput ────────────────────────────────────────────────────────────────
-function RankInput({ opts, val, set, tc }) {
+function RankInput({ opts, val, set, tc, lang, ui }) {
   const init = () => {
     if (Array.isArray(val) && val.length === opts.length && val.every(v => opts.some(o => o.value === v))) return val;
     return opts.map(o => o.value);
   };
   const [items, setItems] = useState(init);
-  const getLabel = v => opts.find(o => o.value === v)?.label ?? v;
+  const getLabel = v => textFor(opts.find(o => o.value === v)?.label, lang) || v;
 
   function reorder(next) { setItems(next); set(next); }
 
@@ -1625,7 +1895,7 @@ function RankInput({ opts, val, set, tc }) {
     <div style={{ maxWidth: 520 }}>
       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '5px 13px', borderRadius: 999, border: `1px solid rgba(22,15,8,0.09)`, background: 'rgba(22,15,8,0.03)', marginBottom: 20 }}>
         <Icons.Grip style={{ color: 'rgba(22,15,8,0.3)' }} />
-        <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.4)' }}>Drag to rank · 1 = top</span>
+        <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.4)' }}>{ui.dragRank}</span>
       </div>
       <Reorder.Group axis="y" values={items} onReorder={reorder}
         style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1648,7 +1918,7 @@ function RankInput({ opts, val, set, tc }) {
             <Icons.Check style={{ color: tc, width: 8, height: 8 }} />
           </div>
           <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.3)' }}>
-            Top: <span style={{ color: tc }}>{getLabel(items[0])}</span>
+            {ui.top}: <span style={{ color: tc }}>{getLabel(items[0])}</span>
           </span>
         </div>
       )}
@@ -1657,7 +1927,7 @@ function RankInput({ opts, val, set, tc }) {
 }
 
 // ─── SliderInput — fully custom pointer drag ──────────────────────────────────
-function EmojiReactionInput({ opts, val, set, tc }) {
+function EmojiReactionInput({ opts, val, set, tc, lang }) {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, maxWidth: 560 }}>
       {opts.map((o, i) => {
@@ -1666,8 +1936,8 @@ function EmojiReactionInput({ opts, val, set, tc }) {
           <motion.button key={o.value || i} whileHover={{ y: -5, scale: 1.04 }} whileTap={{ scale: 0.92 }} onClick={() => set(o.value)}
             aria-pressed={on}
             style={{ minWidth: 84, minHeight: 84, borderRadius: 22, border: `1.5px solid ${on ? tc : 'rgba(22,15,8,0.08)'}`, background: on ? `${tc}12` : 'rgba(255,255,255,0.68)', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: on ? `0 12px 30px ${tc}25` : 'none', transition: 'border-color 0.2s, background 0.2s, box-shadow 0.2s' }}>
-            <span style={{ fontSize: 34, lineHeight: 1 }}>{o.label}</span>
-            {o.description && <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: on ? tc : 'rgba(22,15,8,0.35)' }}>{o.description}</span>}
+            <span style={{ fontSize: 34, lineHeight: 1 }}>{textFor(o.label, lang)}</span>
+            {o.description && <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: on ? tc : 'rgba(22,15,8,0.35)' }}>{textFor(o.description, lang)}</span>}
           </motion.button>
         );
       })}
@@ -1675,8 +1945,8 @@ function EmojiReactionInput({ opts, val, set, tc }) {
   );
 }
 
-function SwipeChoiceInput({ opts, val, set, tc, sub }) {
-  if (!opts.length) return <div style={{ fontFamily: 'Fraunces,serif', fontSize: 15, color: sub, padding: '16px 0' }}>No swipe options for this question.</div>;
+function SwipeChoiceInput({ opts, val, set, tc, sub, lang, ui }) {
+  if (!opts.length) return <div style={{ fontFamily: 'Fraunces,serif', fontSize: 15, color: sub, padding: '16px 0' }}>{ui.noSwipe}</div>;
   const current = opts.find(o => o.value === val) || opts[0];
   const idx = Math.max(0, opts.findIndex(o => o.value === current.value));
   const choose = delta => {
@@ -1690,21 +1960,21 @@ function SwipeChoiceInput({ opts, val, set, tc, sub }) {
         whileTap={{ cursor: 'grabbing' }}
         style={{ minHeight: 190, borderRadius: 26, border: `1.5px solid ${tc}35`, background: `linear-gradient(135deg, rgba(255,255,255,0.92), ${tc}10)`, boxShadow: `0 18px 50px ${tc}18`, cursor: 'grab', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 28, textAlign: 'center', touchAction: 'pan-y' }}>
         <div>
-          <div style={{ fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: 28, color: '#160F08', lineHeight: 1.15, marginBottom: 10 }}>{current.label}</div>
-          {current.description && <div style={{ fontFamily: 'Fraunces,serif', fontSize: 14, color: 'rgba(22,15,8,0.46)', lineHeight: 1.5 }}>{current.description}</div>}
+          <div style={{ fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: 28, color: '#160F08', lineHeight: 1.15, marginBottom: 10 }}>{textFor(current.label, lang)}</div>
+          {current.description && <div style={{ fontFamily: 'Fraunces,serif', fontSize: 14, color: 'rgba(22,15,8,0.46)', lineHeight: 1.5 }}>{textFor(current.description, lang)}</div>}
         </div>
       </motion.div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 }}>
-        <button onClick={() => choose(-1)} disabled={idx === 0} style={{ border: 'none', background: 'transparent', color: idx === 0 ? 'rgba(22,15,8,0.18)' : tc, fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: idx === 0 ? 'default' : 'pointer' }}>← Previous</button>
-        <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: sub }}>Swipe or tap</span>
-        <button onClick={() => choose(1)} disabled={idx === opts.length - 1} style={{ border: 'none', background: 'transparent', color: idx === opts.length - 1 ? 'rgba(22,15,8,0.18)' : tc, fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: idx === opts.length - 1 ? 'default' : 'pointer' }}>Next →</button>
+        <button onClick={() => choose(-1)} disabled={idx === 0} style={{ border: 'none', background: 'transparent', color: idx === 0 ? 'rgba(22,15,8,0.18)' : tc, fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: idx === 0 ? 'default' : 'pointer' }}>{ui.prev}</button>
+        <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: sub }}>{ui.swipeTap}</span>
+        <button onClick={() => choose(1)} disabled={idx === opts.length - 1} style={{ border: 'none', background: 'transparent', color: idx === opts.length - 1 ? 'rgba(22,15,8,0.18)' : tc, fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: idx === opts.length - 1 ? 'default' : 'pointer' }}>{ui.next}</button>
       </div>
     </div>
   );
 }
 
-function VisualChoiceInput({ opts, val, set, tc, sub }) {
-  if (!opts.length) return <div style={{ fontFamily: 'Fraunces,serif', fontSize: 15, color: sub, padding: '16px 0' }}>No visual options for this question.</div>;
+function VisualChoiceInput({ opts, val, set, tc, sub, lang, ui }) {
+  if (!opts.length) return <div style={{ fontFamily: 'Fraunces,serif', fontSize: 15, color: sub, padding: '16px 0' }}>{ui.noVisual}</div>;
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 12, maxWidth: 620 }}>
       {opts.map((o, i) => {
@@ -1715,7 +1985,7 @@ function VisualChoiceInput({ opts, val, set, tc, sub }) {
             {o.image_url ? <img src={o.image_url} alt="" style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', borderRadius: 14, display: 'block', marginBottom: 10 }} /> : <div style={{ width: '100%', aspectRatio: '4/3', borderRadius: 14, background: `${tc}14`, marginBottom: 10 }} />}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 4px 4px' }}>
               <div style={{ width: 16, height: 16, borderRadius: '50%', border: `2px solid ${on ? tc : 'rgba(22,15,8,0.18)'}`, background: on ? tc : 'transparent', flexShrink: 0 }} />
-              <span style={{ fontFamily: 'Fraunces,serif', fontSize: 14, color: '#160F08', lineHeight: 1.25 }}>{o.label}</span>
+              <span style={{ fontFamily: 'Fraunces,serif', fontSize: 14, color: '#160F08', lineHeight: 1.25 }}>{textFor(o.label, lang)}</span>
             </div>
           </motion.button>
         );
@@ -1724,7 +1994,7 @@ function VisualChoiceInput({ opts, val, set, tc, sub }) {
   );
 }
 
-function SliderInput({ val, set, tc, min, max, step, minLabel, maxLabel }) {
+function SliderInput({ val, set, tc, min, max, step, minLabel, maxLabel, ui }) {
   const trackRef = useRef(null);
   const dragging = useRef(false);
   const [drag, setDrag] = useState(false);
@@ -1750,12 +2020,12 @@ function SliderInput({ val, set, tc, min, max, step, minLabel, maxLabel }) {
           {cur != null ? (
             <motion.div key="v" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.2 }}>
               <span style={{ fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: 'clamp(56px,9vw,88px)', letterSpacing: '-4px', color: tc, lineHeight: 1 }}>{cur}</span>
-              <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.25)', marginLeft: 12 }}>selected</span>
+              <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.25)', marginLeft: 12 }}>{ui.selected}</span>
             </motion.div>
           ) : (
             <motion.div key="e" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <span style={{ fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: 'clamp(56px,9vw,88px)', letterSpacing: '-4px', color: 'rgba(22,15,8,0.07)', lineHeight: 1 }}>–</span>
-              <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.2)', marginLeft: 12 }}>drag to select</span>
+              <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.2)', marginLeft: 12 }}>{ui.dragSelect}</span>
             </motion.div>
           )}
         </AnimatePresence>
@@ -1785,7 +2055,7 @@ function SliderInput({ val, set, tc, min, max, step, minLabel, maxLabel }) {
 }
 
 // ─── MatrixInput ──────────────────────────────────────────────────────────────
-function MatrixInput({ rows, cols, val, set, tc, sub }) {
+function MatrixInput({ rows, cols, val, set, tc, sub, lang, ui }) {
   const answered = Object.keys(val).length;
   const pct = rows.length ? Math.round((answered / rows.length) * 100) : 0;
 
@@ -1813,7 +2083,7 @@ function MatrixInput({ rows, cols, val, set, tc, sub }) {
               <th style={{ width: '36%', paddingBottom: 14 }} />
               {cols.map((c, ci) => (
                 <th key={c.value ?? ci} style={{ paddingBottom: 14, paddingLeft: 8, paddingRight: 8, textAlign: 'center', fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.35)', whiteSpace: 'nowrap' }}>
-                  {c.label}
+                  {textFor(c.label, lang)}
                 </th>
               ))}
             </tr>
@@ -1827,7 +2097,7 @@ function MatrixInput({ rows, cols, val, set, tc, sub }) {
                   <td style={{ fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 15, color: done ? '#160F08' : 'rgba(22,15,8,0.5)', paddingRight: 20, paddingTop: 5, paddingBottom: 5, verticalAlign: 'middle', transition: 'color 0.2s', whiteSpace: 'nowrap' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                       {done && <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} style={{ color: tc, lineHeight: 1, flexShrink: 0 }}><Icons.Check style={{ color: tc, width: 10, height: 10 }} /></motion.span>}
-                      {row.label}
+                      {textFor(row.label, lang)}
                     </span>
                   </td>
                   {cols.map((col, ci) => {
@@ -1835,7 +2105,7 @@ function MatrixInput({ rows, cols, val, set, tc, sub }) {
                     return (
                       <td key={col.value ?? ci} style={{ textAlign: 'center', padding: '5px 8px', verticalAlign: 'middle' }}>
                         <motion.button whileHover={{ scale: 1.12 }} whileTap={{ scale: 0.88 }} onClick={() => toggle(row.value, col.value)}
-                          aria-label={`${row.label}: ${col.label}`} aria-pressed={on}
+                          aria-label={`${textFor(row.label, lang)}: ${textFor(col.label, lang)}`} aria-pressed={on}
                           style={{ width: 32, height: 32, borderRadius: '50%', border: `2px solid ${on ? tc : 'rgba(22,15,8,0.12)'}`, background: on ? tc : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', transition: 'border-color 0.2s, background 0.2s', boxShadow: on ? `0 4px 14px ${tc}35` : 'none' }}>
                           {on && <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 500 }}><Icons.Check style={{ color: 'white', width: 10, height: 10 }} /></motion.div>}
                         </motion.button>
@@ -1851,9 +2121,10 @@ function MatrixInput({ rows, cols, val, set, tc, sub }) {
       {answered === rows.length && rows.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 6, color: tc }}>
           <Icons.Check style={{ color: tc }} />
-          <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' }}>All rows answered</span>
+          <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{ui.allRows}</span>
         </motion.div>
       )}
     </div>
   );
 }
+
