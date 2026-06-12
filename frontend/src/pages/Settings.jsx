@@ -135,14 +135,7 @@ export default function Settings() {
     } finally { setSPw(false); }
   }
 
-  const [dark, setDark] = useState(() => document.documentElement.getAttribute('data-theme') === 'dark');
 
-  function toggleDark() {
-    const next = !dark;
-    setDark(next);
-    document.documentElement.setAttribute('data-theme', next ? 'dark' : 'light');
-    localStorage.setItem('np-theme', next ? 'dark' : 'light');
-  }
 
   // Sync approved_domains back into the Zustand store after save
   // (updateTenant re-fetches the whole row; this is a lightweight local patch)
@@ -293,21 +286,7 @@ export default function Settings() {
         <ApprovedDomainsCard tenant={tenant} onSaved={syncDomains} />
       )}
 
-      {/* Preferences */}
-      <div style={card}>
-        <div style={secH}>Preferences</div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 0' }}>
-          <div>
-            <div style={{ fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 13, color: 'var(--espresso)', marginBottom: 4 }}>Dark mode</div>
-            <div style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 13, color: 'rgba(22,15,8,0.5)' }}>Easy on the eyes at night</div>
-          </div>
-          {/* Toggle switch */}
-          <button onClick={toggleDark} role="switch" aria-checked={dark}
-            style={{ width: 48, height: 26, borderRadius: 999, border: 'none', background: dark ? 'var(--coral)' : 'rgba(22,15,8,0.15)', cursor: 'pointer', position: 'relative', transition: 'background 0.25s', flexShrink: 0 }}>
-            <span style={{ position: 'absolute', top: 3, left: dark ? 24 : 4, width: 20, height: 20, borderRadius: '50%', background: '#fff', boxShadow: '0 1px 4px rgba(0,0,0,0.2)', transition: 'left 0.25s cubic-bezier(0.34,1.56,0.64,1)' }} />
-          </button>
-        </div>
-      </div>
+
     </div>
   );
 }
