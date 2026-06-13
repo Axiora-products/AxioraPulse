@@ -420,9 +420,9 @@ export default function DashboardLayout() {
         </main>
 
         {/* Footer */}
-        <footer style={{ maxWidth: 1320, margin: '0 auto', padding: '24px 48px 40px', width: '100%', boxSizing: 'border-box', borderTop: '1px solid rgba(22,15,8,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <footer style={{ maxWidth: 1320, margin: '0 auto', padding: '12px 48px 14px', width: '100%', boxSizing: 'border-box', borderTop: '1px solid rgba(22,15,8,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <p style={{ fontFamily: 'Syne, sans-serif', fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', color: 'rgba(22,15,8,0.25)', textAlign: 'center', margin: 0 }}>
-            © 2026 Axiora Pulse is a product of Axiora Labs · Built for researchers, by researchers · Hyderabad
+            © 2026 Axiora Pulse is a product of Axiora Global Solutions · Built for researchers, by researchers · Hyderabad
           </p>
         </footer>
       </div>
