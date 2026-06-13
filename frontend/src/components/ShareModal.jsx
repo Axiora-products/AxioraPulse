@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import API from '../api/axios';
@@ -193,9 +193,18 @@ export default function ShareModal({ survey, isOpen, onClose }) {
   const [whatsAppNumbers, setWhatsAppNumbers] = useState('');
   const [whatsAppFile, setWhatsAppFile] = useState(null);
   const [isWhatsAppFileParsing, setIsWhatsAppFileParsing] = useState(false);
-  const [isWhatsAppSubViewOpen, setIsWhatsAppSubViewOpen] = useState(false);
+  const [whatsAppView, setWhatsAppView] = useState(null); // null | 'choice' | 'bulk'
   const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
   const [whatsAppMessage, setWhatsAppMessage] = useState(`Check out this survey: "${survey?.title || 'User Feedback'}"\n\nPlease participate: [link]`);
+  const [telegramView, setTelegramView] = useState(null); // null | 'choice' | 'bulk'
+  const [telegramUsernames, setTelegramUsernames] = useState('');
+  const [telegramFile, setTelegramFile] = useState(null);
+  const [isTelegramFileParsing, setIsTelegramFileParsing] = useState(false);
+  const [sendingTelegram, setSendingTelegram] = useState(false);
+  const [telegramMessage, setTelegramMessage] = useState('');
+  const [facebookView, setFacebookView] = useState(null); // null | 'choice'
+  const [instagramView, setInstagramView] = useState(null); // null | 'choice'
+  const [twitterView, setTwitterView] = useState(null); // null | 'choice'
   const inputRef = useRef(null);
 
   const appOrigin = import.meta.env.VITE_FRONTEND_URL || window.location.origin;
@@ -210,6 +219,23 @@ export default function ShareModal({ survey, isOpen, onClose }) {
   function openShare(url) {
     window.open(url, "_blank");
   }
+
+  async function nativeShare() {
+    const payload = { title: survey?.title || 'Survey', text: shareText, url: surveyUrl };
+    if (navigator.share) {
+      try {
+        await navigator.share(payload);
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          navigator.clipboard.writeText(surveyUrl);
+          toast.success('Link copied to clipboard!');
+        }
+      }
+    } else {
+      navigator.clipboard.writeText(surveyUrl);
+      toast.success('Link copied — paste it in any app to share!');
+    }
+  }
   // Reset state when closed
   useEffect(() => {
     if (!isOpen) {
@@ -219,10 +245,20 @@ export default function ShareModal({ survey, isOpen, onClose }) {
       setWhatsAppNumbers('');
       setWhatsAppFile(null);
       setIsWhatsAppFileParsing(false);
-      setIsWhatsAppSubViewOpen(false);
+      setWhatsAppView(null);
       setSendingWhatsApp(false);
+      setTelegramView(null);
+      setTelegramUsernames('');
+      setTelegramFile(null);
+      setIsTelegramFileParsing(false);
+      setSendingTelegram(false);
+      setFacebookView(null);
+      setInstagramView(null);
+      setTwitterView(null);
     } else {
-      setWhatsAppMessage(`Hello! We would love to get your feedback on our survey: "${survey?.title || 'User Feedback'}"\n\nPlease tap this link to participate: ${surveyUrl}`);
+      const msg = `Hello! We would love to get your feedback on our survey: "${survey?.title || 'User Feedback'}"\n\nPlease tap this link to participate: ${surveyUrl}`;
+      setWhatsAppMessage(msg);
+      setTelegramMessage(msg);
     }
   }, [isOpen, survey, surveyUrl]);
 
@@ -370,13 +406,46 @@ export default function ShareModal({ survey, isOpen, onClose }) {
       toast.success(`WhatsApp broadcast complete! Sent: ${sent}, Failed: ${failed}. Spreadsheet report downloaded.`, { duration: 6000 });
       setWhatsAppNumbers('');
       setWhatsAppFile(null);
-      setIsWhatsAppSubViewOpen(false);
+      setWhatsAppView(null);
 
     } catch (error) {
       const msg = error.response?.data?.detail || "Failed to send WhatsApp broadcast";
       toast.error(msg);
     } finally {
       setSendingWhatsApp(false);
+    }
+  }
+
+  async function sendTelegram() {
+    let recipientsList = [];
+    if (telegramFile) {
+      if (!telegramFile.valid || telegramFile.valid.length === 0) {
+        return toast.error("No valid entries to send to");
+      }
+      recipientsList = telegramFile.valid;
+    } else {
+      if (!telegramUsernames.trim()) {
+        return toast.error("Enter Telegram usernames or upload a file");
+      }
+      recipientsList = telegramUsernames.split(/[\n,]/).map(n => n.trim()).filter(Boolean);
+    }
+    setSendingTelegram(true);
+    try {
+      const res = await API.post("/users/bulk-share-telegram", {
+        recipients: recipientsList,
+        survey_link: surveyUrl,
+        survey_title: survey?.title,
+        message: telegramMessage
+      });
+      const { sent, failed } = res.data;
+      toast.success(`Telegram broadcast complete! Sent: ${sent}, Failed: ${failed}.`, { duration: 6000 });
+      setTelegramUsernames('');
+      setTelegramFile(null);
+      setTelegramView(null);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Failed to send Telegram broadcast");
+    } finally {
+      setSendingTelegram(false);
     }
   }
 
@@ -583,83 +652,274 @@ export default function ShareModal({ survey, isOpen, onClose }) {
               )}
               {tab === 'social' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  {!isWhatsAppSubViewOpen ? (
+                  {whatsAppView === null && twitterView === null ? (
                     <>
                       <p style={{ fontFamily: 'Fraunces,serif', fontSize: 13, color: 'rgba(22,15,8,0.5)', margin: 0 }}>
-                        Share this survey instantly across platforms.
+                        Share this survey personally via messages.
                       </p>
+
+                      {/* Native share — shows OS contact picker with every installed app */}
+                      <button
+                        onClick={nativeShare}
+                        style={{
+                          width: '100%',
+                          padding: '13px 20px',
+                          borderRadius: 14,
+                          border: '1.5px solid rgba(22,15,8,0.1)',
+                          background: 'var(--cream)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 12,
+                          transition: 'border-color 0.2s, box-shadow 0.2s',
+                          boxSizing: 'border-box',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--coral)'; e.currentTarget.style.boxShadow = '0 2px 12px rgba(255,90,0,0.1)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(22,15,8,0.1)'; e.currentTarget.style.boxShadow = 'none'; }}
+                      >
+                        <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(255,90,0,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
+                          📲
+                        </div>
+                        <div style={{ textAlign: 'left' }}>
+                          <div style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 12, color: 'var(--espresso)', marginBottom: 2 }}>
+                            Send to Contacts
+                          </div>
+                          <div style={{ fontFamily: 'Fraunces,serif', fontSize: 11, color: 'rgba(22,15,8,0.45)', lineHeight: 1.4 }}>
+                            Opens your device's share sheet — pick any app and contact
+                          </div>
+                        </div>
+                      </button>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ flex: 1, height: 1, background: 'rgba(22,15,8,0.06)' }} />
+                        <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, color: 'rgba(22,15,8,0.3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>or share to</span>
+                        <div style={{ flex: 1, height: 1, background: 'rgba(22,15,8,0.06)' }} />
+                      </div>
 
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                         {/* WhatsApp */}
                         <button
-                          onClick={() => setIsWhatsAppSubViewOpen(true)}
-                          className="axiora-social-btn"                      >
+                          onClick={() => setWhatsAppView('choice')}
+                          className="axiora-social-btn"
+                        >
                           <WhatsAppIcon /> WhatsApp
                         </button>
 
-                        {/* Telegram */}
+                        {/* Telegram — t.me/share opens contact picker inside Telegram */}
                         <button
                           onClick={() => openShare(`https://t.me/share/url?url=${encodedUrl}&text=${encodedText}`)}
-                          className="axiora-social-btn"                      >
+                          className="axiora-social-btn"
+                        >
                           <TelegramIcon /> Telegram
                         </button>
 
-                        {/* Twitter/X */}
+                        {/* Twitter/X — timeline or DM choice */}
                         <button
-                          onClick={() => openShare(`https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedUrl}`)}
+                          onClick={() => setTwitterView('choice')}
                           className="axiora-social-btn"
                         >
-                          <TwitterIcon /> Twitter
+                          <TwitterIcon /> X / Twitter
                         </button>
 
-                        {/* Instagram */}
+                        {/* Instagram — copies link, opens new DM page */}
                         <button
                           onClick={() => {
                             navigator.clipboard.writeText(surveyUrl);
-                            window.open("https://www.instagram.com/", "_blank");
-                            toast.success("Link copied! Paste it in Instagram bio or DM");
+                            window.open('https://www.instagram.com/direct/new/', '_blank');
+                            toast.success('Link copied! Paste it in the Instagram message');
                           }}
                           className="axiora-social-btn"
                         >
-                          <InstagramIcon /> Instagram
+                          <InstagramIcon /> Instagram DM
                         </button>
-                        {/* Facebook */}
+
+                        {/* Facebook Messenger — opens Messenger new conversation */}
                         <button
-                          onClick={() =>
-                            openShare(
-                              `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`
-                            )
-                          }
+                          onClick={() => {
+                            navigator.clipboard.writeText(surveyUrl);
+                            window.open('https://www.messenger.com/new', '_blank');
+                            toast.success('Link copied! Paste it in the Messenger chat');
+                          }}
                           className="axiora-social-btn"
                         >
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
-                            <path d="M14 8h3V4h-3c-3 0-5 2-5 5v3H6v4h3v4h4v-4h3l1-4h-4V9c0-.7.3-1 1-1z" />
+                            <path d="M12 2C6.477 2 2 6.145 2 11.243c0 2.91 1.395 5.51 3.578 7.22V22l3.27-1.796c.874.242 1.8.372 2.76.372 5.522 0 10-4.144 10-9.243S17.522 2 12 2zm1.003 12.44l-2.548-2.72-4.97 2.72 5.469-5.807 2.61 2.72 4.907-2.72-5.468 5.807z" />
                           </svg>
-
-                          Facebook
+                          Messenger
                         </button>
 
-                        {/* LinkedIn */}
+                        {/* LinkedIn — opens message compose */}
                         <button
-                          onClick={() =>
-                            openShare(
-                              `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}`
-                            )
-                          }
+                          onClick={() => openShare(`https://www.linkedin.com/messaging/compose/?body=${encodeURIComponent(`${shareText}\n${surveyUrl}`)}`)}
                           className="axiora-social-btn"
                         >
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
                             <path d="M6.94 8.5H3.56V20h3.38V8.5zM5.25 3A2.25 2.25 0 1 0 5.3 7.5 2.25 2.25 0 0 0 5.25 3zM20.44 13.06c0-3.38-1.8-4.95-4.2-4.95a3.63 3.63 0 0 0-3.28 1.8V8.5H9.56c.05.93 0 11.5 0 11.5h3.4v-6.42c0-.34.03-.68.12-.93.27-.68.9-1.38 1.96-1.38 1.38 0 1.93 1.04 1.93 2.57V20h3.4v-6.94z" />
                           </svg>
-
                           LinkedIn
                         </button>
                       </div>
 
-                      <p style={{ fontSize: 12, color: 'rgba(22,15,8,0.35)', margin: 0 }}>
-                        Instagram doesn't support direct sharing — link copied instead.
+                      <p style={{ fontSize: 11, color: 'rgba(22,15,8,0.35)', margin: 0, lineHeight: 1.5 }}>
+                        Instagram &amp; Messenger: link is auto-copied — just paste it in the chat.
                       </p>
                     </>
+                  ) : twitterView === 'choice' ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <span style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, color: '#000', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          X / Twitter
+                        </span>
+                        <button
+                          onClick={() => setTwitterView(null)}
+                          style={{ background: 'none', border: 'none', color: 'rgba(22,15,8,0.4)', fontSize: 10, fontFamily: 'Syne,sans-serif', fontWeight: 700, textTransform: 'uppercase', cursor: 'pointer' }}
+                        >
+                          ← Back to Social
+                        </button>
+                      </div>
+
+                      <p style={{ fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 12, color: 'rgba(22,15,8,0.5)', margin: 0, lineHeight: 1.6 }}>
+                        Choose how you'd like to share this survey on X.
+                      </p>
+
+                      {/* Post on Timeline */}
+                      <button
+                        onClick={() => openShare(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodedUrl}`)}
+                        style={{
+                          background: 'var(--cream)', border: '1.5px solid rgba(22,15,8,0.08)', borderRadius: 14,
+                          padding: '16px 18px', cursor: 'pointer', textAlign: 'left',
+                          display: 'flex', alignItems: 'flex-start', gap: 14,
+                          transition: 'border-color 0.2s, box-shadow 0.2s', width: '100%', boxSizing: 'border-box',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = '#000'; e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.1)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(22,15,8,0.08)'; e.currentTarget.style.boxShadow = 'none'; }}
+                      >
+                        <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(0,0,0,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 18 }}>
+                          📢
+                        </div>
+                        <div>
+                          <div style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 12, color: 'var(--espresso)', marginBottom: 4 }}>
+                            Post on Timeline
+                          </div>
+                          <div style={{ fontFamily: 'Fraunces,serif', fontSize: 11, color: 'rgba(22,15,8,0.5)', lineHeight: 1.5 }}>
+                            Share the survey link as a public post on your X feed.
+                          </div>
+                        </div>
+                      </button>
+
+                      {/* Send as Direct Message */}
+                      <button
+                        onClick={() => openShare(`https://twitter.com/messages/compose?text=${encodedUrl}`)}
+                        style={{
+                          background: 'var(--cream)', border: '1.5px solid rgba(22,15,8,0.08)', borderRadius: 14,
+                          padding: '16px 18px', cursor: 'pointer', textAlign: 'left',
+                          display: 'flex', alignItems: 'flex-start', gap: 14,
+                          transition: 'border-color 0.2s, box-shadow 0.2s', width: '100%', boxSizing: 'border-box',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = '#000'; e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.1)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(22,15,8,0.08)'; e.currentTarget.style.boxShadow = 'none'; }}
+                      >
+                        <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(0,0,0,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="#000">
+                            <path d="M18.9 1.2h3.7l-8.1 9.2 9.5 12.6h-7.4l-5.8-7.6-6.7 7.6H.5l8.7-9.9L.1 1.2h7.6l5.2 6.9 6-6.9zm-1.3 19.5h2.1L6.5 3.3H4.3l13.3 17.4z" />
+                          </svg>
+                        </div>
+                        <div>
+                          <div style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 12, color: 'var(--espresso)', marginBottom: 4 }}>
+                            Send as Direct Message
+                          </div>
+                          <div style={{ fontFamily: 'Fraunces,serif', fontSize: 11, color: 'rgba(22,15,8,0.5)', lineHeight: 1.5 }}>
+                            Open X DM compose — pick a contact and send the link privately.
+                          </div>
+                        </div>
+                      </button>
+                    </div>
+                  ) : whatsAppView === 'choice' ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <span style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, color: '#25D366', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          WhatsApp
+                        </span>
+                        <button
+                          onClick={() => setWhatsAppView(null)}
+                          style={{ background: 'none', border: 'none', color: 'rgba(22,15,8,0.4)', fontSize: 10, fontFamily: 'Syne,sans-serif', fontWeight: 700, textTransform: 'uppercase', cursor: 'pointer' }}
+                        >
+                          ← Back to Social
+                        </button>
+                      </div>
+
+                      <p style={{ fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 12, color: 'rgba(22,15,8,0.5)', margin: 0, lineHeight: 1.6 }}>
+                        Choose how you'd like to share this survey via WhatsApp.
+                      </p>
+
+                      {/* Personal Share Card */}
+                      <button
+                        onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(whatsAppMessage)}`, '_blank')}
+                        style={{
+                          background: 'var(--cream)',
+                          border: '1.5px solid rgba(22,15,8,0.08)',
+                          borderRadius: 14,
+                          padding: '16px 18px',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: 14,
+                          transition: 'border-color 0.2s, box-shadow 0.2s',
+                          width: '100%',
+                          boxSizing: 'border-box',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = '#25D366'; e.currentTarget.style.boxShadow = '0 2px 12px rgba(37,211,102,0.1)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(22,15,8,0.08)'; e.currentTarget.style.boxShadow = 'none'; }}
+                      >
+                        <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(37,211,102,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <svg width="18" height="18" viewBox="0 0 32 32" fill="#25D366">
+                            <path d="M16 .5C7.5.5.5 7.5.5 16c0 2.8.7 5.4 2 7.7L.5 31.5l8-2.1c2.2 1.2 4.7 1.9 7.5 1.9 8.5 0 15.5-7 15.5-15.5S24.5.5 16 .5zm0 28c-2.4 0-4.6-.6-6.5-1.7l-.5-.3-4.7 1.2 1.2-4.6-.3-.5C3.1 20.6 2.5 18.4 2.5 16 2.5 8.8 8.8 2.5 16 2.5S29.5 8.8 29.5 16 23.2 28.5 16 28.5zm7.5-9.6c-.4-.2-2.3-1.1-2.7-1.2-.4-.1-.6-.2-.9.2s-1 1.2-1.2 1.4c-.2.2-.4.3-.8.1-2.3-1.2-3.8-2.1-5.3-4.7-.4-.6.4-.6 1.1-2 .1-.2 0-.4 0-.6 0-.2-.9-2.1-1.2-2.9-.3-.7-.6-.6-.9-.6h-.8c-.3 0-.6.1-.9.4-.3.4-1.2 1.2-1.2 3s1.3 3.5 1.5 3.7c.2.2 2.6 4 6.3 5.5.9.4 1.6.6 2.2.7.9.1 1.7.1 2.3.1.7-.1 2.3-.9 2.6-1.7.3-.8.3-1.5.2-1.7-.1-.2-.4-.3-.8-.5z" />
+                          </svg>
+                        </div>
+                        <div>
+                          <div style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 12, color: 'var(--espresso)', marginBottom: 4 }}>
+                            Personal Share
+                          </div>
+                          <div style={{ fontFamily: 'Fraunces,serif', fontSize: 11, color: 'rgba(22,15,8,0.5)', lineHeight: 1.5 }}>
+                            Share directly to a contact or group via your WhatsApp.
+                          </div>
+                        </div>
+                      </button>
+
+                      {/* Bulk Share Card */}
+                      <button
+                        onClick={() => setWhatsAppView('bulk')}
+                        style={{
+                          background: 'var(--cream)',
+                          border: '1.5px solid rgba(22,15,8,0.08)',
+                          borderRadius: 14,
+                          padding: '16px 18px',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: 14,
+                          transition: 'border-color 0.2s, box-shadow 0.2s',
+                          width: '100%',
+                          boxSizing: 'border-box',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = '#25D366'; e.currentTarget.style.boxShadow = '0 2px 12px rgba(37,211,102,0.1)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(22,15,8,0.08)'; e.currentTarget.style.boxShadow = 'none'; }}
+                      >
+                        <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(37,211,102,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 18 }}>
+                          📢
+                        </div>
+                        <div>
+                          <div style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 12, color: 'var(--espresso)', marginBottom: 4 }}>
+                            Bulk Share Campaign
+                          </div>
+                          <div style={{ fontFamily: 'Fraunces,serif', fontSize: 11, color: 'rgba(22,15,8,0.5)', lineHeight: 1.5 }}>
+                            Send to multiple contacts at once via phone numbers or a contact list.
+                          </div>
+                        </div>
+                      </button>
+                    </div>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
@@ -667,10 +927,10 @@ export default function ShareModal({ survey, isOpen, onClose }) {
                           WhatsApp Share Campaign
                         </span>
                         <button
-                          onClick={() => { setIsWhatsAppSubViewOpen(false); setWhatsAppFile(null); setWhatsAppNumbers(''); }}
+                          onClick={() => { setWhatsAppView('choice'); setWhatsAppFile(null); setWhatsAppNumbers(''); }}
                           style={{ background: 'none', border: 'none', color: 'rgba(22,15,8,0.4)', fontSize: 10, fontFamily: 'Syne,sans-serif', fontWeight: 700, textTransform: 'uppercase', cursor: 'pointer' }}
                         >
-                          ← Back to Social
+                          ← Back
                         </button>
                       </div>
 
@@ -780,107 +1040,31 @@ export default function ShareModal({ survey, isOpen, onClose }) {
       </AnimatePresence>
       <style>
         {`.axiora-social-btn {
-  position: relative;
-  overflow: hidden;
-
-  height: 40px;
   width: 100%;
-
-  border: 1px solid rgba(255,120,40,0.08);
-  border-radius: 18px;
-
-  background:
-    linear-gradient(
-      135deg,
-      #140602 0%,
-      #2b0d02 45%,
-      #3a1204 100%
-    );
-
+  padding: 11px 14px;
+  border: none;
+  border-radius: 999px;
+  background: var(--espresso);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-
-  color: rgba(255,255,255,0.92);
-
+  gap: 8px;
+  color: var(--cream);
   font-family: 'Syne', sans-serif;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-
   cursor: pointer;
-
-  transition:
-    transform 0.25s ease,
-    background 0.25s ease,
-    box-shadow 0.25s ease,
-    border-color 0.25s ease;
-
-  box-shadow:
-    0 10px 26px rgba(0,0,0,0.12),
-    inset 0 1px 0 rgba(255,255,255,0.03);
+  transition: background 0.2s, transform 0.2s;
+  box-sizing: border-box;
 }
 
-/* ICON STYLE */
-.axiora-social-btn svg {
-  transition:
-    transform 0.25s ease,
-    filter 0.25s ease;
-}
-
-/* PREMIUM HOVER */
 .axiora-social-btn:hover {
-  background:
-    linear-gradient(
-      135deg,
-      #ff8f42 0%,
-      #ff641f 45%,
-      #ff4d00 100%
-    );
-
-  border-color: rgba(255,140,60,0.35);
-
-  transform: translateY(-2px);
-
-  box-shadow:
-    0 18px 38px rgba(255,90,0,0.22),
-    0 0 24px rgba(255,120,40,0.12);
+  background: var(--coral);
+  transform: translateY(-1px);
 }
 
-/* ICON HOVER */
-.axiora-social-btn:hover svg {
-  transform: scale(1.08);
-
-  filter:
-    drop-shadow(0 0 10px rgba(255,255,255,0.22));
-}
-
-/* SHINE EFFECT */
-.axiora-social-btn::before {
-  content: '';
-
-  position: absolute;
-  inset: 0;
-
-  background:
-    linear-gradient(
-      120deg,
-      transparent 20%,
-      rgba(255,255,255,0.12) 50%,
-      transparent 80%
-    );
-
-  transform: translateX(-120%);
-  transition: transform 0.8s ease;
-}
-
-.axiora-social-btn:hover::before {
-  transform: translateX(120%);
-}
-
-/* CLICK */
 .axiora-social-btn:active {
   transform: scale(0.98);
 }`}
