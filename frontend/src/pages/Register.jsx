@@ -281,7 +281,7 @@ export default function Register() {
             {[
               { label: 'Your name', key: 'fullName', type: 'text', ph: 'Jane Smith' },
               { label: 'Work email', key: 'email', type: 'email', ph: 'jane@company.com' },
-              { label: 'Password', key: 'password', type: 'password', ph: 'Min 6 characters' },
+              { label: 'Password', key: 'password', type: 'password', ph: 'Min 8 characters' },
               { label: 'Mobile number (optional)', key: 'phoneNumber', type: 'tel', ph: '+91 98765 43210' },
             ].map(field => (
               <div key={field.key}>

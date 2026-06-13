@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import API from '../api/axios';
 
-import SurveyPromptScreen from '../components/SurveyPromptScreen';
+import SurveyPromptScreen, { SURVEY_MODES, getSurveyModeLabel } from '../components/SurveyPromptScreen';
 import useAuthStore from '../hooks/useAuth';
 import { QUESTION_TYPES, SHORT_SURVEY_RULES, estimateSurveyMinutes, getFormatDiversityScore, getQuestionWordCount, isExpired } from '../lib/constants';
 import { Reorder, useDragControls, motion } from 'framer-motion';
@@ -179,6 +179,15 @@ export default function SurveyCreate() {
   const [phase, setPhase] = useState('prompt'); // 'prompt' | 'builder'
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState('details');
+
+  // Reset scroll to the top whenever we enter the builder, so it doesn't
+  // inherit the (possibly scrolled) position from the prompt screen.
+  useEffect(() => {
+    if (phase === 'builder') {
+      document.querySelector('.ws-content-main')?.scrollTo(0, 0);
+      window.scrollTo(0, 0);
+    }
+  }, [phase]);
   const [f, sf] = useState({ 
     title: '', 
     description: '', 
@@ -207,6 +216,8 @@ export default function SurveyCreate() {
   const [tmplDesc, setTmplDesc] = useState('');
   const [tmplNewCat, setTmplNewCat] = useState('');
   const [tmplQs, setTmplQs] = useState([{ _id: 'tq0', question_text: '', question_type: 'short_text', is_required: false }]);
+  const [modeOpen, setModeOpen] = useState(false);
+  const modeRef = useRef(null);
   const [customTemplates, setCustomTemplates] = useState(() => {
     try { return JSON.parse(localStorage.getItem('np-custom-templates') || '[]'); } catch { return []; }
   });
@@ -251,6 +262,13 @@ export default function SurveyCreate() {
     return () => window.removeEventListener('beforeunload', h);
   }, [dirty]);
 
+  useEffect(() => {
+    if (!modeOpen) return;
+    const handler = e => { if (modeRef.current && !modeRef.current.contains(e.target)) setModeOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [modeOpen]);
+
   const s = (k, v) => { sf(p => ({ ...p, [k]: v })); setDirty(true); };
   const sQ = (id, k, v) => { sQs(a => a.map(q => q._id === id ? { ...q, [k]: v } : q)); setDirty(true); };
   const addQ = () => { sQs(a => [...a, newQ()]); setDirty(true); };
@@ -264,6 +282,7 @@ export default function SurveyCreate() {
 
   // ── Prompt Screen Handlers ──
 
+  const selectedAIMode = SURVEY_MODES.find(m => m.id === f.ai_mode) || SURVEY_MODES[0];
 
   const applyAIGeneration = (data) => {
     sf(p => ({
@@ -284,9 +303,27 @@ export default function SurveyCreate() {
     }
     setDirty(true);
     setAiGenerated(true);
-    setPendingGen(null);
     setShowConfirm(false);
     toast.success('Survey generated successfully!');
+  };
+
+  const handleAIGenerate = async () => {
+    if (!f.ai_context.trim()) return toast.error('Describe your survey first');
+    setAiGenerating(true);
+    try {
+      const { data } = await API.post('/ai/generate', {
+        aiContext: f.ai_context,
+        mode: f.ai_mode || 'conversational',
+        customInstruction: f.ai_custom_instruction || null,
+      });
+      applyAIGeneration(data);
+      setTab('questions');
+    } catch (e) {
+      toast.error('Failed to generate survey');
+      console.error(e);
+    } finally {
+      setAiGenerating(false);
+    }
   };
 
   // ── Prompt Screen Handlers ──
@@ -364,27 +401,23 @@ export default function SurveyCreate() {
 
   const tc = f.theme_color || '#FF4500';
   const reqCount = qs.filter(q => q.is_required).length;
-  const estimatedMinutes = estimateSurveyMinutes(qs);
-  const conciseQuestionCount = qs.filter(q => getQuestionWordCount(q) <= SHORT_SURVEY_RULES.maxHighSignalWords).length;
-  const hasAdaptiveFormats = getFormatDiversityScore(qs) >= 3;
+  // Only questions that actually have text count toward quality targets — empty
+  // placeholder questions must not mark targets as achieved.
+  const realQuestions = qs.filter(q => getQuestionWordCount(q) > 0);
+  const hasRealQuestions = realQuestions.length > 0;
+  const conciseQuestionCount = realQuestions.filter(q => getQuestionWordCount(q) <= SHORT_SURVEY_RULES.maxHighSignalWords).length;
+  const hasAdaptiveFormats = getFormatDiversityScore(realQuestions) >= 3;
+  // Single source of truth: the same checks drive both the % and the checklist below.
   const healthChecks = [
-    f.title.trim(), 
-    f.description.trim(), 
-    f.welcome_message.trim(), 
-    qs.length > 0 && qs.length <= SHORT_SURVEY_RULES.defaultQuestionCount, 
-    qs.length > 0 && reqCount <= SHORT_SURVEY_RULES.preferredRequiredQuestionLimit,
-    hasAdaptiveFormats,
-    estimatedMinutes <= SHORT_SURVEY_RULES.targetCompletionMinutes,
-    qs.length > 0 && conciseQuestionCount === qs.length,
-    f.expires_at
+    [!!f.title.trim(), 'Add a title'],
+    [!!f.description.trim(), 'Add a description'],
+    [!!f.welcome_message.trim(), 'Welcome message'],
+    [hasRealQuestions && qs.length <= SHORT_SURVEY_RULES.defaultQuestionCount, `${SHORT_SURVEY_RULES.defaultQuestionCount}-question target`],
+    [hasRealQuestions && conciseQuestionCount === realQuestions.length, 'Concise wording'],
+    [hasAdaptiveFormats, 'Adaptive formats'],
+    [!!f.expires_at, 'Set expiry date'],
   ];
-  // Filter out checks that shouldn't contribute to 0% state
-  const activeChecks = healthChecks.filter((_, i) => {
-    // reqCount <= 5 is true by default, but shouldn't count if title is empty (fresh state)
-    if (i === 4 && !f.title.trim() && qs.length <= 1) return false;
-    return true;
-  });
-  const health = Math.round((activeChecks.filter(Boolean).length / activeChecks.length) * 100);
+  const health = Math.round((healthChecks.filter(([done]) => done).length / healthChecks.length) * 100);
   const healthColor = health >= 70 ? 'var(--sage)' : health >= 40 ? 'var(--saffron)' : 'var(--terracotta)';
   const TABS = [{ id: 'details', n: '01', label: 'Details' }, { id: 'questions', n: '02', label: 'Questions', count: qs.length }, { id: 'settings', n: '03', label: 'Settings' }];
 
@@ -437,7 +470,7 @@ export default function SurveyCreate() {
     return (
       <SurveyPromptScreen
         onGenerate={handlePromptGenerate}
-        onSkip={() => setPhase('builder')}
+        onSkip={() => { setAiGenerated(true); setPhase('builder'); }}
         onLoadTemplate={handlePromptTemplate}
         galleryTemplates={GALLERY_TEMPLATES}
         aiGenerating={aiGenerating}
@@ -616,6 +649,13 @@ export default function SurveyCreate() {
         {/* Bottom separator */}
         <div style={{ position:'absolute',bottom:0,left:0,right:0,height:'1px',background:'linear-gradient(90deg,transparent,rgba(22,15,8,0.08) 30%,rgba(22,15,8,0.08) 70%,transparent)' }}/>
 
+        <button onClick={() => setPhase('prompt')}
+          style={{ position:'relative',zIndex:1,display:'inline-flex',alignItems:'center',gap:6,fontFamily:"'Syne',sans-serif",fontSize:11,fontWeight:700,letterSpacing:'0.12em',textTransform:'uppercase',color:'rgba(22,15,8,0.5)',background:'none',border:'none',padding:0,cursor:'pointer',marginBottom:14,transition:'color 0.2s' }}
+          onMouseEnter={e=>e.currentTarget.style.color='var(--coral)'}
+          onMouseLeave={e=>e.currentTarget.style.color='rgba(22,15,8,0.5)'}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+          Back to start
+        </button>
         <div style={{ position:'relative',zIndex:1,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:16 }}>
           <div style={{ display:'flex',alignItems:'center',gap:6 }}>
             <div style={{ width:28,height:1.5,background:'var(--coral)',borderRadius:1 }}/>
@@ -813,7 +853,7 @@ export default function SurveyCreate() {
                 {[
                   [`${SHORT_SURVEY_RULES.defaultQuestionCount}`, 'default questions'],
                   [`${SHORT_SURVEY_RULES.targetCompletionMinutes} min`, 'target time'],
-                  [`${conciseQuestionCount}/${qs.length}`, 'concise'],
+                  [`${conciseQuestionCount}/${realQuestions.length}`, 'concise'],
                   [hasAdaptiveFormats ? 'Balanced' : 'Mix formats', 'adaptive flow'],
                 ].map(([value, label]) => (
                   <div key={label} style={{ background:'var(--warm-white)',border:'1.5px solid rgba(22,15,8,0.07)',borderRadius:18,padding:'14px 16px' }}>
@@ -923,16 +963,7 @@ export default function SurveyCreate() {
                   style={{ transition:'stroke-dashoffset 0.8s cubic-bezier(0.16,1,0.3,1),stroke 0.4s' }}/>
               </svg>
               <div style={{ display:'flex',flexDirection:'column',gap:6,flex:1 }}>
-                {[
-                  [f.title.trim(),'Add a title'],
-                  [f.description.trim(),'Add a description'],
-                  [f.welcome_message.trim(),'Welcome message'],
-                  [qs.length > 0 && qs.length <= SHORT_SURVEY_RULES.defaultQuestionCount,`${SHORT_SURVEY_RULES.defaultQuestionCount}-question target`],
-                  [estimatedMinutes <= SHORT_SURVEY_RULES.targetCompletionMinutes,`${SHORT_SURVEY_RULES.targetCompletionMinutes} min target`],
-                  [conciseQuestionCount === qs.length,'Concise wording'],
-                  [hasAdaptiveFormats,'Adaptive formats'],
-                  [f.expires_at,'Set expiry date'],
-                ].map(([done,tip]) => (
+                {healthChecks.map(([done,tip]) => (
                   <div key={tip} style={{ display:'flex',alignItems:'center',gap:7 }}>
                     <div style={{ width:14,height:14,borderRadius:'50%',flexShrink:0,background:done?'var(--sage)':'rgba(22,15,8,0.08)',display:'flex',alignItems:'center',justifyContent:'center',transition:'background 0.25s' }}>
                       {done && <svg width="7" height="7" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 6l3 3 5-5"/></svg>}
