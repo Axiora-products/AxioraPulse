@@ -19,7 +19,14 @@ from schemas import (
     MigrateCheckRequest,
     CleanupRequest,
 )
-from cognito_utils import verify_cognito_token, admin_get_user_status, admin_delete_user, get_cognito_client, COGNITO_USER_POOL_ID, COGNITO_APP_CLIENT_ID
+from cognito_utils import (
+    verify_cognito_token,
+    admin_get_user_status,
+    admin_delete_user,
+    get_cognito_client,
+    COGNITO_USER_POOL_ID,
+    COGNITO_APP_CLIENT_ID,
+)
 from auth_utils import verify_password
 from dependencies import get_current_user
 
@@ -27,6 +34,7 @@ from dependencies import get_current_user
 class ChangePasswordRequest(BaseModel):
     current_password: str = Field(..., min_length=1)
     new_password: str = Field(..., min_length=8)
+
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -122,6 +130,7 @@ def change_password(
     If valid, we then update it in Cognito.
     """
     import os
+
     mock = os.getenv("MOCK_COGNITO", "false").lower() == "true"
     if mock:
         # In mock mode just acknowledge success — no real Cognito to call
@@ -157,7 +166,10 @@ def change_password(
     except Exception as exc:
         msg = str(exc)
         if "Password does not conform" in msg or "InvalidPasswordException" in msg:
-            raise HTTPException(400, "New password does not meet the required complexity rules (min 8 chars, mix of letters, numbers and symbols).")
+            raise HTTPException(
+                400,
+                "New password does not meet the required complexity rules (min 8 chars, mix of letters, numbers and symbols).",
+            )
         raise HTTPException(500, "Failed to update password. Please try again.")
 
     return {"message": "Password updated successfully"}
