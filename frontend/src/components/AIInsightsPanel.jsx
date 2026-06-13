@@ -59,37 +59,163 @@ const URGENCY_COLORS = {
 };
 
 
-// ── Animated Score Ring ──────────────────────────────────────────────────────
+// ── Score banding ────────────────────────────────────────────────────────────
 
-function ScoreRing({ score, size = 120 }) {
-  const stroke = 8;
-  const r = (size - stroke) / 2;
-  const circ = 2 * Math.PI * r;
-  const offset = circ - (score / 100) * circ;
-  const color = score >= 80 ? '#1E7A4A' : score >= 60 ? '#FFB800' : score >= 40 ? '#FF4500' : '#D63B1F';
-  const label = score >= 80 ? 'Excellent' : score >= 60 ? 'Good' : score >= 40 ? 'Needs Work' : 'Concerning';
+// Colour for any point on the 0-100 scale (used by the arc ticks + knob).
+function gaugeColor(v) {
+  return v >= 80 ? '#1E7A4A'      // strong  — green
+       : v >= 60 ? '#A8C13A'      // good    — lime
+       : v >= 40 ? '#FFB800'      // moderate— amber
+       : v >= 25 ? '#FF4500'      // low     — coral
+       :           '#D63B1F';     // very low— terracotta
+}
+
+function gaugeBand(s) {
+  if (s >= 80) return { name: 'Strong Interest',   color: '#1E7A4A', desc: 'Respondents show strong, consistent engagement with high intent.' };
+  if (s >= 60) return { name: 'Good Interest',     color: '#A8C13A', desc: 'Respondents show solid interest with good potential.' };
+  if (s >= 40) return { name: 'Moderate Interest', color: '#FFB800', desc: 'Interest is mixed — there’s clear room to strengthen engagement.' };
+  return            { name: 'Low Interest',      color: '#D63B1F', desc: 'Engagement is weak — responses signal hesitation or friction.' };
+}
+
+const GAUGE_LEGEND = [
+  { range: '0 – 39',   name: 'Low Interest',      color: '#FF4500' },
+  { range: '40 – 59',  name: 'Moderate Interest', color: '#FFB800' },
+  { range: '60 – 79',  name: 'Good Interest',     color: '#A8C13A' },
+  { range: '80 – 100', name: 'Strong Interest',   color: '#1E7A4A' },
+];
+
+// ── Animated Score Gauge (270° speedometer) ──────────────────────────────────
+
+function ScoreGauge({ score = 0, size = 300 }) {
+  const s      = Math.max(0, Math.min(100, Math.round(score)));
+  const cx     = size / 2;
+  const cy     = size * 0.50;
+  const R      = size * 0.37;
+  const stroke = 16;
+  const START  = 135;   // degrees (bottom-left)
+  const SWEEP  = 270;   // clockwise to bottom-right
+
+  const toXY = (deg, rad = R) => {
+    const a = (deg * Math.PI) / 180;
+    return { x: cx + rad * Math.cos(a), y: cy + rad * Math.sin(a) };
+  };
+  const arc = (fromDeg, toDeg, rad = R) => {
+    const a = toXY(fromDeg, rad), b = toXY(toDeg, rad);
+    const large = Math.abs(toDeg - fromDeg) > 180 ? 1 : 0;
+    return `M ${a.x} ${a.y} A ${rad} ${rad} 0 ${large} 1 ${b.x} ${b.y}`;
+  };
+
+  const valDeg = START + SWEEP * (s / 100);
+  const knob   = toXY(valDeg);
+  const band   = gaugeBand(s);
+
+  const TICKS = 40;
+  const ticks = Array.from({ length: TICKS + 1 }, (_, i) => {
+    const v   = (i / TICKS) * 100;
+    const deg = START + SWEEP * (i / TICKS);
+    const p1  = toXY(deg, R + 12);
+    const p2  = toXY(deg, R + 18);
+    return { v, p1, p2, on: v <= s };
+  });
+  const numerals = [0, 25, 50, 75, 100];
 
   return (
-    <div style={{ position: 'relative', width: size, height: size }}>
-      <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
-        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="rgba(22,15,8,0.06)" strokeWidth={stroke} />
-        <motion.circle
-          cx={size/2} cy={size/2} r={r} fill="none" stroke={color}
+    <div style={{ position: 'relative', width: size, height: size * 0.92, margin: '0 auto' }}>
+      <svg width={size} height={size * 0.92} viewBox={`0 0 ${size} ${size * 0.92}`}>
+        <defs>
+          <linearGradient id="np-gauge-grad" gradientUnits="userSpaceOnUse" x1={cx - R} y1="0" x2={cx + R} y2="0">
+            <stop offset="0%"   stopColor="#D63B1F" />
+            <stop offset="30%"  stopColor="#FF4500" />
+            <stop offset="55%"  stopColor="#FFB800" />
+            <stop offset="78%"  stopColor="#A8C13A" />
+            <stop offset="100%" stopColor="#1E7A4A" />
+          </linearGradient>
+        </defs>
+
+        {/* faint full track */}
+        <path d={arc(START, START + SWEEP)} fill="none" stroke="rgba(22,15,8,0.05)" strokeWidth={stroke} strokeLinecap="round" />
+
+        {/* unfilled remainder — dotted */}
+        {s < 100 && (
+          <path d={arc(valDeg, START + SWEEP)} fill="none" stroke="rgba(22,15,8,0.14)" strokeWidth={3} strokeLinecap="round" strokeDasharray="1 9" />
+        )}
+
+        {/* filled value arc */}
+        <motion.path
+          d={arc(START, valDeg)} fill="none" stroke="url(#np-gauge-grad)"
           strokeWidth={stroke} strokeLinecap="round"
-          strokeDasharray={circ}
-          initial={{ strokeDashoffset: circ }}
-          animate={{ strokeDashoffset: offset }}
-          transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1], delay: 0.3 }}
+          initial={{ pathLength: 0 }} animate={{ pathLength: 1 }}
+          transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1], delay: 0.25 }}
+        />
+
+        {/* ticks */}
+        {ticks.map((t, i) => (
+          <line key={i} x1={t.p1.x} y1={t.p1.y} x2={t.p2.x} y2={t.p2.y}
+            stroke={t.on ? gaugeColor(t.v) : 'rgba(22,15,8,0.12)'}
+            strokeWidth={1.5} strokeLinecap="round" />
+        ))}
+
+        {/* numerals */}
+        {numerals.map(n => {
+          const p = toXY(START + SWEEP * (n / 100), R + 32);
+          return (
+            <text key={n} x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle"
+              fontFamily="Syne,sans-serif" fontSize="11" fontWeight="700" fill="rgba(22,15,8,0.4)">{n}</text>
+          );
+        })}
+
+        {/* marker knob */}
+        <motion.circle
+          cx={knob.x} cy={knob.y} r={9} fill="#fff" stroke={band.color} strokeWidth={4}
+          initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+          transition={{ duration: 0.5, delay: 1.3, ease: [0.16, 1, 0.3, 1] }}
+          style={{ transformOrigin: `${knob.x}px ${knob.y}px`, filter: 'drop-shadow(0 2px 4px rgba(22,15,8,0.18))' }}
         />
       </svg>
-      <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
+
+      {/* centre content */}
+      <div style={{ position: 'absolute', left: cx, top: cy, transform: 'translate(-50%,-50%)', width: size * 0.66, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
+          <motion.span
+            initial={{ opacity: 0, scale: 0.6 }} animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.6, delay: 0.7 }}
+            style={{ fontFamily: FONTS.display, fontWeight: 900, fontSize: 54, letterSpacing: '-1px', color: 'var(--espresso)', lineHeight: 1 }}>{s}</motion.span>
+          <span style={{ fontFamily: FONTS.heading, fontWeight: 700, fontSize: 12, color: 'rgba(22,15,8,0.3)', letterSpacing: '0.02em' }}>/ 100</span>
+        </div>
+        <svg width="32" height="11" viewBox="0 0 40 14" fill="none" style={{ margin: '10px 0 10px', opacity: 0.85 }}>
+          <path d="M1 7h7l3-5 5 10 4-7 3 3h13" stroke={band.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
         <motion.span
-          initial={{ opacity: 0, scale: 0.5 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.6, delay: 0.8 }}
-          style={{ fontFamily:FONTS.display, fontWeight:900, fontSize:36, letterSpacing:'-2px', color:'var(--espresso)', lineHeight:1 }}
-        >{score}</motion.span>
-        <span style={{ fontFamily:FONTS.heading, fontSize:8, fontWeight:700, letterSpacing:'0.15em', textTransform:'uppercase', color, marginTop:2 }}>{label}</span>
+          initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1 }}
+          style={{ fontFamily: FONTS.heading, fontWeight: 700, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: band.color, background: `${band.color}14`, padding: '5px 13px', borderRadius: 999, lineHeight: 1, whiteSpace: 'nowrap' }}>{band.name}</motion.span>
+      </div>
+    </div>
+  );
+}
+
+// ── Score legend + meaning ────────────────────────────────────────────────────
+
+function ScoreLegend({ score }) {
+  const s = Math.max(0, Math.min(100, Math.round(score)));
+  return (
+    <div>
+      {/* gradient track with marker */}
+      <div style={{ position: 'relative', height: 8, borderRadius: 999, marginBottom: 16, background: 'linear-gradient(90deg, #FF4500 0%, #FFB800 45%, #A8C13A 72%, #1E7A4A 100%)' }}>
+        <motion.div
+          initial={{ left: '0%', opacity: 0 }} animate={{ left: `${s}%`, opacity: 1 }}
+          transition={{ duration: 1, delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
+          style={{ position: 'absolute', top: '50%', transform: 'translate(-50%,-50%)', width: 18, height: 18, borderRadius: '50%', background: '#fff', border: `3px solid ${gaugeColor(s)}`, boxShadow: '0 2px 6px rgba(22,15,8,0.2)' }} />
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px 12px' }}>
+        {GAUGE_LEGEND.map(b => (
+          <div key={b.name} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ width: 9, height: 9, borderRadius: '50%', background: b.color, flexShrink: 0 }} />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: FONTS.heading, fontSize: 11, fontWeight: 700, color: 'var(--espresso)', lineHeight: 1.2 }}>{b.range}</div>
+              <div style={{ fontFamily: FONTS.body, fontWeight: 300, fontSize: 11, color: 'rgba(22,15,8,0.5)', lineHeight: 1.2 }}>{b.name}</div>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -231,15 +357,35 @@ export default function AIInsightsPanel({ survey, analytics, questionAnalytics }
           </button>
         </div>
 
-        {/* ─── Score + Summary Hero ───────────────────────────────────────── */}
-        <Section delay={0.05}>
-          <div style={{ ...S.card, display:'flex', gap:28, alignItems:'flex-start', flexWrap:'wrap' }}>
+        {/* ─── Score Gauge + Executive Summary (side by side) ─────────────── */}
+        <Section delay={0.03}>
+          <div className="np-ai-score-grid"
+            style={{ display:'grid', gridTemplateColumns: r.overallScore != null ? 'minmax(290px, 340px) 1fr' : '1fr', gap:14, alignItems:'stretch' }}>
+
+            {/* Left — gauge + scale + meaning */}
             {r.overallScore != null && (
-              <div style={{ flexShrink:0 }}>
-                <ScoreRing score={r.overallScore} />
+              <div style={{ ...S.card, paddingTop:18, display:'flex', flexDirection:'column' }}>
+                <ScoreGauge score={r.overallScore} />
+                <div style={{ height:1, background:'rgba(22,15,8,0.07)', margin:'6px 0 18px' }} />
+                <ScoreLegend score={r.overallScore} />
+                <div style={{ height:1, background:'rgba(22,15,8,0.07)', margin:'18px 0' }} />
+                <div style={{ display:'flex', gap:13, alignItems:'flex-start' }}>
+                  <div style={{ width:38, height:38, borderRadius:'50%', background:'rgba(255,69,0,0.08)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, color:'var(--coral)' }}>
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                  </div>
+                  <div>
+                    <div style={{ ...S.h3, fontSize:14, marginBottom:4 }}>What does this score mean?</div>
+                    <p style={{ ...S.body, fontSize:12, margin:0 }}>
+                      Calculated by AI from your survey responses — sentiment, purchase intent,
+                      recommendations and overall respondent engagement across every answer.
+                    </p>
+                  </div>
+                </div>
               </div>
             )}
-            <div style={{ flex:1, minWidth:240 }}>
+
+            {/* Right — executive summary */}
+            <div style={{ ...S.card }}>
               <div style={{ ...S.label, marginBottom:12 }}>Executive Summary</div>
               {r.executiveSummaryBullets?.length > 0 ? (
                 <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
@@ -269,6 +415,7 @@ export default function AIInsightsPanel({ survey, analytics, questionAnalytics }
             </div>
           </div>
         </Section>
+
 
         {/* ─── Sentiment + NPS row ────────────────────────────────────────── */}
         {(r.sentimentBreakdown || r.npsAnalysis) && (
