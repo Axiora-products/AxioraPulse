@@ -4,6 +4,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
+from pydantic import BaseModel, Field
 
 from core.rate_limiter import limiter
 from db.database import get_db
@@ -18,9 +19,14 @@ from schemas import (
     MigrateCheckRequest,
     CleanupRequest,
 )
-from cognito_utils import verify_cognito_token, admin_get_user_status, admin_delete_user
+from cognito_utils import verify_cognito_token, admin_get_user_status, admin_delete_user, get_cognito_client, COGNITO_USER_POOL_ID, COGNITO_APP_CLIENT_ID
 from auth_utils import verify_password
 from dependencies import get_current_user
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(..., min_length=1)
+    new_password: str = Field(..., min_length=8)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -98,6 +104,63 @@ def update_profile(
     db.commit()
     db.refresh(current_user)
     return UserProfileOut.model_validate(current_user)
+
+
+# ── /auth/me/password ─────────────────────────────────────────────────────────
+
+
+@router.patch("/me/password")
+@limiter.limit("5/minute")
+def change_password(
+    request: Request,
+    body: ChangePasswordRequest,
+    current_user: UserProfile = Depends(get_current_user),
+):
+    """
+    Change the authenticated user's password via Cognito.
+    We first verify the current password by initiating authentication.
+    If valid, we then update it in Cognito.
+    """
+    import os
+    mock = os.getenv("MOCK_COGNITO", "false").lower() == "true"
+    if mock:
+        # In mock mode just acknowledge success — no real Cognito to call
+        return {"message": "Password updated (mock mode)"}
+
+    if not COGNITO_USER_POOL_ID or not COGNITO_APP_CLIENT_ID:
+        raise HTTPException(500, "Cognito is not configured on this server")
+
+    if not current_user.email:
+        raise HTTPException(400, "User has no email address on record")
+
+    try:
+        client = get_cognito_client()
+        # Verify the current password by initiating authentication
+        client.initiate_auth(
+            ClientId=COGNITO_APP_CLIENT_ID,
+            AuthFlow="USER_PASSWORD_AUTH",
+            AuthParameters={
+                "USERNAME": current_user.email,
+                "PASSWORD": body.current_password,
+            },
+        )
+    except Exception:
+        raise HTTPException(400, "Current password is incorrect. Please try again.")
+
+    try:
+        client.admin_set_user_password(
+            UserPoolId=COGNITO_USER_POOL_ID,
+            Username=current_user.email,
+            Password=body.new_password,
+            Permanent=True,
+        )
+    except Exception as exc:
+        msg = str(exc)
+        if "Password does not conform" in msg or "InvalidPasswordException" in msg:
+            raise HTTPException(400, "New password does not meet the required complexity rules (min 8 chars, mix of letters, numbers and symbols).")
+        raise HTTPException(500, "Failed to update password. Please try again.")
+
+    return {"message": "Password updated successfully"}
 
 
 # ── /auth/sync ────────────────────────────────────────────────────────────────
