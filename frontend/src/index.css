@@ -1155,6 +1155,12 @@ body {
   }
 }
 
+@media (max-width: 720px) {
+  .np-ai-score-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
 @media (max-width: 768px) {
   main {
     padding-left: 20px !important;

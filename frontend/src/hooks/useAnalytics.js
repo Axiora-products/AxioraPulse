@@ -23,9 +23,10 @@ import { useMemo } from 'react';
  *  qualityBreakdown    { high, medium, low, unscored }  (counts)
  *  responseTrend       [{ date 'MMM D', completed, started }]  last 14 days
  *  deviceBreakdown     { desktop, mobile, tablet, unknown }  (counts)
+ *  locationStats       { breakdown: [{ city, count }], located, unknown, uniqueCities }
  *  questionAnalytics   [{ question, data }]  — per-question answer stats
  */
-export function useAnalytics(qs, rs, ans, trendDays = 14) {
+export function useAnalytics(qs, rs, ans, trendDays = 14, surveyCreatedAt = null) {
   return useMemo(() => {
     if (!rs || !qs) return emptyResult();
 
@@ -158,12 +159,27 @@ export function useAnalytics(qs, rs, ans, trendDays = 14) {
     });
 
     // ── Response trend (configurable window) ─────────────────────────────
-    const today   = new Date();
-    const days    = Array.from({ length: trendDays }, (_, i) => {
-      const d = new Date(today);
-      d.setDate(today.getDate() - (trendDays - 1 - i));
-      return d.toISOString().slice(0, 10);
-    });
+    // Work in UTC days to match `started_at` ISO strings (sliced below).
+    // The window spans the selected range, but never earlier than the day
+    // the survey was created — so a new survey fills the chart with real
+    // data instead of a run of empty pre-launch days.
+    const MS_DAY  = 86400000;
+    const now     = new Date();
+    const todayUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+    let startUTC  = todayUTC - (trendDays - 1) * MS_DAY;
+    if (surveyCreatedAt) {
+      const c = new Date(surveyCreatedAt);
+      if (!isNaN(c)) {
+        const createdUTC = Date.UTC(c.getUTCFullYear(), c.getUTCMonth(), c.getUTCDate());
+        if (createdUTC > startUTC) startUTC = createdUTC;
+      }
+    }
+    if (startUTC > todayUTC) startUTC = todayUTC; // guard against future/skewed dates
+
+    const days = [];
+    for (let t = startUTC; t <= todayUTC; t += MS_DAY) {
+      days.push(new Date(t).toISOString().slice(0, 10));
+    }
 
     const trendMap = {};
     days.forEach(d => { trendMap[d] = { started: 0, completed: 0 }; });
@@ -187,6 +203,28 @@ export function useAnalytics(qs, rs, ans, trendDays = 14) {
       deviceBreakdown[dev] = (deviceBreakdown[dev] || 0) + 1;
     });
 
+    // ── Location breakdown (from respondent demographics `city`) ──────────
+    // City is free-text, so normalise casing/whitespace before grouping.
+    const locMap = {};       // { displayCity: count }
+    let locatedCount = 0;
+    rsW.forEach(r => {
+      const raw = (r.city || '').trim();
+      if (!raw) return;
+      const key = raw.toLowerCase();
+      if (!locMap[key]) locMap[key] = { city: raw, count: 0 };
+      locMap[key].count++;
+      locatedCount++;
+    });
+    const locationBreakdown = Object.values(locMap)
+      .sort((a, b) => b.count - a.count);
+
+    const locationStats = {
+      breakdown:    locationBreakdown,        // [{ city, count }] sorted desc
+      located:      locatedCount,             // responses that shared a city
+      unknown:      total - locatedCount,     // responses without a city
+      uniqueCities: locationBreakdown.length,
+    };
+
     // ── Per-question answer analytics ────────────────────────────────────
     const questionAnalytics = qs.map(q => ({
       question: q,
@@ -207,9 +245,10 @@ export function useAnalytics(qs, rs, ans, trendDays = 14) {
       qualityBreakdown,
       responseTrend,
       deviceBreakdown,
+      locationStats,
       questionAnalytics,
     };
-  }, [qs, rs, ans, trendDays]);
+  }, [qs, rs, ans, trendDays, surveyCreatedAt]);
 }
 
 // ─── Per-question data computation ──────────────────────────────────────────
@@ -344,6 +383,7 @@ function emptyResult() {
     dropOffFunnel: [], timingHeatmap: [],
     qualityBreakdown: { high: 0, medium: 0, low: 0, unscored: 0 },
     responseTrend: [], deviceBreakdown: { desktop: 0, mobile: 0, tablet: 0, unknown: 0 },
+    locationStats: { breakdown: [], located: 0, unknown: 0, uniqueCities: 0 },
     questionAnalytics: [],
   };
 }
