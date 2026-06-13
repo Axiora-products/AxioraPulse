@@ -136,7 +136,7 @@ if [ -n "$TARGET_PLATFORM" ]; then
 
   # 2. Check for cached images with mismatched architectures
   # Official and custom build images
-  for img in "postgres:17" "floci/floci:latest" "axiorapulse-pulse-backend" "axiorapulse-pulse-frontend"; do
+  for img in "postgres:17-bookworm" "floci/floci:latest" "axiorapulse-pulse-backend" "axiorapulse-pulse-frontend"; do
     if $DOCKER_CMD image inspect "$img" >/dev/null 2>&1; then
       IMG_ARCH=$($DOCKER_CMD inspect "$img" --format '{{.Architecture}}' 2>/dev/null | tr '[:upper:]' '[:lower:]')
       if [ -n "$IMG_ARCH" ]; then
@@ -445,3 +445,4 @@ echo ""
 echo "💡 To shutdown the container network, run:"
 echo "   ./run-local.sh --down"
 echo "========================================================================"
+

@@ -1,6 +1,6 @@
 services:
   pulse-db:
-    image: postgres:17
+    image: postgres:17-bookworm
     container_name: pulse-db
     environment:
       POSTGRES_DB: nexpulse

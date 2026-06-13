@@ -139,7 +139,7 @@ if ($TargetPlatform) {
     }
 
     # 2. Check for cached images with mismatched architectures
-    $Images = @("postgres:17", "floci/floci:latest", "axiorapulse-pulse-backend", "axiorapulse-pulse-frontend")
+    $Images = @("postgres:17-bookworm", "floci/floci:latest", "axiorapulse-pulse-backend", "axiorapulse-pulse-frontend")
     foreach ($img in $Images) {
         & $DockerCmd image inspect $img >$null 2>&1
         if ($LASTEXITCODE -eq 0) {
@@ -471,3 +471,4 @@ Write-Host ""
 Write-Host "💡 To shutdown the container network, run:"
 Write-Host "   .\run-local.ps1 -Down"
 Write-Host "========================================================================"
+

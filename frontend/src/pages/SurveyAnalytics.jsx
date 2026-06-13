@@ -1115,6 +1115,15 @@ export default function SurveyAnalytics() {
   }
 }
 
+const smallBtn = {
+  ...S.exportBtn,
+  padding: '7px 12px',
+  fontSize: 9,
+  letterSpacing: '0.08em',
+  gap: 4,
+  minHeight: 30,
+  whiteSpace: 'nowrap',
+};
 
   if (!sv) return (
     <div style={{ textAlign:'center', padding:'80px 0', fontFamily:'Fraunces,serif', color:'rgba(22,15,8,0.3)' }}>Survey not found</div>
@@ -1139,29 +1148,29 @@ export default function SurveyAnalytics() {
             {sv.expires_at && ` · Expires ${formatDateTime(sv.expires_at)}`}
           </div>
         </div>
-        <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
+        <div style={{ display:'flex', gap:4, flexWrap:'wrap', alignItems:'center',overflowX: 'auto', marginLeft: -550, paddingRight: 8 }}>
           <div style={{ width: 1, height: 24, background: 'rgba(22,15,8,0.1)', margin: '0 4px' }} />
-          <button onClick={() => { navigator.clipboard.writeText(window.location.href); import('react-hot-toast').then(m => m.default.success('Analytics link copied!')); }} style={{ ...S.exportBtn, display: 'flex', alignItems: 'center', gap: 5 }}
+          <button onClick={() => { navigator.clipboard.writeText(window.location.href); import('react-hot-toast').then(m => m.default.success('Analytics link copied!')); }}   style={{ ...smallBtn, display: 'flex', alignItems: 'center' }}
             onMouseEnter={e=>{ e.currentTarget.style.borderColor='var(--coral)'; e.currentTarget.style.color='var(--coral)'; }}
             onMouseLeave={e=>{ e.currentTarget.style.borderColor='rgba(22,15,8,0.12)'; e.currentTarget.style.color='rgba(22,15,8,0.55)'; }}>
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
             Share
           </button>
-          <button onClick={csv} style={{ ...S.exportBtn, display: 'flex', alignItems: 'center', gap: 5 }}
+          <button onClick={csv}   style={{ ...smallBtn, display: 'flex', alignItems: 'center' }}
             onMouseEnter={e=>{ e.currentTarget.style.borderColor='var(--espresso)'; e.currentTarget.style.color='var(--espresso)'; }}
             onMouseLeave={e=>{ e.currentTarget.style.borderColor='rgba(22,15,8,0.12)'; e.currentTarget.style.color='rgba(22,15,8,0.55)'; }}>
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            CSV
+            CSV 
           </button>
 
-          <button onClick={excel} style={{ ...S.exportBtn, display: 'flex', alignItems: 'center', gap: 5 }}
+          <button onClick={excel} style={{ ...smallBtn, display: 'flex', alignItems: 'center' }}
             onMouseEnter={e=>{ e.currentTarget.style.borderColor='var(--sage)'; e.currentTarget.style.color='var(--sage)'; }}
             onMouseLeave={e=>{ e.currentTarget.style.borderColor='rgba(22,15,8,0.12)'; e.currentTarget.style.color='rgba(22,15,8,0.55)'; }}>
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             XLSX
           </button>
 
-          <button onClick={exportPDF} style={{ ...S.exportBtn, display: 'flex', alignItems: 'center', gap: 5 }}
+          <button onClick={exportPDF} style={{ ...smallBtn, display: 'flex', alignItems: 'center', gap: 5 }}
             onMouseEnter={e=>{ e.currentTarget.style.borderColor='var(--coral)'; e.currentTarget.style.color='var(--coral)'; }}
             onMouseLeave={e=>{ e.currentTarget.style.borderColor='rgba(22,15,8,0.12)'; e.currentTarget.style.color='rgba(22,15,8,0.55)'; }}>
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
