@@ -24,8 +24,6 @@ from cognito_utils import (
     admin_get_user_status,
     admin_delete_user,
     get_cognito_client,
-    COGNITO_USER_POOL_ID,
-    COGNITO_APP_CLIENT_ID,
 )
 from auth_utils import verify_password
 from dependencies import get_current_user
@@ -136,7 +134,10 @@ def change_password(
         # In mock mode just acknowledge success — no real Cognito to call
         return {"message": "Password updated (mock mode)"}
 
-    if not COGNITO_USER_POOL_ID or not COGNITO_APP_CLIENT_ID:
+    user_pool_id = os.getenv("COGNITO_USER_POOL_ID")
+    app_client_id = os.getenv("COGNITO_APP_CLIENT_ID")
+
+    if not user_pool_id or not app_client_id:
         raise HTTPException(500, "Cognito is not configured on this server")
 
     if not current_user.email:
@@ -146,7 +147,7 @@ def change_password(
         client = get_cognito_client()
         # Verify the current password by initiating authentication
         client.initiate_auth(
-            ClientId=COGNITO_APP_CLIENT_ID,
+            ClientId=app_client_id,
             AuthFlow="USER_PASSWORD_AUTH",
             AuthParameters={
                 "USERNAME": current_user.email,
@@ -158,7 +159,7 @@ def change_password(
 
     try:
         client.admin_set_user_password(
-            UserPoolId=COGNITO_USER_POOL_ID,
+            UserPoolId=user_pool_id,
             Username=current_user.email,
             Password=body.new_password,
             Permanent=True,
