@@ -116,9 +116,9 @@ function extractKeywords(items) {
 function StatCard({ label, value, accent='var(--coral)', sub }) {
   return (
     <motion.div whileHover={{ y:-3, boxShadow:'0 20px 48px rgba(22,15,8,0.1)' }}
-      style={{ ...S.card, borderTop:`3px solid ${accent}`, padding:'20px 22px 18px' }}>
-      <div style={S.statNum}>{value}</div>
-      <div style={S.statLbl}>{label}</div>
+      style={{ ...S.card, borderTop:`3px solid ${accent}`, padding:'18px 16px 16px', display:'flex', flexDirection:'column', minWidth:0 }}>
+      <div style={{ ...S.statNum, fontSize:'clamp(26px,2.4vw,38px)', letterSpacing:'-2px', whiteSpace:'nowrap' }}>{value}</div>
+      <div style={{ ...S.statLbl, fontSize:10, letterSpacing:'0.12em', marginTop:8 }}>{label}</div>
       {sub && <div style={{ fontFamily:'Fraunces,serif', fontWeight:300, fontSize:11, color:'rgba(22,15,8,0.50)', marginTop:4 }}>{sub}</div>}
     </motion.div>
   );
@@ -183,7 +183,7 @@ function TabBar({ active, onChange }) {
 // TAB 1: OVERVIEW
 // ─────────────────────────────────────────────────────────────────────────────
 function OverviewTab({ analytics, trendDays, setTrendDays }) {
-  const { total, completedCount, abandonedCount, completionRate, abandonRate, avgTimeMin, nps, responseTrend, deviceBreakdown, milestones } = analytics;
+  const { total, completedCount, abandonedCount, completionRate, abandonRate, avgTimeMin, nps, responseTrend, deviceBreakdown, locationStats, milestones } = analytics;
   const inProgress = total - completedCount - abandonedCount;
 
   const statCards = [
@@ -196,6 +196,10 @@ function OverviewTab({ analytics, trendDays, setTrendDays }) {
   ];
 
   const hasTrend = responseTrend.some(d => d.started > 0);
+  // Actual days plotted — clamped to the survey's age, so it can be < trendDays
+  const trendSpan = responseTrend.length;
+  const trendClamped = trendSpan < trendDays;
+  const trendLabel = trendClamped ? 'Response Trend · Since Launch' : `${trendDays}-Day Response Trend`;
   const trendData = {
     labels: responseTrend.map(d=>d.date),
     datasets:[
@@ -223,7 +227,7 @@ function OverviewTab({ analytics, trendDays, setTrendDays }) {
       )}
 
       {/* Stat grid */}
-      <div className="np-stats-grid" style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(180px, 1fr))', gap:14 }}>
+      <div className="np-stats-grid" style={{ display:'grid', gridTemplateColumns:'repeat(6, 1fr)', gap:12 }}>
         {statCards.map((sc,i) => (
           <motion.div key={i} initial={{ opacity:0, y:14 }} animate={{ opacity:1, y:0 }} transition={{ delay:i*0.05 }}>
             <StatCard {...sc} />
@@ -280,7 +284,7 @@ function OverviewTab({ analytics, trendDays, setTrendDays }) {
               }}>{d}D</button>
             ))}
           </div>
-          <div style={S.secLabel}>{trendDays}-Day Response Trend</div>
+          <div style={S.secLabel}>{trendLabel}</div>
           <div className="np-chart-wrap" style={{ height:210 }}><Line options={lineOpts} data={trendData} /></div>
         </motion.div>
       ) : (
@@ -298,14 +302,16 @@ function OverviewTab({ analytics, trendDays, setTrendDays }) {
               }}>{d}D</button>
             ))}
           </div>
-          <div style={S.secLabel}>{trendDays}-Day Response Trend</div>
+          <div style={S.secLabel}>{trendLabel}</div>
           <div style={{ textAlign:'center', padding:'24px 0' }}>
-            <p style={{ ...S.body, color:'rgba(22,15,8,0.40)', margin:0 }}>No responses in the last {trendDays} days.</p>
+            <p style={{ ...S.body, color:'rgba(22,15,8,0.40)', margin:0 }}>
+              {trendClamped ? 'No responses since this survey launched.' : `No responses in the last ${trendDays} days.`}
+            </p>
           </div>
         </div>
       )}
 
-      <div style={{ display:'grid', gap:20 }} className="np-grid-responsive">
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(300px, 1fr))', gap:20 }} className="np-grid-responsive">
         {/* NPS card */}
         {nps && (
           <motion.div initial={{ opacity:0, x:-12 }} animate={{ opacity:1, x:0 }} transition={{ delay:0.3 }}>
@@ -365,6 +371,56 @@ function OverviewTab({ analytics, trendDays, setTrendDays }) {
           </motion.div>
         )}
       </div>
+
+      {/* Responses by location — top cities from respondent demographics */}
+      {total > 0 && (
+        <motion.div initial={{ opacity:0, y:12 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.4 }} style={S.card}>
+          <div style={{ display:'flex', alignItems:'baseline', justifyContent:'space-between', flexWrap:'wrap', gap:8, marginBottom:18 }}>
+            <div style={{ ...S.secLabel, marginBottom:0 }}>Responses by Location</div>
+            {locationStats.located > 0 && (
+              <span style={{ fontFamily:'Syne,sans-serif', fontSize:10, fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase', color:'rgba(22,15,8,0.4)' }}>
+                {locationStats.located} from {locationStats.uniqueCities} {locationStats.uniqueCities===1?'city':'cities'}
+              </span>
+            )}
+          </div>
+
+          {locationStats.located === 0 ? (
+            <p style={{ ...S.body, color:'rgba(22,15,8,0.4)', margin:0 }}>
+              No location data yet — respondents share their city only when the survey's demographics step is enabled.
+            </p>
+          ) : (
+            <>
+              <div style={{ display:'flex', flexDirection:'column', gap:11 }}>
+                {locationStats.breakdown.slice(0,8).map((loc,i) => {
+                  const pct = Math.round((loc.count / locationStats.located) * 100);
+                  const c = COLS[i % COLS.length];
+                  return (
+                    <div key={loc.city} style={{ display:'flex', alignItems:'center', gap:12 }}>
+                      <div style={{ width:130, flexShrink:0, display:'flex', alignItems:'center', gap:7, overflow:'hidden' }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink:0 }}><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                        <span style={{ fontFamily:'Fraunces,serif', fontWeight:300, fontSize:13, color:'var(--espresso)', textTransform:'capitalize', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }} title={loc.city}>{loc.city}</span>
+                      </div>
+                      <div style={{ flex:1, height:7, background:'var(--cream-deep)', borderRadius:999 }}>
+                        <motion.div initial={{ width:0 }} animate={{ width:`${pct}%` }} transition={{ duration:0.7, delay:i*0.05, ease:[0.16,1,0.3,1] }}
+                          style={{ height:'100%', background:c, borderRadius:999 }} />
+                      </div>
+                      <span style={{ fontFamily:'Syne,sans-serif', fontSize:10, fontWeight:700, color:'rgba(22,15,8,0.45)', width:62, textAlign:'right', flexShrink:0 }}>
+                        {loc.count} <span style={{ color:'rgba(22,15,8,0.3)' }}>({pct}%)</span>
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+              {(locationStats.breakdown.length > 8 || locationStats.unknown > 0) && (
+                <div style={{ marginTop:14, display:'flex', gap:16, flexWrap:'wrap', fontFamily:'Syne,sans-serif', fontSize:10, fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase', color:'rgba(22,15,8,0.4)' }}>
+                  {locationStats.breakdown.length > 8 && <span>+{locationStats.breakdown.length - 8} more {locationStats.breakdown.length - 8 === 1 ? 'city' : 'cities'}</span>}
+                  {locationStats.unknown > 0 && <span>{locationStats.unknown} without location</span>}
+                </div>
+              )}
+            </>
+          )}
+        </motion.div>
+      )}
     </div>
   );
 }
@@ -922,7 +978,7 @@ export default function SurveyAnalytics() {
     finally { stopLoading(); }
   }
 
-  const analytics = useAnalytics(qs, rs, ans, trendDays);
+  const analytics = useAnalytics(qs, rs, ans, trendDays, sv?.created_at);
 
   function csv() {
     const h = ['#','Status','Email','Started','Completed',...qs.map(q=>q.question_text)];
