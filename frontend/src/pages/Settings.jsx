@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import { useLoading } from '../context/LoadingContext';
 import API from '../api/axios';
 import { sendPhoneLinkOTP, verifyPhoneLinkOTP, removePhone } from '../lib/otp';
+import { cognitoChangePassword } from '../lib/cognito';
 
 const card = { background: 'var(--warm-white)', borderRadius: 20, border: '1px solid rgba(22,15,8,0.07)', padding: '36px 40px', marginBottom: 20 };
 const label = { fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.38)', display: 'block', marginBottom: 10 };
@@ -176,20 +177,54 @@ export default function Settings() {
   }
 
   async function savePw(e) {
-    e.preventDefault();
-    if (pwF.next.length < 8) return toast.error('Password must be at least 8 characters');
-    if (pwF.next !== pwF.confirm) return toast.error('Passwords do not match');
-    setSPw(true);
-    try {
-      await API.patch('/auth/me/password', { new_password: pwF.next });
-      toast.success('Password updated');
-      setPwF({ current: '', next: '', confirm: '' });
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Failed to update password');
-    } finally { setSPw(false); }
+  e.preventDefault();
+  if (!pwF.current) return toast.error('Enter your current password');
+  if (pwF.next.length < 8) return toast.error('New password must be at least 8 characters');
+  if (pwF.next !== pwF.confirm) return toast.error('New passwords do not match');
+  if (pwF.current === pwF.next) return toast.error('New password must be different from your current password');
+  setSPw(true);
+
+  try {
+    await cognitoChangePassword(profile?.email, pwF.current, pwF.next);
+  } catch (err) {
+    // Map structured error codes from cognitoChangePassword
+    const code = err?.code || '';
+    const msg  = (err?.message || '').toLowerCase();
+
+    if (code === 'NotAuthorizedException' || msg.includes('incorrect') || msg.includes('not authorized')) {
+      toast.error('Current password is incorrect.');
+    } else if (err?.message === 'NO_USER') {
+      toast.error('No active session found. Please sign in again.');
+    } else if (err?.message === 'SESSION_EXPIRED') {
+      toast.error('Your session has expired. Please sign in again.');
+    } else if (code === 'InvalidPasswordException' || msg.includes('policy') || msg.includes('conform')) {
+      toast.error('New password is too weak. Use 8+ characters with letters, numbers and symbols.');
+    } else if (code === 'LimitExceededException') {
+      toast.error('Too many attempts. Please wait a moment before trying again.');
+    } else {
+      toast.error(err?.message || 'Failed to update password. Please try again.');
+    }
+    setSPw(false);
+    return;
   }
 
-  // const [dark, setDark] = useState(() => document.documentElement.getAttribute('data-theme') === 'dark');
+  // Cognito succeeded — sync to backend for audit trail, but never block the user on this
+  try {
+    await API.patch('/auth/me/password', {
+      current_password: pwF.current,
+      new_password: pwF.next,
+    });
+  } catch (syncErr) {
+    // Log only — the password already changed in Cognito
+    console.warn('[savePw] Backend sync failed after Cognito success:', syncErr?.response?.status, syncErr?.message);
+  }
+
+  toast.success('Password updated successfully');
+  setPwF({ current: '', next: '', confirm: '' });
+  setSPw(false);
+}
+
+  const [dark, setDark] = useState(() => document.documentElement.getAttribute('data-theme') === 'dark');
 
   // function toggleDark() {
   //   const next = !dark;
@@ -380,7 +415,17 @@ export default function Settings() {
       {/* Password */}
       <div style={card}>
         <div style={secH}>Change Password</div>
+        <p style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 14, color: 'rgba(22,15,8,0.5)', lineHeight: 1.65, marginBottom: 20, marginTop: -16 }}>
+          Enter your current password to verify your identity, then set a new one.
+        </p>
         <form onSubmit={savePw} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div>
+            <label style={label}>Current Password</label>
+            <input type="password" value={pwF.current} onChange={e => setPwF(p => ({ ...p, current: e.target.value }))}
+              placeholder="Your current password" style={inp}
+              onFocus={e => e.target.style.borderColor = 'var(--coral)'}
+              onBlur={e => e.target.style.borderColor = 'rgba(22,15,8,0.1)'} />
+          </div>
           <div>
             <label style={label}>New Password</label>
             <input type="password" value={pwF.next} onChange={e => setPwF(p => ({ ...p, next: e.target.value }))}
@@ -398,8 +443,11 @@ export default function Settings() {
           {pwF.next && pwF.confirm && pwF.next !== pwF.confirm && (
             <p style={{ fontFamily: 'Syne, sans-serif', fontSize: 10, fontWeight: 700, color: 'var(--terracotta)', margin: '-10px 0 0', letterSpacing: '0.06em' }}>Passwords don't match</p>
           )}
+          {pwF.current && pwF.next && pwF.current === pwF.next && (
+            <p style={{ fontFamily: 'Syne, sans-serif', fontSize: 10, fontWeight: 700, color: 'var(--terracotta)', margin: '-10px 0 0', letterSpacing: '0.06em' }}>New password must be different</p>
+          )}
           <div>
-            <button type="submit" disabled={sPw || !pwF.next || !pwF.confirm} style={{ ...btn, opacity: (sPw || !pwF.next || !pwF.confirm) ? 0.5 : 1 }}
+            <button type="submit" disabled={sPw || !pwF.current || !pwF.next || !pwF.confirm} style={{ ...btn, opacity: (sPw || !pwF.current || !pwF.next || !pwF.confirm) ? 0.5 : 1 }}
               onMouseEnter={e => { if (!sPw) e.currentTarget.style.background = 'var(--coral)'; }}
               onMouseLeave={e => { if (!sPw) e.currentTarget.style.background = 'var(--espresso)'; }}>
               {sPw ? 'Updating…' : 'Update password'}
