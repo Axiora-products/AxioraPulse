@@ -331,3 +331,56 @@ def test_auth_sync_existing_user_by_phone(monkeypatch):
             db.delete(db_user)
             db.commit()
         db.close()
+
+
+def test_change_password(auth_headers, monkeypatch):
+    import routes.auth
+
+    # 1. Mock Cognito success
+    monkeypatch.setenv("MOCK_COGNITO", "false")
+    monkeypatch.setenv("COGNITO_USER_POOL_ID", "test-pool")
+    monkeypatch.setenv("COGNITO_APP_CLIENT_ID", "test-client")
+
+    class MockCognitoClient:
+        def initiate_auth(self, **kwargs):
+            # simulate successful auth
+            return {"AuthenticationResult": {}}
+
+        def admin_set_user_password(self, **kwargs):
+            # simulate successful password update
+            return {}
+
+    monkeypatch.setattr(routes.auth, "get_cognito_client", lambda: MockCognitoClient())
+
+    payload = {"current_password": "OldPassword123!", "new_password": "NewPassword123!"}
+    response = client.patch("/auth/me/password", json=payload, headers=auth_headers)
+    assert response.status_code == 200
+    assert response.json()["message"] == "Password updated successfully"
+
+    # 2. Mock Cognito incorrect current password (initiate_auth fails)
+    def mock_initiate_auth_fail(**kwargs):
+        raise Exception("NotAuthorizedException")
+
+    monkeypatch.setattr(MockCognitoClient, "initiate_auth", mock_initiate_auth_fail)
+    response = client.patch("/auth/me/password", json=payload, headers=auth_headers)
+    assert response.status_code == 400
+    assert "Current password is incorrect" in response.json()["detail"]
+
+    # 3. Mock Cognito complexity rules violation
+    def mock_initiate_auth_success(self, **kwargs):
+        return {}
+
+    def mock_set_password_complexity_error(self, **kwargs):
+        raise Exception("Password does not conform to the complexity requirements")
+
+    monkeypatch.setattr(MockCognitoClient, "initiate_auth", mock_initiate_auth_success)
+    monkeypatch.setattr(MockCognitoClient, "admin_set_user_password", mock_set_password_complexity_error)
+    response = client.patch("/auth/me/password", json=payload, headers=auth_headers)
+    assert response.status_code == 400
+    assert "complexity rules" in response.json()["detail"]
+
+    # 4. Mock mode (MOCK_COGNITO=true)
+    monkeypatch.setenv("MOCK_COGNITO", "true")
+    response = client.patch("/auth/me/password", json=payload, headers=auth_headers)
+    assert response.status_code == 200
+    assert "mock mode" in response.json()["message"]
