@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // SurveyAnalytics.jsx  —  World-class analytics dashboard · Axiora Pulse
-// Tabs: Overview · Drop-off · Questions · Text Insights · AI Insights
+// Tabs: Overview · Drop-off · Questions · Text Insights · Pulse Insights
 // ─────────────────────────────────────────────────────────────────────────────
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -113,14 +113,137 @@ function extractKeywords(items) {
 }
 
 // ── Reusable atoms ────────────────────────────────────────────────────────────
-function StatCard({ label, value, accent='var(--coral)', sub }) {
+function StatCard({ label, value, accent='#FF4500', sub, subColor, icon }) {
   return (
     <motion.div whileHover={{ y:-3, boxShadow:'0 20px 48px rgba(22,15,8,0.1)' }}
-      style={{ ...S.card, borderTop:`3px solid ${accent}`, padding:'20px 22px 18px' }}>
-      <div style={S.statNum}>{value}</div>
-      <div style={S.statLbl}>{label}</div>
-      {sub && <div style={{ fontFamily:'Fraunces,serif', fontWeight:300, fontSize:11, color:'rgba(22,15,8,0.50)', marginTop:4 }}>{sub}</div>}
+      style={{ ...S.card, padding:'18px 18px 16px', display:'flex', flexDirection:'column', minWidth:0 }}>
+      <div style={{ display:'flex', alignItems:'center', gap:11, marginBottom:13 }}>
+        {icon && (
+          <div style={{ width:36, height:36, borderRadius:10, background:`${accent}1A`, color:accent, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>{icon}</div>
+        )}
+        <div style={{ ...S.statLbl, fontSize:10, letterSpacing:'0.1em', marginTop:0 }}>{label}</div>
+      </div>
+      <div style={{ ...S.statNum, fontSize:'clamp(24px,2.3vw,34px)', letterSpacing:'-2px', whiteSpace:'nowrap' }}>{value}</div>
+      {sub && <div style={{ fontFamily:'Syne,sans-serif', fontSize:10, fontWeight:700, letterSpacing:'0.04em', color:subColor||'rgba(22,15,8,0.45)', marginTop:6 }}>{sub}</div>}
     </motion.div>
+  );
+}
+
+// Icon set for the overview stat cards (lucide-style)
+const OV_ICONS = {
+  file:  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>,
+  check: <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
+  clock: <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+  ban:   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>,
+  pulse: <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>,
+  timer: <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="13" r="8"/><polyline points="12 9 12 13 14.5 14.5"/><line x1="9" y1="2" x2="15" y2="2"/></svg>,
+  flag:  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>,
+  bulb:  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg>,
+};
+
+// Semicircular NPS gauge (−100 … +100)
+function NpsGauge({ score = 0, label = '', color = 'var(--terracotta)', size = 210 }) {
+  const cx = size / 2, cy = size * 0.60, R = size * 0.40, stroke = 13;
+  const toXY = (deg) => ({ x: cx + R * Math.cos(deg * Math.PI / 180), y: cy + R * Math.sin(deg * Math.PI / 180) });
+  const arc  = (from, to) => { const a = toXY(from), b = toXY(to); const large = Math.abs(to - from) > 180 ? 1 : 0; return `M ${a.x} ${a.y} A ${R} ${R} 0 ${large} 1 ${b.x} ${b.y}`; };
+  const f = Math.max(0, Math.min(1, (score + 100) / 200));
+  const valAngle = 180 + 180 * f;
+  return (
+    <div style={{ position:'relative', width:size, height:size*0.66, margin:'0 auto' }}>
+      <svg width={size} height={size*0.66} viewBox={`0 0 ${size} ${size*0.66}`}>
+        <path d={arc(180, 360)} fill="none" stroke="var(--cream-deep)" strokeWidth={stroke} strokeLinecap="round" />
+        <motion.path d={arc(180, valAngle)} fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round"
+          initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1, ease: [0.16,1,0.3,1], delay: 0.2 }} />
+      </svg>
+      <div style={{ position:'absolute', left:'50%', top:cy-2, transform:'translate(-50%,-100%)', textAlign:'center', width:'82%' }}>
+        <div style={{ fontFamily:'Playfair Display,serif', fontWeight:900, fontSize:44, letterSpacing:'-2px', color:'var(--espresso)', lineHeight:1 }}>{score}</div>
+        <div style={{ fontFamily:'Syne,sans-serif', fontSize:11, fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', color, marginTop:6 }}>{label}</div>
+      </div>
+      <span style={{ position:'absolute', left:cx-R, top:cy+6, transform:'translateX(-50%)', fontFamily:'Syne,sans-serif', fontSize:10, fontWeight:700, color:'rgba(22,15,8,0.35)' }}>-100</span>
+      <span style={{ position:'absolute', left:cx+R, top:cy+6, transform:'translateX(-50%)', fontFamily:'Syne,sans-serif', fontSize:10, fontWeight:700, color:'rgba(22,15,8,0.35)' }}>100</span>
+    </div>
+  );
+}
+
+// Speedometer-style completion gauge — a 270° gradient arc (red→amber→green)
+// with tick marks, quartile labels and an animated pointer knob. The centre is
+// kept clear so the percentage reads cleanly with no ring overlap.
+function CompletionGauge({ value=0, size=210, color='var(--sage)' }) {
+  const v      = Math.max(0, Math.min(100, Math.round(value)));
+  const cx     = size / 2, cy = size / 2;
+  const stroke = 12;
+  const R      = size / 2 - 35;          // arc radius — leaves room for ticks + labels
+  const START  = 135, SWEEP = 270;       // bottom-left → up → bottom-right
+  const ang    = (t) => (START + SWEEP * t) * Math.PI / 180;   // t in [0,1]
+  const ptAt   = (t, r=R) => ({ x: cx + r * Math.cos(ang(t)), y: cy + r * Math.sin(ang(t)) });
+  const arcD   = (t0, t1, r=R) => {
+    const a = ptAt(t0, r), b = ptAt(t1, r);
+    const large = SWEEP * (t1 - t0) > 180 ? 1 : 0;
+    return `M ${a.x.toFixed(2)} ${a.y.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${b.x.toFixed(2)} ${b.y.toFixed(2)}`;
+  };
+  const f      = v / 100;
+  const knob   = ptAt(f);
+  const rateWord = v >= 75 ? 'Excellent' : v >= 50 ? 'Good' : v >= 25 ? 'Fair' : 'Poor';
+
+  return (
+    <div style={{ position:'relative', width:size, height:size, flexShrink:0 }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <defs>
+          <linearGradient id="cg-grad" gradientUnits="userSpaceOnUse" x1={cx - R} y1={cy} x2={cx + R} y2={cy}>
+            <stop offset="0%"   stopColor="#FF4500" />
+            <stop offset="45%"  stopColor="#FFB800" />
+            <stop offset="72%"  stopColor="#A8C13A" />
+            <stop offset="100%" stopColor="#1E7A4A" />
+          </linearGradient>
+        </defs>
+
+        {/* faint full track */}
+        <path d={arcD(0, 1)} fill="none" stroke="var(--cream-deep)" strokeWidth={stroke} strokeLinecap="round" />
+
+        {/* tick marks every 2.5% — longer + bolder at the quartiles */}
+        {Array.from({ length: 41 }).map((_, i) => {
+          const t = i / 40, major = i % 10 === 0;
+          const a = ang(t);
+          const r1 = R + 5, r2 = R + (major ? 13 : 9);
+          return (
+            <line key={i}
+              x1={cx + r1 * Math.cos(a)} y1={cy + r1 * Math.sin(a)}
+              x2={cx + r2 * Math.cos(a)} y2={cy + r2 * Math.sin(a)}
+              stroke={major ? 'rgba(22,15,8,0.32)' : 'rgba(22,15,8,0.13)'}
+              strokeWidth={major ? 2 : 1.5} strokeLinecap="round" />
+          );
+        })}
+
+        {/* quartile labels */}
+        {[0, 25, 50, 75, 100].map((n) => {
+          const p = ptAt(n / 100, R + 24);
+          return (
+            <text key={n} x={p.x} y={p.y} textAnchor="middle" dominantBaseline="central"
+              style={{ fontFamily:'Syne,sans-serif', fontSize:10, fontWeight:700, fill:'rgba(22,15,8,0.4)' }}>{n}</text>
+          );
+        })}
+
+        {/* value arc — gradient fill up to the score */}
+        <motion.path d={arcD(0, 1)} fill="none" stroke="url(#cg-grad)" strokeWidth={stroke} strokeLinecap="round"
+          initial={{ pathLength: 0 }} animate={{ pathLength: f }}
+          transition={{ duration:1.1, ease:[0.16,1,0.3,1], delay:0.2 }} />
+
+        {/* pointer knob at the value position */}
+        <motion.circle cx={knob.x} cy={knob.y} r={7} fill="#fff" stroke={color} strokeWidth={3}
+          initial={{ scale:0, opacity:0 }} animate={{ scale:1, opacity:1 }}
+          transition={{ delay:1.1, duration:0.4, ease:[0.16,1,0.3,1] }}
+          style={{ transformOrigin:`${knob.x}px ${knob.y}px`, filter:'drop-shadow(0 1px 4px rgba(22,15,8,0.25))' }} />
+      </svg>
+
+      {/* centre value — sits in the open middle, no overlap */}
+      <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', pointerEvents:'none' }}>
+        <div style={{ display:'flex', alignItems:'baseline', gap:1 }}>
+          <span style={{ fontFamily:'Playfair Display,serif', fontWeight:900, fontSize:46, letterSpacing:'-2px', color:'var(--espresso)', lineHeight:1 }}>{v}</span>
+          <span style={{ fontFamily:'Playfair Display,serif', fontWeight:900, fontSize:22, color:'var(--espresso)' }}>%</span>
+        </div>
+        <span style={{ fontFamily:'Syne,sans-serif', fontSize:10, fontWeight:700, letterSpacing:'0.14em', textTransform:'uppercase', color, marginTop:7 }}>{rateWord}</span>
+      </div>
+    </div>
   );
 }
 
@@ -157,7 +280,7 @@ const TABS = [
   { id:'Questions',     label:'Questions'     },
   { id:'TextInsights',  label:'Text Insights' },
   { id:'Feedback',      label:'Feedback'      },
-  { id:'AI',            label:'✦ AI Insights' },
+  { id:'AI',            label:'Pulse Insights', icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> },
 ];
 
 function TabBar({ active, onChange }) {
@@ -166,12 +289,14 @@ function TabBar({ active, onChange }) {
       {TABS.map(t => (
         <button key={t.id} onClick={() => onChange(t.id)}
           style={{
+            display:'inline-flex', alignItems:'center', gap:6,
             fontFamily:'Syne,sans-serif', fontSize:10, fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase',
             padding:'10px 18px', border:'none', background:'transparent', cursor:'pointer', whiteSpace:'nowrap',
             color: active === t.id ? 'var(--espresso)' : 'rgba(22,15,8,0.3)',
             borderBottom: active === t.id ? '2px solid var(--coral)' : '2px solid transparent',
             marginBottom:'-1px', transition:'all 0.18s',
           }}>
+          {t.icon}
           {t.label}
         </button>
       ))}
@@ -183,19 +308,24 @@ function TabBar({ active, onChange }) {
 // TAB 1: OVERVIEW
 // ─────────────────────────────────────────────────────────────────────────────
 function OverviewTab({ analytics, trendDays, setTrendDays }) {
-  const { total, completedCount, abandonedCount, completionRate, abandonRate, avgTimeMin, nps, responseTrend, deviceBreakdown, milestones } = analytics;
-  const inProgress = total - completedCount - abandonedCount;
+  const { total, completedCount, abandonedCount, completionRate, abandonRate, avgTimeMin, nps, responseTrend, deviceBreakdown, locationStats, milestones } = analytics;
+  const inProgress = Math.max(0, total - completedCount - abandonedCount);
+  const pctOf = (n) => total ? Math.round((n / total) * 100) : 0;
 
+  // Completion Rate omitted here — it has its own donut gauge in the row below.
   const statCards = [
-    { label:'Total Responses',  value:total,                    accent:'var(--coral)'      },
-    { label:'Completed',        value:completedCount,           accent:'var(--sage)'       },
-    { label:'In Progress',      value:Math.max(0,inProgress),   accent:'var(--cobalt)'     },
-    { label:'Abandoned',        value:abandonedCount,           accent:'var(--terracotta)' },
-    { label:'Completion Rate',  value:`${completionRate}%`,     accent:'var(--espresso)'   },
-    { label:'Avg. Time',        value:avgTimeMin?`${avgTimeMin}m`:'—', accent:'var(--saffron)', sub:'to complete' },
+    { label:'Total Responses', value:total,                          accent:'#1E7A4A', icon:OV_ICONS.file,  sub:'All time' },
+    { label:'Completed',       value:completedCount,                 accent:'#1E7A4A', icon:OV_ICONS.check, sub:`${completionRate}%`, subColor:'#1E7A4A' },
+    { label:'In Progress',     value:inProgress,                     accent:'#FFB800', icon:OV_ICONS.clock, sub:`${pctOf(inProgress)}%`, subColor:'#9A6D00' },
+    { label:'Abandoned',       value:abandonedCount,                 accent:'#D63B1F', icon:OV_ICONS.ban,   sub:`${abandonRate}%`, subColor:'#D63B1F' },
+    { label:'Avg. Time',       value:avgTimeMin?`${avgTimeMin}m`:'—', accent:'#0047FF', icon:OV_ICONS.timer, sub:'to complete' },
   ];
 
   const hasTrend = responseTrend.some(d => d.started > 0);
+  // Actual days plotted — clamped to the survey's age, so it can be < trendDays
+  const trendSpan = responseTrend.length;
+  const trendClamped = trendSpan < trendDays;
+  const trendLabel = trendClamped ? 'Response Trend · Since Launch' : `${trendDays}-Day Response Trend`;
   const trendData = {
     labels: responseTrend.map(d=>d.date),
     datasets:[
@@ -207,12 +337,10 @@ function OverviewTab({ analytics, trendDays, setTrendDays }) {
   const devEntries = Object.entries(deviceBreakdown).filter(([,v])=>v>0);
   const npsColors = { Excellent:'var(--sage)', Good:'var(--cobalt)', 'Needs work':'#9A6D00', Critical:'var(--terracotta)' };
 
+  // Completion-rate and NPS are surfaced directly in the cards/gauges below,
+  // so the banner here focuses on guidance not already shown as a metric.
   const insights = [];
-  if (total > 5 && completionRate < 50) insights.push({ type:'warning', msg:`Completion rate is only ${completionRate}% — survey may be too long or have friction points.` });
-  if (total >= 5 && completionRate >= 75) insights.push({ type:'positive', msg:`${completionRate}% completion rate is excellent — respondents find this survey engaging.` });
   if (total > 5 && abandonRate > 30) insights.push({ type:'alert', msg:`${abandonRate}% abandon rate detected — check the Drop-off tab for the problematic question.` });
-  if (nps && nps.score < 0) insights.push({ type:'alert', msg:`NPS score of ${nps.score} is negative — detractors outnumber promoters. Urgent attention needed.` });
-  if (nps && nps.score >= 50) insights.push({ type:'positive', msg:`NPS of ${nps.score} (${nps.label}) — you're in the top tier for respondent satisfaction.` });
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:28 }}>
@@ -223,7 +351,7 @@ function OverviewTab({ analytics, trendDays, setTrendDays }) {
       )}
 
       {/* Stat grid */}
-      <div className="np-stats-grid" style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(180px, 1fr))', gap:14 }}>
+      <div className="np-stats-grid" style={{ display:'grid', gridTemplateColumns:'repeat(5, minmax(0, 1fr))', gap:12 }}>
         {statCards.map((sc,i) => (
           <motion.div key={i} initial={{ opacity:0, y:14 }} animate={{ opacity:1, y:0 }} transition={{ delay:i*0.05 }}>
             <StatCard {...sc} />
@@ -231,37 +359,98 @@ function OverviewTab({ analytics, trendDays, setTrendDays }) {
         ))}
       </div>
 
-      {/* Completion milestone funnel */}
-      {total > 0 && (
-        <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} transition={{ delay:0.2 }} style={S.card}>
-          <div style={S.secLabel}>Completion Milestones</div>
-          <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-            {[
-              { pct: '25%', count: milestones.pct25, label: 'Reached a quarter',   color:'#0047FF' },
-              { pct: '50%', count: milestones.pct50, label: 'Reached halfway',      color:'#FFB800' },
-              { pct: '75%', count: milestones.pct75, label: 'Almost finished',      color:'#FF4500' },
-              { pct: '100%',count: milestones.pct100,label: 'Fully completed',      color:'var(--sage)' },
-            ].map(m => {
-              const barPct = total > 0 ? Math.round((m.count / total) * 100) : 0;
-              return (
-                <div key={m.pct}>
-                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
-                    <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                      <span style={{ fontFamily:'Playfair Display,serif', fontWeight:900, fontSize:18, color:'var(--espresso)', letterSpacing:'-0.5px', minWidth:44 }}>{m.pct}</span>
-                      <span style={{ fontFamily:'Fraunces,serif', fontWeight:300, fontSize:13, color:'rgba(22,15,8,0.45)' }}>{m.label}</span>
-                    </div>
-                    <span style={{ fontFamily:'Syne,sans-serif', fontSize:10, fontWeight:700, color:'rgba(22,15,8,0.5)' }}>{m.count} / {total} ({barPct}%)</span>
+      {/* Middle row — completion rate · milestones · NPS */}
+      {total > 0 && (() => {
+        const rateColor = completionRate >= 75 ? '#1E7A4A'
+                        : completionRate >= 50 ? '#FFB800'
+                        : completionRate >= 25 ? '#FF4500'
+                        : '#D63B1F';
+        const msRows = [
+          { label:'Reached a Quarter', count:milestones.pct25,  color:'#0047FF' },
+          { label:'Reached Halfway',   count:milestones.pct50,  color:'#FFB800' },
+          { label:'Almost Finished',   count:milestones.pct75,  color:'#FF4500' },
+          { label:'Fully Completed',   count:milestones.pct100, color:'#1E7A4A' },
+        ];
+        const banner = completionRate >= 90
+            ? { title:'Great job!',          sub:'Almost every respondent finishes the survey.',          color:'var(--sage)',       bg:'rgba(30,122,74,0.08)', border:'rgba(30,122,74,0.15)' }
+          : completionRate >= 60
+            ? { title:'Strong completion',   sub:'Most respondents make it to the end.',                  color:'var(--sage)',       bg:'rgba(30,122,74,0.07)', border:'rgba(30,122,74,0.14)' }
+          : completionRate >= 30
+            ? { title:'Moderate completion', sub:'Roughly half finish — consider shortening it.',         color:'#9A6D00',           bg:'rgba(255,184,0,0.09)', border:'rgba(255,184,0,0.2)'  }
+            : { title:'Low completion',      sub:'Many respondents drop off — see the Drop-off tab.',     color:'var(--terracotta)', bg:'rgba(255,69,0,0.07)',  border:'rgba(255,69,0,0.14)'  };
+        const npsTip = !nps ? ''
+          : nps.score < 0  ? 'Focus on improving satisfaction to boost your NPS score.'
+          : nps.score < 30 ? 'Decent NPS — work on converting passives into promoters.'
+          : nps.score < 50 ? 'Good NPS — keep nurturing your promoters.'
+          :                  'Excellent NPS — you have strong advocates.';
+
+        return (
+          <div className="np-overview-mid" style={{ display:'grid', gridTemplateColumns: nps ? '1fr 1.3fr 1fr' : '1fr 1.4fr', gap:20, alignItems:'stretch' }}>
+            {/* Completion Rate */}
+            <motion.div initial={{ opacity:0, y:12 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.18 }}>
+              <div style={{ ...S.card, height:'100%', boxSizing:'border-box', display:'flex', flexDirection:'column' }}>
+                <div style={S.secLabel}>Completion Rate</div>
+                <div style={{ display:'flex', justifyContent:'center', padding:'2px 0 8px' }}>
+                  <CompletionGauge value={completionRate} color={rateColor} size={200} />
+                </div>
+                <div style={{ marginTop:'auto', display:'flex', alignItems:'center', gap:11, padding:'11px 14px', borderRadius:14, background:banner.bg, border:`1px solid ${banner.border}` }}>
+                  <div style={{ width:30, height:30, borderRadius:'50%', background:banner.border, display:'flex', alignItems:'center', justifyContent:'center', color:banner.color, flexShrink:0 }}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                   </div>
-                  <div style={{ height:6, background:'var(--cream-deep)', borderRadius:999 }}>
-                    <motion.div initial={{ width:0 }} animate={{ width:`${barPct}%` }} transition={{ duration:0.8, ease:[0.16,1,0.3,1] }}
-                      style={{ height:'100%', background:m.color, borderRadius:999 }} />
+                  <div>
+                    <div style={{ fontFamily:'Syne,sans-serif', fontSize:11, fontWeight:700, letterSpacing:'0.04em', color:banner.color }}>{banner.title}</div>
+                    <div style={{ fontFamily:'Fraunces,serif', fontWeight:300, fontSize:12, color:'rgba(22,15,8,0.55)' }}>{banner.sub}</div>
                   </div>
                 </div>
-              );
-            })}
+              </div>
+            </motion.div>
+
+            {/* Completion Milestones */}
+            <motion.div initial={{ opacity:0, y:12 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.22 }}>
+              <div style={{ ...S.card, height:'100%', boxSizing:'border-box' }}>
+                <div style={S.secLabel}>Completion Milestones</div>
+                <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+                  {msRows.map((m, i) => {
+                    const pct = pctOf(m.count);
+                    return (
+                      <div key={m.label} style={{ display:'flex', alignItems:'center', gap:13 }}>
+                        <div style={{ width:34, height:34, borderRadius:'50%', background:`${m.color}1A`, color:m.color, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>{OV_ICONS.flag}</div>
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ display:'flex', alignItems:'baseline', justifyContent:'space-between', marginBottom:6, gap:8 }}>
+                            <span style={{ fontFamily:'Fraunces,serif', fontWeight:300, fontSize:14, color:'var(--espresso)' }}>{m.label}</span>
+                            <div style={{ display:'flex', alignItems:'baseline', gap:6, flexShrink:0 }}>
+                              <span style={{ fontFamily:'Playfair Display,serif', fontWeight:900, fontSize:16, letterSpacing:'-0.5px', color:'var(--espresso)' }}>{m.count}</span>
+                              <span style={{ fontFamily:'Syne,sans-serif', fontSize:10, fontWeight:700, color:'rgba(22,15,8,0.4)' }}>({pct}%)</span>
+                            </div>
+                          </div>
+                          <div style={{ height:5, background:'var(--cream-deep)', borderRadius:999 }}>
+                            <motion.div initial={{ width:0 }} animate={{ width:`${pct}%` }} transition={{ duration:0.8, delay:i*0.07, ease:[0.16,1,0.3,1] }}
+                              style={{ height:'100%', background:m.color, borderRadius:999 }} />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </motion.div>
+
+            {/* NPS Score */}
+            {nps && (
+              <motion.div initial={{ opacity:0, y:12 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.26 }}>
+                <div style={{ ...S.card, height:'100%', boxSizing:'border-box', display:'flex', flexDirection:'column' }}>
+                  <div style={S.secLabel}>NPS Score</div>
+                  <NpsGauge score={nps.score} label={nps.label} color={npsColors[nps.label] || 'var(--terracotta)'} />
+                  <div style={{ marginTop:'auto', display:'flex', alignItems:'flex-start', gap:10, padding:'11px 14px', borderRadius:14, background:'rgba(255,184,0,0.09)', border:'1px solid rgba(255,184,0,0.18)' }}>
+                    <span style={{ color:'#9A6D00', flexShrink:0, marginTop:1, display:'flex' }}>{OV_ICONS.bulb}</span>
+                    <span style={{ fontFamily:'Fraunces,serif', fontWeight:300, fontSize:12, color:'rgba(22,15,8,0.6)', lineHeight:1.45 }}>{npsTip}</span>
+                  </div>
+                </div>
+              </motion.div>
+            )}
           </div>
-        </motion.div>
-      )}
+        );
+      })()}
 
       {/* Response trend — floating day-range pill, zero layout impact */}
       {hasTrend ? (
@@ -280,7 +469,7 @@ function OverviewTab({ analytics, trendDays, setTrendDays }) {
               }}>{d}D</button>
             ))}
           </div>
-          <div style={S.secLabel}>{trendDays}-Day Response Trend</div>
+          <div style={S.secLabel}>{trendLabel}</div>
           <div className="np-chart-wrap" style={{ height:210 }}><Line options={lineOpts} data={trendData} /></div>
         </motion.div>
       ) : (
@@ -298,48 +487,16 @@ function OverviewTab({ analytics, trendDays, setTrendDays }) {
               }}>{d}D</button>
             ))}
           </div>
-          <div style={S.secLabel}>{trendDays}-Day Response Trend</div>
+          <div style={S.secLabel}>{trendLabel}</div>
           <div style={{ textAlign:'center', padding:'24px 0' }}>
-            <p style={{ ...S.body, color:'rgba(22,15,8,0.40)', margin:0 }}>No responses in the last {trendDays} days.</p>
+            <p style={{ ...S.body, color:'rgba(22,15,8,0.40)', margin:0 }}>
+              {trendClamped ? 'No responses since this survey launched.' : `No responses in the last ${trendDays} days.`}
+            </p>
           </div>
         </div>
       )}
 
-      <div style={{ display:'grid', gap:20 }} className="np-grid-responsive">
-        {/* NPS card */}
-        {nps && (
-          <motion.div initial={{ opacity:0, x:-12 }} animate={{ opacity:1, x:0 }} transition={{ delay:0.3 }}>
-            <div style={{ ...S.card, height:'100%', boxSizing:'border-box' }}>
-              <div style={S.secLabel}>NPS Score</div>
-              <div style={{ display:'flex', alignItems:'baseline', gap:12, marginBottom:20 }}>
-                <span style={{ fontFamily:'Playfair Display,serif', fontWeight:900, fontSize:56, letterSpacing:'-3px', color:'var(--espresso)', lineHeight:1 }}>{nps.score}</span>
-                <span style={{ fontFamily:'Syne,sans-serif', fontSize:10, fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', color:npsColors[nps.label]||'var(--coral)' }}>{nps.label}</span>
-              </div>
-              {[
-                { label:'Promoters',  val:nps.breakdown.promoters,  color:'#1E7A4A' },
-                { label:'Passives',   val:nps.breakdown.passives,   color:'#FFB800' },
-                { label:'Detractors', val:nps.breakdown.detractors, color:'#D63B1F' },
-              ].map(row => {
-                const pct = Math.round((row.val/nps.breakdown.total)*100);
-                return (
-                  <div key={row.label} style={{ marginBottom:10 }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
-                      <span style={{ fontFamily:'Fraunces,serif', fontWeight:300, fontSize:13, color:'rgba(22,15,8,0.55)' }}>{row.label}</span>
-                      <span style={{ fontFamily:'Syne,sans-serif', fontSize:10, fontWeight:700, color:'var(--espresso)' }}>
-                        {row.val} <span style={{ color:'rgba(22,15,8,0.3)' }}>({pct}%)</span>
-                      </span>
-                    </div>
-                    <div style={{ height:4, background:'var(--cream-deep)', borderRadius:999 }}>
-                      <motion.div initial={{ width:0 }} animate={{ width:`${pct}%` }} transition={{ duration:0.8, ease:[0.16,1,0.3,1] }}
-                        style={{ height:'100%', background:row.color, borderRadius:999 }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </motion.div>
-        )}
-
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(320px, 1fr))', gap:20 }} className="np-grid-responsive">
         {/* Device breakdown */}
         {devEntries.length > 0 && (
           <motion.div initial={{ opacity:0, x:12 }} animate={{ opacity:1, x:0 }} transition={{ delay:0.35 }}>
@@ -363,6 +520,56 @@ function OverviewTab({ analytics, trendDays, setTrendDays }) {
               </div>
             </div>
           </motion.div>
+        )}
+
+        {/* Responses by location — top cities from respondent demographics */}
+        {total > 0 && (
+        <motion.div initial={{ opacity:0, y:12 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.4 }} style={{ ...S.card, height:'100%', boxSizing:'border-box' }}>
+          <div style={{ display:'flex', alignItems:'baseline', justifyContent:'space-between', flexWrap:'wrap', gap:8, marginBottom:18 }}>
+            <div style={{ ...S.secLabel, marginBottom:0 }}>Responses by Location</div>
+            {locationStats.located > 0 && (
+              <span style={{ fontFamily:'Syne,sans-serif', fontSize:10, fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase', color:'rgba(22,15,8,0.4)' }}>
+                {locationStats.located} from {locationStats.uniqueCities} {locationStats.uniqueCities===1?'city':'cities'}
+              </span>
+            )}
+          </div>
+
+          {locationStats.located === 0 ? (
+            <p style={{ ...S.body, color:'rgba(22,15,8,0.4)', margin:0 }}>
+              No location data yet — respondents share their city only when the survey's demographics step is enabled.
+            </p>
+          ) : (
+            <>
+              <div style={{ display:'flex', flexDirection:'column', gap:11 }}>
+                {locationStats.breakdown.slice(0,8).map((loc,i) => {
+                  const pct = Math.round((loc.count / locationStats.located) * 100);
+                  const c = COLS[i % COLS.length];
+                  return (
+                    <div key={loc.city} style={{ display:'flex', alignItems:'center', gap:12 }}>
+                      <div style={{ width:130, flexShrink:0, display:'flex', alignItems:'center', gap:7, overflow:'hidden' }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink:0 }}><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                        <span style={{ fontFamily:'Fraunces,serif', fontWeight:300, fontSize:13, color:'var(--espresso)', textTransform:'capitalize', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }} title={loc.city}>{loc.city}</span>
+                      </div>
+                      <div style={{ flex:1, height:7, background:'var(--cream-deep)', borderRadius:999 }}>
+                        <motion.div initial={{ width:0 }} animate={{ width:`${pct}%` }} transition={{ duration:0.7, delay:i*0.05, ease:[0.16,1,0.3,1] }}
+                          style={{ height:'100%', background:c, borderRadius:999 }} />
+                      </div>
+                      <span style={{ fontFamily:'Syne,sans-serif', fontSize:10, fontWeight:700, color:'rgba(22,15,8,0.45)', width:62, textAlign:'right', flexShrink:0 }}>
+                        {loc.count} <span style={{ color:'rgba(22,15,8,0.3)' }}>({pct}%)</span>
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+              {(locationStats.breakdown.length > 8 || locationStats.unknown > 0) && (
+                <div style={{ marginTop:14, display:'flex', gap:16, flexWrap:'wrap', fontFamily:'Syne,sans-serif', fontSize:10, fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase', color:'rgba(22,15,8,0.4)' }}>
+                  {locationStats.breakdown.length > 8 && <span>+{locationStats.breakdown.length - 8} more {locationStats.breakdown.length - 8 === 1 ? 'city' : 'cities'}</span>}
+                  {locationStats.unknown > 0 && <span>{locationStats.unknown} without location</span>}
+                </div>
+              )}
+            </>
+          )}
+        </motion.div>
         )}
       </div>
     </div>
@@ -894,6 +1101,7 @@ export default function SurveyAnalytics() {
   const [tab, setTab]   = useState('Overview');
   const [feedback, setFeedback] = useState([]);
   const [trendDays, setTrendDays] = useState(14);
+  const [dlOpen, setDlOpen] = useState(false);   // Download dropdown
 
   useEffect(() => { if (profile?.id) load(); else stopLoading(); }, [id, profile?.id]);
 
@@ -902,7 +1110,7 @@ export default function SurveyAnalytics() {
       const [surveyRes, questionsRes, responsesRes, feedbackRes] = await Promise.all([
         API.get(`/surveys/${id}`),
         API.get(`/surveys/${id}/questions`),
-        API.get(`/surveys/${id}/responses`),
+        API.get(`/surveys/${id}/responses?limit=100000`),
         API.get(`/surveys/${id}/feedback`),
       ]);
 
@@ -922,7 +1130,7 @@ export default function SurveyAnalytics() {
     finally { stopLoading(); }
   }
 
-  const analytics = useAnalytics(qs, rs, ans, trendDays);
+  const analytics = useAnalytics(qs, rs, ans, trendDays, sv?.created_at);
 
   function csv() {
     const h = ['#','Status','Email','Started','Completed',...qs.map(q=>q.question_text)];
@@ -1147,26 +1355,45 @@ export default function SurveyAnalytics() {
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
             Share
           </button>
-          <button onClick={csv} style={{ ...S.exportBtn, display: 'flex', alignItems: 'center', gap: 5 }}
-            onMouseEnter={e=>{ e.currentTarget.style.borderColor='var(--espresso)'; e.currentTarget.style.color='var(--espresso)'; }}
-            onMouseLeave={e=>{ e.currentTarget.style.borderColor='rgba(22,15,8,0.12)'; e.currentTarget.style.color='rgba(22,15,8,0.55)'; }}>
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            CSV
-          </button>
+          {/* Download dropdown — CSV · XLSX · PDF under one menu */}
+          <div style={{ position: 'relative' }}>
+            <button onClick={() => setDlOpen(o => !o)} style={{ ...S.exportBtn, display: 'flex', alignItems: 'center', gap: 6, borderColor: dlOpen ? 'var(--coral)' : 'rgba(22,15,8,0.12)', color: dlOpen ? 'var(--coral)' : 'rgba(22,15,8,0.55)' }}
+              onMouseEnter={e=>{ e.currentTarget.style.borderColor='var(--coral)'; e.currentTarget.style.color='var(--coral)'; }}
+              onMouseLeave={e=>{ if (!dlOpen) { e.currentTarget.style.borderColor='rgba(22,15,8,0.12)'; e.currentTarget.style.color='rgba(22,15,8,0.55)'; } }}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Download
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: dlOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
 
-          <button onClick={excel} style={{ ...S.exportBtn, display: 'flex', alignItems: 'center', gap: 5 }}
-            onMouseEnter={e=>{ e.currentTarget.style.borderColor='var(--sage)'; e.currentTarget.style.color='var(--sage)'; }}
-            onMouseLeave={e=>{ e.currentTarget.style.borderColor='rgba(22,15,8,0.12)'; e.currentTarget.style.color='rgba(22,15,8,0.55)'; }}>
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            XLSX
-          </button>
-
-          <button onClick={exportPDF} style={{ ...S.exportBtn, display: 'flex', alignItems: 'center', gap: 5 }}
-            onMouseEnter={e=>{ e.currentTarget.style.borderColor='var(--coral)'; e.currentTarget.style.color='var(--coral)'; }}
-            onMouseLeave={e=>{ e.currentTarget.style.borderColor='rgba(22,15,8,0.12)'; e.currentTarget.style.color='rgba(22,15,8,0.55)'; }}>
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            PDF
-          </button>
+            {dlOpen && (
+              <>
+                {/* click-away backdrop */}
+                <div onClick={() => setDlOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
+                <motion.div
+                  initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.16, ease: [0.16,1,0.3,1] }}
+                  style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, zIndex: 41, background: 'var(--warm-white)', border: '1px solid rgba(22,15,8,0.1)', borderRadius: 14, padding: 6, minWidth: 184, boxShadow: '0 16px 40px rgba(22,15,8,0.14)' }}>
+                  {[
+                    { label: 'CSV',  desc: 'Raw response data',  fn: csv,       color: 'var(--espresso)' },
+                    { label: 'XLSX', desc: 'Full Excel workbook', fn: excel,     color: 'var(--sage)'     },
+                    { label: 'PDF',  desc: 'Formatted report',    fn: exportPDF, color: 'var(--coral)'    },
+                  ].map(opt => (
+                    <button key={opt.label} onClick={() => { setDlOpen(false); opt.fn(); }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', padding: '9px 11px', border: 'none', background: 'transparent', borderRadius: 9, cursor: 'pointer', textAlign: 'left' }}
+                      onMouseEnter={e=>e.currentTarget.style.background='var(--cream)'}
+                      onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                      <span style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(22,15,8,0.04)', color: opt.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                      </span>
+                      <span style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--espresso)' }}>{opt.label}</span>
+                        <span style={{ fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 11, color: 'rgba(22,15,8,0.5)' }}>{opt.desc}</span>
+                      </span>
+                    </button>
+                  ))}
+                </motion.div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1194,9 +1421,14 @@ export default function SurveyAnalytics() {
         </motion.div>
       </AnimatePresence>
 
-      {/* ── Responses table (always below tabs, except AI) ── */}
-      {tab !== 'AI' && (
-        <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} transition={{ delay:0.3 }} style={{ marginTop:40 }}>
+      {/* ── Responses table only in Overview ── */}
+      {tab === 'Overview' && (
+        <motion.div
+          initial={{ opacity:0 }}
+          animate={{ opacity:1 }}
+          transition={{ delay:0.3 }}
+          style={{ marginTop:40 }}
+        >
           <ResponsesTable rs={rs} qs={qs} ans={ans} />
         </motion.div>
       )}

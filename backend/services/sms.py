@@ -14,7 +14,7 @@ def get_sns_client():
 def send_otp_sms(phone_number: str, otp_code: str) -> bool:
     message = f"Your AxioraPulse verification code is: {otp_code}. Valid for 5 minutes. Do not share this code."
 
-    if os.getenv("ENVIRONMENT", "development").lower() != "production":
+    if os.getenv("ENVIRONMENT", "development").lower() not in ("production", "prod"):
         print(f"\n{'=' * 50}")
         print(f"[DEV ONLY] OTP for {phone_number}: {otp_code}")
         print(f"{'=' * 50}\n")
