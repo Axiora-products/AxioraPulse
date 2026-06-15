@@ -67,7 +67,9 @@ def translation_model_signature() -> str:
     """Cache namespace: source text + target language + this signature."""
     nllb_model = os.getenv("OFFLINE_TRANSLATION_MODEL", DEFAULT_NLLB_MODEL)
     model_version = os.getenv("OFFLINE_TRANSLATION_MODEL_VERSION", DEFAULT_MODEL_VERSION)
-    argos_pairs = ",".join(f"{src}->{dst}" for src, dst in sorted(_installed_translation_pairs()))
+    argos_pairs = ",".join(
+        f"{src}->{dst}" for src, dst in sorted(_installed_translation_pairs())
+    )
     return f"model={nllb_model}|version={model_version}|argos={argos_pairs or 'none'}"
 
 
@@ -184,7 +186,9 @@ def translate_texts(
     texts: list[str],
     languages: tuple[str, ...] = ("te", "hi"),
 ) -> dict[str, dict[str, str]]:
-    unique_texts = [text for text in dict.fromkeys(t.strip() for t in texts if t and t.strip())]
+    unique_texts = [
+        text for text in dict.fromkeys(t.strip() for t in texts if t and t.strip())
+    ]
     if not unique_texts:
         return {}
 
@@ -193,7 +197,9 @@ def translate_texts(
 
     translated: dict[str, dict[str, str]] = {}
     for text in unique_texts:
-        translated[text] = {language: translate_text(text, language) for language in languages}
+        translated[text] = {
+            language: translate_text(text, language) for language in languages
+        }
     return translated
 
 
