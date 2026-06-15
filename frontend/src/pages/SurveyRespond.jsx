@@ -273,18 +273,7 @@ export default function SurveyRespond() {
   const [showLangPopup, setShowLangPopup] = useState(false);
   const [currentLang, setCurrentLang] = useState(getLanguageFromCookie());
   const [ans, setAns] = useState({});
-  // Restore cached answers
-useEffect(() => {
-  const cachedAnswers = localStorage.getItem(`survey_answers_${slug}`);
-
-  if (cachedAnswers) {
-    try {
-      setAns(JSON.parse(cachedAnswers));
-    } catch (err) {
-      console.error("Failed to parse cached answers", err);
-    }
-  }
-}, [slug]);
+  const [step, setStep] = useState(-1);
 
 // Save answers whenever they change
 useEffect(() => {
@@ -293,7 +282,37 @@ useEffect(() => {
     JSON.stringify(ans)
   );
 }, [ans, slug]);
-  const [step, setStep] = useState(-1);
+// Save current question step
+useEffect(() => {
+  localStorage.setItem(
+    `survey_step_${slug}`,
+    step.toString()
+  );
+}, [step, slug]);
+  
+  // Restore cached answers and step
+useEffect(() => {
+  const cachedAnswers = localStorage.getItem(
+    `survey_answers_${slug}`
+  );
+
+  if (cachedAnswers) {
+    try {
+      setAns(JSON.parse(cachedAnswers));
+    } catch (err) {
+      console.error("Failed to parse cached answers", err);
+    }
+  }
+
+  const cachedStep = localStorage.getItem(
+    `survey_step_${slug}`
+  );
+
+  if (cachedStep !== null) {
+    setStep(parseInt(cachedStep, 10));
+  }
+}, [slug]);
+
   const [dir, setDir] = useState(1);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
@@ -457,15 +476,42 @@ useEffect(() => {
       const ex = sessionRes.data;
       if (ex) {
         rId.current = ex.id;
+
         if (ex.language) {
           setCurrentLang(ex.language);
         }
+
         const r = {};
-        (ex.survey_answers || []).forEach(a => { r[a.question_id] = a.answer_json ?? a.answer_value ?? ''; });
-        setAns(r);
-        const first = q.findIndex(x => !r[x.id]);
-        setStep(first >= 0 ? first : 0);
+        (ex.survey_answers || []).forEach(a => {
+          r[a.question_id] = a.answer_json ?? a.answer_value ?? '';
+        });
+
+        console.log("Backend answers:", r);
+
+        const cachedAnswers = localStorage.getItem(
+          `survey_answers_${slug}`
+        );
+        console.log("Backend answers:", r);
+        console.log("Local cache:", cachedAnswers);
+
+        if (Object.keys(r).length > 0) {
+          setAns(r);
+        } else if (cachedAnswers) {
+          setAns(JSON.parse(cachedAnswers));
+        }
+
+        const cachedStep = localStorage.getItem(
+            `survey_step_${slug}`
+          );
+
+          if (cachedStep !== null) {
+            setStep(parseInt(cachedStep, 10));
+          } else {
+            const first = q.findIndex(x => !r[x.id]);
+            setStep(first >= 0 ? first : 0);
+          }
         setSaved(ex.last_saved_at);
+
       } else {
         setStep(-1);
       }
@@ -548,6 +594,7 @@ useEffect(() => {
       setShowDemographics(true);
       localStorage.removeItem(`nx_${slug}`);
       localStorage.removeItem(`survey_answers_${slug}`);
+      localStorage.removeItem(`survey_step_${slug}`);
     } catch (e) { toast.error(ui.submitFailed); }
     finally { setBusy(false); }
   }
