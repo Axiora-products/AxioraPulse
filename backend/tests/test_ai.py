@@ -22,6 +22,25 @@ def test_get_survey_insights(auth_headers):
     assert response.status_code in (200, 404)
 
 
+def test_get_survey_insights_status_not_found(auth_headers):
+    """Status endpoint 404s for an unknown survey (covers the not-found branch)."""
+    missing_id = "00000000-0000-0000-0000-000000000000"
+    response = client.get(f"/ai/surveys/{missing_id}/insights/status", headers=auth_headers)
+    assert response.status_code == 404
+
+
+def test_get_survey_insights_status_envelope(auth_headers):
+    """Status endpoint returns the freshness envelope for a known survey."""
+    response = client.get(f"/ai/surveys/{SURVEY_ID}/insights/status", headers=auth_headers)
+    assert response.status_code == 200
+    data = response.json()
+    # Envelope is returned whether or not an analysis has been cached yet.
+    assert data["threshold"] == 50
+    assert data["needsRefresh"] in (True, False)
+    assert "insights" in data
+    assert "currentResponses" in data
+
+
 def test_post_ai_insights(auth_headers):
     payload = {
         "surveyTitle": "Customer Satisfaction",
