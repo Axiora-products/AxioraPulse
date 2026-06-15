@@ -121,6 +121,7 @@ class UserProfile(Base):
     phone_verified = Column(Boolean, default=False)
     role = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.viewer)
     tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), index=True, nullable=True)
+    invited_by = Column(UUID(as_uuid=True),ForeignKey("user_profiles.id"),nullable=True,index=True,)
     is_active = Column(Boolean, default=True)
     is_internal = Column(Boolean, nullable=False, default=False)  # Axiora team members bypass payment gates
     account_status = Column(String(50), default="active")  # 'active' | 'invited'
