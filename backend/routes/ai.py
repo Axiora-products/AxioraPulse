@@ -29,7 +29,12 @@ from schemas import (
 from dependencies import get_current_user
 from services.feature_gate import require_feature
 from services.ai_provider import call_ai_sync
-from services.offline_translation import OfflineTranslationError, translate_options, translate_text, translation_status
+from services.offline_translation import (
+    OfflineTranslationError,
+    translate_options,
+    translate_text,
+    translation_status,
+)
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 SHORT_SURVEY_DEFAULT_QUESTIONS = 12
@@ -109,7 +114,10 @@ def _normalize_options(q_type: str, options):
             rows = options.get("rows") if isinstance(options.get("rows"), list) else []
             cols = options.get("columns") if isinstance(options.get("columns"), list) else []
             if rows and cols:
-                return {"rows": _normalize_option_list(rows), "columns": _normalize_option_list(cols)}
+                return {
+                    "rows": _normalize_option_list(rows),
+                    "columns": _normalize_option_list(cols),
+                }
         return {
             "rows": [{"label": "Experience", "value": "experience"}, {"label": "Value", "value": "value"}],
             "columns": [{"label": "Low", "value": "low"}, {"label": "High", "value": "high"}],
@@ -138,7 +146,13 @@ def _normalize_option_list(options):
 
 
 def _infer_best_format(
-    text: str, current_type: str, mode: str, index: int, total: int, context: str = "", has_options: bool = False
+    text: str,
+    current_type: str,
+    mode: str,
+    index: int,
+    total: int,
+    context: str = "",
+    has_options: bool = False,
 ) -> str:
     lower = (text or "").lower()
     ctx = (context or "").lower()
@@ -1338,15 +1352,21 @@ async def translate_survey(body: AITranslateRequest):
         target_language = body.language
         result = {
             "title": await run_in_threadpool(translate_text, body.title, target_language),
-            "description": await run_in_threadpool(translate_text, body.description or "", target_language)
-            if body.description
-            else body.description,
-            "welcome_message": await run_in_threadpool(translate_text, body.welcome_message or "", target_language)
-            if body.welcome_message
-            else body.welcome_message,
-            "thank_you_message": await run_in_threadpool(translate_text, body.thank_you_message or "", target_language)
-            if body.thank_you_message
-            else body.thank_you_message,
+            "description": (
+                await run_in_threadpool(translate_text, body.description or "", target_language)
+                if body.description
+                else body.description
+            ),
+            "welcome_message": (
+                await run_in_threadpool(translate_text, body.welcome_message or "", target_language)
+                if body.welcome_message
+                else body.welcome_message
+            ),
+            "thank_you_message": (
+                await run_in_threadpool(translate_text, body.thank_you_message or "", target_language)
+                if body.thank_you_message
+                else body.thank_you_message
+            ),
             "questions": [],
         }
 
@@ -1355,17 +1375,21 @@ async def translate_survey(body: AITranslateRequest):
                 "id": q.get("id"),
                 "type": q.get("type", q.get("question_type", "short_text")),
                 "question_text": await run_in_threadpool(
-                    translate_text, str(q.get("question_text") or ""), target_language
+                    translate_text,
+                    str(q.get("question_text") or ""),
+                    target_language,
                 ),
-                "description": await run_in_threadpool(
-                    translate_text, str(q.get("description") or ""), target_language
-                )
-                if q.get("description")
-                else q.get("description", ""),
+                "description": (
+                    await run_in_threadpool(translate_text, str(q.get("description") or ""), target_language)
+                    if q.get("description")
+                    else q.get("description", "")
+                ),
             }
             if q.get("options") is not None:
                 translated_q["options"] = await run_in_threadpool(
-                    translate_options, q.get("options"), target_language
+                    translate_options,
+                    q.get("options"),
+                    target_language,
                 )
             result["questions"].append(translated_q)
 

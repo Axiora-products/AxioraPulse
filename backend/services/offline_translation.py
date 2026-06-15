@@ -115,7 +115,11 @@ def _load_nllb():
 
     model_path = os.getenv("OFFLINE_TRANSLATION_MODEL", DEFAULT_NLLB_MODEL)
     try:
-        tokenizer = AutoTokenizer.from_pretrained(model_path, local_files_only=True, src_lang="eng_Latn")
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_path,
+            local_files_only=True,
+            src_lang="eng_Latn",
+        )
         model = AutoModelForSeq2SeqLM.from_pretrained(model_path, local_files_only=True)
     except Exception as exc:
         raise OfflineTranslationError(
@@ -176,7 +180,10 @@ def _translate_text_cached(source: str, target_language: str, model_signature: s
         raise OfflineTranslationError(f"Offline translation failed for en->{target_language}. {detail}") from exc
 
 
-def translate_texts(texts: list[str], languages: tuple[str, ...] = ("te", "hi")) -> dict[str, dict[str, str]]:
+def translate_texts(
+    texts: list[str],
+    languages: tuple[str, ...] = ("te", "hi"),
+) -> dict[str, dict[str, str]]:
     unique_texts = [text for text in dict.fromkeys(t.strip() for t in texts if t and t.strip())]
     if not unique_texts:
         return {}
@@ -186,7 +193,10 @@ def translate_texts(texts: list[str], languages: tuple[str, ...] = ("te", "hi"))
 
     translated: dict[str, dict[str, str]] = {}
     for text in unique_texts:
-        translated[text] = {language: translate_text(text, language) for language in languages}
+        translated[text] = {
+            language: translate_text(text, language)
+            for language in languages
+        }
     return translated
 
 
