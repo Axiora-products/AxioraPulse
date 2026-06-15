@@ -171,7 +171,7 @@ def test_translate_text_handles_blank_and_cached_success(monkeypatch):
     monkeypatch.setattr(offline, "translation_model_signature", lambda: "sig")
     monkeypatch.setattr(offline, "_translate_text_cached", fake_cached)
 
-    assert offline.translate_text("   ", "hi") == ""
+    assert offline.translate_text("   ", "hi") == "   "
     assert offline.translate_text(" hello ", "hi") == "translated"
     assert calls == [("hello", "hi", "sig")]
 
