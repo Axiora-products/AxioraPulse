@@ -1136,7 +1136,7 @@ export default function Landing() {
               </div>
             </div>
             {[
-              { title: "Product", links: ["Survey Builder", "Analytics", "Distribution", "AI Insights", "Reports"] },
+              { title: "Product", links: ["Survey Builder", "Analytics", "Distribution", "Pulse Insights", "Reports"] },
               { title: "Company", links: ["About Us", "Careers", "Press Kit", "Blog", "Contact"] },
               { title: "Legal", links: ["Privacy Policy", "Terms of Use", "Security", "GDPR", "Cookie Policy"] },
             ].map(col => (

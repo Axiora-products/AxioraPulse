@@ -7,6 +7,7 @@ AI-powered survey insights with multi-provider failover
 
 import json
 import re
+from datetime import datetime, timezone
 from fastapi import Request, APIRouter, Depends, HTTPException
 
 from pydantic import BaseModel, ValidationError
@@ -31,6 +32,9 @@ from services.feature_gate import require_feature
 from services.ai_provider import call_ai_sync
 
 router = APIRouter(prefix="/ai", tags=["ai"])
+# Pulse Insights are cached per-survey and only re-generated once this many new
+# responses have arrived since the last analysis (keeps insights stable + cheap).
+INSIGHTS_REFRESH_THRESHOLD = 50
 SHORT_SURVEY_DEFAULT_QUESTIONS = 12
 SHORT_SURVEY_TARGET_MINUTES = 3
 SHORT_SURVEY_MAX_WORDS = 18
@@ -298,42 +302,34 @@ SENSITIVE_CATEGORY_LABELS = {
     "proprietary_insights": "proprietary_insights",
 }
 
+# NOTE: Generic idea-description words (idea, app, tool, product, platform,
+# building, concept, predicts, attrition, using, model, workflow, insight, trend,
+# behavior, productivity, validate, targeting, launch, unique, buy, sell, …) were
+# intentionally removed. They fired on almost every prompt, which forced the
+# question generator to work from a generalized brief instead of the real idea and
+# produced generic, off-topic questions. Protection now triggers ONLY on genuinely
+# confidential specifics — proprietary data sources, algorithms/scoring methods,
+# pricing/business model, named integrations, and stated differentiators — so the
+# topic itself always reaches the generator.
 SENSITIVE_CATEGORY_KEYWORDS = {
-    "core_idea": [
-        "building",
-        "idea",
-        "concept",
-        "platform",
-        "tool",
-        "app",
-        "product",
-        "predicts",
-        "prediction",
-        "attrition",
-    ],
-    "business_model": ["pricing", "subscription", "revenue", "monetize", "buy", "sell", "business model", "gtm"],
-    "differentiators": ["unique", "differentiator", "competitive advantage", "moat", "unlike", "secret"],
-    "strategy": ["strategy", "roadmap", "launch", "go-to-market", "positioning", "targeting", "validate"],
+    "core_idea": ["predictive model", "proprietary algorithm", "secret sauce"],
+    "business_model": ["pricing", "subscription", "revenue", "monetize", "business model", "gtm"],
+    "differentiators": ["differentiator", "competitive advantage", "moat", "proprietary advantage"],
+    "strategy": ["go-to-market", "launch strategy", "growth strategy"],
     "execution_details": [
-        "using",
-        "integrates",
         "slack",
         "microsoft teams",
         "algorithm",
-        "model",
-        "workflow",
-        "implementation",
-        "scoring",
+        "scoring method",
+        "scoring model",
+        "internal scoring",
+        "proprietary integration",
     ],
     "proprietary_insights": [
         "proprietary",
-        "insight",
-        "internal",
-        "trend",
-        "behavior",
-        "productivity",
         "data source",
-        "signals",
+        "internal signals",
+        "proprietary signals",
     ],
 }
 
@@ -651,6 +647,46 @@ def _build_survey_context(survey_id: str, db: Session) -> dict:
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 
+def _insights_envelope(data, response_count_at_generation, current_responses, generated_at):
+    """Shape the cached/generated insights + freshness metadata for the client."""
+    new_responses = max(0, current_responses - (response_count_at_generation or 0))
+    return {
+        "insights": data,
+        "generatedAt": generated_at,
+        "responseCountAtGeneration": response_count_at_generation,
+        "currentResponses": current_responses,
+        "newResponses": new_responses,
+        "needsRefresh": data is not None and new_responses >= INSIGHTS_REFRESH_THRESHOLD,
+        "threshold": INSIGHTS_REFRESH_THRESHOLD,
+    }
+
+
+@router.get("/surveys/{survey_id}/insights/status")
+@limiter.limit("30/minute")
+async def get_cached_survey_insights(
+    request: Request,
+    survey_id: str,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(get_current_user),
+):
+    """Return previously-generated insights (if any) without calling the AI, plus
+    how many new responses have arrived since — so the client can decide whether
+    to show the cached analysis or prompt for a refresh."""
+    survey = db.query(Survey).filter(Survey.id == survey_id).first()
+    if not survey:
+        raise HTTPException(status_code=404, detail="Survey not found")
+
+    current_total = db.query(SurveyResponse).filter(SurveyResponse.survey_id == survey_id).count()
+    cached = survey.cached_insights or {}
+    data = cached.get("data")
+    return _insights_envelope(
+        data=data,
+        response_count_at_generation=cached.get("responseCount") if data else None,
+        current_responses=current_total,
+        generated_at=cached.get("generatedAt") if data else None,
+    )
+
+
 @router.get("/surveys/{survey_id}/insights")
 @limiter.limit("3/minute")
 async def generate_survey_insights(
@@ -668,7 +704,28 @@ async def generate_survey_insights(
         responses=context["stats"],
         questionSummaries=context["questionSummaries"],
     )
-    return await generate_insights(request, body, current_user)
+    insights = await generate_insights(request, body, current_user)
+    insights_dict = insights.model_dump()
+
+    # Persist so subsequent visits show this analysis until enough new responses
+    # arrive to warrant a refresh.
+    total = context["stats"]["total"]
+    generated_at = datetime.now(timezone.utc).isoformat()
+    survey = db.query(Survey).filter(Survey.id == survey_id).first()
+    if survey is not None:
+        survey.cached_insights = {
+            "data": insights_dict,
+            "responseCount": total,
+            "generatedAt": generated_at,
+        }
+        db.commit()
+
+    return _insights_envelope(
+        data=insights_dict,
+        response_count_at_generation=total,
+        current_responses=total,
+        generated_at=generated_at,
+    )
 
 
 @router.post("/insights")
