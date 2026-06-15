@@ -429,7 +429,13 @@ def list_surveys(
 @router.get("/slug/{slug}", response_model=SurveyOut)
 @limiter.limit("20/minute")
 def get_survey_by_slug(request: Request, slug: str, db: Session = Depends(get_db)):
-    survey = db.query(Survey).options(joinedload(Survey.questions)).filter(Survey.slug == slug).first()
+    survey = (
+        db.query(Survey)
+        .options(joinedload(Survey.questions))
+        .options(joinedload(Survey.creator))
+        .filter(Survey.slug == slug)
+        .first()
+    )
     if not survey:
         raise HTTPException(status_code=404, detail="Survey not found")
     out = SurveyOut.model_validate(survey)
