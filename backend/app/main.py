@@ -99,7 +99,6 @@ app.include_router(uploads_router)
 app.include_router(demo_router)
 app.include_router(public_router)
 app.include_router(investor_router)
-app.include_router(uploads_router)
 
 
 
