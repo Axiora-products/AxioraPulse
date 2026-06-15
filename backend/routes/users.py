@@ -59,14 +59,11 @@ def list_users(
 ):
     """Return all users in the caller's tenant (TeamManagement.jsx)."""
     users = (
-    db.query(UserProfile)
-    .filter(
-        (UserProfile.id == current_user.id) |
-        (UserProfile.invited_by == current_user.id)
+        db.query(UserProfile)
+        .filter((UserProfile.id == current_user.id) | (UserProfile.invited_by == current_user.id))
+        .order_by(UserProfile.created_at)
+        .all()
     )
-    .order_by(UserProfile.created_at)
-    .all()
-)
     return [UserProfileOut.model_validate(u) for u in users]
 
 
