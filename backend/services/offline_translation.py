@@ -193,10 +193,7 @@ def translate_texts(
 
     translated: dict[str, dict[str, str]] = {}
     for text in unique_texts:
-        translated[text] = {
-            language: translate_text(text, language)
-            for language in languages
-        }
+        translated[text] = {language: translate_text(text, language) for language in languages}
     return translated
 
 
