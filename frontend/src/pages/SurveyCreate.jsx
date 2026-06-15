@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import API from '../api/axios';
 
 import SurveyPromptScreen, { SURVEY_MODES, getSurveyModeLabel } from '../components/SurveyPromptScreen';
+import AISurveySuggestions from '../components/AISurveySuggestions';
 import useAuthStore from '../hooks/useAuth';
 import { QUESTION_TYPES, SHORT_SURVEY_RULES, estimateSurveyMinutes, getFormatDiversityScore, getQuestionWordCount, isExpired } from '../lib/constants';
 import { Reorder, useDragControls, motion } from 'framer-motion';
@@ -412,7 +413,7 @@ export default function SurveyCreate() {
     [!!f.title.trim(), 'Add a title'],
     [!!f.description.trim(), 'Add a description'],
     [!!f.welcome_message.trim(), 'Welcome message'],
-    [hasRealQuestions && qs.length <= SHORT_SURVEY_RULES.defaultQuestionCount, `${SHORT_SURVEY_RULES.defaultQuestionCount}-question target`],
+    [realQuestions.length >= SHORT_SURVEY_RULES.defaultQuestionCount, `${SHORT_SURVEY_RULES.defaultQuestionCount}-question target`],
     [hasRealQuestions && conciseQuestionCount === realQuestions.length, 'Concise wording'],
     [hasAdaptiveFormats, 'Adaptive formats'],
     [!!f.expires_at, 'Set expiry date'],
@@ -881,6 +882,8 @@ export default function SurveyCreate() {
                 Add Question
               </button>
 
+              <AISurveySuggestions survey={f} questions={qs} tc={tc} aiContext={f.ai_context || ''}
+                onAdd={q => { sQs(a => [...a, { _id: 'new_' + Math.random().toString(36).slice(2), question_text: q.question_text, question_type: q.question_type, options: q.options || (isMx(q.question_type) ? { rows: [], columns: [] } : []), is_required: false, description: q.description || '' }]); setDirty(true); }} />
 
             </div>
           )}

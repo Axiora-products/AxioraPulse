@@ -375,8 +375,9 @@ export default function SurveyEdit() {
 
   function calcHealth() {
     let score = 100;
+    const realCount = qs.filter(q => getQuestionWordCount(q) > 0).length;
     if (!sv.welcome_message) score -= 5; if (!sv.expires_at) score -= 5;
-    if (qs.length > SHORT_SURVEY_RULES.defaultQuestionCount) score -= 15;
+    if (realCount < SHORT_SURVEY_RULES.defaultQuestionCount) score -= 15;
     if (qs.filter(q => q.is_required).length > SHORT_SURVEY_RULES.preferredRequiredQuestionLimit) score -= 10;
     if (getFormatDiversityScore(qs) < 3) score -= 15;
     if (qs.some(q => getQuestionWordCount(q) > SHORT_SURVEY_RULES.maxHighSignalWords)) score -= 10;
@@ -1409,7 +1410,7 @@ export default function SurveyEdit() {
                   {[
                     [sv.welcome_message, 'Welcome message'],
                     [sv.expires_at, 'Expiry date set'],
-                    [qs.length <= SHORT_SURVEY_RULES.defaultQuestionCount, `At or below ${SHORT_SURVEY_RULES.defaultQuestionCount} questions`],
+                    [realQuestions.length >= SHORT_SURVEY_RULES.defaultQuestionCount, `${SHORT_SURVEY_RULES.defaultQuestionCount}-question target`],
                     [qs.filter(q => q.is_required).length <= SHORT_SURVEY_RULES.preferredRequiredQuestionLimit, `≤${SHORT_SURVEY_RULES.preferredRequiredQuestionLimit} required questions`],
                     [hasRealQuestions && conciseQuestionCount === realQuestions.length, 'Concise wording'],
                     [hasAdaptiveFormats, 'Adaptive formats'],
