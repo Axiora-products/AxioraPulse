@@ -172,6 +172,9 @@ class Survey(Base):
     created_by = Column(UUID(as_uuid=True), ForeignKey("user_profiles.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     ai_intelligence = Column(JSONB, nullable=True)
+    # Cached Pulse Insights: { "data": {...}, "responseCount": int, "generatedAt": iso }
+    # Re-generated on demand once enough new responses arrive (see routes/ai.py).
+    cached_insights = Column(JSONB, nullable=True)
 
     # relationships
     tenant = relationship("Tenant", back_populates="surveys")

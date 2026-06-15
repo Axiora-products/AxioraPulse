@@ -353,7 +353,13 @@ def list_surveys(
 @router.get("/slug/{slug}", response_model=SurveyOut)
 @limiter.limit("20/minute")
 def get_survey_by_slug(request: Request, slug: str, db: Session = Depends(get_db)):
-    survey = db.query(Survey).options(joinedload(Survey.questions)).filter(Survey.slug == slug).first()
+    survey = (
+        db.query(Survey)
+        .options(joinedload(Survey.questions))
+        .options(joinedload(Survey.creator))
+        .filter(Survey.slug == slug)
+        .first()
+    )
     if not survey:
         raise HTTPException(status_code=404, detail="Survey not found")
     out = SurveyOut.model_validate(survey)
@@ -765,7 +771,9 @@ def get_survey_responses(
     request: Request,
     survey_id: uuid.UUID,
     skip: int = 0,
-    limit: int = Query(10, le=100),
+    # Analytics aggregates client-side over the full set, so allow fetching all
+    # responses. Default stays modest for ad-hoc/paginated callers.
+    limit: int = Query(50, le=100000),
     current_user: UserProfile = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):

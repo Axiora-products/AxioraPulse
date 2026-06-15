@@ -273,18 +273,7 @@ export default function SurveyRespond() {
   const [showLangPopup, setShowLangPopup] = useState(false);
   const [currentLang, setCurrentLang] = useState(getLanguageFromCookie());
   const [ans, setAns] = useState({});
-  // Restore cached answers
-useEffect(() => {
-  const cachedAnswers = localStorage.getItem(`survey_answers_${slug}`);
-
-  if (cachedAnswers) {
-    try {
-      setAns(JSON.parse(cachedAnswers));
-    } catch (err) {
-      console.error("Failed to parse cached answers", err);
-    }
-  }
-}, [slug]);
+  const [step, setStep] = useState(-1);
 
 // Save answers whenever they change
 useEffect(() => {
@@ -293,7 +282,37 @@ useEffect(() => {
     JSON.stringify(ans)
   );
 }, [ans, slug]);
-  const [step, setStep] = useState(-1);
+// Save current question step
+useEffect(() => {
+  localStorage.setItem(
+    `survey_step_${slug}`,
+    step.toString()
+  );
+}, [step, slug]);
+  
+  // Restore cached answers and step
+useEffect(() => {
+  const cachedAnswers = localStorage.getItem(
+    `survey_answers_${slug}`
+  );
+
+  if (cachedAnswers) {
+    try {
+      setAns(JSON.parse(cachedAnswers));
+    } catch (err) {
+      console.error("Failed to parse cached answers", err);
+    }
+  }
+
+  const cachedStep = localStorage.getItem(
+    `survey_step_${slug}`
+  );
+
+  if (cachedStep !== null) {
+    setStep(parseInt(cachedStep, 10));
+  }
+}, [slug]);
+
   const [dir, setDir] = useState(1);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
@@ -452,15 +471,42 @@ useEffect(() => {
       const ex = sessionRes.data;
       if (ex) {
         rId.current = ex.id;
+
         if (ex.language) {
           setCurrentLang(ex.language);
         }
+
         const r = {};
-        (ex.survey_answers || []).forEach(a => { r[a.question_id] = a.answer_json ?? a.answer_value ?? ''; });
-        setAns(r);
-        const first = q.findIndex(x => !r[x.id]);
-        setStep(first >= 0 ? first : 0);
+        (ex.survey_answers || []).forEach(a => {
+          r[a.question_id] = a.answer_json ?? a.answer_value ?? '';
+        });
+
+        console.log("Backend answers:", r);
+
+        const cachedAnswers = localStorage.getItem(
+          `survey_answers_${slug}`
+        );
+        console.log("Backend answers:", r);
+        console.log("Local cache:", cachedAnswers);
+
+        if (Object.keys(r).length > 0) {
+          setAns(r);
+        } else if (cachedAnswers) {
+          setAns(JSON.parse(cachedAnswers));
+        }
+
+        const cachedStep = localStorage.getItem(
+            `survey_step_${slug}`
+          );
+
+          if (cachedStep !== null) {
+            setStep(parseInt(cachedStep, 10));
+          } else {
+            const first = q.findIndex(x => !r[x.id]);
+            setStep(first >= 0 ? first : 0);
+          }
         setSaved(ex.last_saved_at);
+
       } else {
         setStep(-1);
       }
@@ -543,6 +589,7 @@ useEffect(() => {
       setShowDemographics(true);
       localStorage.removeItem(`nx_${slug}`);
       localStorage.removeItem(`survey_answers_${slug}`);
+      localStorage.removeItem(`survey_step_${slug}`);
     } catch (e) { toast.error(ui.submitFailed); }
     finally { setBusy(false); }
   }
@@ -1141,11 +1188,24 @@ useEffect(() => {
               {textFor(sv?.thank_you_message, currentLang) || ui.responseRecorded}
             </motion.p>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.65 }}
-              style={{ marginTop: 56, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-              <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(237,232,223,0.12)' }}>Axiora</span>
-              <span style={{ fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: 13, letterSpacing: '-0.3px', color: 'rgba(237,232,223,0.18)' }}>Pulse</span>
-              <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#FF4500', opacity: 0.4, boxShadow: '0 0 6px rgba(255,69,0,0.5)' }} />
-              {orgName && <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(237,232,223,0.12)' }}>· {orgName}</span>}
+              style={{ marginTop: 56, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+              {brandedName && (
+                <span style={{ 
+                  fontFamily: 'Syne,sans-serif', 
+                  fontSize: 10, 
+                  fontWeight: 700, 
+                  letterSpacing: '0.2em', 
+                  textTransform: 'uppercase', 
+                  color: 'rgba(237,232,223,0.35)'
+                }}>
+                  {brandedName}
+                </span>
+              )}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(237,232,223,0.12)' }}>Axiora</span>
+                <span style={{ fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: 13, letterSpacing: '-0.3px', color: 'rgba(237,232,223,0.18)' }}>Pulse</span>
+                <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#FF4500', opacity: 0.4, boxShadow: '0 0 6px rgba(255,69,0,0.5)' }} />
+              </div>
             </motion.div>
           </motion.div>
 
@@ -1194,11 +1254,11 @@ useEffect(() => {
               <div className="np-sonar" /><div className="np-sonar" /><div className="np-sonar" />
             </div>
           </div>
-          {orgName && (
+          {brandedName && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <div style={{ width: 1, height: 14, background: dark ? 'rgba(237,232,223,0.15)' : 'rgba(22,15,8,0.12)' }} />
               <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: dark ? 'rgba(237,232,223,0.4)' : 'rgba(22,15,8,0.4)' }}>
-                {orgName}
+                {brandedName}
               </span>
             </div>
           )}
