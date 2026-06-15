@@ -21,9 +21,6 @@ import re
 import json
 import random
 import string
-import os
-import requests
-from functools import lru_cache
 from datetime import datetime, timezone
 from typing import Any, List
 from core.rate_limiter import limiter
@@ -62,13 +59,13 @@ from schemas import (
 )
 from dependencies import get_current_user
 from services.feature_gate import require_feature
+from services.offline_translation import OfflineTranslationError, translate_texts as offline_translate_texts
 
 
 router = APIRouter(prefix="/surveys", tags=["surveys"])
 
 # Roles that can create / modify surveys
 CREATOR_ROLES = {"super_admin", "admin", "manager", "creator"}
-GEMINI_MODEL = "gemini-2.5-flash"
 
 
 def _require_creator(user: UserProfile):
@@ -124,92 +121,19 @@ def _localized_text(value: Any, translations: dict[str, str] | None = None) -> d
     }
 
 
-@lru_cache(maxsize=1024)
-def _translate_with_google(text: str, lang: str) -> str:
-    try:
-        res = requests.get(
-            "https://translate.googleapis.com/translate_a/single",
-            params={
-                "client": "gtx",
-                "sl": "en",
-                "tl": lang,
-                "dt": "t",
-                "q": text,
-            },
-            timeout=8,
-        )
-        res.raise_for_status()
-        data = res.json()
-        translated = "".join(part[0] for part in data[0] if part and part[0])
-        return translated or text
-    except Exception as exc:
-        print(f"[SURVEY_TRANSLATION] Google fallback failed for {lang}: {exc}")
-        return text
-
-
 def _translate_texts(texts: list[str]) -> dict[str, dict[str, str]]:
     unique_texts = [text for text in dict.fromkeys(t.strip() for t in texts if t and t.strip())]
     if not unique_texts:
         return {}
 
-    api_key = os.getenv("GEMINI_KEY")
-    if not api_key or api_key.startswith("mock"):
-        return {
-            text: {
-                "te": _translate_with_google(text, "te"),
-                "hi": _translate_with_google(text, "hi"),
-            }
-            for text in unique_texts
-        }
-
-    payload = {
-        "texts": unique_texts,
-        "target_languages": {
-            "te": "Telugu",
-            "hi": "Hindi",
-        },
-    }
-    prompt = f"""Translate these survey texts into natural Telugu and Hindi.
-Return only valid JSON in this exact shape:
-{{"translations": [{{"en": "original text", "te": "Telugu translation", "hi": "Hindi translation"}}]}}
-
-Input:
-{json.dumps(payload, ensure_ascii=False)}"""
-
     try:
-        res = requests.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={api_key}",
-            headers={"Content-Type": "application/json"},
-            json={
-                "contents": [{"parts": [{"text": prompt}]}],
-                "systemInstruction": {
-                    "parts": [{"text": "You are a careful translator. Always return valid JSON only."}]
-                },
-                "generationConfig": {
-                    "responseMimeType": "application/json",
-                    "maxOutputTokens": 4096,
-                },
-            },
-            timeout=20,
-        )
-        res.raise_for_status()
-        data = res.json()
-        text = data["candidates"][0]["content"]["parts"][0]["text"]
-        result = json.loads(text)
-    except Exception as exc:
-        print(f"[SURVEY_TRANSLATION] Dynamic translation failed: {exc}")
+        return offline_translate_texts(unique_texts, ("te", "hi"))
+    except OfflineTranslationError as exc:
+        # Public survey loading should not crash if QA has not installed models yet.
+        # /ai/translate-survey returns a clear 503 when the respondent explicitly asks
+        # for a language and the offline model is missing.
+        print(f"[SURVEY_TRANSLATION] Offline translation unavailable: {exc}")
         return {}
-
-    translated = {}
-    for item in result.get("translations", []):
-        en = str(item.get("en") or "").strip()
-        if not en:
-            continue
-        translated[en] = {
-            "te": str(item.get("te") or en),
-            "hi": str(item.get("hi") or en),
-        }
-    return translated
 
 
 def _collect_option_texts(options: Any) -> list[str]:

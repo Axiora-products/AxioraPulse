@@ -67,18 +67,25 @@ def test_post_survey_intelligence(auth_headers):
     assert response.status_code == 200
 
 
-def test_translate_survey(auth_headers):
+def test_translate_survey(auth_headers, monkeypatch):
+    import routes.ai
+
+    monkeypatch.setattr(routes.ai, "translate_text", lambda text, language: f"{language}:{text}")
+    monkeypatch.setattr(routes.ai, "translate_options", lambda options, language: options)
+
     payload = {
         "title": "Welcome Survey",
         "description": "Please fill this in",
         "welcome_message": "Hello",
         "thank_you_message": "Goodbye",
-        "questions": [{"text": "How are you?"}],
-        "language": "spanish",
+        "questions": [{"id": "q1", "type": "short_text", "question_text": "How are you?"}],
+        "language": "hi",
     }
     response = client.post("/ai/translate-survey", json=payload, headers=auth_headers)
     assert response.status_code == 200
-    assert "translated_text" in response.json()
+    data = response.json()
+    assert data["title"] == "hi:Welcome Survey"
+    assert data["questions"][0]["question_text"] == "hi:How are you?"
 
 
 def test_post_ai_insights_normalization_branches(auth_headers, monkeypatch):

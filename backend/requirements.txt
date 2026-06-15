@@ -79,3 +79,6 @@ numba==0.65.1
 llvmlite==0.47.0
 more-itertools==11.1.0
 tqdm==4.67.3
+argostranslate==1.9.6
+transformers>=4.44,<5
+sentencepiece>=0.2.0

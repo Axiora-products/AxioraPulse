@@ -29,6 +29,7 @@ from schemas import (
 from dependencies import get_current_user
 from services.feature_gate import require_feature
 from services.ai_provider import call_ai_sync
+from services.offline_translation import OfflineTranslationError, translate_options, translate_text, translation_status
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 SHORT_SURVEY_DEFAULT_QUESTIONS = 12
@@ -1333,59 +1334,49 @@ class AITranslateRequest(BaseModel):
 
 @router.post("/translate-survey")
 async def translate_survey(body: AITranslateRequest):
-    # AI provider is resolved automatically by call_ai_sync
-
-    lang_name = "Hindi" if body.language == "hi" else "Telugu" if body.language == "te" else body.language
-
-    # Extract only translatable parts from the input questions to make the payload smaller and extremely safe
-    simple_questions = []
-    for q in body.questions:
-        sq = {
-            "id": q.get("id"),
-            "type": q.get("type", "short_text"),
-            "question_text": q.get("question_text", ""),
-            "description": q.get("description", ""),
-        }
-        if q.get("options") is not None:
-            opts = q.get("options")
-            if isinstance(opts, list):
-                sq["options"] = [
-                    {"label": o.get("label"), "value": o.get("value")} for o in opts if isinstance(o, dict)
-                ]
-            elif isinstance(opts, dict):  # for matrix type
-                sq["options"] = opts
-        simple_questions.append(sq)
-
-    survey_data = {
-        "title": body.title,
-        "description": body.description,
-        "welcome_message": body.welcome_message,
-        "thank_you_message": body.thank_you_message,
-        "questions": simple_questions,
-    }
-
-    prompt = f"""You are an expert translator. Translate the following survey data into natural, fluent, and culturally appropriate {lang_name}.
-
-CRITICAL RULES:
-1. Translate only these fields:
-   - "title"
-   - "description"
-   - "welcome_message"
-   - "thank_you_message"
-   - "question_text"
-   - "description" (inside questions)
-   - "label" (inside options or matrix choices)
-2. DO NOT translate or modify "id", "type", "value", "key", or any other structural identifier. Keep them exactly as they are.
-3. Keep the output JSON structure identical to the input JSON structure.
-4. Return ONLY a raw JSON object containing the translations. Do not include markdown code fences, comments, or extra conversational text.
-
-Original Survey JSON:
-{json.dumps(survey_data, ensure_ascii=False)}"""
-
     try:
-        text = await run_in_threadpool(call_ai_sync, prompt, 4096)
-        result_json = json.loads(text)
-        return result_json
+        target_language = body.language
+        result = {
+            "title": await run_in_threadpool(translate_text, body.title, target_language),
+            "description": await run_in_threadpool(translate_text, body.description or "", target_language)
+            if body.description
+            else body.description,
+            "welcome_message": await run_in_threadpool(translate_text, body.welcome_message or "", target_language)
+            if body.welcome_message
+            else body.welcome_message,
+            "thank_you_message": await run_in_threadpool(translate_text, body.thank_you_message or "", target_language)
+            if body.thank_you_message
+            else body.thank_you_message,
+            "questions": [],
+        }
+
+        for q in body.questions:
+            translated_q = {
+                "id": q.get("id"),
+                "type": q.get("type", q.get("question_type", "short_text")),
+                "question_text": await run_in_threadpool(
+                    translate_text, str(q.get("question_text") or ""), target_language
+                ),
+                "description": await run_in_threadpool(
+                    translate_text, str(q.get("description") or ""), target_language
+                )
+                if q.get("description")
+                else q.get("description", ""),
+            }
+            if q.get("options") is not None:
+                translated_q["options"] = await run_in_threadpool(
+                    translate_options, q.get("options"), target_language
+                )
+            result["questions"].append(translated_q)
+
+        return result
+    except OfflineTranslationError as e:
+        raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
-        print(f"[AI] Survey translation error: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to translate survey: {str(e)}")
+        print(f"[AI] Offline survey translation error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to translate survey offline: {str(e)}")
+
+
+@router.get("/translation-status")
+async def get_translation_status():
+    return translation_status()
