@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import API from '../api/axios';
 
 import SurveyPromptScreen, { SURVEY_MODES, getSurveyModeLabel } from '../components/SurveyPromptScreen';
+import AISurveySuggestions from '../components/AISurveySuggestions';
 import useAuthStore from '../hooks/useAuth';
 import { QUESTION_TYPES, SHORT_SURVEY_RULES, SURVEY_HEALTH_MINIMUMS, DEFAULT_THANK_YOU_MESSAGE, estimateSurveyMinutes, getFormatDiversityScore, getQuestionWordCount, isQuestionComplete, meetsMinLength, getThankYouCustom, composeThankYou, isExpired } from '../lib/constants';
 import { Reorder, useDragControls, motion } from 'framer-motion';
@@ -891,6 +892,8 @@ export default function SurveyCreate() {
                 Add Question
               </button>
 
+              <AISurveySuggestions survey={f} questions={qs} tc={tc} aiContext={f.ai_context || ''}
+                onAdd={q => { sQs(a => [...a, { _id: 'new_' + Math.random().toString(36).slice(2), question_text: q.question_text, question_type: q.question_type, options: q.options || (isMx(q.question_type) ? { rows: [], columns: [] } : []), is_required: false, description: q.description || '' }]); setDirty(true); }} />
 
             </div>
           )}

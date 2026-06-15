@@ -1422,7 +1422,7 @@ export default function SurveyEdit() {
                   {[
                     [meetsMinLength(sv.welcome_message, SURVEY_HEALTH_MINIMUMS.welcomeMessage), 'Welcome message'],
                     [sv.expires_at, 'Expiry date set'],
-                    [qs.length <= SHORT_SURVEY_RULES.defaultQuestionCount, `At or below ${SHORT_SURVEY_RULES.defaultQuestionCount} questions`],
+                    [realQuestions.length >= SHORT_SURVEY_RULES.defaultQuestionCount, `${SHORT_SURVEY_RULES.defaultQuestionCount}-question target`],
                     [qs.filter(q => q.is_required).length <= SHORT_SURVEY_RULES.preferredRequiredQuestionLimit, `≤${SHORT_SURVEY_RULES.preferredRequiredQuestionLimit} required questions`],
                     [hasRealQuestions && conciseQuestionCount === realQuestions.length, 'Concise wording'],
                     [hasAdaptiveFormats, 'Adaptive formats'],

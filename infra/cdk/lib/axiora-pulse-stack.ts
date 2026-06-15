@@ -209,6 +209,12 @@ export class AxioraPulseStack extends cdk.Stack {
     });
     taskRole.addManagedPolicy(iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonSSMReadOnlyAccess'));
 
+    // Allow the application container to send SMS notifications via SNS
+    taskRole.addToPolicy(new iam.PolicyStatement({
+      actions: ['sns:Publish'],
+      resources: ['*'],
+    }));
+
     // Backend Fargate Service
     const backendTaskDef = new ecs.FargateTaskDefinition(this, 'BackendTaskDef', {
       memoryLimitMiB: 1024,

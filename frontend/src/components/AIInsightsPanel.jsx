@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import toast from 'react-hot-toast';
 import API from '../api/axios';
 
 /**
@@ -60,136 +61,259 @@ const URGENCY_COLORS = {
 
 
 // ── Score banding ────────────────────────────────────────────────────────────
+// Dynamic colour intelligence — Red → Orange → Yellow → Green as the score climbs.
+//   0–39   Low       red
+//   40–59  Moderate  orange
+//   60–79  Good      yellow
+//   80–100 Strong    green
 
-// Colour for any point on the 0-100 scale (used by the arc ticks + knob).
+const BAND_RED    = '#FF4500';   // low      — brand coral
+const BAND_ORANGE = '#FF8A00';   // moderate
+const BAND_YELLOW = '#F5B700';   // good
+const BAND_GREEN  = '#1E9E5A';   // strong
+
+// Darkened, readable variants for label text on the cream / liquid surface.
+const TEXT_RED    = '#FF4500';
+const TEXT_ORANGE = '#C2410C';
+const TEXT_YELLOW = '#9A6D00';
+const TEXT_GREEN  = '#1E7A4A';
+
+// Colour for any point on the 0-100 scale (used by the legend marker).
 function gaugeColor(v) {
-  return v >= 80 ? '#1E7A4A'      // strong  — green
-       : v >= 60 ? '#A8C13A'      // good    — lime
-       : v >= 40 ? '#FFB800'      // moderate— amber
-       : v >= 25 ? '#FF4500'      // low     — coral
-       :           '#D63B1F';     // very low— terracotta
+  return v >= 80 ? BAND_GREEN
+       : v >= 60 ? BAND_YELLOW
+       : v >= 40 ? BAND_ORANGE
+       :           BAND_RED;
 }
 
 function gaugeBand(s) {
-  if (s >= 80) return { name: 'Strong Interest',   color: '#1E7A4A', desc: 'Respondents show strong, consistent engagement with high intent.' };
-  if (s >= 60) return { name: 'Good Interest',     color: '#A8C13A', desc: 'Respondents show solid interest with good potential.' };
-  if (s >= 40) return { name: 'Moderate Interest', color: '#FFB800', desc: 'Interest is mixed — there’s clear room to strengthen engagement.' };
-  return            { name: 'Low Interest',      color: '#D63B1F', desc: 'Engagement is weak — responses signal hesitation or friction.' };
+  if (s >= 80) return { name: 'Strong',   color: BAND_GREEN,  textColor: TEXT_GREEN,  context: 'Strong Market Demand',    desc: 'Respondents show strong, consistent intent and engagement.' };
+  if (s >= 60) return { name: 'Good',     color: BAND_YELLOW, textColor: TEXT_YELLOW, context: 'Good Market Potential',   desc: 'Solid interest with good purchase potential.' };
+  if (s >= 40) return { name: 'Moderate', color: BAND_ORANGE, textColor: TEXT_ORANGE, context: 'Moderate Engagement',     desc: 'Mixed interest — clear room to strengthen engagement.' };
+  return            { name: 'Low',      color: BAND_RED,    textColor: TEXT_RED,    context: 'Low Market Interest',     desc: 'Weak engagement — responses signal hesitation or friction.' };
 }
 
 const GAUGE_LEGEND = [
-  { range: '0 – 39',   name: 'Low Interest',      color: '#FF4500' },
-  { range: '40 – 59',  name: 'Moderate Interest', color: '#FFB800' },
-  { range: '60 – 79',  name: 'Good Interest',     color: '#A8C13A' },
-  { range: '80 – 100', name: 'Strong Interest',   color: '#1E7A4A' },
+  { range: '0 – 39',   name: 'Low',      color: BAND_RED    },
+  { range: '40 – 59',  name: 'Moderate', color: BAND_ORANGE },
+  { range: '60 – 79',  name: 'Good',     color: BAND_YELLOW },
+  { range: '80 – 100', name: 'Strong',   color: BAND_GREEN  },
 ];
 
-// ── Animated Score Gauge (270° speedometer) ──────────────────────────────────
+// hex → rgba with alpha
+function rgba(hex, a) {
+  const h = hex.replace('#', '');
+  const n = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+}
 
-function ScoreGauge({ score = 0, size = 300 }) {
-  const s      = Math.max(0, Math.min(100, Math.round(score)));
-  const cx     = size / 2;
-  const cy     = size * 0.50;
-  const R      = size * 0.37;
-  const stroke = 16;
-  const START  = 135;   // degrees (bottom-left)
-  const SWEEP  = 270;   // clockwise to bottom-right
+// ── Liquid Intelligence Gauge ─────────────────────────────────────────────────
+// A fluid-filled circular gauge: liquid rises to the score %, with continuous
+// wave motion, floating bubbles, a pulsing glow ring, and dynamic colour that
+// tracks the score band. The number counts up from 0 on load and the liquid
+// level animates smoothly whenever the score changes — waves never stop.
 
-  const toXY = (deg, rad = R) => {
-    const a = (deg * Math.PI) / 180;
-    return { x: cx + rad * Math.cos(a), y: cy + rad * Math.sin(a) };
-  };
-  const arc = (fromDeg, toDeg, rad = R) => {
-    const a = toXY(fromDeg, rad), b = toXY(toDeg, rad);
-    const large = Math.abs(toDeg - fromDeg) > 180 ? 1 : 0;
-    return `M ${a.x} ${a.y} A ${rad} ${rad} 0 ${large} 1 ${b.x} ${b.y}`;
-  };
+// Build the points of one sine wave across `width`.
+function wavePoints(width, amp, waveLen) {
+  const steps = Math.ceil(width / 6);
+  const pts = [];
+  for (let i = 0; i <= steps; i++) {
+    const x = (i / steps) * width;
+    const y = amp * Math.sin((x / waveLen) * Math.PI * 2);
+    pts.push([x, y]);
+  }
+  return pts;
+}
+// Closed path filling everything below the wave crest.
+function waveFill(pts, width, depth) {
+  let d = `M ${pts[0][0]} ${pts[0][1].toFixed(1)}`;
+  for (const [x, y] of pts) d += ` L ${x.toFixed(1)} ${y.toFixed(1)}`;
+  return d + ` L ${width} ${depth} L 0 ${depth} Z`;
+}
+// Open path of just the crest line (used for a surface highlight).
+function waveLine(pts) {
+  let d = `M ${pts[0][0]} ${pts[0][1].toFixed(1)}`;
+  for (const [x, y] of pts) d += ` L ${x.toFixed(1)} ${y.toFixed(1)}`;
+  return d;
+}
 
-  const valDeg = START + SWEEP * (s / 100);
-  const knob   = toXY(valDeg);
-  const band   = gaugeBand(s);
+const EASE = [0.16, 1, 0.3, 1];
 
-  const TICKS = 40;
-  const ticks = Array.from({ length: TICKS + 1 }, (_, i) => {
-    const v   = (i / TICKS) * 100;
-    const deg = START + SWEEP * (i / TICKS);
-    const p1  = toXY(deg, R + 12);
-    const p2  = toXY(deg, R + 18);
-    return { v, p1, p2, on: v <= s };
-  });
-  const numerals = [0, 25, 50, 75, 100];
+function LiquidGauge({ score = 0, size = 248 }) {
+  const target = Math.max(0, Math.min(100, Math.round(score)));
+  const band   = gaugeBand(target);
+  const color  = band.color;
+
+  // ── Geometry ────────────────────────────────────────────────────────────
+  const cx = size / 2, cy = size / 2;
+  const ringR = size / 2 - 11;       // glowing progress ring radius
+  const R     = ringR - 9;           // liquid container radius (sits inside ring)
+  const top = cy - R, fullH = 2 * R, bottom = cy + R;
+  const amp = 7, waveLen = R * 2, width = R * 4, depth = fullH + amp + 16;
+
+  const fill   = target / 100;
+  const levelY = top + (1 - fill) * fullH;   // y of the water surface
+  const emptyY = bottom;                       // surface when empty (mount start)
+
+  const pts = wavePoints(width, amp, waveLen);
+  const fillD = waveFill(pts, width, depth);
+  const lineD = waveLine(pts);
+
+  // ── Progress ring (drawn from the top, clockwise) ────────────────────────
+  const C   = 2 * Math.PI * ringR;
+  const ang = (-90 + 360 * fill) * Math.PI / 180;
+  const knob = { x: cx + ringR * Math.cos(ang), y: cy + ringR * Math.sin(ang) };
+
+  // ── Count-up number (from current value → target) ───────────────────────
+  const [display, setDisplay] = useState(0);
+  const dispRef = useRef(0);
+  useEffect(() => {
+    const from = dispRef.current, to = target, dur = 1500, t0 = performance.now();
+    let raf;
+    const tick = (now) => {
+      const p = Math.min(1, (now - t0) / dur);
+      const eased = 1 - Math.pow(1 - p, 3);
+      const v = Math.round(from + (to - from) * eased);
+      dispRef.current = v; setDisplay(v);
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target]);
+
+  // ── Floating bubbles ─────────────────────────────────────────────────────
+  const travelTop = Math.min(bottom - 10, levelY + 14);
+  const bubbles = [
+    { x: cx - 34, r: 3.2, dur: 4.2, delay: 0   },
+    { x: cx + 28, r: 2.4, dur: 5.0, delay: 0.8 },
+    { x: cx + 6,  r: 4.0, dur: 5.8, delay: 1.6 },
+    { x: cx - 14, r: 2.0, dur: 3.8, delay: 2.4 },
+    { x: cx + 40, r: 2.8, dur: 4.6, delay: 1.1 },
+    { x: cx - 46, r: 2.2, dur: 5.4, delay: 3.0 },
+  ];
 
   return (
-    <div style={{ position: 'relative', width: size, height: size * 0.92, margin: '0 auto' }}>
-      <svg width={size} height={size * 0.92} viewBox={`0 0 ${size} ${size * 0.92}`}>
+    <motion.div
+      whileHover="hover"
+      initial="rest"
+      animate="rest"
+      variants={{ rest: { y: 0 }, hover: { y: -5 } }}
+      transition={{ duration: 0.35, ease: EASE }}
+      style={{ position: 'relative', width: size, height: size, margin: '0 auto' }}
+    >
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ position: 'relative', display: 'block' }}>
         <defs>
-          <linearGradient id="np-gauge-grad" gradientUnits="userSpaceOnUse" x1={cx - R} y1="0" x2={cx + R} y2="0">
-            <stop offset="0%"   stopColor="#D63B1F" />
-            <stop offset="30%"  stopColor="#FF4500" />
-            <stop offset="55%"  stopColor="#FFB800" />
-            <stop offset="78%"  stopColor="#A8C13A" />
-            <stop offset="100%" stopColor="#1E7A4A" />
+          <clipPath id="liq-clip"><circle cx={cx} cy={cy} r={R} /></clipPath>
+          <radialGradient id="liq-bg" cx="50%" cy="38%" r="78%">
+            <stop offset="0%"   stopColor="#FFFDF8" />
+            <stop offset="100%" stopColor={rgba(color, 0.1)} />
+          </radialGradient>
+          <linearGradient id="liq-front" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stopColor={rgba(color, 0.95)} />
+            <stop offset="100%" stopColor={rgba(color, 0.7)} />
+          </linearGradient>
+          <linearGradient id="liq-back" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stopColor={rgba(color, 0.55)} />
+            <stop offset="100%" stopColor={rgba(color, 0.35)} />
           </linearGradient>
         </defs>
 
-        {/* faint full track */}
-        <path d={arc(START, START + SWEEP)} fill="none" stroke="rgba(22,15,8,0.05)" strokeWidth={stroke} strokeLinecap="round" />
+        {/* light glass container */}
+        <circle cx={cx} cy={cy} r={R} fill="url(#liq-bg)" />
 
-        {/* unfilled remainder — dotted */}
-        {s < 100 && (
-          <path d={arc(valDeg, START + SWEEP)} fill="none" stroke="rgba(22,15,8,0.14)" strokeWidth={3} strokeLinecap="round" strokeDasharray="1 9" />
-        )}
+        {/* liquid (clipped to the circle) */}
+        <g clipPath="url(#liq-clip)">
+          <motion.g
+            initial={{ y: emptyY }}
+            animate={{ y: levelY }}
+            transition={{ duration: 1.6, ease: EASE }}
+          >
+            {/* back wave — slower, drifts left */}
+            <motion.g
+              animate={{ x: [0, -waveLen] }}
+              transition={{ duration: 7, repeat: Infinity, ease: 'linear' }}
+            >
+              <path d={fillD} fill="url(#liq-back)" />
+            </motion.g>
 
-        {/* filled value arc */}
-        <motion.path
-          d={arc(START, valDeg)} fill="none" stroke="url(#np-gauge-grad)"
-          strokeWidth={stroke} strokeLinecap="round"
-          initial={{ pathLength: 0 }} animate={{ pathLength: 1 }}
-          transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1], delay: 0.25 }}
+            {/* front wave — faster, drifts right */}
+            <motion.g
+              animate={{ x: [-waveLen, 0] }}
+              transition={{ duration: 5, repeat: Infinity, ease: 'linear' }}
+            >
+              <path d={fillD} fill="url(#liq-front)" />
+              <path d={lineD} fill="none" stroke={rgba('#ffffff', 0.4)} strokeWidth={1.5} />
+            </motion.g>
+          </motion.g>
+
+          {/* bubbles rising through the liquid */}
+          {bubbles.map((b, i) => (
+            <motion.circle
+              key={i} cx={b.x} r={b.r} fill={rgba('#ffffff', 0.4)}
+              initial={{ cy: bottom - 6, opacity: 0 }}
+              animate={{ cy: [bottom - 6, travelTop], opacity: [0, 0.65, 0] }}
+              transition={{ duration: b.dur, delay: b.delay, repeat: Infinity, ease: 'easeIn' }}
+            />
+          ))}
+
+          {/* subtle inner shading for glass depth */}
+          <circle cx={cx} cy={cy} r={R} fill="none" stroke={rgba('#160F08', 0.06)} strokeWidth={5} style={{ filter: 'blur(3px)' }} />
+        </g>
+
+        {/* vessel edge + glass highlight */}
+        <circle cx={cx} cy={cy} r={R} fill="none" stroke={rgba(color, 0.3)} strokeWidth={1.5} />
+        <circle cx={cx} cy={cy} r={R - 1.5} fill="none" stroke={rgba('#ffffff', 0.55)} strokeWidth={1} />
+
+        {/* soft pulsing glow — locked to the ring radius so it never drifts */}
+        <motion.circle
+          cx={cx} cy={cy} r={ringR} fill="none" stroke={color} strokeWidth={3}
+          style={{ filter: 'blur(4px)' }}
+          variants={{ rest: { opacity: [0.18, 0.4, 0.18] }, hover: { opacity: 0.6 } }}
+          transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}
         />
 
-        {/* ticks */}
-        {ticks.map((t, i) => (
-          <line key={i} x1={t.p1.x} y1={t.p1.y} x2={t.p2.x} y2={t.p2.y}
-            stroke={t.on ? gaugeColor(t.v) : 'rgba(22,15,8,0.12)'}
-            strokeWidth={1.5} strokeLinecap="round" />
-        ))}
+        {/* progress ring — faint track */}
+        <circle cx={cx} cy={cy} r={ringR} fill="none" stroke={rgba(color, 0.16)} strokeWidth={3} />
 
-        {/* numerals */}
-        {numerals.map(n => {
-          const p = toXY(START + SWEEP * (n / 100), R + 32);
-          return (
-            <text key={n} x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle"
-              fontFamily="Syne,sans-serif" fontSize="11" fontWeight="700" fill="rgba(22,15,8,0.4)">{n}</text>
-          );
-        })}
+        {/* progress ring — glowing value arc.
+            Rotation lives on a static <g> (not the motion.circle) — framer-motion
+            overrides a transform attribute set directly on an animated element. */}
+        <g transform={`rotate(-90 ${cx} ${cy})`}>
+          <motion.circle
+            cx={cx} cy={cy} r={ringR} fill="none" stroke={color} strokeWidth={3} strokeLinecap="round"
+            strokeDasharray={C}
+            initial={{ strokeDashoffset: C }}
+            animate={{ strokeDashoffset: C * (1 - fill) }}
+            transition={{ duration: 1.6, ease: EASE, delay: 0.2 }}
+            style={{ filter: `drop-shadow(0 0 6px ${rgba(color, 0.6)})` }}
+          />
+        </g>
 
-        {/* marker knob */}
+        {/* knob at the end of the arc — white with coloured ring so it reads on cream */}
         <motion.circle
-          cx={knob.x} cy={knob.y} r={9} fill="#fff" stroke={band.color} strokeWidth={4}
+          cx={knob.x} cy={knob.y} r={6.5} fill="#fff" stroke={color} strokeWidth={2.5}
           initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-          transition={{ duration: 0.5, delay: 1.3, ease: [0.16, 1, 0.3, 1] }}
-          style={{ transformOrigin: `${knob.x}px ${knob.y}px`, filter: 'drop-shadow(0 2px 4px rgba(22,15,8,0.18))' }}
+          transition={{ delay: 1.5, duration: 0.4, ease: EASE }}
+          style={{ transformOrigin: `${knob.x}px ${knob.y}px`, filter: 'drop-shadow(0 1px 4px rgba(22,15,8,0.28))' }}
         />
       </svg>
 
       {/* centre content */}
-      <div style={{ position: 'absolute', left: cx, top: cy, transform: 'translate(-50%,-50%)', width: size * 0.66, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
-          <motion.span
-            initial={{ opacity: 0, scale: 0.6 }} animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.6, delay: 0.7 }}
-            style={{ fontFamily: FONTS.display, fontWeight: 900, fontSize: 54, letterSpacing: '-1px', color: 'var(--espresso)', lineHeight: 1 }}>{s}</motion.span>
-          <span style={{ fontFamily: FONTS.heading, fontWeight: 700, fontSize: 12, color: 'rgba(22,15,8,0.3)', letterSpacing: '0.02em' }}>/ 100</span>
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', pointerEvents: 'none', padding: '0 24px' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+          <span style={{ fontFamily: FONTS.display, fontWeight: 900, fontSize: 56, letterSpacing: '-1px', color: 'var(--espresso)', lineHeight: 1, textShadow: '0 1px 2px rgba(255,251,244,0.5)' }}>{display}</span>
+          <span style={{ fontFamily: FONTS.heading, fontWeight: 700, fontSize: 13, color: 'rgba(22,15,8,0.4)', letterSpacing: '0.02em' }}>/ 100</span>
         </div>
-        <svg width="32" height="11" viewBox="0 0 40 14" fill="none" style={{ margin: '10px 0 10px', opacity: 0.85 }}>
-          <path d="M1 7h7l3-5 5 10 4-7 3 3h13" stroke={band.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-        <motion.span
-          initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1 }}
-          style={{ fontFamily: FONTS.heading, fontWeight: 700, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: band.color, background: `${band.color}14`, padding: '5px 13px', borderRadius: 999, lineHeight: 1, whiteSpace: 'nowrap' }}>{band.name}</motion.span>
+        <motion.div
+          key={band.context}
+          initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6, duration: 0.5 }}
+          style={{ marginTop: 12 }}
+        >
+          <div style={{ fontFamily: FONTS.heading, fontWeight: 700, fontSize: 13, letterSpacing: '0.04em', color: band.textColor, marginBottom: 4 }}>{band.context}</div>
+          <div style={{ fontFamily: FONTS.body, fontWeight: 300, fontSize: 11, color: 'rgba(22,15,8,0.55)', lineHeight: 1.45, maxWidth: 150, margin: '0 auto' }}>{band.desc}</div>
+        </motion.div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -275,12 +399,264 @@ function Section({ label, children, delay = 0 }) {
   );
 }
 
+// ── Structured PDF report builder ─────────────────────────────────────────────
+// Lays the AI result out as real, selectable text with proper headings, wrapping
+// and page breaks — instead of screenshotting the DOM (which mangled pagination).
+
+function buildInsightsReport(doc, r, survey) {
+  if (!r) throw new Error('No insights to export');
+
+  const M = 48;
+  const W = doc.internal.pageSize.getWidth();
+  const H = doc.internal.pageSize.getHeight();
+  const CW = W - M * 2;
+  const INK = '#15100A', BODY = '#6E6354', SUB = '#6E6354', FAINT = '#A99C87', LINE = '#E8DEC9', CORAL = '#FF4500';
+  let y = M;
+
+  // jsPDF's standard fonts choke on some Unicode punctuation — normalise to ASCII.
+  const ascii = (s) => String(s ?? '')
+    .replace(/[‘’]/g, "'").replace(/[“”]/g, '"')
+    .replace(/[–—]/g, '-').replace(/…/g, '...').replace(/•/g, '-');
+
+  const sentColor = (s) => ({ positive: '#1E9E5A', negative: '#D63B1F', neutral: '#8A8071', mixed: '#C2410C' }[s] || '#8A8071');
+  const urgColor  = (u) => ({ critical: '#D63B1F', high: '#FF4500', medium: '#C2410C', low: '#8A8071' }[u] || '#C2410C');
+
+  function footer() {
+    const p = doc.internal.getCurrentPageInfo().pageNumber;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor('#B8AE9C');
+    doc.text('Axiora Pulse · Pulse Insights', M, H - 22);
+    doc.text(`Page ${p}`, W - M, H - 22, { align: 'right' });
+  }
+  function pageBreak(needed) {
+    if (y + needed > H - M - 24) { footer(); doc.addPage(); y = M; }
+  }
+  const gap = (h) => { y += h; };
+
+  function para(text, o = {}) {
+    if (text == null || text === '') return;
+    const size = o.size || 10.5;
+    const lh = o.lh || size * 1.45;
+    const indent = o.indent || 0;
+    const pad = o.prefix ? 18 : 0;
+    doc.setFontSize(size);
+    doc.setTextColor(o.color || BODY);
+    doc.setFont('helvetica', o.bold ? 'bold' : (o.italic ? 'italic' : 'normal'));
+    const lines = doc.splitTextToSize(ascii(text), CW - indent - pad);
+    lines.forEach((line, i) => {
+      pageBreak(lh);
+      if (i === 0 && o.prefix) {
+        doc.setFont('helvetica', 'bold'); doc.setTextColor(o.prefixColor || CORAL); doc.setFontSize(size);
+        doc.text(o.prefix, M + indent, y);
+        doc.setFont('helvetica', o.bold ? 'bold' : (o.italic ? 'italic' : 'normal')); doc.setTextColor(o.color || BODY);
+      }
+      doc.text(line, M + indent + pad, y);
+      y += lh;
+    });
+  }
+
+  function sectionLabel(text) {
+    pageBreak(56);
+    gap(16);
+    // coral accent bar + spaced label
+    doc.setFillColor(CORAL); doc.rect(M, y - 8, 3.5, 11, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(11.5); doc.setTextColor(CORAL);
+    doc.text(text.toUpperCase(), M + 11, y, { charSpace: 1.8 });
+    gap(9);
+    doc.setDrawColor(LINE); doc.setLineWidth(1);
+    doc.line(M, y, M + CW, y);
+    gap(17);
+  }
+
+  // ── Title ──
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(22); doc.setTextColor(INK);
+  doc.text('AI Deep Analysis', M, y + 8); gap(28);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(12); doc.setTextColor(SUB);
+  doc.text(ascii(survey?.title || 'Survey insights'), M, y); gap(16);
+  doc.setFontSize(9); doc.setTextColor(FAINT);
+  doc.text(`Generated ${new Date().toLocaleString()}`, M, y); gap(12);
+  doc.setDrawColor(LINE); doc.setLineWidth(1.2); doc.line(M, y, M + CW, y);
+
+  // ── Score + scale ──
+  if (r.overallScore != null) {
+    const s = Math.round(r.overallScore);
+    const band = gaugeBand(s);
+    pageBreak(90);
+    gap(18);
+    const topY = y;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(40); doc.setTextColor(band.color);
+    doc.text(String(s), M, topY + 24);
+    const numW = doc.getTextWidth(String(s));
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(12); doc.setTextColor(FAINT);
+    doc.text('/100', M + numW + 6, topY + 24);
+
+    const tx = M + numW + 54;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.setTextColor(INK);
+    doc.text(ascii(band.context), tx, topY + 8);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(SUB);
+    const dl = doc.splitTextToSize(ascii(band.desc), M + CW - tx);
+    let dy = topY + 22;
+    dl.forEach(l => { doc.text(l, tx, dy); dy += 13; });
+    y = Math.max(topY + 34, dy) + 14;
+
+    // colour scale
+    const segs = ['#FF4500', '#FF8A00', '#F5B700', '#1E9E5A'];
+    const labels = [['0-39', 'Low'], ['40-59', 'Moderate'], ['60-79', 'Good'], ['80-100', 'Strong']];
+    const segW = CW / 4, barH = 6;
+    segs.forEach((c, i) => { doc.setFillColor(c); doc.rect(M + i * segW, y, segW, barH, 'F'); });
+    const mx = M + Math.max(0, Math.min(1, s / 100)) * CW;
+    doc.setDrawColor(gaugeColor(s)); doc.setLineWidth(2); doc.setFillColor('#FFFFFF');
+    doc.circle(mx, y + barH / 2, 4.5, 'FD');
+    gap(barH + 13);
+    labels.forEach((lb, i) => {
+      const lx = M + i * segW;
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(segs[i]);
+      doc.text(lb[0], lx, y);
+      doc.setFont('helvetica', 'normal'); doc.setTextColor(SUB);
+      doc.text(lb[1], lx + doc.getTextWidth(lb[0]) + 6, y);
+    });
+    gap(8);
+  }
+
+  // ── Executive Summary ──
+  if (r.executiveSummaryBullets?.length || r.executiveSummary) {
+    sectionLabel('Executive Summary');
+    if (r.executiveSummaryBullets?.length) {
+      r.executiveSummaryBullets.forEach((b, i) => { para(b, { prefix: `${i + 1}.`, size: 10.5, color: '#3A3328', lh: 16 }); gap(7); });
+    } else para(r.executiveSummary);
+  }
+
+  // ── Sentiment ──
+  if (r.sentimentBreakdown) {
+    sectionLabel('Sentiment Analysis');
+    const { positive = 0, neutral = 0, negative = 0, overall } = r.sentimentBreakdown;
+    const total = Math.max(1, positive + neutral + negative);
+    pageBreak(46);
+    const barH = 14; let bx = M;
+    [['#1E9E5A', positive], ['#C9C0B2', neutral], ['#D63B1F', negative]].forEach(([c, v]) => {
+      const w = CW * (v / total); doc.setFillColor(c); doc.rect(bx, y, w, barH, 'F'); bx += w;
+    });
+    gap(barH + 14);
+    para(`Positive ${positive}%     Neutral ${neutral}%     Negative ${negative}%`, { size: 9.5, color: SUB });
+    if (overall) para(`Overall sentiment: ${String(overall).toUpperCase()}`, { size: 9.5, bold: true, color: sentColor(overall) });
+  }
+
+  // ── NPS ──
+  if (r.npsAnalysis) { sectionLabel('NPS Interpretation'); para(r.npsAnalysis); }
+
+  // ── Key Themes ──
+  if (r.keyThemes?.length) {
+    sectionLabel('Key Themes');
+    r.keyThemes.forEach(t => {
+      pageBreak(38);
+      const tag = t.sentiment ? String(t.sentiment).toUpperCase() : '';
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(12.5); doc.setTextColor(INK);
+      const tagW = tag ? doc.getTextWidth(tag) + 10 : 0;
+      const titleLines = doc.splitTextToSize(ascii(t.theme || ''), CW - tagW);
+      doc.text(titleLines, M, y);
+      if (tag) { doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(sentColor(t.sentiment)); doc.text(tag, M + CW, y, { align: 'right', charSpace: 0.5 }); }
+      y += titleLines.length * 16;
+      gap(2);
+      if (t.frequency) para(t.frequency, { size: 8.5, color: FAINT });
+      (t.quotes || []).slice(0, 3).forEach(q => para(`"${q}"`, { size: 9.5, italic: true, color: FAINT, indent: 10 }));
+      gap(9);
+    });
+  }
+
+  // ── Key Findings ──
+  if (r.insights?.length) {
+    sectionLabel('Key Findings');
+    r.insights.forEach(ins => {
+      pageBreak(34);
+      para(ins.title, { bold: true, size: 12, color: INK });
+      gap(2);
+      if (ins.detail) para(ins.detail, { size: 10, color: BODY });
+      if (ins.metric) para(String(ins.metric).toUpperCase(), { size: 8, bold: true, color: CORAL });
+      gap(8);
+    });
+  }
+
+  // ── Respondent Segments ──
+  if (r.respondentSegments?.length) {
+    sectionLabel('Respondent Segments');
+    r.respondentSegments.forEach(seg => {
+      pageBreak(34);
+      para(`${seg.segment}${seg.size ? '   ' + seg.size : ''}`, { bold: true, size: 12, color: INK });
+      gap(2);
+      if (seg.characteristics) para(seg.characteristics, { size: 10, color: BODY });
+      if (seg.keyDifference) para(`Key difference: ${seg.keyDifference}`, { size: 9.5, italic: true, color: FAINT, indent: 10 });
+      gap(8);
+    });
+  }
+
+  // ── Urgency ──
+  if (r.urgencyMatrix?.length) {
+    sectionLabel('What Needs Your Attention');
+    r.urgencyMatrix.forEach(it => {
+      pageBreak(32);
+      const head = `${it.urgency ? '[' + String(it.urgency).toUpperCase() + '] ' : ''}${it.issue || ''}`;
+      para(head, { bold: true, size: 11.5, color: urgColor(it.urgency) });
+      gap(1);
+      if (it.evidence) para(it.evidence, { size: 10, color: BODY });
+      gap(7);
+    });
+  }
+
+  // ── Strengths / Improvements ──
+  if (r.topStrengths?.length) {
+    sectionLabel('Top Strengths');
+    r.topStrengths.forEach(s => para(s, { prefix: '+', prefixColor: '#1E9E5A', size: 10 }));
+  }
+  if (r.improvementAreas?.length) {
+    sectionLabel('Areas to Improve');
+    r.improvementAreas.forEach(a => para(a, { prefix: '!', prefixColor: '#C2410C', size: 10 }));
+  }
+
+  // ── Recommended Actions ──
+  if (r.recommendedActions?.length) {
+    sectionLabel('Recommended Actions');
+    r.recommendedActions.forEach((a, i) => {
+      para(a.action, { prefix: `${i + 1}.`, bold: true, size: 11.5, color: INK });
+      if (a.impact) para(a.impact, { size: 9.5, color: BODY, indent: 18 });
+      gap(8);
+    });
+  }
+
+  footer();
+}
+
 // ── Main Component ───────────────────────────────────────────────────────────
 
 export default function AIInsightsPanel({ survey, analytics, questionAnalytics }) {
-  const [state,  setState] = useState('idle');
+  const [state,  setState] = useState('checking');  // checking | idle | loading | done | error
   const [result, setResult] = useState(null);
+  const [meta,   setMeta] = useState(null);          // { newResponses, needsRefresh, threshold, generatedAt }
   const [errMsg, setErrMsg] = useState('');
+
+  // Export (PDF)
+  const [exporting, setExporting] = useState(false);   // false | 'pdf'
+
+  // On mount, load any previously-generated insights instead of always prompting.
+  // The AI is only re-run when the user asks, or after enough new responses arrive.
+  useEffect(() => {
+    if (!survey?.id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await API.get(`/ai/surveys/${survey.id}/insights/status`);
+        if (cancelled) return;
+        if (data?.insights) {
+          setResult(data.insights);
+          setMeta(data);
+          setState('done');
+        } else {
+          setState('idle');
+        }
+      } catch {
+        if (!cancelled) setState('idle');   // fall back to the manual generate prompt
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [survey?.id]);
 
   async function generate() {
     if (state === 'loading') return;
@@ -289,7 +665,8 @@ export default function AIInsightsPanel({ survey, analytics, questionAnalytics }
 
     try {
       const { data } = await API.get(`/ai/surveys/${survey.id}/insights`);
-      setResult(data);
+      setResult(data.insights ?? data);
+      setMeta(data.insights ? data : null);
       setState('done');
     } catch (e) {
       console.error('AI insights:', e);
@@ -298,12 +675,48 @@ export default function AIInsightsPanel({ survey, analytics, questionAnalytics }
     }
   }
 
+  // ── Export helpers ──────────────────────────────────────────────────────────
+  function exportFileBase() {
+    const slug = (survey?.title || 'survey')
+      .replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase();
+    return `${slug || 'survey'}-ai-insights`;
+  }
+
+  async function exportPDF() {
+    if (exporting) return;
+    setExporting('pdf');
+    const id = toast.loading('Building PDF report…');
+    try {
+      const { jsPDF } = await import('jspdf');
+      const doc = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
+      buildInsightsReport(doc, result, survey);
+      doc.save(`${exportFileBase()}.pdf`);
+      toast.success('PDF report downloaded', { id });
+    } catch (e) {
+      console.error('PDF export:', e);
+      toast.error('Could not export PDF', { id });
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  // ─── Checking for an existing analysis (initial mount) ────────────────────
+  if (state === 'checking') return (
+    <div style={{ ...S.card, display:'flex', alignItems:'center', justifyContent:'center', gap:12, padding:'48px 32px' }}>
+      <motion.span animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+        style={{ display:'inline-block', width:16, height:16, border:'2px solid rgba(22,15,8,0.15)', borderTopColor:'var(--coral)', borderRadius:'50%' }} />
+      <span style={{ fontFamily:FONTS.heading, fontSize:10, fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase', color:'rgba(22,15,8,0.4)' }}>Loading Pulse Insights…</span>
+    </div>
+  );
+
   // ─── Idle / Loading / Error state ─────────────────────────────────────────
   if (state !== 'done') return (
     <div style={{ ...S.card, display:'flex', flexDirection:'column', alignItems:'center', textAlign:'center', padding:'36px 32px', gap:16 }}>
-      <div style={{ width:52, height:52, borderRadius:'50%', background:'rgba(255,69,0,0.08)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22 }}>✦</div>
+      <div style={{ width:52, height:52, borderRadius:'50%', background:'rgba(255,69,0,0.08)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--coral)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      </div>
       <div>
-        <div style={{ fontFamily:FONTS.display, fontWeight:900, fontSize:20, letterSpacing:'-0.5px', color:'var(--espresso)', marginBottom:8 }}>AI Insights</div>
+        <div style={{ fontFamily:FONTS.display, fontWeight:900, fontSize:20, letterSpacing:'-0.5px', color:'var(--espresso)', marginBottom:8 }}>Pulse Insights</div>
         <p style={{ ...S.body, margin:0, maxWidth:380, color:'rgba(22,15,8,0.45)' }}>
           {state === 'error'
             ? errMsg
@@ -344,18 +757,58 @@ export default function AIInsightsPanel({ survey, analytics, questionAnalytics }
         style={{ display:'flex', flexDirection:'column', gap:22 }}>
 
         {/* ─── Header ─────────────────────────────────────────────────────── */}
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12 }}>
           <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-            <div style={{ width:32, height:32, borderRadius:'50%', background:'rgba(255,69,0,0.1)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14 }}>✦</div>
-            <span style={{ fontFamily:FONTS.display, fontWeight:900, fontSize:18, letterSpacing:'-0.5px', color:'var(--espresso)' }}>AI Deep Analysis</span>
+            <div style={{ width:32, height:32, borderRadius:'50%', background:'rgba(255,69,0,0.1)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--coral)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            </div>
+            <span style={{ fontFamily:FONTS.display, fontWeight:900, fontSize:18, letterSpacing:'-0.5px', color:'var(--espresso)' }}>Pulse Analysis</span>
           </div>
-          <button onClick={() => setState('idle')}
-            style={{ fontFamily:FONTS.heading, fontSize:9, fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', color:'rgba(22,15,8,0.3)', background:'none', border:'none', cursor:'pointer', transition:'color 0.2s', padding:0 }}
-            onMouseEnter={e=>e.currentTarget.style.color='var(--coral)'}
-            onMouseLeave={e=>e.currentTarget.style.color='rgba(22,15,8,0.3)'}>
-            Regenerate ↺
-          </button>
+
+          <div style={{ display:'flex', alignItems:'center', gap:14 }}>
+            <button
+              onClick={exportPDF}
+              disabled={!!exporting}
+              style={{ display:'inline-flex', alignItems:'center', gap:7, padding:'8px 15px', borderRadius:999, border:'1px solid rgba(22,15,8,0.12)', background:'var(--warm-white)', color:'var(--espresso)', fontFamily:FONTS.heading, fontWeight:700, fontSize:9, letterSpacing:'0.1em', textTransform:'uppercase', cursor: exporting ? 'default' : 'pointer', transition:'all 0.2s', opacity: exporting ? 0.7 : 1 }}
+              onMouseEnter={e => { if (!exporting) e.currentTarget.style.borderColor = 'var(--coral)'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(22,15,8,0.12)'; }}>
+              {exporting ? (
+                <motion.span animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                  style={{ display:'inline-block', width:11, height:11, border:'2px solid rgba(22,15,8,0.2)', borderTopColor:'var(--coral)', borderRadius:'50%' }} />
+              ) : (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              )}
+              {exporting ? 'Saving PDF…' : 'Export PDF'}
+            </button>
+
+            <button onClick={() => setState('idle')}
+              style={{ fontFamily:FONTS.heading, fontSize:9, fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', color:'rgba(22,15,8,0.3)', background:'none', border:'none', cursor:'pointer', transition:'color 0.2s', padding:0 }}
+              onMouseEnter={e=>e.currentTarget.style.color='var(--coral)'}
+              onMouseLeave={e=>e.currentTarget.style.color='rgba(22,15,8,0.3)'}>
+              Regenerate ↺
+            </button>
+          </div>
         </div>
+
+        {/* ─── New-responses nudge — only once enough have arrived ─────────── */}
+        {meta?.needsRefresh && (
+          <motion.div initial={{ opacity:0, y:-6 }} animate={{ opacity:1, y:0 }}
+            style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:14, flexWrap:'wrap', padding:'12px 16px', borderRadius:14, background:'rgba(255,184,0,0.09)', border:'1px solid rgba(255,184,0,0.22)' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:11 }}>
+              <span style={{ width:26, height:26, borderRadius:'50%', background:'rgba(255,184,0,0.18)', color:'#9A6D00', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              </span>
+              <span style={{ fontFamily:FONTS.body, fontWeight:300, fontSize:13, color:'rgba(22,15,8,0.7)', lineHeight:1.45 }}>
+                <strong style={{ fontFamily:FONTS.heading, fontWeight:700 }}>{meta.newResponses} new responses</strong> since this analysis — refresh to bring your insights up to date.
+              </span>
+            </div>
+            <button onClick={generate}
+              style={{ display:'inline-flex', alignItems:'center', gap:7, padding:'8px 16px', borderRadius:999, border:'none', background:'var(--espresso)', color:'var(--cream)', fontFamily:FONTS.heading, fontWeight:700, fontSize:9, letterSpacing:'0.1em', textTransform:'uppercase', cursor:'pointer', flexShrink:0 }}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              Regenerate
+            </button>
+          </motion.div>
+        )}
 
         {/* ─── Score Gauge + Executive Summary (side by side) ─────────────── */}
         <Section delay={0.03}>
@@ -364,9 +817,9 @@ export default function AIInsightsPanel({ survey, analytics, questionAnalytics }
 
             {/* Left — gauge + scale + meaning */}
             {r.overallScore != null && (
-              <div style={{ ...S.card, paddingTop:18, display:'flex', flexDirection:'column' }}>
-                <ScoreGauge score={r.overallScore} />
-                <div style={{ height:1, background:'rgba(22,15,8,0.07)', margin:'6px 0 18px' }} />
+              <div style={{ ...S.card, paddingTop:24, display:'flex', flexDirection:'column' }}>
+                <LiquidGauge score={r.overallScore} />
+                <div style={{ height:1, background:'rgba(22,15,8,0.07)', margin:'22px 0 18px' }} />
                 <ScoreLegend score={r.overallScore} />
                 <div style={{ height:1, background:'rgba(22,15,8,0.07)', margin:'18px 0' }} />
                 <div style={{ display:'flex', gap:13, alignItems:'flex-start' }}>

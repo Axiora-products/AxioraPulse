@@ -16,6 +16,45 @@ const Logo = ({ dark }) => (
   </div>
 );
 
+// Validation helpers
+const validateFullName = (val) => {
+  if (!val || val.trim() === '') {
+    return 'Name is required';
+  }
+  if (/\d/.test(val)) {
+    return 'Name must not contain digits';
+  }
+  return '';
+};
+
+const validateEmail = (val) => {
+  const trimmed = val.trim().toLowerCase();
+  if (!trimmed) {
+    return 'Email is required';
+  }
+  const regex = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/;
+  if (!regex.test(trimmed)) {
+    return 'That doesn’t look like a real email… try again with something like name@example.com';
+  }
+  return '';
+};
+
+const validatePhoneNumber = (val) => {
+  const suffix = val.slice(4).trim();
+  if (!suffix) {
+    return '';
+  }
+  const digits = val.replace(/\D/g, '');
+  let parsed = digits;
+  if (parsed.startsWith('91')) {
+    parsed = parsed.slice(2);
+  }
+  if (parsed.length !== 10) {
+    return 'Phone number must have exactly 10 digits';
+  }
+  return '';
+};
+
 export default function Register() {
   const location = useLocation();
   const [f, sf] = useState({ 
@@ -34,25 +73,50 @@ export default function Register() {
   const { user, initialized, initialize } = useAuthStore();
   const { stopLoading } = useLoading();
   const nav = useNavigate();
+  const [errors, setErrors] = useState({
+    fullName: '',
+    email: '',
+    phoneNumber: ''
+  });
+  const [focusedField, setFocusedField] = useState('');
+
+  const handleBlur = (k) => {
+    let errorMsg = '';
+    if (k === 'fullName') {
+      errorMsg = validateFullName(f.fullName);
+    } else if (k === 'email') {
+      errorMsg = validateEmail(f.email);
+    } else if (k === 'phoneNumber') {
+      errorMsg = validatePhoneNumber(f.phoneNumber);
+    }
+    setErrors(p => ({ ...p, [k]: errorMsg }));
+  };
+
   useEffect(() => { stopLoading(); }, [stopLoading]);
 
   if (initialized && user) {
     return <Navigate to="/dashboard" replace />;
   }
 
-  const s = (k, v) => sf(p => {
-    let finalVal = v;
-    if (k === 'phoneNumber') {
-      finalVal = v.startsWith('+91 ') ? v : '+91 ';
+  const s = (k, v) => {
+    sf(p => {
+      let finalVal = v;
+      if (k === 'phoneNumber') {
+        finalVal = v.startsWith('+91 ') ? v : '+91 ';
+      }
+      const n = { ...p, [k]: finalVal };
+      if (k === 'tenantName') n.tenantSlug = finalVal.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      if (k === 'accountType' && v === 'personal') {
+        n.tenantName = '';
+        n.tenantSlug = '';
+      }
+      return n;
+    });
+
+    if (errors[k]) {
+      setErrors(p => ({ ...p, [k]: '' }));
     }
-    const n = { ...p, [k]: finalVal };
-    if (k === 'tenantName') n.tenantSlug = finalVal.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    if (k === 'accountType' && v === 'personal') {
-      n.tenantName = '';
-      n.tenantSlug = '';
-    }
-    return n;
-  });
+  };
 
   const personalWorkspaceSlug = () => {
     const localPart = f.email.split('@')[0] || 'personal';
@@ -63,12 +127,38 @@ export default function Register() {
   // Step 1: sign up with Cognito → sends verification email
   const go = async (e) => {
     e.preventDefault();
-    if (!f.fullName || !f.email || !f.password) return toast.error('Fill all fields');
-    if (f.accountType === 'organization' && !f.tenantName) return toast.error('Organisation is required');
+    const trimmedEmail = f.email.trim().toLowerCase();
+    sf(p => ({ ...p, email: trimmedEmail }));
+
+    const nameErr = validateFullName(f.fullName);
+    const emailErr = validateEmail(trimmedEmail);
+    const phoneErr = validatePhoneNumber(f.phoneNumber);
+
+    setErrors({
+      fullName: nameErr,
+      email: emailErr,
+      phoneNumber: phoneErr
+    });
+
+    if (nameErr) {
+      toast.error(nameErr);
+      return;
+    }
+    if (emailErr) {
+      toast.error(emailErr);
+      return;
+    }
+    if (phoneErr) {
+      toast.error(phoneErr);
+      return;
+    }
+
+    if (!f.password) return toast.error('Password is required');
     if (f.password.length < 8) return toast.error('Password needs 8+ characters');
+    if (f.accountType === 'organization' && !f.tenantName) return toast.error('Organisation is required');
     setBusy(true);
     try {
-      await cognitoSignUp(f.email, f.password, f.fullName);
+      await cognitoSignUp(trimmedEmail, f.password, f.fullName);
       setStep('verify');
       toast.success('Verification code sent to your email');
     } catch (err) {
@@ -77,12 +167,12 @@ export default function Register() {
         // Option 1: Cleanup flow
         try {
           console.log('Calling /auth/cleanup-unconfirmed...');
-          const cleanupResp = await API.post('/auth/cleanup-unconfirmed', { email: f.email });
+          const cleanupResp = await API.post('/auth/cleanup-unconfirmed', { email: trimmedEmail });
           console.log('Cleanup response:', cleanupResp.data);
           
           if (cleanupResp.data?.deleted) {
             console.log('User was unconfirmed and deleted. Retrying signup...');
-            await cognitoSignUp(f.email, f.password, f.fullName);
+            await cognitoSignUp(trimmedEmail, f.password, f.fullName);
             setStep('verify');
             toast.success('Verification code sent to your email');
             return;
@@ -283,16 +373,46 @@ export default function Register() {
               { label: 'Work email', key: 'email', type: 'email', ph: 'jane@company.com' },
               { label: 'Password', key: 'password', type: 'password', ph: 'Min 8 characters' },
               { label: 'Mobile number (optional)', key: 'phoneNumber', type: 'tel', ph: '+91 98765 43210' },
-            ].map(field => (
-              <div key={field.key}>
-                <label style={labelStyle}>{field.label}</label>
-                <input type={field.type} value={f[field.key]} onChange={e => s(field.key, e.target.value)} placeholder={field.ph}
-                  style={inputStyle}
-                  onFocus={e => e.target.style.borderBottomColor = 'var(--coral)'}
-                  onBlur={e => e.target.style.borderBottomColor = 'rgba(22,15,8,0.12)'}
-                />
-              </div>
-            ))}
+            ].map(field => {
+              const hasError = !!errors[field.key];
+              const isFocused = focusedField === field.key;
+
+              let borderBottomColor = 'rgba(22,15,8,0.12)';
+              if (hasError) {
+                borderBottomColor = 'var(--terracotta)';
+              } else if (isFocused) {
+                borderBottomColor = 'var(--coral)';
+              }
+
+              return (
+                <div key={field.key} style={{ display: 'flex', flexDirection: 'column' }}>
+                  <label style={labelStyle}>{field.label}</label>
+                  <input type={field.type} value={f[field.key]} onChange={e => s(field.key, e.target.value)} placeholder={field.ph}
+                    style={{
+                      ...inputStyle,
+                      borderBottom: `2px solid ${borderBottomColor}`
+                    }}
+                    onFocus={() => setFocusedField(field.key)}
+                    onBlur={() => {
+                      setFocusedField('');
+                      if (field.key !== 'password') {
+                        handleBlur(field.key);
+                      }
+                    }}
+                  />
+                  {hasError && (
+                    <span style={{
+                      color: 'var(--terracotta)',
+                      fontSize: 11,
+                      fontFamily: 'Fraunces, serif',
+                      marginTop: 4
+                    }}>
+                      {errors[field.key]}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
 
             <div>
               <label style={labelStyle}>Account type</label>
