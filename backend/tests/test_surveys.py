@@ -113,7 +113,7 @@ def test_survey_feedback(auth_headers):
 
 
 def test_survey_localization_helper_methods(auth_headers):
-    from unittest.mock import patch, MagicMock
+    from unittest.mock import patch
 
     # 1. Create a survey with all question types and localized inputs (matrix, list options, descriptions, etc.)
     survey_payload = {
@@ -149,56 +149,28 @@ def test_survey_localization_helper_methods(auth_headers):
     survey_data = create_resp.json()
     slug = survey_data["slug"]
 
-    # 2. Mock google translate API response (happy path)
-    mock_google_response = MagicMock()
-    mock_google_response.json.return_value = [[["Translated text", "Original text", None, None, 3]]]
-    mock_google_response.raise_for_status.return_value = None
+    # 2. Mock offline translation response (happy path)
+    def mock_offline_translate(texts, languages=("te", "hi")):
+        return {text: {"te": "Offline Telugu", "hi": "Offline Hindi"} for text in texts}
 
-    # We will patch requests.get to return this mock response
-    with patch("requests.get", return_value=mock_google_response):
+    with patch("routes.surveys.offline_translate_texts", side_effect=mock_offline_translate):
         # Fetching survey by slug triggers _localize_public_survey
         resp = client.get(f"/surveys/slug/{slug}")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["title"]["te"] == "Translated text"
-        assert data["title"]["hi"] == "Translated text"
+        assert data["title"]["te"] == "Offline Telugu"
+        assert data["title"]["hi"] == "Offline Hindi"
 
-    # 3. Mock google translate API throwing an exception
-    from routes.surveys import _translate_with_google
+    # 3. Missing offline models should not break public survey loading.
+    from services.offline_translation import OfflineTranslationError
 
-    _translate_with_google.cache_clear()
-    with patch("requests.get", side_effect=Exception("Translation connection failed")):
+    with patch("routes.surveys.offline_translate_texts", side_effect=OfflineTranslationError("missing model")):
         # It should fallback to returning the original English text
         resp = client.get(f"/surveys/slug/{slug}")
         assert resp.status_code == 200
         data = resp.json()
         assert data["title"]["te"] == "Localization Survey"
         assert data["title"]["hi"] == "Localization Survey"
-
-    # 4. Mock Gemini/Generative API translation path (GEMINI_KEY does not start with "mock-")
-    mock_gemini_api_response = MagicMock()
-    mock_gemini_api_response.json.return_value = {
-        "candidates": [
-            {
-                "content": {
-                    "parts": [
-                        {
-                            "text": '{"translations": [{"en": "Localization Survey", "te": "Gemini Telugu", "hi": "Gemini Hindi"}]}'
-                        }
-                    ]
-                }
-            }
-        ]
-    }
-    mock_gemini_api_response.raise_for_status.return_value = None
-
-    with patch("os.getenv", side_effect=lambda key: "real-gemini-key" if key == "GEMINI_KEY" else None):
-        with patch("requests.post", return_value=mock_gemini_api_response):
-            resp = client.get(f"/surveys/slug/{slug}")
-            assert resp.status_code == 200
-            data = resp.json()
-            assert data["title"]["te"] == "Gemini Telugu"
-            assert data["title"]["hi"] == "Gemini Hindi"
 
 
 def test_survey_localization_helpers_direct():
