@@ -4,7 +4,7 @@ import AISurveySuggestions from '../components/AISurveySuggestions';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import API from '../api/axios';
 import useAuthStore from '../hooks/useAuth';
-import { QUESTION_TYPES, SHORT_SURVEY_RULES, estimateSurveyMinutes, getFormatDiversityScore, getQuestionWordCount, hasPermission, SURVEY_STATUS, formatDate, isExpired } from '../lib/constants';
+import { QUESTION_TYPES, SHORT_SURVEY_RULES, SURVEY_HEALTH_MINIMUMS, DEFAULT_THANK_YOU_MESSAGE, estimateSurveyMinutes, getFormatDiversityScore, getQuestionWordCount, isQuestionComplete, meetsMinLength, getThankYouCustom, composeThankYou, hasPermission, SURVEY_STATUS, formatDate, isExpired } from '../lib/constants';
 import toast from 'react-hot-toast';
 import { useLoading } from '../context/LoadingContext';
 import { Reorder, useDragControls } from 'framer-motion';
@@ -375,18 +375,23 @@ export default function SurveyEdit() {
 
   function calcHealth() {
     let score = 100;
-    if (!sv.welcome_message) score -= 5; if (!sv.expires_at) score -= 5;
+    // A too-short welcome message should be treated the same as a missing one.
+    if (!meetsMinLength(sv.welcome_message, SURVEY_HEALTH_MINIMUMS.welcomeMessage)) score -= 5;
+    if (!sv.expires_at) score -= 5;
     if (qs.length > SHORT_SURVEY_RULES.defaultQuestionCount) score -= 15;
     if (qs.filter(q => q.is_required).length > SHORT_SURVEY_RULES.preferredRequiredQuestionLimit) score -= 10;
     if (getFormatDiversityScore(qs) < 3) score -= 15;
     if (qs.some(q => getQuestionWordCount(q) > SHORT_SURVEY_RULES.maxHighSignalWords)) score -= 10;
+    // Questions that haven't reached the minimum length aren't really finished.
+    if (qs.some(q => !isQuestionComplete(q))) score -= 10;
     return Math.max(0, Math.min(100, score));
   }
   const health = calcHealth();
   const healthColor = health >= 80 ? 'var(--sage)' : health >= 50 ? 'var(--saffron)' : 'var(--terracotta)';
   const tc = sv.theme_color || '#FF4500';
-  // Only questions that actually have text count toward quality metrics.
-  const realQuestions = qs.filter(q => getQuestionWordCount(q) > 0);
+  // Only questions whose text clears the minimum length count toward quality
+  // metrics — short or single-character questions are not yet meaningful.
+  const realQuestions = qs.filter(q => isQuestionComplete(q));
   const hasRealQuestions = realQuestions.length > 0;
   const estimatedMinutes = estimateSurveyMinutes(realQuestions);
   const conciseQuestionCount = realQuestions.filter(q => getQuestionWordCount(q) <= SHORT_SURVEY_RULES.maxHighSignalWords).length;
@@ -837,7 +842,15 @@ export default function SurveyEdit() {
                 <div><label style={LBL}>Description</label>{isEditing ? <textarea value={sv.description || ''} onChange={e => s('description', e.target.value)} placeholder="What's this research about?" rows={4} style={{ ...INP, borderRadius: 16 }} onFocus={fi} onBlur={fo} /> : <div style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 14, color: sv.description ? 'var(--espresso)' : 'rgba(22,15,8,0.3)', padding: '12px 18px', background: 'var(--cream-deep)', borderRadius: 16, minHeight: 48, lineHeight: 1.6 }}>{sv.description || '—'}</div>}</div>
                 <div><label style={LBL}>Welcome Message</label>{isEditing ? <textarea value={sv.welcome_message || ''} onChange={e => s('welcome_message', e.target.value)} placeholder="Shown before Q1" rows={4} style={{ ...INP, borderRadius: 16 }} onFocus={fi} onBlur={fo} /> : <div style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 14, color: sv.welcome_message ? 'var(--espresso)' : 'rgba(22,15,8,0.3)', padding: '12px 18px', background: 'var(--cream-deep)', borderRadius: 16, minHeight: 48, lineHeight: 1.6 }}>{sv.welcome_message || '—'}</div>}</div>
               </div>
-              <div><label style={LBL}>Thank You Message</label>{isEditing ? <textarea value={sv.thank_you_message || ''} onChange={e => s('thank_you_message', e.target.value)} placeholder="Shown after submission" rows={2} style={{ ...INP, borderRadius: 16 }} onFocus={fi} onBlur={fo} /> : <div style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 14, color: 'var(--espresso)', padding: '12px 18px', background: 'var(--cream-deep)', borderRadius: 16, lineHeight: 1.6 }}>{sv.thank_you_message || '—'}</div>}</div>
+              <div><label style={LBL}>Thank You Message</label>{isEditing ? (
+                <div style={{ ...INP, padding: 0, borderRadius: 16, overflow: 'hidden', resize: 'none' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 17px', background: 'rgba(22,15,8,0.04)', borderBottom: '1px solid rgba(22,15,8,0.08)' }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="rgba(22,15,8,0.4)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+                    <span style={{ fontFamily: "'Fraunces',serif", fontSize: 15, color: 'var(--espresso)' }}>{DEFAULT_THANK_YOU_MESSAGE}</span>
+                  </div>
+                  <textarea value={getThankYouCustom(sv.thank_you_message)} onChange={e => s('thank_you_message', composeThankYou(e.target.value))} placeholder="Add an optional message after the default…" rows={2} style={{ width: '100%', boxSizing: 'border-box', padding: '12px 17px', background: 'transparent', border: 'none', outline: 'none', fontFamily: "'Fraunces',serif", fontSize: 16, color: 'var(--espresso)', resize: 'vertical' }} />
+                </div>
+              ) : <div style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 14, color: 'var(--espresso)', padding: '12px 18px', background: 'var(--cream-deep)', borderRadius: 16, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{sv.thank_you_message || DEFAULT_THANK_YOU_MESSAGE}</div>}</div>
               <div className="se-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 22 }}>
                 <div><label style={LBL}>Expires</label>{isEditing ? <input type="datetime-local" value={sv.expires_at || ''} onChange={e => s('expires_at', e.target.value)} style={{ ...INP, borderRadius: 16 }} onFocus={fi} onBlur={fo} /> : <div style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 14, color: sv.expires_at ? 'var(--espresso)' : 'rgba(22,15,8,0.3)', padding: '12px 18px', background: 'var(--cream-deep)', borderRadius: 16, minHeight: 48 }}>{sv.expires_at ? formatDate(sv.expires_at) : 'No expiry set'}</div>}</div>
                 <div>
@@ -1407,7 +1420,7 @@ export default function SurveyEdit() {
                 </svg>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
                   {[
-                    [sv.welcome_message, 'Welcome message'],
+                    [meetsMinLength(sv.welcome_message, SURVEY_HEALTH_MINIMUMS.welcomeMessage), 'Welcome message'],
                     [sv.expires_at, 'Expiry date set'],
                     [qs.length <= SHORT_SURVEY_RULES.defaultQuestionCount, `At or below ${SHORT_SURVEY_RULES.defaultQuestionCount} questions`],
                     [qs.filter(q => q.is_required).length <= SHORT_SURVEY_RULES.preferredRequiredQuestionLimit, `≤${SHORT_SURVEY_RULES.preferredRequiredQuestionLimit} required questions`],

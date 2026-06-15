@@ -4,7 +4,7 @@ import API from '../api/axios';
 
 import SurveyPromptScreen, { SURVEY_MODES, getSurveyModeLabel } from '../components/SurveyPromptScreen';
 import useAuthStore from '../hooks/useAuth';
-import { QUESTION_TYPES, SHORT_SURVEY_RULES, estimateSurveyMinutes, getFormatDiversityScore, getQuestionWordCount, isExpired } from '../lib/constants';
+import { QUESTION_TYPES, SHORT_SURVEY_RULES, SURVEY_HEALTH_MINIMUMS, DEFAULT_THANK_YOU_MESSAGE, estimateSurveyMinutes, getFormatDiversityScore, getQuestionWordCount, isQuestionComplete, meetsMinLength, getThankYouCustom, composeThankYou, isExpired } from '../lib/constants';
 import { Reorder, useDragControls, motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { useLoading } from '../context/LoadingContext';
@@ -401,17 +401,19 @@ export default function SurveyCreate() {
 
   const tc = f.theme_color || '#FF4500';
   const reqCount = qs.filter(q => q.is_required).length;
-  // Only questions that actually have text count toward quality targets — empty
-  // placeholder questions must not mark targets as achieved.
-  const realQuestions = qs.filter(q => getQuestionWordCount(q) > 0);
+  // Only questions whose text clears the minimum length count toward quality
+  // targets — empty or single-character placeholder questions must not mark
+  // targets as achieved.
+  const realQuestions = qs.filter(q => isQuestionComplete(q));
   const hasRealQuestions = realQuestions.length > 0;
   const conciseQuestionCount = realQuestions.filter(q => getQuestionWordCount(q) <= SHORT_SURVEY_RULES.maxHighSignalWords).length;
   const hasAdaptiveFormats = getFormatDiversityScore(realQuestions) >= 3;
   // Single source of truth: the same checks drive both the % and the checklist below.
+  // Each free-text field must clear a minimum length before it counts as done.
   const healthChecks = [
-    [!!f.title.trim(), 'Add a title'],
-    [!!f.description.trim(), 'Add a description'],
-    [!!f.welcome_message.trim(), 'Welcome message'],
+    [meetsMinLength(f.title, SURVEY_HEALTH_MINIMUMS.title), 'Add a title'],
+    [meetsMinLength(f.description, SURVEY_HEALTH_MINIMUMS.description), 'Add a description'],
+    [meetsMinLength(f.welcome_message, SURVEY_HEALTH_MINIMUMS.welcomeMessage), 'Welcome message'],
     [hasRealQuestions && qs.length <= SHORT_SURVEY_RULES.defaultQuestionCount, `${SHORT_SURVEY_RULES.defaultQuestionCount}-question target`],
     [hasRealQuestions && conciseQuestionCount === realQuestions.length, 'Concise wording'],
     [hasAdaptiveFormats, 'Adaptive formats'],
@@ -831,7 +833,15 @@ export default function SurveyCreate() {
                 <div><label style={LBL}>Description</label><textarea value={f.description} onChange={e=>s('description',e.target.value)} placeholder="What's this research about?" rows={4} style={{...INP,borderRadius:16}} onFocus={fi} onBlur={fo}/></div>
                 <div><label style={LBL}>Welcome Message</label><textarea value={f.welcome_message} onChange={e=>s('welcome_message',e.target.value)} placeholder="Shown on the landing screen before Q1" rows={4} style={{...INP,borderRadius:16}} onFocus={fi} onBlur={fo}/></div>
               </div>
-              <div><label style={LBL}>Thank You Message</label><textarea value={f.thank_you_message} onChange={e=>s('thank_you_message',e.target.value)} placeholder="Shown after submission" rows={2} style={{...INP,borderRadius:16}} onFocus={fi} onBlur={fo}/></div>
+              <div><label style={LBL}>Thank You Message</label>
+                <div style={{ ...INP, padding:0, borderRadius:16, overflow:'hidden', resize:'none' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:8, padding:'12px 17px', background:'rgba(22,15,8,0.04)', borderBottom:'1px solid rgba(22,15,8,0.08)' }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="rgba(22,15,8,0.4)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink:0 }}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    <span style={{ fontFamily:"'Fraunces',serif", fontSize:15, color:'var(--espresso)' }}>{DEFAULT_THANK_YOU_MESSAGE}</span>
+                  </div>
+                  <textarea value={getThankYouCustom(f.thank_you_message)} onChange={e=>s('thank_you_message',composeThankYou(e.target.value))} placeholder="Add an optional message after the default…" rows={2} style={{ width:'100%', boxSizing:'border-box', padding:'12px 17px', background:'transparent', border:'none', outline:'none', fontFamily:"'Fraunces',serif", fontSize:16, color:'var(--espresso)', resize:'vertical' }}/>
+                </div>
+              </div>
               <div className="sc-2col" style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:22 }}>
                 <div><label style={LBL}>Expires</label><input type="datetime-local" value={f.expires_at} onChange={e=>s('expires_at',e.target.value)} style={{...INP,borderRadius:16}} onFocus={fi} onBlur={fo}/></div>
                 <div>
