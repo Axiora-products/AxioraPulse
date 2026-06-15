@@ -1153,6 +1153,9 @@ body {
   .np-grid-responsive {
     grid-template-columns: 1fr !important;
   }
+  .np-overview-mid {
+    grid-template-columns: 1fr !important;
+  }
 }
 
 @media (max-width: 720px) {
