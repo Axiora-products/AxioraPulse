@@ -316,6 +316,26 @@ useEffect(() => {
   const activeQs = (currentLang !== 'en' && translatedData[currentLang]?.qs) ? translatedData[currentLang].qs : qs;
   const ui = UI_TEXT[currentLang] || UI_TEXT.en;
 
+  const getBrandedName = () => {
+    const creatorName = sv?.creator?.full_name;
+    if (!orgName) return creatorName || '';
+    
+    // Checks if the workspace name represents a personal/individual account
+    const isPersonal = 
+      orgName.toLowerCase().trim().endsWith("workspace") || 
+      orgName.toLowerCase().trim() === 'personal' ||
+      orgName.toLowerCase().includes("gmail") ||
+      orgName.toLowerCase().includes("yahoo") ||
+      orgName.toLowerCase().includes("outlook") ||
+      orgName.toLowerCase().includes("hotmail") ||
+      orgName.toLowerCase().includes("proton") ||
+      orgName.toLowerCase().includes("icloud") ||
+      (creatorName && orgName.toLowerCase().trim() === creatorName.toLowerCase().trim());
+
+    return (isPersonal && creatorName) ? creatorName : orgName;
+  };
+  const brandedName = getBrandedName();
+
   const hasBackendTranslation = (langCode) => {
     if (!sv || langCode === 'en') return true;
     if (textFor(sv.title, langCode) && textFor(sv.title, langCode) !== textFor(sv.title, 'en')) return true;
@@ -1146,11 +1166,24 @@ useEffect(() => {
               {textFor(sv?.thank_you_message, currentLang) || ui.responseRecorded}
             </motion.p>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.65 }}
-              style={{ marginTop: 56, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-              <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(237,232,223,0.12)' }}>Axiora</span>
-              <span style={{ fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: 13, letterSpacing: '-0.3px', color: 'rgba(237,232,223,0.18)' }}>Pulse</span>
-              <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#FF4500', opacity: 0.4, boxShadow: '0 0 6px rgba(255,69,0,0.5)' }} />
-              {orgName && <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(237,232,223,0.12)' }}>· {orgName}</span>}
+              style={{ marginTop: 56, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+              {brandedName && (
+                <span style={{ 
+                  fontFamily: 'Syne,sans-serif', 
+                  fontSize: 10, 
+                  fontWeight: 700, 
+                  letterSpacing: '0.2em', 
+                  textTransform: 'uppercase', 
+                  color: 'rgba(237,232,223,0.35)'
+                }}>
+                  {brandedName}
+                </span>
+              )}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(237,232,223,0.12)' }}>Axiora</span>
+                <span style={{ fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: 13, letterSpacing: '-0.3px', color: 'rgba(237,232,223,0.18)' }}>Pulse</span>
+                <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#FF4500', opacity: 0.4, boxShadow: '0 0 6px rgba(255,69,0,0.5)' }} />
+              </div>
             </motion.div>
           </motion.div>
 
@@ -1199,11 +1232,11 @@ useEffect(() => {
               <div className="np-sonar" /><div className="np-sonar" /><div className="np-sonar" />
             </div>
           </div>
-          {orgName && (
+          {brandedName && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <div style={{ width: 1, height: 14, background: dark ? 'rgba(237,232,223,0.15)' : 'rgba(22,15,8,0.12)' }} />
               <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: dark ? 'rgba(237,232,223,0.4)' : 'rgba(22,15,8,0.4)' }}>
-                {orgName}
+                {brandedName}
               </span>
             </div>
           )}
