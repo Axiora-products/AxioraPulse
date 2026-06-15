@@ -53,17 +53,36 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
   const [openPicker, authResponse] = useDrivePicker();
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribingMic, setIsTranscribingMic] = useState(false);
-  const [audioChunks, setAudioChunks] = useState([]);
   const mediaRecorderRef = useRef(null);
+  const mediaStreamRef = useRef(null);
+  const transcriptionInFlightRef = useRef(false);
+  const promptRef = useRef('');
+
+  useEffect(() => {
+    promptRef.current = prompt;
+  }, [prompt]);
+
+  useEffect(() => () => {
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== 'inactive') {
+      recorder.onstop = null;
+      recorder.stop();
+    }
+    mediaStreamRef.current?.getTracks().forEach(track => track.stop());
+  }, []);
 
   const startRecording = async () => {
+    if (isRecording || isTranscribingMic || aiGenerating || transcriptionInFlightRef.current) return;
+
+    let stream;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
+      stream = await navigator.mediaDevices.getUserMedia({
         audio: true,
       });
 
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
+      mediaStreamRef.current = stream;
 
       const chunks = [];
 
@@ -74,44 +93,87 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
       };
 
       mediaRecorder.onstop = async () => {
+        if (transcriptionInFlightRef.current) return;
+        transcriptionInFlightRef.current = true;
+
         const recorderMimeType = mediaRecorder.mimeType || 'audio/webm';
         const audioBlob = new Blob(chunks, { type: recorderMimeType });
+        if (!audioBlob.size) {
+          toast.error('No audio was recorded. Please try again.');
+          transcriptionInFlightRef.current = false;
+          stream.getTracks().forEach(track => track.stop());
+          mediaStreamRef.current = null;
+          mediaRecorderRef.current = null;
+          return;
+        }
+
         const formData = new FormData();
         formData.append('audio', audioBlob, 'recording.webm');
 
         setIsTranscribingMic(true);
+        let transcriptionTimerEnded = false;
+        console.time("transcription");
         try {
           const response = await API.post('/uploads/audio/transcribe', formData);
+          console.timeEnd("transcription");
+          transcriptionTimerEnded = true;
           const transcript = typeof response.data?.text === 'string'
             ? response.data.text.trim()
             : '';
           if (transcript) {
-            setPrompt(prev => `${prev}${prev.trim() ? ' ' : ''}${transcript}`);
+            const currentPrompt = promptRef.current;
+            const nextPrompt = `${currentPrompt}${currentPrompt.trim() ? ' ' : ''}${transcript}`;
+            promptRef.current = nextPrompt;
+            setPrompt(nextPrompt);
+            setIsTranscribingMic(false);
             toast.success('Recording transcribed');
+
+            if (selectedMode.id === 'custom' && !customInstruction.trim()) {
+              toast.error('Add custom mode instructions before generating.');
+            } else {
+              const fileContext = attachedFiles.map(f => f.extractedText).filter(Boolean).join('\n\n');
+              const audioContext = attachedAudio.map(f => f.extractedText).filter(Boolean).join('\n\n');
+              await onGenerate(
+                nextPrompt,
+                nextPrompt,
+                selectedMode.id,
+                fileContext,
+                audioContext,
+                customInstruction,
+              );
+            }
+          } else {
+            toast.error('No speech was detected. Please try again.');
           }
         } catch (err) {
+          if (!transcriptionTimerEnded) console.timeEnd("transcription");
           const errorText = typeof err.response?.data === 'string'
             ? err.response.data
             : JSON.stringify(err.response?.data || {});
           console.error('Transcription failed:', err.response?.status, errorText);
           toast.error(err.response?.data?.detail || 'Audio transcription failed');
         } finally {
+          transcriptionInFlightRef.current = false;
           setIsTranscribingMic(false);
-          setAudioChunks([]);
           stream.getTracks().forEach(track => track.stop());
+          mediaStreamRef.current = null;
+          mediaRecorderRef.current = null;
         }
       };
 
       mediaRecorder.start();
-      setAudioChunks(chunks);
       setIsRecording(true);
     } catch (err) {
       console.error("Mic permission denied", err);
+      stream?.getTracks().forEach(track => track.stop());
+      toast.error('Microphone access is required to record audio.');
     }
   };
 
   const stopRecording = () => {
-    mediaRecorderRef.current?.stop();
+    const recorder = mediaRecorderRef.current;
+    if (!recorder || recorder.state === 'inactive') return;
+    recorder.stop();
     setIsRecording(false);
   };
   const handleOpenPicker = () => {
@@ -208,6 +270,14 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
   const fileInputRef = useRef(null);
   const audioInputRef = useRef(null);
   const autoSaveTimer = useRef(null);
+  const draftSavedTimer = useRef(null);
+  const autoSaveInFlightRef = useRef(false);
+  const lastSavedPayloadRef = useRef(null);
+  const draftIdRef = useRef(null);
+
+  useEffect(() => {
+    draftIdRef.current = draftId;
+  }, [draftId]);
 
   // Close mode dropdown on outside click
   useEffect(() => {
@@ -236,21 +306,38 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
   // ── Auto-save with 3-second debounce ──
   const doAutoSave = useCallback(async () => {
     if (!prompt.trim()) return;
+    const payload = {
+      prompt,
+      mode: selectedMode.id,
+      custom_instruction: customInstruction,
+      attachments: [...attachedFiles, ...attachedAudio].map(f => f.filename),
+    };
+    const payloadKey = JSON.stringify(payload);
+    if (
+      autoSaveInFlightRef.current
+      || lastSavedPayloadRef.current === payloadKey
+    ) return;
+
+    autoSaveInFlightRef.current = true;
     try {
       const { data } = await API.patch('/surveys/draft/auto-save', {
-        draft_id: draftId,
-        prompt: prompt,
-        mode: selectedMode.id,
-        custom_instruction: customInstruction,
-        attachments: [...attachedFiles, ...attachedAudio].map(f => f.filename),
+        draft_id: draftIdRef.current,
+        ...payload,
       });
-      if (data.id && !draftId) setDraftId(data.id);
+      lastSavedPayloadRef.current = payloadKey;
+      if (data.id && !draftIdRef.current) {
+        draftIdRef.current = data.id;
+        setDraftId(data.id);
+      }
       setDraftSaved(true);
-      setTimeout(() => setDraftSaved(false), 2000);
+      clearTimeout(draftSavedTimer.current);
+      draftSavedTimer.current = setTimeout(() => setDraftSaved(false), 2000);
     } catch {
       // Silent fail for auto-save
+    } finally {
+      autoSaveInFlightRef.current = false;
     }
-  }, [prompt, selectedMode, customInstruction, attachedFiles, attachedAudio, draftId]);
+  }, [prompt, selectedMode, customInstruction, attachedFiles, attachedAudio]);
 
   useEffect(() => {
     clearTimeout(autoSaveTimer.current);
@@ -259,6 +346,11 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
     }
     return () => clearTimeout(autoSaveTimer.current);
   }, [prompt, selectedMode, customInstruction, attachedFiles, attachedAudio, doAutoSave]);
+
+  useEffect(() => () => {
+    clearTimeout(autoSaveTimer.current);
+    clearTimeout(draftSavedTimer.current);
+  }, []);
 
   // ── File Upload Handler ──
   const handleFileUpload = async (e) => {
@@ -386,7 +478,10 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
             ref={textareaRef}
             className="cp-textarea"
             value={prompt}
-            onChange={e => setPrompt(e.target.value)}
+            onChange={e => {
+              promptRef.current = e.target.value;
+              setPrompt(e.target.value);
+            }}
             onKeyDown={handleKeyDown}
             placeholder="e.g. I need a customer satisfaction survey for my new coffee shop. Ask about coffee quality, ambiance, service speed, and likelihood to recommend…"
             disabled={aiGenerating}
@@ -666,7 +761,7 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
               type="button"
               className={`cp-tool-btn ${isRecording ? "recording" : ""}`}
               onClick={isRecording ? stopRecording : startRecording}
-              disabled={isTranscribingMic}
+              disabled={isTranscribingMic || aiGenerating}
             >
               {isTranscribingMic ? (
                 <motion.span

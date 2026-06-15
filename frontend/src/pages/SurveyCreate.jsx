@@ -180,6 +180,7 @@ export default function SurveyCreate() {
   const [trustAccepted, setTrustAccepted] = useState(() => Boolean(resumeDraftId));
   const [trustLeaving, setTrustLeaving] = useState(false);
   const [phase, setPhase] = useState('prompt'); // 'prompt' | 'builder'
+  const promptGenerationInFlightRef = useRef(false);
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState('details');
   const [f, sf] = useState({ 
@@ -321,10 +322,13 @@ export default function SurveyCreate() {
 
   // ── Prompt Screen Handlers ──
   const handlePromptGenerate = async (promptText, rawPrompt, mode, fileContext, audioContext, customInstruction) => {
+    if (promptGenerationInFlightRef.current) return;
+    promptGenerationInFlightRef.current = true;
     s('ai_context', promptText);
     s('ai_mode', mode || 'conversational');
     s('ai_custom_instruction', customInstruction || '');
     setAiGenerating(true);
+    console.time("survey-generation");
     try {
       const { data } = await API.post('/ai/generate', {
         aiContext: promptText,
@@ -340,6 +344,8 @@ export default function SurveyCreate() {
       toast.error('Failed to generate survey');
       console.error(e);
     } finally {
+      console.timeEnd("survey-generation");
+      promptGenerationInFlightRef.current = false;
       setAiGenerating(false);
     }
   };

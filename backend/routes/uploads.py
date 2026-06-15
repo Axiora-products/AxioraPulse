@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import tempfile
 import threading
+import time
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
@@ -540,6 +541,8 @@ async def transcribe_audio(
     file: UploadFile | None = File(None),
     current_user: UserProfile = Depends(get_current_user),
 ):
+    started_at = time.perf_counter()
+    logger.info("Transcription started")
     upload = audio or file
     if upload is None:
         raise HTTPException(
@@ -573,6 +576,10 @@ async def transcribe_audio(
         result = await asyncio.wait_for(
             asyncio.to_thread(_transcribe_with_whisper, temp_path),
             timeout=TRANSCRIPTION_TIMEOUT_SECONDS,
+        )
+        logger.info(
+            "Transcription completed in %.3f seconds",
+            time.perf_counter() - started_at,
         )
 
         return {

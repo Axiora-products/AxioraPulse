@@ -7,8 +7,10 @@ AI-powered survey insights using Anthropic Claude.
 from ast import Return
 import os
 import json
+import logging
 import re
 import requests
+import time
 from fastapi import Request, APIRouter, Depends, HTTPException
 
 import anthropic
@@ -25,6 +27,7 @@ from dependencies import get_current_user
 from services.feature_gate import require_feature
 
 router = APIRouter(prefix="/ai", tags=["ai"])
+logger = logging.getLogger(__name__)
 
 MODEL = "gemini-2.5-flash"
 SHORT_SURVEY_DEFAULT_QUESTIONS = 12
@@ -697,6 +700,8 @@ async def generate_survey(
     body: AIGenerateRequest,
     current_user: UserProfile = Depends(get_current_user),
 ):
+    started_at = time.perf_counter()
+    logger.info("Survey generation started")
     client = _get_client()
 
     # ── Mode-specific system instructions ─────────────────────────────────
@@ -826,6 +831,10 @@ Rules:
             result_json = _sanitize_generated_survey(result_json, leak_terms)
             protection_metadata.leak_validation_applied = True
         result_json["protection_metadata"] = protection_metadata.model_dump()
+        logger.info(
+            "Survey generation completed in %.3f seconds",
+            time.perf_counter() - started_at,
+        )
         return AIGenerateResponse(**result_json)
     except ValidationError as ve:
         print(f"[AI] Generate validation error: {ve}")
