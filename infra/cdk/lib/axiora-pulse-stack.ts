@@ -197,6 +197,17 @@ export class AxioraPulseStack extends cdk.Stack {
       },
     });
 
+    // Suppress cdk-nag AwsSolutions-IAM5 on the SMS Role created by Cognito for MFA
+    const smsRole = userPool.node.tryFindChild('smsRole') as iam.IRole;
+    if (smsRole) {
+      NagSuppressions.addResourceSuppressions(smsRole, [
+        {
+          id: 'AwsSolutions-IAM5',
+          reason: 'Cognito SMS role needs wildcard permissions to publish MFA text messages via SNS.'
+        }
+      ], true);
+    }
+
     // 3. ECS Task Definitions and Services
     
     // IAM Role for ECS Tasks (Matches permissions in GitHubActionsDeployerRole but scoped to tasks)
