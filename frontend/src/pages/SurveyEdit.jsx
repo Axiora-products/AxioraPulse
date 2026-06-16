@@ -689,7 +689,7 @@ export default function SurveyEdit() {
       {/* ── MODALS ── */}
       <ConfirmModal open={extendOpen} title="Reactivate Survey" body="This survey has expired. Choose how many days to extend it." confirmLabel="Reactivate" onConfirm={days => { doExtend(days); setExtendOpen(false); }} onClose={() => setExtendOpen(false)} prompt={{ label: 'Extend by (days)', defaultValue: '7', type: 'number', min: 1, max: 365 }} />
       <ConfirmModal open={deleteOpen} title="Delete Survey" body="This action cannot be undone. All responses will be permanently deleted." confirmLabel="Delete" danger onConfirm={() => { doDelete(); setDeleteOpen(false); }} onClose={() => setDeleteOpen(false)} />
-      <ShareModal survey={{ slug: sv.slug, title: sv.title }} isOpen={pubShareOpen} onClose={() => setPubShareOpen(false)} />
+      <ShareModal survey={{ id: sv.id, slug: sv.slug, title: sv.title, description: sv.description }} isOpen={pubShareOpen} onClose={() => setPubShareOpen(false)} />
 
       {/* ── PAGE HEADER ── */}
       <div style={{ position: 'relative', marginBottom: 48, paddingBottom: 44, overflow: 'hidden' }}>

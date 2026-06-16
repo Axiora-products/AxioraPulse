@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import API from '../api/axios';
@@ -205,6 +205,13 @@ export default function ShareModal({ survey, isOpen, onClose }) {
   const [facebookView, setFacebookView] = useState(null); // null | 'choice'
   const [instagramView, setInstagramView] = useState(null); // null | 'choice'
   const [twitterView, setTwitterView] = useState(null); // null | 'choice'
+  // ── AI Social Share Kit ────────────────────────────────────────────────────
+  const [aiSocialContent, setAiSocialContent] = useState(null);
+  const [aiSocialLoading, setAiSocialLoading] = useState(false);
+  const [selectedPlatform, setSelectedPlatform] = useState('linkedin');
+  const [copiedChip, setCopiedChip] = useState(null);
+  const [aiWhatsAppCaption, setAiWhatsAppCaption] = useState('');
+  const shareCardCanvasRef = useRef(null);
   const inputRef = useRef(null);
 
   const appOrigin = import.meta.env.VITE_FRONTEND_URL || window.location.origin;
@@ -221,21 +228,200 @@ export default function ShareModal({ survey, isOpen, onClose }) {
   }
 
   async function nativeShare() {
-    const payload = { title: survey?.title || 'Survey', text: shareText, url: surveyUrl };
+    // Build the best available caption (AI WhatsApp or fallback)
+    const caption = (() => {
+      if (aiSocialContent?.captions?.whatsapp) {
+        return aiSocialContent.captions.whatsapp
+          .replace(/\[link\]/gi, surveyUrl)
+          .replace(/\[survey link\]/gi, surveyUrl);
+      }
+      const desc = survey?.description || `Please take a moment to share your feedback on: "${survey?.title || 'Survey'}".`;
+      return `📊 We'd love your feedback!\n\n${desc}\n\n👉 ${surveyUrl}`;
+    })();
+
+    const canvas = shareCardCanvasRef.current;
+
+    // 1️⃣ Web Share API WITH image file (Android/iOS mobile)
+    if (navigator.share && canvas) {
+      try {
+        const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+        if (blob) {
+          const file = new File([blob], `${survey?.slug || 'survey'}-share-card.png`, { type: 'image/png' });
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({ files: [file], title: survey?.title || 'Survey', text: caption });
+            return;
+          }
+        }
+      } catch (err) {
+        if (err.name === 'AbortError') return;
+        // fall through to text-only share
+      }
+    }
+
+    // 2️⃣ Text-only Web Share API
     if (navigator.share) {
       try {
-        await navigator.share(payload);
+        await navigator.share({ title: survey?.title || 'Survey', text: caption, url: surveyUrl });
       } catch (err) {
         if (err.name !== 'AbortError') {
-          navigator.clipboard.writeText(surveyUrl);
-          toast.success('Link copied to clipboard!');
+          await navigator.clipboard.writeText(caption);
+          toast.success('Caption copied — paste it in any app!');
         }
       }
     } else {
-      navigator.clipboard.writeText(surveyUrl);
-      toast.success('Link copied — paste it in any app to share!');
+      // 3️⃣ Desktop clipboard fallback
+      await navigator.clipboard.writeText(caption);
+      toast.success('Caption copied — paste it in any messaging app!');
     }
   }
+  // ── AI Social Content Fetcher ──────────────────────────────────────────────
+  const fetchAISocialContent = useCallback(async () => {
+    if (!survey?.id || aiSocialContent || aiSocialLoading) return;
+    setAiSocialLoading(true);
+    try {
+      const res = await API.post('/ai/social-share-content', { survey_id: survey.id });
+      setAiSocialContent(res.data);
+    } catch (err) {
+      console.error('[ShareModal] AI social content error:', err);
+      toast.error('Could not load AI content — using basic share text');
+    } finally {
+      setAiSocialLoading(false);
+    }
+  }, [survey?.id, aiSocialContent, aiSocialLoading]);
+
+  // ── Canvas Share Card Renderer ─────────────────────────────────────────────
+  const drawShareCard = useCallback(() => {
+    const canvas = shareCardCanvasRef.current;
+    if (!canvas) return;
+    const W = 800, H = 420;
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext('2d');
+
+    // Background gradient (espresso → deep brown)
+    const bgGrad = ctx.createLinearGradient(0, 0, W, H);
+    bgGrad.addColorStop(0, '#160F08');
+    bgGrad.addColorStop(0.6, '#2C1A0E');
+    bgGrad.addColorStop(1, '#1A0A03');
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, W, H);
+
+    // Coral accent glow (top-right)
+    const glow1 = ctx.createRadialGradient(W * 0.85, H * 0.1, 0, W * 0.85, H * 0.1, 300);
+    glow1.addColorStop(0, 'rgba(255,69,0,0.28)');
+    glow1.addColorStop(1, 'rgba(255,69,0,0)');
+    ctx.fillStyle = glow1;
+    ctx.fillRect(0, 0, W, H);
+
+    // Saffron glow (bottom-left)
+    const glow2 = ctx.createRadialGradient(W * 0.1, H * 0.9, 0, W * 0.1, H * 0.9, 220);
+    glow2.addColorStop(0, 'rgba(255,184,0,0.18)');
+    glow2.addColorStop(1, 'rgba(255,184,0,0)');
+    ctx.fillStyle = glow2;
+    ctx.fillRect(0, 0, W, H);
+
+    // Left coral accent bar
+    const barGrad = ctx.createLinearGradient(0, 0, 0, H);
+    barGrad.addColorStop(0, '#FF4500');
+    barGrad.addColorStop(1, '#FFB800');
+    ctx.fillStyle = barGrad;
+    ctx.fillRect(0, 0, 5, H);
+
+    // Branding label
+    ctx.font = '700 11px "Arial", sans-serif';
+    ctx.letterSpacing = '0.2em';
+    ctx.fillStyle = 'rgba(255,69,0,0.7)';
+    ctx.fillText('AXIORAPULSE', 44, 50);
+
+    // Survey title
+    const title = survey?.title || 'Survey';
+    ctx.font = 'bold 38px "Georgia", serif';
+    ctx.fillStyle = '#FDF5E8';
+    const maxW = W - 88;
+    let titleLine = title;
+    if (ctx.measureText(title).width > maxW) {
+      const words = title.split(' ');
+      let line1 = '', line2 = '';
+      for (const w of words) {
+        if (ctx.measureText(line1 + w).width < maxW) line1 += (line1 ? ' ' : '') + w;
+        else line2 += (line2 ? ' ' : '') + w;
+      }
+      ctx.fillText(line1, 44, 130);
+      ctx.font = 'bold 32px "Georgia", serif';
+      ctx.fillText(line2, 44, 175);
+    } else {
+      ctx.fillText(titleLine, 44, 140);
+    }
+
+    // Tagline
+    const tagline = aiSocialContent?.tagline || 'Share your insights. Shape the future.';
+    ctx.font = '300 17px "Georgia", serif';
+    ctx.fillStyle = 'rgba(253,245,232,0.65)';
+    const tagWords = tagline.split(' ');
+    let tagLine = '', tagY = 210;
+    for (const w of tagWords) {
+      if (ctx.measureText(tagLine + w).width < maxW) { tagLine += (tagLine ? ' ' : '') + w; }
+      else { ctx.fillText(tagLine, 44, tagY); tagLine = w; tagY += 26; }
+    }
+    if (tagLine) ctx.fillText(tagLine, 44, tagY);
+
+    // Hashtags (top 5)
+    const tags = (aiSocialContent?.hashtags || []).slice(0, 5);
+    if (tags.length) {
+      let tx = 44;
+      const ty = H - 86;
+      ctx.font = '700 12px "Arial", sans-serif';
+      for (const tag of tags) {
+        const tw = ctx.measureText(tag).width + 20;
+        const rx = tx, ry = ty - 18, rw = tw, rh = 28;
+        ctx.fillStyle = 'rgba(255,69,0,0.18)';
+        ctx.beginPath();
+        ctx.roundRect(rx, ry, rw, rh, 14);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,69,0,0.4)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.fillStyle = '#FF6B35';
+        ctx.fillText(tag, tx + 10, ty + 4);
+        tx += tw + 8;
+        if (tx > W - 200) break;
+      }
+    }
+
+    // Divider line
+    ctx.strokeStyle = 'rgba(253,245,232,0.08)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(44, H - 52);
+    ctx.lineTo(W - 44, H - 52);
+    ctx.stroke();
+
+    // Bottom row: survey URL hint + watermark
+    ctx.font = '400 11px "Arial", sans-serif';
+    ctx.fillStyle = 'rgba(253,245,232,0.3)';
+    ctx.fillText('Powered by AxioraPulse · axiorapulse.com', 44, H - 24);
+
+    // Pulse dot watermark (top right corner)
+    ctx.fillStyle = '#FF4500';
+    ctx.beginPath();
+    ctx.arc(W - 44, 44, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,69,0,0.4)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(W - 44, 44, 14, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(W - 44, 44, 22, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255,69,0,0.15)';
+    ctx.stroke();
+  }, [survey?.title, aiSocialContent]);
+
+  // Redraw canvas whenever content updates
+  useEffect(() => {
+    if (tab === 'social') drawShareCard();
+  }, [tab, drawShareCard]);
+
   // Reset state when closed
   useEffect(() => {
     if (!isOpen) {
@@ -255,12 +441,33 @@ export default function ShareModal({ survey, isOpen, onClose }) {
       setFacebookView(null);
       setInstagramView(null);
       setTwitterView(null);
+      // Reset AI social state on close
+      setAiSocialContent(null);
+      setAiSocialLoading(false);
+      setSelectedPlatform('linkedin');
+      setCopiedChip(null);
+      setAiWhatsAppCaption('');
     } else {
       const msg = `Hello! We would love to get your feedback on our survey: "${survey?.title || 'User Feedback'}"\n\nPlease tap this link to participate: ${surveyUrl}`;
       setWhatsAppMessage(msg);
       setTelegramMessage(msg);
     }
   }, [isOpen, survey, surveyUrl]);
+
+  // When AI content loads, sync WhatsApp/Telegram sub-panel messages with AI captions
+  useEffect(() => {
+    if (!aiSocialContent || !surveyUrl) return;
+    const resolve = (raw) =>
+      raw ? raw.replace(/\[link\]/gi, surveyUrl).replace(/\[survey link\]/gi, surveyUrl) : '';
+    const waCaption = resolve(aiSocialContent.captions?.whatsapp);
+    if (waCaption) {
+      setWhatsAppMessage(waCaption);
+      setAiWhatsAppCaption(waCaption);
+    }
+    const tgCaption = resolve(aiSocialContent.captions?.telegram);
+    if (tgCaption) setTelegramMessage(tgCaption);
+  }, [aiSocialContent, surveyUrl]);
+
 
   function copyLink() {
     navigator.clipboard.writeText(surveyUrl);
@@ -575,13 +782,25 @@ export default function ShareModal({ survey, isOpen, onClose }) {
                     Print or display this QR code to collect in-person responses.
                   </p>
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       const img = document.querySelector('#nx-qr-img') || document.querySelector('img[alt="QR code"]');
                       if (!img) return;
-                      const a = document.createElement('a');
-                      a.href = img.src;
-                      a.download = `${survey?.slug}-qr.png`;
-                      a.click();
+                      try {
+                        const response = await fetch(img.src);
+                        const blob = await response.blob();
+                        const blobUrl = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = blobUrl;
+                        a.download = `${survey?.slug || 'survey'}-qr.png`;
+                        a.style.display = 'none';
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+                      } catch (err) {
+                        console.error('QR download failed, opening in new tab:', err);
+                        window.open(img.src, '_blank');
+                      }
                     }}
                     style={{ ...btnPrimary(false), padding: '11px 32px' }}
                     onMouseEnter={e => e.currentTarget.style.background = 'var(--coral)'}
@@ -650,378 +869,631 @@ export default function ShareModal({ survey, isOpen, onClose }) {
                   </p>
                 </div>
               )}
-              {tab === 'social' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  {whatsAppView === null && twitterView === null ? (
-                    <>
-                      <p style={{ fontFamily: 'Fraunces,serif', fontSize: 13, color: 'rgba(22,15,8,0.5)', margin: 0 }}>
-                        Share this survey personally via messages.
-                      </p>
+              {tab === 'social' && (() => {
+                // Trigger AI fetch when the Social tab opens
+                if (!aiSocialContent && !aiSocialLoading) {
+                  fetchAISocialContent();
+                }
 
-                      {/* Native share — shows OS contact picker with every installed app */}
+                const PLATFORMS = [
+                  { id: 'linkedin', label: 'LinkedIn', color: '#0A66C2', icon: (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6.94 8.5H3.56V20h3.38V8.5zM5.25 3A2.25 2.25 0 1 0 5.3 7.5 2.25 2.25 0 0 0 5.25 3zM20.44 13.06c0-3.38-1.8-4.95-4.2-4.95a3.63 3.63 0 0 0-3.28 1.8V8.5H9.56c.05.93 0 11.5 0 11.5h3.4v-6.42c0-.34.03-.68.12-.93.27-.68.9-1.38 1.96-1.38 1.38 0 1.93 1.04 1.93 2.57V20h3.4v-6.94z"/></svg>
+                  )},
+                  { id: 'twitter', label: 'X / Twitter', color: '#000000', icon: (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18.9 1.2h3.7l-8.1 9.2 9.5 12.6h-7.4l-5.8-7.6-6.7 7.6H.5l8.7-9.9L.1 1.2h7.6l5.2 6.9 6-6.9zm-1.3 19.5h2.1L6.5 3.3H4.3l13.3 17.4z"/></svg>
+                  )},
+                  { id: 'instagram', label: 'Instagram', color: '#E1306C', icon: (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 2C4.2 2 2 4.2 2 7v10c0 2.8 2.2 5 5 5h10c2.8 0 5-2.2 5-5V7c0-2.8-2.2-5-5-5H7zm5 5.5A4.5 4.5 0 1 1 7.5 12 4.5 4.5 0 0 1 12 7.5zm6-1.3a1.2 1.2 0 1 1-1.2-1.2A1.2 1.2 0 0 1 18 6.2z"/></svg>
+                  )},
+                  { id: 'whatsapp', label: 'WhatsApp', color: '#25D366', icon: (
+                    <svg width="14" height="14" viewBox="0 0 32 32" fill="currentColor"><path d="M16 .5C7.5.5.5 7.5.5 16c0 2.8.7 5.4 2 7.7L.5 31.5l8-2.1c2.2 1.2 4.7 1.9 7.5 1.9 8.5 0 15.5-7 15.5-15.5S24.5.5 16 .5zm0 28c-2.4 0-4.6-.6-6.5-1.7l-.5-.3-4.7 1.2 1.2-4.6-.3-.5C3.1 20.6 2.5 18.4 2.5 16 2.5 8.8 8.8 2.5 16 2.5S29.5 8.8 29.5 16 23.2 28.5 16 28.5zm7.5-9.6c-.4-.2-2.3-1.1-2.7-1.2-.4-.1-.6-.2-.9.2s-1 1.2-1.2 1.4c-.2.2-.4.3-.8.1-2.3-1.2-3.8-2.1-5.3-4.7-.4-.6.4-.6 1.1-2 .1-.2 0-.4 0-.6 0-.2-.9-2.1-1.2-2.9-.3-.7-.6-.6-.9-.6h-.8c-.3 0-.6.1-.9.4-.3.4-1.2 1.2-1.2 3s1.3 3.5 1.5 3.7c.2.2 2.6 4 6.3 5.5.9.4 1.6.6 2.2.7.9.1 1.7.1 2.3.1.7-.1 2.3-.9 2.6-1.7.3-.8.3-1.5.2-1.7-.1-.2-.4-.3-.8-.5z"/></svg>
+                  )},
+                  { id: 'telegram', label: 'Telegram', color: '#229ED9', icon: (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M9.04 15.48l-.39 5.46c.56 0 .8-.24 1.1-.53l2.64-2.53 5.47 4c1 .55 1.72.26 1.97-.93l3.58-16.8h.01c.3-1.4-.5-1.94-1.47-1.58L1.2 9.34c-1.36.53-1.34 1.28-.23 1.63l5.63 1.76L19.47 5.6c.62-.38 1.18-.17.71.21"/></svg>
+                  )},
+                  { id: 'facebook', label: 'Facebook', color: '#1877F2', icon: (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.07C24 5.41 18.63 0 12 0S0 5.4 0 12.07C0 18.1 4.39 23.1 10.13 24v-8.44H7.08v-3.49h3.04V9.41c0-3.02 1.8-4.7 4.54-4.7 1.31 0 2.68.24 2.68.24v2.97h-1.51c-1.49 0-1.95.93-1.95 1.87v2.28h3.32l-.53 3.5h-2.79V24C19.62 23.1 24 18.1 24 12.07z"/></svg>
+                  )},
+                ];
+
+                const platformActions = {
+                  // LinkedIn supports title + summary params to pre-fill the post body
+                  linkedin: (caption) => {
+                    const summary = encodeURIComponent(caption.substring(0, 400));
+                    return `https://www.linkedin.com/shareArticle?mini=true&url=${encodedUrl}&title=${encodeURIComponent(survey?.title || '')}&summary=${summary}`;
+                  },
+                  // Twitter pre-fills the tweet text box ✔
+                  twitter: (caption) => `https://twitter.com/intent/tweet?text=${encodeURIComponent(caption)}`,
+                  // Instagram has no web share intent — handled separately in openPlatform()
+                  instagram: () => null,
+                  // WhatsApp pre-fills the message box via wa.me ✔
+                  whatsapp: (caption) => `https://wa.me/?text=${encodeURIComponent(caption)}`,
+                  // Telegram: pass text separately from URL to avoid duplication in the pre-fill
+                  telegram: (caption) => {
+                    const textOnly = caption
+                      .replace(surveyUrl, '')
+                      .replace(/\n{3,}/g, '\n\n')
+                      .trim();
+                    return `https://t.me/share/url?url=${encodedUrl}&text=${encodeURIComponent(textOnly)}`;
+                  },
+                  // Facebook sharer only accepts a URL; caption is copied to clipboard for manual paste
+                  facebook: () => `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`,
+                };
+
+                function getCaption(platformId) {
+                  const fallback = () => {
+                    const desc = survey?.description || `Please take a moment to share your feedback on our survey: "${survey?.title || 'User Feedback'}".`;
+                    const cleanTitle = (survey?.title || '').replace(/[^a-zA-Z0-9]/g, '');
+                    const hashtags = cleanTitle ? `#${cleanTitle} #Feedback #Survey` : '#Feedback #Survey';
+                    return `📊 We'd love your feedback!\n\n${desc}\n\n👉 ${surveyUrl}\n\n${hashtags}`;
+                  };
+                  if (!aiSocialContent) return fallback();
+                  const raw = aiSocialContent.captions?.[platformId];
+                  if (!raw) return fallback();
+                  return raw.replace(/\[link\]/gi, surveyUrl).replace(/\[survey link\]/gi, surveyUrl);
+                }
+
+                async function copyCaption() {
+                  const text = getCaption(selectedPlatform);
+                  try {
+                    await navigator.clipboard.writeText(text);
+                    toast.success(`${PLATFORMS.find(p => p.id === selectedPlatform)?.label} caption copied!`);
+                  } catch (err) {
+                    console.error('Failed to copy caption to clipboard:', err);
+                    toast.error('Failed to copy to clipboard');
+                  }
+                }
+
+                async function copyHashtag(tag) {
+                  try {
+                    await navigator.clipboard.writeText(tag);
+                    setCopiedChip(tag);
+                    setTimeout(() => setCopiedChip(null), 1800);
+                  } catch (err) {
+                    console.error('Failed to copy hashtag:', err);
+                  }
+                }
+
+                async function copyAllHashtags() {
+                  const tags = (aiSocialContent?.hashtags || []).join(' ');
+                  try {
+                    await navigator.clipboard.writeText(tags);
+                    toast.success('All hashtags copied!');
+                  } catch (err) {
+                    console.error('Failed to copy hashtags:', err);
+                  }
+                }
+
+                // Build a clean human-readable filename from the survey title
+                function buildFilename() {
+                  const raw = survey?.title || survey?.slug || 'survey';
+                  const safe = raw
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]+/g, '-')
+                    .replace(/^-+|-+$/g, '')
+                    .substring(0, 50);
+                  return `${safe || 'survey'}-share-card.png`;
+                }
+
+                function downloadShareCard() {
+                  const canvas = shareCardCanvasRef.current;
+                  if (!canvas) { toast.error('Share card is not ready yet'); return; }
+                  const filename = buildFilename();
+
+                  try {
+                    // ✅ Use data: URL — a.download is always respected with data: URLs
+                    // (blob: URLs lose the filename in some browsers/security contexts)
+                    const dataUrl = canvas.toDataURL('image/png');
+                    if (!dataUrl || dataUrl === 'data:,') throw new Error('Canvas empty');
+
+                    const a = document.createElement('a');
+                    a.href = dataUrl;
+                    a.download = filename;
+                    a.style.display = 'none';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    toast.success(`📥 Downloaded: ${filename}`);
+                  } catch (err) {
+                    console.error('Data URL download failed, trying server fallback:', err);
+                    fallbackServerDownload();
+                  }
+
+                  function fallbackServerDownload() {
+                    try {
+                      const dataUrl = canvas.toDataURL('image/png');
+                      const form = document.createElement('form');
+                      form.method = 'POST';
+                      form.target = '_self';
+                      
+                      let actionUrl = API.defaults.baseURL || '';
+                      if (actionUrl.startsWith('/')) {
+                        actionUrl = `${window.location.origin}${actionUrl}`;
+                      } else if (!actionUrl && import.meta.env.VITE_API_BASE_URL) {
+                        actionUrl = import.meta.env.VITE_API_BASE_URL;
+                      }
+                      
+                      form.action = `${actionUrl}/ai/download-image`;
+                      form.style.display = 'none';
+
+                      const imgInput = document.createElement('input');
+                      imgInput.type = 'hidden';
+                      imgInput.name = 'image';
+                      imgInput.value = dataUrl;
+                      form.appendChild(imgInput);
+
+                      const fileInput = document.createElement('input');
+                      fileInput.type = 'hidden';
+                      fileInput.name = 'filename';
+                      fileInput.value = filename;
+                      form.appendChild(fileInput);
+
+                      document.body.appendChild(form);
+                      form.submit();
+                      document.body.removeChild(form);
+                    } catch (fallbackErr) {
+                      console.error('Server fallback download failed:', fallbackErr);
+                      toast.error('Failed to download image');
+                    }
+                  }
+                }
+
+                async function copyImageToClipboard() {
+                  const canvas = shareCardCanvasRef.current;
+                  if (!canvas) { toast.error('Share card is not ready yet'); return; }
+                  try {
+                    const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
+                    if (!blob) throw new Error('Canvas produced no blob');
+                    // Clipboard API — works in Chrome/Edge on HTTPS and localhost
+                    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+                    toast.success('🖼️ Share card image copied to clipboard! Paste it directly into your post.');
+                  } catch (err) {
+                    console.warn('Clipboard image write not supported, falling back to download:', err);
+                    // Fallback: download the file so user can attach it manually
+                    downloadShareCard();
+                    toast('📥 Image downloaded — attach it to your post when prompted.', { icon: '📎', duration: 5000 });
+                  }
+                }
+
+                async function openPlatform() {
+                  const caption = getCaption(selectedPlatform);
+                  const platform = PLATFORMS.find(p => p.id === selectedPlatform);
+                  const label   = platform?.label || selectedPlatform;
+                  const canvas  = shareCardCanvasRef.current;
+
+                  // ── Instagram: Web Share API with image on mobile; copy+open on desktop ──
+                  if (selectedPlatform === 'instagram') {
+                    if (navigator.share && canvas) {
+                      try {
+                        const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
+                        if (blob) {
+                          const file = new File(
+                            [blob],
+                            buildFilename(),
+                            { type: 'image/png' }
+                          );
+                          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                            await navigator.share({ files: [file], title: survey?.title || 'Survey', text: caption });
+                            return;
+                          }
+                        }
+                      } catch (err) {
+                        if (err.name === 'AbortError') return;
+                      }
+                    }
+                    // Desktop fallback: copy caption + download image + open Instagram
+                    try { await navigator.clipboard.writeText(caption); } catch (e) {}
+                    downloadShareCard();
+                    window.open('https://www.instagram.com/', '_blank');
+                    toast.success('📸 Caption copied + image downloading! Paste the caption and attach the image when creating your Instagram post.', { duration: 7000 });
+                    return;
+                  }
+
+                  // ── All other platforms ──
+                  // 1. Copy caption (text + hashtags) to clipboard
+                  try {
+                    await navigator.clipboard.writeText(caption);
+                  } catch (err) {
+                    console.error('Clipboard write failed:', err);
+                  }
+
+                  // 2. Also download the share card so user can attach it to the post
+                  downloadShareCard();
+
+                  const urlFn = platformActions[selectedPlatform];
+                  const url   = urlFn?.(caption);
+
+                  const platformToasts = {
+                    linkedin: '↗ LinkedIn opened — caption pre-filled + image downloading! Attach the image to your post.',
+                    twitter:  '↗ X / Twitter opened — post pre-filled + image downloading! Attach the image.',
+                    whatsapp: '↗ WhatsApp opened — message pre-filled! Send the image separately if needed.',
+                    telegram: '↗ Telegram opened — message pre-filled! Send the image separately if needed.',
+                    facebook: '↗ Facebook opened — caption copied + image downloading! Paste caption & upload image.',
+                  };
+
+                  if (url) {
+                    toast.success(platformToasts[selectedPlatform] || `Caption copied! Opening ${label}…`, { duration: 6000 });
+                    setTimeout(() => window.open(url, '_blank'), 200);
+                  }
+                }
+
+                const shimmerStyle = {
+                  background: 'linear-gradient(90deg, rgba(22,15,8,0.05) 25%, rgba(22,15,8,0.1) 50%, rgba(22,15,8,0.05) 75%)',
+                  backgroundSize: '200% 100%',
+                  animation: 'shimmer 1.4s infinite',
+                  borderRadius: 8,
+                };
+
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+                    {/* Share Card Canvas */}
+                    <div style={{ borderRadius: 14, overflow: 'hidden', border: '1px solid rgba(22,15,8,0.08)', position: 'relative' }}>
+                      <canvas
+                        ref={shareCardCanvasRef}
+                        style={{ width: '100%', display: 'block', aspectRatio: '800/420', borderRadius: 14 }}
+                      />
+                      {aiSocialLoading && (
+                        <div style={{
+                          position: 'absolute', inset: 0, borderRadius: 14,
+                          background: 'linear-gradient(135deg, #160F08, #2C1A0E)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 10,
+                        }}>
+                          <div style={{ fontSize: 22 }}>✨</div>
+                          <div style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 10, color: 'rgba(253,245,232,0.5)', letterSpacing: '0.15em', textTransform: 'uppercase' }}>
+                            Generating AI share card…
+                          </div>
+                          <div style={{ width: 80, height: 3, borderRadius: 3, background: 'rgba(255,69,0,0.15)', overflow: 'hidden' }}>
+                            <div style={{ width: '50%', height: '100%', background: 'var(--coral)', borderRadius: 3, animation: 'shimmer 1s infinite' }} />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Download + AI badge row */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {aiSocialContent && !aiSocialContent.fallback_used && (
+                          <div style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px',
+                            background: 'rgba(255,69,0,0.08)', border: '1px solid rgba(255,69,0,0.2)',
+                            borderRadius: 999, fontFamily: 'Syne,sans-serif', fontWeight: 700,
+                            fontSize: 8, color: 'var(--coral)', textTransform: 'uppercase', letterSpacing: '0.1em',
+                          }}>
+                            ✦ AI Generated
+                          </div>
+                        )}
+                        {aiSocialContent?.fallback_used && (
+                          <div style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px',
+                            background: 'rgba(22,15,8,0.06)', border: '1px solid rgba(22,15,8,0.1)',
+                            borderRadius: 999, fontFamily: 'Syne,sans-serif', fontWeight: 700,
+                            fontSize: 8, color: 'rgba(22,15,8,0.4)', textTransform: 'uppercase', letterSpacing: '0.1em',
+                          }}>
+                            Auto-generated
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button
+                          id="share-card-download-btn"
+                          onClick={downloadShareCard}
+                          style={{
+                            padding: '8px 14px', borderRadius: 999, border: 'none',
+                            background: 'var(--espresso)', color: 'var(--cream)',
+                            fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 9,
+                            letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer',
+                            transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: 5,
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.background = 'var(--coral)'}
+                          onMouseLeave={e => e.currentTarget.style.background = 'var(--espresso)'}
+                          title="Download share card as PNG"
+                        >
+                          ↓ Download PNG
+                        </button>
+                        <button
+                          id="share-card-copy-image-btn"
+                          onClick={copyImageToClipboard}
+                          style={{
+                            padding: '8px 14px', borderRadius: 999,
+                            border: '1.5px solid rgba(22,15,8,0.15)', background: 'transparent',
+                            color: 'var(--espresso)',
+                            fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 9,
+                            letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer',
+                            transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: 5,
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--coral)'; e.currentTarget.style.color = 'var(--coral)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(22,15,8,0.15)'; e.currentTarget.style.color = 'var(--espresso)'; }}
+                          title="Copy image to clipboard — paste directly into your post"
+                        >
+                          🖼 Copy Image
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Divider */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ flex: 1, height: 1, background: 'rgba(22,15,8,0.06)' }} />
+                      <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, color: 'rgba(22,15,8,0.3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Platform Captions</span>
+                      <div style={{ flex: 1, height: 1, background: 'rgba(22,15,8,0.06)' }} />
+                    </div>
+
+                    {/* Platform Selector */}
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {PLATFORMS.map(p => (
+                        <button
+                          key={p.id}
+                          id={`platform-btn-${p.id}`}
+                          onClick={() => setSelectedPlatform(p.id)}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 5,
+                            padding: '7px 12px', borderRadius: 999, border: 'none', cursor: 'pointer',
+                            fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 9, letterSpacing: '0.08em',
+                            textTransform: 'uppercase', transition: 'all 0.2s',
+                            background: selectedPlatform === p.id ? p.color : 'rgba(22,15,8,0.06)',
+                            color: selectedPlatform === p.id ? '#fff' : 'rgba(22,15,8,0.5)',
+                            boxShadow: selectedPlatform === p.id ? `0 4px 12px ${p.color}33` : 'none',
+                          }}
+                        >
+                          <span style={{ color: selectedPlatform === p.id ? '#fff' : p.color }}>{p.icon}</span>
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Caption Preview Box */}
+                    <div style={{
+                      background: 'var(--cream)', border: '1px solid rgba(22,15,8,0.08)',
+                      borderRadius: 14, padding: '14px 16px', position: 'relative',
+                      minHeight: 90,
+                    }}>
+                      {aiSocialLoading ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          {[100, 85, 70].map((w, i) => (
+                            <div key={i} style={{ ...shimmerStyle, height: 12, width: `${w}%` }} />
+                          ))}
+                        </div>
+                      ) : (
+                        <p style={{
+                          fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 12,
+                          color: 'var(--espresso)', lineHeight: 1.7, margin: 0,
+                          whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                          maxHeight: 150, overflowY: 'auto',
+                        }}>
+                          {getCaption(selectedPlatform)}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div style={{ display: 'flex', gap: 8 }}>
                       <button
+                        id="copy-caption-btn"
+                        onClick={copyCaption}
+                        disabled={aiSocialLoading}
+                        style={{
+                          flex: 1, padding: '10px 16px', borderRadius: 999, border: 'none',
+                          background: aiSocialLoading ? 'rgba(22,15,8,0.08)' : 'var(--espresso)',
+                          color: aiSocialLoading ? 'rgba(22,15,8,0.3)' : 'var(--cream)',
+                          fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 9,
+                          letterSpacing: '0.1em', textTransform: 'uppercase', cursor: aiSocialLoading ? 'default' : 'pointer',
+                          transition: 'all 0.2s',
+                        }}
+                        onMouseEnter={e => { if (!aiSocialLoading) e.currentTarget.style.background = 'var(--coral)'; }}
+                        onMouseLeave={e => { if (!aiSocialLoading) e.currentTarget.style.background = 'var(--espresso)'; }}
+                      >
+                        📋 Copy Text
+                      </button>
+                      <button
+                        id="open-platform-btn"
+                        onClick={openPlatform}
+                        disabled={aiSocialLoading}
+                        style={{
+                          flex: 1, padding: '10px 16px', borderRadius: 999,
+                          border: `1.5px solid ${PLATFORMS.find(p => p.id === selectedPlatform)?.color || 'var(--espresso)'}`,
+                          background: 'transparent',
+                          color: PLATFORMS.find(p => p.id === selectedPlatform)?.color || 'var(--espresso)',
+                          fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 9,
+                          letterSpacing: '0.1em', textTransform: 'uppercase',
+                          cursor: aiSocialLoading ? 'default' : 'pointer', transition: 'all 0.2s',
+                          opacity: aiSocialLoading ? 0.4 : 1,
+                        }}
+                        onMouseEnter={e => {
+                          if (!aiSocialLoading) {
+                            const c = PLATFORMS.find(p => p.id === selectedPlatform)?.color || 'var(--espresso)';
+                            e.currentTarget.style.background = c;
+                            e.currentTarget.style.color = '#fff';
+                          }
+                        }}
+                        onMouseLeave={e => {
+                          if (!aiSocialLoading) {
+                            const c = PLATFORMS.find(p => p.id === selectedPlatform)?.color || 'var(--espresso)';
+                            e.currentTarget.style.background = 'transparent';
+                            e.currentTarget.style.color = c;
+                          }
+                        }}
+                      >
+                        ↗ Open Platform
+                      </button>
+                    </div>
+
+                    {/* Hashtag Chips */}
+                    {(aiSocialContent?.hashtags?.length > 0 || aiSocialLoading) && (
+                      <>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, color: 'rgba(22,15,8,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                            Hashtags
+                          </span>
+                          {!aiSocialLoading && aiSocialContent?.hashtags?.length > 0 && (
+                            <button
+                              id="copy-all-hashtags-btn"
+                              onClick={copyAllHashtags}
+                              style={{
+                                background: 'none', border: 'none', cursor: 'pointer',
+                                fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 8,
+                                color: 'var(--coral)', textTransform: 'uppercase', letterSpacing: '0.08em',
+                                padding: '2px 6px', borderRadius: 4, transition: 'opacity 0.2s',
+                              }}
+                            >
+                              Copy All
+                            </button>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {aiSocialLoading ? (
+                            [60, 80, 50, 70, 55, 75, 45, 65].map((w, i) => (
+                              <div key={i} style={{ ...shimmerStyle, height: 26, width: w, borderRadius: 13 }} />
+                            ))
+                          ) : (
+                            (aiSocialContent?.hashtags || []).map((tag, idx) => (
+                              <button
+                                key={idx}
+                                id={`hashtag-chip-${idx}`}
+                                onClick={() => copyHashtag(tag)}
+                                title="Click to copy"
+                                style={{
+                                  padding: '4px 12px', borderRadius: 999, border: '1px solid rgba(255,69,0,0.25)',
+                                  background: copiedChip === tag ? 'var(--coral)' : 'rgba(255,69,0,0.07)',
+                                  color: copiedChip === tag ? '#fff' : 'var(--coral)',
+                                  fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 10,
+                                  cursor: 'pointer', transition: 'all 0.18s', letterSpacing: '0.02em',
+                                }}
+                                onMouseEnter={e => { if (copiedChip !== tag) { e.currentTarget.style.background = 'rgba(255,69,0,0.15)'; }}}
+                                onMouseLeave={e => { if (copiedChip !== tag) { e.currentTarget.style.background = 'rgba(255,69,0,0.07)'; }}}
+                              >
+                                {copiedChip === tag ? '✓' : ''} {tag}
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      </>
+                    )}
+
+                    {/* Divider before quick share */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ flex: 1, height: 1, background: 'rgba(22,15,8,0.06)' }} />
+                      <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, color: 'rgba(22,15,8,0.3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Quick Share</span>
+                      <div style={{ flex: 1, height: 1, background: 'rgba(22,15,8,0.06)' }} />
+                    </div>
+
+                    {/* Quick native share + WhatsApp bulk */}
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        id="native-share-btn"
                         onClick={nativeShare}
                         style={{
-                          width: '100%',
-                          padding: '13px 20px',
-                          borderRadius: 14,
-                          border: '1.5px solid rgba(22,15,8,0.1)',
-                          background: 'var(--cream)',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 12,
-                          transition: 'border-color 0.2s, box-shadow 0.2s',
-                          boxSizing: 'border-box',
+                          flex: 1, padding: '11px 14px', borderRadius: 999, border: '1.5px solid rgba(22,15,8,0.1)',
+                          background: 'var(--cream)', cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                          fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 9,
+                          color: 'var(--espresso)', textTransform: 'uppercase', letterSpacing: '0.08em',
+                          transition: 'all 0.2s', boxSizing: 'border-box',
                         }}
-                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--coral)'; e.currentTarget.style.boxShadow = '0 2px 12px rgba(255,90,0,0.1)'; }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--coral)'; e.currentTarget.style.boxShadow = '0 2px 10px rgba(255,90,0,0.12)'; }}
                         onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(22,15,8,0.1)'; e.currentTarget.style.boxShadow = 'none'; }}
                       >
-                        <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(255,90,0,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
-                          📲
-                        </div>
-                        <div style={{ textAlign: 'left' }}>
-                          <div style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 12, color: 'var(--espresso)', marginBottom: 2 }}>
-                            Send to Contacts
-                          </div>
-                          <div style={{ fontFamily: 'Fraunces,serif', fontSize: 11, color: 'rgba(22,15,8,0.45)', lineHeight: 1.4 }}>
-                            Opens your device's share sheet — pick any app and contact
-                          </div>
-                        </div>
+                        📲 Share to Contacts
                       </button>
-
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{ flex: 1, height: 1, background: 'rgba(22,15,8,0.06)' }} />
-                        <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, color: 'rgba(22,15,8,0.3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>or share to</span>
-                        <div style={{ flex: 1, height: 1, background: 'rgba(22,15,8,0.06)' }} />
-                      </div>
-
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                        {/* WhatsApp */}
-                        <button
-                          onClick={() => setWhatsAppView('choice')}
-                          className="axiora-social-btn"
-                        >
-                          <WhatsAppIcon /> WhatsApp
-                        </button>
-
-                        {/* Telegram — t.me/share opens contact picker inside Telegram */}
-                        <button
-                          onClick={() => openShare(`https://t.me/share/url?url=${encodedUrl}&text=${encodedText}`)}
-                          className="axiora-social-btn"
-                        >
-                          <TelegramIcon /> Telegram
-                        </button>
-
-                        {/* Twitter/X — timeline or DM choice */}
-                        <button
-                          onClick={() => setTwitterView('choice')}
-                          className="axiora-social-btn"
-                        >
-                          <TwitterIcon /> X / Twitter
-                        </button>
-
-                        {/* Instagram — copies link, opens new DM page */}
-                        <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(surveyUrl);
-                            window.open('https://www.instagram.com/direct/new/', '_blank');
-                            toast.success('Link copied! Paste it in the Instagram message');
-                          }}
-                          className="axiora-social-btn"
-                        >
-                          <InstagramIcon /> Instagram DM
-                        </button>
-
-                        {/* Facebook Messenger — opens Messenger new conversation */}
-                        <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(surveyUrl);
-                            window.open('https://www.messenger.com/new', '_blank');
-                            toast.success('Link copied! Paste it in the Messenger chat');
-                          }}
-                          className="axiora-social-btn"
-                        >
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
-                            <path d="M12 2C6.477 2 2 6.145 2 11.243c0 2.91 1.395 5.51 3.578 7.22V22l3.27-1.796c.874.242 1.8.372 2.76.372 5.522 0 10-4.144 10-9.243S17.522 2 12 2zm1.003 12.44l-2.548-2.72-4.97 2.72 5.469-5.807 2.61 2.72 4.907-2.72-5.468 5.807z" />
-                          </svg>
-                          Messenger
-                        </button>
-
-                        {/* LinkedIn — opens message compose */}
-                        <button
-                          onClick={() => openShare(`https://www.linkedin.com/messaging/compose/?body=${encodeURIComponent(`${shareText}\n${surveyUrl}`)}`)}
-                          className="axiora-social-btn"
-                        >
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
-                            <path d="M6.94 8.5H3.56V20h3.38V8.5zM5.25 3A2.25 2.25 0 1 0 5.3 7.5 2.25 2.25 0 0 0 5.25 3zM20.44 13.06c0-3.38-1.8-4.95-4.2-4.95a3.63 3.63 0 0 0-3.28 1.8V8.5H9.56c.05.93 0 11.5 0 11.5h3.4v-6.42c0-.34.03-.68.12-.93.27-.68.9-1.38 1.96-1.38 1.38 0 1.93 1.04 1.93 2.57V20h3.4v-6.94z" />
-                          </svg>
-                          LinkedIn
-                        </button>
-                      </div>
-
-                      <p style={{ fontSize: 11, color: 'rgba(22,15,8,0.35)', margin: 0, lineHeight: 1.5 }}>
-                        Instagram &amp; Messenger: link is auto-copied — just paste it in the chat.
-                      </p>
-                    </>
-                  ) : twitterView === 'choice' ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                        <span style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, color: '#000', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                          X / Twitter
-                        </span>
-                        <button
-                          onClick={() => setTwitterView(null)}
-                          style={{ background: 'none', border: 'none', color: 'rgba(22,15,8,0.4)', fontSize: 10, fontFamily: 'Syne,sans-serif', fontWeight: 700, textTransform: 'uppercase', cursor: 'pointer' }}
-                        >
-                          ← Back to Social
-                        </button>
-                      </div>
-
-                      <p style={{ fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 12, color: 'rgba(22,15,8,0.5)', margin: 0, lineHeight: 1.6 }}>
-                        Choose how you'd like to share this survey on X.
-                      </p>
-
-                      {/* Post on Timeline */}
                       <button
-                        onClick={() => openShare(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodedUrl}`)}
+                        id="whatsapp-bulk-btn"
+                        onClick={() => setWhatsAppView('choice')}
                         style={{
-                          background: 'var(--cream)', border: '1.5px solid rgba(22,15,8,0.08)', borderRadius: 14,
-                          padding: '16px 18px', cursor: 'pointer', textAlign: 'left',
-                          display: 'flex', alignItems: 'flex-start', gap: 14,
-                          transition: 'border-color 0.2s, box-shadow 0.2s', width: '100%', boxSizing: 'border-box',
+                          flex: 1, padding: '11px 14px', borderRadius: 999, border: 'none',
+                          background: '#25D366', cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                          fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 9,
+                          color: '#fff', textTransform: 'uppercase', letterSpacing: '0.08em',
+                          transition: 'all 0.2s', boxSizing: 'border-box',
                         }}
-                        onMouseEnter={e => { e.currentTarget.style.borderColor = '#000'; e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.1)'; }}
-                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(22,15,8,0.08)'; e.currentTarget.style.boxShadow = 'none'; }}
+                        onMouseEnter={e => e.currentTarget.style.opacity = '0.88'}
+                        onMouseLeave={e => e.currentTarget.style.opacity = '1'}
                       >
-                        <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(0,0,0,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 18 }}>
-                          📢
-                        </div>
-                        <div>
-                          <div style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 12, color: 'var(--espresso)', marginBottom: 4 }}>
-                            Post on Timeline
-                          </div>
-                          <div style={{ fontFamily: 'Fraunces,serif', fontSize: 11, color: 'rgba(22,15,8,0.5)', lineHeight: 1.5 }}>
-                            Share the survey link as a public post on your X feed.
-                          </div>
-                        </div>
-                      </button>
-
-                      {/* Send as Direct Message */}
-                      <button
-                        onClick={() => openShare(`https://twitter.com/messages/compose?text=${encodedUrl}`)}
-                        style={{
-                          background: 'var(--cream)', border: '1.5px solid rgba(22,15,8,0.08)', borderRadius: 14,
-                          padding: '16px 18px', cursor: 'pointer', textAlign: 'left',
-                          display: 'flex', alignItems: 'flex-start', gap: 14,
-                          transition: 'border-color 0.2s, box-shadow 0.2s', width: '100%', boxSizing: 'border-box',
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.borderColor = '#000'; e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.1)'; }}
-                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(22,15,8,0.08)'; e.currentTarget.style.boxShadow = 'none'; }}
-                      >
-                        <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(0,0,0,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="#000">
-                            <path d="M18.9 1.2h3.7l-8.1 9.2 9.5 12.6h-7.4l-5.8-7.6-6.7 7.6H.5l8.7-9.9L.1 1.2h7.6l5.2 6.9 6-6.9zm-1.3 19.5h2.1L6.5 3.3H4.3l13.3 17.4z" />
-                          </svg>
-                        </div>
-                        <div>
-                          <div style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 12, color: 'var(--espresso)', marginBottom: 4 }}>
-                            Send as Direct Message
-                          </div>
-                          <div style={{ fontFamily: 'Fraunces,serif', fontSize: 11, color: 'rgba(22,15,8,0.5)', lineHeight: 1.5 }}>
-                            Open X DM compose — pick a contact and send the link privately.
-                          </div>
-                        </div>
+                        <WhatsAppIcon /> WhatsApp Bulk
                       </button>
                     </div>
-                  ) : whatsAppView === 'choice' ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                        <span style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, color: '#25D366', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                          WhatsApp
-                        </span>
-                        <button
-                          onClick={() => setWhatsAppView(null)}
-                          style={{ background: 'none', border: 'none', color: 'rgba(22,15,8,0.4)', fontSize: 10, fontFamily: 'Syne,sans-serif', fontWeight: 700, textTransform: 'uppercase', cursor: 'pointer' }}
-                        >
-                          ← Back to Social
-                        </button>
-                      </div>
+                  </div>
+                );
+              })()}
 
-                      <p style={{ fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 12, color: 'rgba(22,15,8,0.5)', margin: 0, lineHeight: 1.6 }}>
-                        Choose how you'd like to share this survey via WhatsApp.
-                      </p>
-
-                      {/* Personal Share Card */}
-                      <button
-                        onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(whatsAppMessage)}`, '_blank')}
-                        style={{
-                          background: 'var(--cream)',
-                          border: '1.5px solid rgba(22,15,8,0.08)',
-                          borderRadius: 14,
-                          padding: '16px 18px',
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                          display: 'flex',
-                          alignItems: 'flex-start',
-                          gap: 14,
-                          transition: 'border-color 0.2s, box-shadow 0.2s',
-                          width: '100%',
-                          boxSizing: 'border-box',
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.borderColor = '#25D366'; e.currentTarget.style.boxShadow = '0 2px 12px rgba(37,211,102,0.1)'; }}
-                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(22,15,8,0.08)'; e.currentTarget.style.boxShadow = 'none'; }}
-                      >
-                        <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(37,211,102,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          <svg width="18" height="18" viewBox="0 0 32 32" fill="#25D366">
-                            <path d="M16 .5C7.5.5.5 7.5.5 16c0 2.8.7 5.4 2 7.7L.5 31.5l8-2.1c2.2 1.2 4.7 1.9 7.5 1.9 8.5 0 15.5-7 15.5-15.5S24.5.5 16 .5zm0 28c-2.4 0-4.6-.6-6.5-1.7l-.5-.3-4.7 1.2 1.2-4.6-.3-.5C3.1 20.6 2.5 18.4 2.5 16 2.5 8.8 8.8 2.5 16 2.5S29.5 8.8 29.5 16 23.2 28.5 16 28.5zm7.5-9.6c-.4-.2-2.3-1.1-2.7-1.2-.4-.1-.6-.2-.9.2s-1 1.2-1.2 1.4c-.2.2-.4.3-.8.1-2.3-1.2-3.8-2.1-5.3-4.7-.4-.6.4-.6 1.1-2 .1-.2 0-.4 0-.6 0-.2-.9-2.1-1.2-2.9-.3-.7-.6-.6-.9-.6h-.8c-.3 0-.6.1-.9.4-.3.4-1.2 1.2-1.2 3s1.3 3.5 1.5 3.7c.2.2 2.6 4 6.3 5.5.9.4 1.6.6 2.2.7.9.1 1.7.1 2.3.1.7-.1 2.3-.9 2.6-1.7.3-.8.3-1.5.2-1.7-.1-.2-.4-.3-.8-.5z" />
-                          </svg>
-                        </div>
-                        <div>
-                          <div style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 12, color: 'var(--espresso)', marginBottom: 4 }}>
-                            Personal Share
-                          </div>
-                          <div style={{ fontFamily: 'Fraunces,serif', fontSize: 11, color: 'rgba(22,15,8,0.5)', lineHeight: 1.5 }}>
-                            Share directly to a contact or group via your WhatsApp.
-                          </div>
-                        </div>
-                      </button>
-
-                      {/* Bulk Share Card */}
-                      <button
-                        onClick={() => setWhatsAppView('bulk')}
-                        style={{
-                          background: 'var(--cream)',
-                          border: '1.5px solid rgba(22,15,8,0.08)',
-                          borderRadius: 14,
-                          padding: '16px 18px',
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                          display: 'flex',
-                          alignItems: 'flex-start',
-                          gap: 14,
-                          transition: 'border-color 0.2s, box-shadow 0.2s',
-                          width: '100%',
-                          boxSizing: 'border-box',
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.borderColor = '#25D366'; e.currentTarget.style.boxShadow = '0 2px 12px rgba(37,211,102,0.1)'; }}
-                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(22,15,8,0.08)'; e.currentTarget.style.boxShadow = 'none'; }}
-                      >
-                        <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(37,211,102,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 18 }}>
-                          📢
-                        </div>
-                        <div>
-                          <div style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 12, color: 'var(--espresso)', marginBottom: 4 }}>
-                            Bulk Share Campaign
-                          </div>
-                          <div style={{ fontFamily: 'Fraunces,serif', fontSize: 11, color: 'rgba(22,15,8,0.5)', lineHeight: 1.5 }}>
-                            Send to multiple contacts at once via phone numbers or a contact list.
-                          </div>
-                        </div>
-                      </button>
+              {/* WhatsApp Bulk sub-panel */}
+              {tab === 'social' && whatsAppView === 'choice' && (
+                <div style={{ position: 'absolute', inset: 0, background: 'var(--warm-white)', borderRadius: 24, padding: '32px 32px 28px', display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, flexShrink: 0 }}>
+                    <span style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, color: '#25D366', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      WhatsApp
+                    </span>
+                    <button
+                      onClick={() => setWhatsAppView(null)}
+                      style={{ background: 'none', border: 'none', color: 'rgba(22,15,8,0.4)', fontSize: 10, fontFamily: 'Syne,sans-serif', fontWeight: 700, textTransform: 'uppercase', cursor: 'pointer' }}
+                    >
+                      ← Back
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const caption = aiWhatsAppCaption || whatsAppMessage;
+                      window.open(`https://wa.me/?text=${encodeURIComponent(caption)}`, '_blank');
+                    }}
+                    style={{ background: 'var(--cream)', border: '1.5px solid rgba(22,15,8,0.08)', borderRadius: 14, padding: '16px 18px', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'flex-start', gap: 14, transition: 'border-color 0.2s, box-shadow 0.2s', width: '100%', boxSizing: 'border-box' }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = '#25D366'; e.currentTarget.style.boxShadow = '0 2px 12px rgba(37,211,102,0.1)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(22,15,8,0.08)'; e.currentTarget.style.boxShadow = 'none'; }}
+                  >
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(37,211,102,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <WhatsAppIcon />
                     </div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                        <span style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, color: '#25D366', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                          WhatsApp Share Campaign
-                        </span>
-                        <button
-                          onClick={() => { setWhatsAppView('choice'); setWhatsAppFile(null); setWhatsAppNumbers(''); }}
-                          style={{ background: 'none', border: 'none', color: 'rgba(22,15,8,0.4)', fontSize: 10, fontFamily: 'Syne,sans-serif', fontWeight: 700, textTransform: 'uppercase', cursor: 'pointer' }}
-                        >
-                          ← Back
-                        </button>
-                      </div>
-
-                      <p style={{ fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 12, color: 'rgba(22,15,8,0.5)', margin: 0, lineHeight: 1.6 }}>
-                        Send the survey invite via WhatsApp to individual numbers or in bulk using contact lists.
-                      </p>
-
-                      {/* Phone Number Input */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        <label style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, color: 'rgba(22,15,8,0.4)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                          Manual Entry (Comma or new-line separated)
-                        </label>
-                        <div style={{ display: 'flex', gap: 8 }}>
-                          <input
-                            type="text"
-                            value={whatsAppNumbers}
-                            onChange={e => setWhatsAppNumbers(e.target.value)}
-                            onKeyDown={e => e.key === 'Enter' && sendWhatsApp()}
-                            placeholder={whatsAppFile ? "File selected — manual input disabled" : "+919876543210, +14155552671"}
-                            disabled={!!whatsAppFile}
-                            style={{ ...fieldStyle, flex: 1, opacity: whatsAppFile ? 0.5 : 1 }}
-                            onFocus={e => e.target.style.borderColor = '#25D366'}
-                            onBlur={e => e.target.style.borderColor = 'rgba(22,15,8,0.1)'}
-                          />
-                          <motion.button
-                            whileTap={{ scale: 0.96 }}
-                            onClick={sendWhatsApp}
-                            disabled={sendingWhatsApp || !!whatsAppFile || !whatsAppNumbers.trim()}
-                            style={{ ...btnPrimary(sendingWhatsApp || !!whatsAppFile || !whatsAppNumbers.trim()) }}
-                            onMouseEnter={e => { if (!sendingWhatsApp && !whatsAppFile && whatsAppNumbers.trim()) e.currentTarget.style.background = 'var(--coral)'; }}
-                            onMouseLeave={e => { if (!sendingWhatsApp && !whatsAppFile && whatsAppNumbers.trim()) e.currentTarget.style.background = 'var(--espresso)'; }}
-                          >
-                            {sendingWhatsApp ? '…' : 'Send'}
-                          </motion.button>
-                        </div>
-                      </div>
-
-                      {/* OR Divider */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '2px 0' }}>
-                        <div style={{ flex: 1, height: 1, background: 'rgba(22,15,8,0.06)' }}></div>
-                        <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, color: 'rgba(22,15,8,0.3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>OR</span>
-                        <div style={{ flex: 1, height: 1, background: 'rgba(22,15,8,0.06)' }}></div>
-                      </div>
-
-                      {/* File Upload Zone */}
-                      <ContactFileUploader
-                        type="phone"
-                        fileData={whatsAppFile}
-                        setFileData={setWhatsAppFile}
-                        isParsing={isWhatsAppFileParsing}
-                        setIsParsing={setIsWhatsAppFileParsing}
-                      />
-
-                      {/* WhatsApp Custom Message text */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        <label style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, color: 'rgba(22,15,8,0.4)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                          Custom Message Body
-                        </label>
-                        <textarea
-                          rows={3}
-                          value={whatsAppMessage}
-                          onChange={e => setWhatsAppMessage(e.target.value)}
-                          style={fieldStyle}
-                          onFocus={e => e.target.style.borderColor = '#25D366'}
-                          onBlur={e => e.target.style.borderColor = 'rgba(22,15,8,0.1)'}
-                        />
-                      </div>
-
-                      {/* Action Button */}
-                      <motion.button
-                        whileTap={{ scale: 0.98 }}
-                        onClick={sendWhatsApp}
-                        disabled={sendingWhatsApp}
-                        style={{
-                          ...btnPrimary(sendingWhatsApp),
-                          background: sendingWhatsApp ? 'rgba(22,15,8,0.12)' : '#25D366',
-                          color: sendingWhatsApp ? 'rgba(22,15,8,0.3)' : '#FFF',
-                          width: '100%',
-                          justifyContent: 'center',
-                          marginTop: 4
-                        }}
-                      >
-                        {sendingWhatsApp ? 'Broadcasting...' : '🚀 Send WhatsApp Broadcast'}
-                      </motion.button>
+                    <div>
+                      <div style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 12, color: 'var(--espresso)', marginBottom: 4 }}>Personal Share</div>
+                      <div style={{ fontFamily: 'Fraunces,serif', fontSize: 11, color: 'rgba(22,15,8,0.5)', lineHeight: 1.5 }}>Share directly to a contact or group via your WhatsApp.</div>
                     </div>
-                  )}
+                  </button>
+                  <button
+                    onClick={() => setWhatsAppView('bulk')}
+                    style={{ background: 'var(--cream)', border: '1.5px solid rgba(22,15,8,0.08)', borderRadius: 14, padding: '16px 18px', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'flex-start', gap: 14, transition: 'border-color 0.2s, box-shadow 0.2s', width: '100%', boxSizing: 'border-box' }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = '#25D366'; e.currentTarget.style.boxShadow = '0 2px 12px rgba(37,211,102,0.1)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(22,15,8,0.08)'; e.currentTarget.style.boxShadow = 'none'; }}
+                  >
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(37,211,102,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 18 }}>📢</div>
+                    <div>
+                      <div style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 12, color: 'var(--espresso)', marginBottom: 4 }}>Bulk Share Campaign</div>
+                      <div style={{ fontFamily: 'Fraunces,serif', fontSize: 11, color: 'rgba(22,15,8,0.5)', lineHeight: 1.5 }}>Send to multiple contacts at once via phone numbers or a contact list.</div>
+                    </div>
+                  </button>
                 </div>
               )}
+
+              {tab === 'social' && whatsAppView === 'bulk' && (
+                <div style={{ position: 'absolute', inset: 0, background: 'var(--warm-white)', borderRadius: 24, padding: '32px 32px 28px', display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, flexShrink: 0 }}>
+                    <span style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, color: '#25D366', textTransform: 'uppercase', letterSpacing: '0.05em' }}>WhatsApp Share Campaign</span>
+                    <button onClick={() => { setWhatsAppView('choice'); setWhatsAppFile(null); setWhatsAppNumbers(''); }} style={{ background: 'none', border: 'none', color: 'rgba(22,15,8,0.4)', fontSize: 10, fontFamily: 'Syne,sans-serif', fontWeight: 700, textTransform: 'uppercase', cursor: 'pointer' }}>← Back</button>
+                  </div>
+                  <p style={{ fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 12, color: 'rgba(22,15,8,0.5)', margin: 0, lineHeight: 1.6 }}>Send the survey invite via WhatsApp to individual numbers or in bulk using contact lists.</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <label style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, color: 'rgba(22,15,8,0.4)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Manual Entry (Comma or new-line separated)</label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input type="text" value={whatsAppNumbers} onChange={e => setWhatsAppNumbers(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendWhatsApp()} placeholder={whatsAppFile ? 'File selected — manual input disabled' : '+919876543210, +14155552671'} disabled={!!whatsAppFile} style={{ ...fieldStyle, flex: 1, opacity: whatsAppFile ? 0.5 : 1 }} onFocus={e => e.target.style.borderColor = '#25D366'} onBlur={e => e.target.style.borderColor = 'rgba(22,15,8,0.1)'} />
+                      <motion.button whileTap={{ scale: 0.96 }} onClick={sendWhatsApp} disabled={sendingWhatsApp || !!whatsAppFile || !whatsAppNumbers.trim()} style={{ ...btnPrimary(sendingWhatsApp || !!whatsAppFile || !whatsAppNumbers.trim()) }} onMouseEnter={e => { if (!sendingWhatsApp && !whatsAppFile && whatsAppNumbers.trim()) e.currentTarget.style.background = 'var(--coral)'; }} onMouseLeave={e => { if (!sendingWhatsApp && !whatsAppFile && whatsAppNumbers.trim()) e.currentTarget.style.background = 'var(--espresso)'; }}>{sendingWhatsApp ? '…' : 'Send'}</motion.button>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '2px 0' }}>
+                    <div style={{ flex: 1, height: 1, background: 'rgba(22,15,8,0.06)' }}></div>
+                    <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, color: 'rgba(22,15,8,0.3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>OR</span>
+                    <div style={{ flex: 1, height: 1, background: 'rgba(22,15,8,0.06)' }}></div>
+                  </div>
+                  <ContactFileUploader type="phone" fileData={whatsAppFile} setFileData={setWhatsAppFile} isParsing={isWhatsAppFileParsing} setIsParsing={setIsWhatsAppFileParsing} />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <label style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, color: 'rgba(22,15,8,0.4)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Custom Message Body</label>
+                    <textarea rows={3} value={whatsAppMessage} onChange={e => setWhatsAppMessage(e.target.value)} style={fieldStyle} onFocus={e => e.target.style.borderColor = '#25D366'} onBlur={e => e.target.style.borderColor = 'rgba(22,15,8,0.1)'} />
+                  </div>
+                  <motion.button whileTap={{ scale: 0.98 }} onClick={sendWhatsApp} disabled={sendingWhatsApp} style={{ ...btnPrimary(sendingWhatsApp), background: sendingWhatsApp ? 'rgba(22,15,8,0.12)' : '#25D366', color: sendingWhatsApp ? 'rgba(22,15,8,0.3)' : '#FFF', width: '100%', justifyContent: 'center', marginTop: 4 }}>
+                    {sendingWhatsApp ? 'Broadcasting...' : '🚀 Send WhatsApp Broadcast'}
+                  </motion.button>
+                </div>
+              )}
+
             </motion.div>
           </motion.div>
         )}
+
 
         {/* Bulk Broadcast Modals */}
         <BulkEmailModal
@@ -1067,6 +1539,11 @@ export default function ShareModal({ survey, isOpen, onClose }) {
 
 .axiora-social-btn:active {
   transform: scale(0.98);
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }`}
       </style>
     </>

@@ -7,7 +7,7 @@ AI-powered survey insights with multi-provider failover
 
 import json
 import re
-from fastapi import Request, APIRouter, Depends, HTTPException
+from fastapi import Request, APIRouter, Depends, HTTPException, Form
 
 from pydantic import BaseModel, ValidationError
 from starlette.concurrency import run_in_threadpool
@@ -25,6 +25,8 @@ from schemas import (
     AIGenerateResponse,
     IdeaProtectionMetadata,
     SurveyIntelligenceResponse,
+    SocialShareContentResponse,
+    SocialShareCaptions,
 )
 from dependencies import get_current_user
 from services.feature_gate import require_feature
@@ -1389,3 +1391,220 @@ Original Survey JSON:
     except Exception as e:
         print(f"[AI] Survey translation error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to translate survey: {str(e)}")
+
+
+# ── Social Share Content Kit ──────────────────────────────────────────────────
+
+
+def _deterministic_social_content(title: str, description: str, questions: list) -> SocialShareContentResponse:
+    """Fallback: build sensible share content without the AI."""
+    q_snippet = "; ".join(q.get("question_text", "") for q in questions[:3] if q.get("question_text"))
+    clean_title = title.strip()
+    tagline = f"Share your thoughts on: {clean_title}"[:99]
+    desc = description.strip() if description else f"A survey about {clean_title}. Your opinion matters — take a few minutes to respond!"
+
+    base_tags = [
+        f"#{clean_title.replace(' ', '')}Survey",
+        "#Survey",
+        "#FeedbackMatters",
+        "#YourOpinionCounts",
+        "#Research",
+        "#Community",
+        "#Data",
+        "#Insights",
+    ]
+    survey_words = [w.capitalize() for w in clean_title.split() if len(w) > 3]
+    hashtags = base_tags[:6] + [f"#{w}" for w in survey_words[:2]]
+
+    link_placeholder = "[survey link]"
+    captions = SocialShareCaptions(
+        linkedin=(
+            f"📊 We'd love your professional perspective!\n\n{desc}\n\n"
+            f"This short survey takes just a few minutes. Your insight helps shape better decisions.\n\n"
+            f"👉 {link_placeholder}\n\n{' '.join(hashtags[:5])}"
+        ),
+        twitter=(
+            f"📣 Quick survey: {clean_title}\n\n{tagline}\n\n"
+            f"Takes ~2 min. Your voice matters! 👇\n{link_placeholder}\n\n{' '.join(hashtags[:4])}"
+        ),
+        instagram=(
+            f"✨ We want to hear from YOU! ✨\n\n{desc}\n\n"
+            f"📲 Link in bio — takes just 2 minutes!\n\n"
+            f"{'  '.join(hashtags)}"
+        ),
+        whatsapp=(
+            f"Hi! 👋 We'd love your feedback.\n\n*{clean_title}*\n\n{desc}\n\n"
+            f"It's quick and easy — please share your thoughts:\n{link_placeholder}"
+        ),
+        telegram=(
+            f"📊 *{clean_title}*\n\n{desc}\n\n"
+            f"Help us by sharing your perspective:\n{link_placeholder}"
+        ),
+        facebook=(
+            f"📣 {clean_title}\n\n{desc}\n\n"
+            f"Your feedback genuinely makes a difference. Please take 2 minutes to fill out this survey:\n"
+            f"👇 {link_placeholder}\n\n{' '.join(hashtags[:5])}"
+        ),
+    )
+    return SocialShareContentResponse(
+        description=desc,
+        tagline=tagline,
+        hashtags=hashtags,
+        captions=captions,
+        fallback_used=True,
+    )
+
+
+class SocialShareRequest(BaseModel):
+    survey_id: str
+
+
+@router.post("/social-share-content")
+@limiter.limit("3/minute")
+async def generate_social_share_content(
+    request: Request,
+    body: SocialShareRequest,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(get_current_user),
+):
+    """
+    Generate a platform-specific AI content kit for social sharing of a survey.
+
+    Returns: description, tagline, hashtags, and per-platform captions
+    (LinkedIn, Twitter/X, Instagram, WhatsApp, Telegram, Facebook).
+    Falls back to deterministic content if the AI call fails.
+    """
+    # ── Fetch survey (tenant-scoped) ──────────────────────────────────────────
+    survey = (
+        db.query(Survey)
+        .options(joinedload(Survey.questions))
+        .filter(
+            Survey.id == body.survey_id,
+            Survey.tenant_id == current_user.tenant_id,
+        )
+        .first()
+    )
+    if not survey:
+        raise HTTPException(status_code=404, detail="Survey not found")
+
+    title = survey.title or ""
+    description = survey.description or ""
+    questions_data = [
+        {"question_text": q.question_text, "type": q.question_type.value}
+        for q in (survey.questions or [])[:20]
+    ]
+    q_summary = "\n".join(
+        f"  - Q{i + 1} ({q['type']}): {q['question_text']}"
+        for i, q in enumerate(questions_data)
+    )
+
+    prompt = f"""You are an expert social media copywriter. Generate a professional social share content kit for the following survey.
+
+Survey Title: {title}
+Survey Description: {description}
+Survey Questions (sample):
+{q_summary}
+
+Generate a JSON object with this exact structure:
+{{
+  "description": "A compelling 2-3 sentence description summarizing the survey's true purpose and goals. Analyze the provided Survey Questions (sample) to capture the exact topics, feedback, and nuances asked in the questions (e.g. if questions ask about customer support delay and product quality, mention these specifically). Do NOT write a generic description.",
+  "tagline": "A punchy one-liner under 100 characters that captures the essence of the survey.",
+  "hashtags": ["#CamelCaseHashtag1", "#CamelCaseHashtag2"],
+  "captions": {{
+    "linkedin": "A professional post. MUST start with a hook, include the generated survey description, state why their input matters, include the link placeholder [link], and end with 3-4 hashtags.",
+    "twitter": "A punchy tweet under 280 characters. MUST include the survey description or a summary of it, the link placeholder [link], and 2-3 hashtags.",
+    "instagram": "An engaging post. MUST start with a hook, include the survey description, invite them to take the survey, reference the link placeholder [link], and end with 5-8 hashtags.",
+    "whatsapp": "A warm, personal invite. MUST bold the survey title (*title*), describe what the survey is about based on the generated survey description, and invite them to help out using the link placeholder [link].",
+    "telegram": "A clear, concise update. MUST bold the survey title (*title*), include the generated survey description, and provide the link placeholder [link].",
+    "facebook": "A community-focused post. MUST explain how their feedback will help, include the generated survey description, include the link placeholder [link], and end with 2-3 hashtags."
+  }}
+}}
+
+Rules:
+- Generate 8-12 hashtags total in CamelCase format (e.g. #CustomerFeedback, #UserResearch).
+- Every caption MUST include the placeholder text [link] exactly where the survey URL should be placed.
+- Twitter caption must be under 280 characters including [link] and hashtags.
+- Make captions feel authentic for each platform's culture and audience.
+- Base the description, tagline, hashtags, and captions primarily on the survey title, survey description, and the specific questions provided. Carefully analyze the questions to capture the exact topics, goals, and nuances of the survey, ensuring that the generated post captions and description accurately reflect what the survey is actually asking and conveying. Do not hallucinate details not supported by the questions or title.
+- Return ONLY valid JSON, no markdown, no explanation."""
+
+    try:
+        text = await run_in_threadpool(call_ai_sync, prompt, 2048)
+        result_json = json.loads(text)
+
+        # Normalize and validate
+        captions_raw = result_json.get("captions", {})
+        captions = SocialShareCaptions(
+            linkedin=str(captions_raw.get("linkedin", "")),
+            twitter=str(captions_raw.get("twitter", "")),
+            instagram=str(captions_raw.get("instagram", "")),
+            whatsapp=str(captions_raw.get("whatsapp", "")),
+            telegram=str(captions_raw.get("telegram", "")),
+            facebook=str(captions_raw.get("facebook", "")),
+        )
+        hashtags = result_json.get("hashtags", [])
+        if not isinstance(hashtags, list):
+            hashtags = []
+        hashtags = [str(h) for h in hashtags if h]
+
+        return SocialShareContentResponse(
+            description=str(result_json.get("description", "")),
+            tagline=str(result_json.get("tagline", ""))[:100],
+            hashtags=hashtags,
+            captions=captions,
+            fallback_used=False,
+        )
+
+    except Exception as e:
+        print(f"[AI] Social share content fallback used: {e}")
+        return _deterministic_social_content(title, description, questions_data)
+
+
+@router.post("/download-image")
+async def download_image(
+    image: str = Form(...),
+    filename: str = Form("share-card.png")
+):
+    """
+    Serve a base64-encoded image as a file attachment download.
+    This bypasses iframe sandbox restrictions on client-side downloads.
+    """
+    from fastapi.responses import StreamingResponse
+    import base64
+    import io
+
+    if not image or "," not in image:
+        raise HTTPException(status_code=400, detail="Invalid image data")
+
+    try:
+        header, encoded = image.split(",", 1)
+        data = base64.b64decode(encoded)
+        return StreamingResponse(
+            io.BytesIO(data),
+            media_type="image/png",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to process image: {str(e)}")
+
+
+@router.get("/download-qr")
+async def download_qr(url: str, filename: str):
+    """
+    Proxy a QR code image URL and serve it as a file attachment download.
+    This bypasses cross-origin restrictions and iframe sandbox limitations.
+    """
+    from fastapi.responses import Response
+    import requests
+
+    try:
+        res = requests.get(url, timeout=10)
+        res.raise_for_status()
+        return Response(
+            content=res.content,
+            media_type="image/png",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to fetch QR code: {str(e)}")
+
