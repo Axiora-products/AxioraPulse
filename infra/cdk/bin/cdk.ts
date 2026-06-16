@@ -50,13 +50,15 @@ new AxioraPulseStack(app, 'AxioraPulseStackQa', {
 
 
 // Production
-new AxioraPulseStack(app, 'AxioraPulseStackProd', {
-  environment: 'prod',
-  prodOverride: process.env.CDK_PROD_ENABLED === 'true', 
-  env: { 
-    account: '683354427635', 
-    region: 'ap-south-1' 
-  },
-  description: 'Production environment for AxioraPulse',
-});
+if (process.env.CDK_PROD_ENABLED === 'true') {
+  new AxioraPulseStack(app, 'AxioraPulseStackProd', {
+    environment: 'prod',
+    prodOverride: true, 
+    env: { 
+      account: '683354427635', 
+      region: 'ap-south-1' 
+    },
+    description: 'Production environment for AxioraPulse',
+  });
+}
 
