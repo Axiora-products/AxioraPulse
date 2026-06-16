@@ -13,6 +13,7 @@ class UserProfileOut(BaseModel):
     full_name: Optional[str] = None
     role: str
     tenant_id: Optional[UUID] = None
+    invited_by: Optional[UUID] = None
     is_active: bool
     is_internal: bool = False
     account_status: str
