@@ -159,18 +159,39 @@ export default function DashboardLayout() {
   return (
     <div
       className={`ws-layout${isLeftCollapsed ? ' left-collapsed' : ''}${isRightCollapsed ? ' right-collapsed' : ''}`}
-      style={{ cursor: 'none' }}
     >
       {/* ── MOBILE TOP BAR ── */}
       <div className="ws-mobile-topbar">
-        <NavLink to="/dashboard" style={{ textDecoration: 'none', display: 'flex', alignItems: 'flex-start', gap: 0, lineHeight: 1 }}>
-          <span style={{ fontFamily: 'Syne, sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.3)', marginRight: 6 }}>Axiora</span>
-          <span style={{ fontFamily: 'Playfair Display, serif', fontWeight: 900, fontSize: 18, letterSpacing: '-0.5px', color: 'var(--espresso)' }}>Pulse</span>
+        <NavLink
+          to="/dashboard"
+          className="ws-mobile-logo"
+          onClick={() => setMobileOpen(false)}
+        >
+          <span className="ws-sidebar-logo-pre">Axiora</span>
+
+          <span className="ws-sidebar-logo-main">
+            Pulse
+          </span>
+
+          <div className="ws-sidebar-logo-dot">
+            <div className="sonar-ring" />
+            <div className="sonar-ring" />
+            <div className="sonar-ring" />
+          </div>
         </NavLink>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+
+        <div className="ws-mobile-actions">
           <NotificationFeed />
-          <button className="ws-mobile-hamburger" onClick={() => setMobileOpen(v => !v)}>
-            {mobileOpen ? <IcoClose size={20} color="var(--espresso)" /> : <IcoMenu size={20} color="var(--espresso)" />}
+
+          <button
+            className="ws-mobile-hamburger"
+            onClick={() => setMobileOpen(v => !v)}
+          >
+            {mobileOpen ? (
+              <IcoClose size={20} color="#FDF5E8" />
+            ) : (
+              <IcoMenu size={20} color="#FDF5E8" />
+            )}
           </button>
         </div>
       </div>
@@ -383,8 +404,9 @@ export default function DashboardLayout() {
           </button>
 
           {/* Notifications */}
-          <NotificationFeed placement="top" />
-
+          {window.innerWidth > 768 && (
+            <NotificationFeed placement="top" />
+          )}
           {/* User dropdown menu */}
           <AnimatePresence>
             {userMenu && (
@@ -434,170 +456,433 @@ export default function DashboardLayout() {
       </AnimatePresence>
 
       <style>{`
-        .ws-layout {
-        display: flex;
-        min-height: 100vh;
-        position: relative;
-      }
+          .ws-layout {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+    position: relative;
+  }
 
-/* LEFT SIDEBAR */
-.ws-sidebar {
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  flex-shrink: 0;
-}
+  /* LEFT SIDEBAR */
+  .ws-sidebar {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
 
-/* MAIN CONTENT AREA */
-.ws-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
+  /* MAIN CONTENT AREA */
+  .ws-content {
+    flex: 1;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
 
-/* ONLY CENTER CONTENT SCROLLS */
-.ws-content-main {
-  flex: 1;
-  overflow: visible;
-  padding-right: 4px;
-}
+  /* ONLY CENTER CONTENT SCROLLS */
+  .ws-content-main {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 4px;
+  }
 
-/* OPTIONAL RIGHT SIDEBAR */
-.ws-right-sidebar {
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  flex-shrink: 0;
-}
-        .ws-sidebar-collapse-btn:hover {
-          color: var(--coral) !important;
-          background: rgba(253, 245, 232, 0.08) !important;
-        }
-
-        /* --- Left Sidebar Narrow Collapsed Strip Styles --- */
-        @media (min-width: 769px) {
-          .ws-layout.left-collapsed .ws-sidebar {
-            width: 80px;
-            min-width: 80px;
-            padding-left: 0;
-            padding-right: 0;
-            align-items: center;
-          }
-          
-          /* Enforce absolute spatial stability for the center content - no layout shifting! */
-          .ws-layout.left-collapsed .ws-content {
-  margin-left: 0;
-  width: calc(100% - 80px);
-}
-
-.ws-layout:not(.left-collapsed) .ws-content {
-  width: calc(100% - 280px);
-}
-
-          /* Hide labels, text, metadata and extra controls */
-          .ws-layout.left-collapsed .ws-sidebar-logo-pre,
-          .ws-layout.left-collapsed .ws-sidebar-logo-main,
-          .ws-layout.left-collapsed .ws-sidebar-item-text,
-          .ws-layout.left-collapsed .ws-sidebar-section-label,
-          .ws-layout.left-collapsed .ws-sidebar-item-meta,
-          .ws-layout.left-collapsed .ws-sidebar-user-info,
-          .ws-layout.left-collapsed .ws-empty-text,
-          .ws-layout.left-collapsed .ws-sidebar-user button,
-          .ws-layout.left-collapsed .ws-notification-feed-trigger {
-            display: none !important;
+  /* OPTIONAL RIGHT SIDEBAR */
+  .ws-right-sidebar {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+          .ws-sidebar-collapse-btn:hover {
+            color: var(--coral) !important;
+            background: rgba(253, 245, 232, 0.08) !important;
           }
 
-          /* Center header elements */
-          .ws-layout.left-collapsed .ws-sidebar-header {
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 24px 8px;
-          }
-          .ws-layout.left-collapsed .ws-sidebar-logo {
-            justify-content: center;
-            margin-bottom: 24px;
-            padding: 0;
-          }
-          .ws-layout.left-collapsed .ws-sidebar-logo-dot {
-            margin: 0 !important;
+          /* --- Left Sidebar Narrow Collapsed Strip Styles --- */
+          @media (min-width: 769px) {
+            .ws-layout.left-collapsed .ws-sidebar {
+              width: 80px;
+              min-width: 80px;
+              padding-left: 0;
+              padding-right: 0;
+              align-items: center;
+            }
+            
+            /* Enforce absolute spatial stability for the center content - no layout shifting! */
+            .ws-layout.left-collapsed .ws-content {
+    margin-left: 0;
+    width: calc(100% - 80px);
+  }
+
+  .ws-layout:not(.left-collapsed) .ws-content {
+    width: calc(100% - 280px);
+  }
+
+            /* Hide labels, text, metadata and extra controls */
+            .ws-layout.left-collapsed .ws-sidebar-logo-pre,
+            .ws-layout.left-collapsed .ws-sidebar-logo-main,
+            .ws-layout.left-collapsed .ws-sidebar-item-text,
+            .ws-layout.left-collapsed .ws-sidebar-section-label,
+            .ws-layout.left-collapsed .ws-sidebar-item-meta,
+            .ws-layout.left-collapsed .ws-sidebar-user-info,
+            .ws-layout.left-collapsed .ws-empty-text,
+            .ws-layout.left-collapsed .ws-sidebar-user button,
+            .ws-layout.left-collapsed .ws-notification-feed-trigger {
+              display: none !important;
+            }
+
+            /* Center header elements */
+            .ws-layout.left-collapsed .ws-sidebar-header {
+              width: 100%;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              padding: 24px 8px;
+            }
+            .ws-layout.left-collapsed .ws-sidebar-logo {
+              justify-content: center;
+              margin-bottom: 24px;
+              padding: 0;
+            }
+            .ws-layout.left-collapsed .ws-sidebar-logo-dot {
+              margin: 0 !important;
+            }
+
+            /* Render New Survey button as a premium centered circle, maintaining original espresso/coral color */
+            .ws-layout.left-collapsed .ws-new-btn {
+    width: 52px;
+    height: 52px;
+    min-width: 52px;
+    min-height: 52px;
+    border-radius: 18px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 0;
+    margin: 8px auto 18px;
+
+    overflow: hidden;
+  }
+
+  /* HIDE TEXT COMPLETELY */
+  .ws-layout.left-collapsed .ws-new-btn span {
+    display: none !important;
+  }
+
+  /* CENTER ICON */
+  .ws-layout.left-collapsed .ws-new-btn svg {
+    margin: 0 !important;
+    width: 18px;
+    height: 18px;
+  }
+            .ws-layout.left-collapsed .ws-new-btn svg {
+              margin: 0 !important;
+            }
+
+            /* Center navigation item icons */
+            .ws-layout.left-collapsed .ws-sidebar-item {
+              justify-content: center;
+              padding: 12px 0;
+              margin: 6px auto;
+              width: 48px;
+              height: 48px;
+              border-radius: 12px;
+              display: flex;
+              align-items: center;
+            }
+            .ws-layout.left-collapsed .ws-sidebar-item-icon {
+              margin: 0 !important;
+              font-size: 16px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            }
+
+            /* Center user avatar section */
+            .ws-layout.left-collapsed .ws-sidebar-user {
+              justify-content: center;
+              padding: 16px 0;
+              width: 100%;
+            }
+            .ws-layout.left-collapsed .ws-sidebar-avatar {
+              margin: 0 auto !important;
+            }
+
+            /* Smooth toggle transition positioning */
+            .ws-layout.left-collapsed .ws-sidebar-header > div:first-child {
+              flex-direction: column !important;
+              align-items: center !important;
+              gap: 16px !important;
+            }
+            .ws-layout.left-collapsed .ws-sidebar-collapse-btn {
+              margin: 0 !important;
+              padding: 8px !important;
+            }
           }
 
-          /* Render New Survey button as a premium centered circle, maintaining original espresso/coral color */
-          .ws-layout.left-collapsed .ws-new-btn {
-  width: 52px;
-  height: 52px;
-  min-width: 52px;
-  min-height: 52px;
-  border-radius: 18px;
 
-  display: flex;
-  align-items: center;
-  justify-content: center;
+          /* ========================================
+    MOBILE RESPONSIVE
+  ======================================== */
 
-  padding: 0;
-  margin: 8px auto 18px;
+  .ws-mobile-topbar {
+    display: none;
+    background: #160F08 !important;
+  }
+    
+  @media (max-width: 768px) {
 
-  overflow: hidden;
-}
+    /* Show mobile navbar */
+    .ws-mobile-topbar {
+      display: flex;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 64px;
+      z-index: 1000;
+      background: #fff;
+      border-bottom: 1px solid rgba(0,0,0,.08);
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+    }
 
-/* HIDE TEXT COMPLETELY */
-.ws-layout.left-collapsed .ws-new-btn span {
-  display: none !important;
-}
+    .ws-mobile-hamburger {
+      width: 40px;
+      height: 40px;
+      border: none;
+      background: transparent;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
 
-/* CENTER ICON */
-.ws-layout.left-collapsed .ws-new-btn svg {
-  margin: 0 !important;
-  width: 18px;
-  height: 18px;
-}
-          .ws-layout.left-collapsed .ws-new-btn svg {
-            margin: 0 !important;
-          }
+    /* Layout */
+    .ws-layout {
+      flex-direction: column;
+      height: 100vh;
+    }
 
-          /* Center navigation item icons */
-          .ws-layout.left-collapsed .ws-sidebar-item {
-            justify-content: center;
-            padding: 12px 0;
-            margin: 6px auto;
-            width: 48px;
-            height: 48px;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-          }
-          .ws-layout.left-collapsed .ws-sidebar-item-icon {
-            margin: 0 !important;
-            font-size: 16px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-          }
+    .ws-content {
+      width: 100% !important;
+      margin-left: 0 !important;
+      padding-top: 64px;
+    }
 
-          /* Center user avatar section */
-          .ws-layout.left-collapsed .ws-sidebar-user {
-            justify-content: center;
-            padding: 16px 0;
-            width: 100%;
-          }
-          .ws-layout.left-collapsed .ws-sidebar-avatar {
-            margin: 0 auto !important;
-          }
+    .ws-content-main {
+      width: 100%;
+      padding: 12px;
+    }
 
-          /* Smooth toggle transition positioning */
-          .ws-layout.left-collapsed .ws-sidebar-header > div:first-child {
-            flex-direction: column !important;
-            align-items: center !important;
-            gap: 16px !important;
-          }
-          .ws-layout.left-collapsed .ws-sidebar-collapse-btn {
-            margin: 0 !important;
-            padding: 8px !important;
-          }
-        }
-      `}</style>
+    /* Sidebar */
+    .ws-sidebar {
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: 280px;
+      max-width: 85vw;
+      height: 100vh;
+      z-index: 1200;
+      transform: translateX(-100%);
+      transition: transform .3s ease;
+      overflow-y: auto;
+    }
+
+    .ws-sidebar.mobile-open {
+      transform: translateX(0);
+    }
+
+    /* Overlay */
+    .ws-sidebar-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.5);
+      opacity: 0;
+      visibility: hidden;
+      transition: .25s;
+      z-index: 1100;
+    }
+
+    .ws-sidebar-overlay.visible {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    /* Disable collapse mode on mobile */
+    .ws-sidebar-collapse-btn {
+      display: none;
+    }
+
+    /* Footer */
+    footer {
+      padding: 20px 16px !important;
+    }
+
+    footer p {
+      font-size: 9px !important;
+      line-height: 1.6;
+    }
+
+    /* User section */
+    .ws-sidebar-user {
+      padding: 16px;
+    }
+
+    .ws-sidebar-user-name {
+      font-size: 13px;
+    }
+
+    .ws-sidebar-user-role {
+      font-size: 11px;
+    }
+
+    /* Survey cards/list */
+    .ws-sidebar-item {
+      padding: 12px;
+    }
+
+    .ws-sidebar-item-title {
+      font-size: 13px;
+    }
+
+    .ws-sidebar-item-meta {
+      font-size: 11px;
+    }
+  }
+
+  /* ========================================
+    TABLET
+  ======================================== */
+
+  @media (min-width: 769px) and (max-width: 1024px) {
+
+    .ws-sidebar {
+      width: 240px;
+    }
+
+    .ws-content {
+      width: calc(100% - 240px);
+    }
+
+    .ws-content-main {
+      padding: 20px;
+    }
+
+    footer {
+      padding: 20px;
+    }
+  }
+
+  @media (max-width: 768px) {
+
+    /* Right side icons container */
+    .ws-mobile-topbar > div {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    /* Notification trigger */
+    .ws-notification-feed-trigger,
+    .notification-trigger,
+    .notification-bell {
+      width: 40px !important;
+      height: 40px !important;
+      min-width: 40px !important;
+      min-height: 40px !important;
+
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+
+      border-radius: 12px;
+      background: #ffffff;
+      border: 1px solid rgba(22,15,8,0.08);
+
+      color: #160F08 !important;
+      opacity: 1 !important;
+    }
+
+    /* SVG icon */
+    .ws-notification-feed-trigger svg,
+    .notification-trigger svg,
+    .notification-bell svg {
+      width: 18px !important;
+      height: 18px !important;
+      stroke: #160F08 !important;
+      opacity: 1 !important;
+    }
+
+    /* Badge */
+    .notification-badge {
+      top: 4px !important;
+      right: 4px !important;
+      min-width: 16px;
+      height: 16px;
+      font-size: 10px;
+    }
+    .ws-mobile-topbar {
+    z-index: 2000 !important;
+  }
+
+  .ws-sidebar {
+    z-index: 1200 !important;
+  }
+    .ws-mobile-logo{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    text-decoration:none;
+    height:100%;
+  }
+
+  .ws-mobile-logo .ws-sidebar-logo-pre{
+    font-size:9px;
+    letter-spacing:.18em;
+    text-transform:uppercase;
+    color:rgba(253,245,232,.45);
+    margin-right:4px;
+    line-height:1;
+    margin-top:-2px !important;
+  }
+
+  .ws-mobile-logo .ws-sidebar-logo-main{
+    font-family:'Playfair Display', serif;
+    font-size:18px;
+    font-weight:900;
+    color:#FDF5E8;
+    line-height:1;
+    display:flex;
+    align-items:center;
+  }
+
+  .ws-mobile-logo .ws-sidebar-logo-dot{
+    width:10px;
+    height:10px;
+    min-width:10px;
+
+    border-radius:50%;
+    background:#FF4500;
+
+    margin-left:2px;
+    margin-top:15px !important;
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+
+    position:relative;
+  }
+ 
+  }
+        `}</style>
     </div>
   );
 }
