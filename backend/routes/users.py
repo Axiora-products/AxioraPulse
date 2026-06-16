@@ -75,7 +75,7 @@ def list_users(
     """
     users = (
         db.query(UserProfile)
-        .filter(UserProfile.tenant_id == current_user.tenant_id)
+        .filter((UserProfile.id == current_user.id) | (UserProfile.invited_by == current_user.id))
         .order_by(UserProfile.created_at)
         .all()
     )
@@ -174,6 +174,7 @@ def invite_user(
         password_hash=None,
         role=role,
         tenant_id=current_user.tenant_id,
+        invited_by=current_user.id,
         is_active=True,
         account_status="invited",
         invite_token=secrets.token_urlsafe(32),
@@ -279,6 +280,7 @@ def bulk_invite(
             password_hash=None,
             role=RoleEnum(body.role),
             tenant_id=current_user.tenant_id,
+            invited_by=current_user.id,
             is_active=True,
             account_status="invited",
             invite_token=secrets.token_urlsafe(32),

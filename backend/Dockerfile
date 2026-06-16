@@ -1,5 +1,6 @@
-# Use Python 3.12 slim image
-FROM python:3.12-slim
+# Use Python 3.12 slim image. Pin Bookworm because the current Trixie
+# variant can fail with "exec format error" on some Docker Desktop/WSL2 setups.
+FROM python:3.12-slim-bookworm
 
 # Install system dependencies (ffmpeg is required by whisper)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -8,11 +9,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Set working directory
 WORKDIR /app
-
-# Whisper uses the system FFmpeg executable to decode uploaded audio.
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install dependencies
 COPY requirements.txt .

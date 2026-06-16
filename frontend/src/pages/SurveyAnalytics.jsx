@@ -1393,6 +1393,15 @@ export default function SurveyAnalytics() {
   }
 }
 
+const smallBtn = {
+  ...S.exportBtn,
+  padding: '7px 12px',
+  fontSize: 9,
+  letterSpacing: '0.08em',
+  gap: 4,
+  minHeight: 30,
+  whiteSpace: 'nowrap',
+};
 
   if (!sv) return (
     <div style={{ textAlign:'center', padding:'80px 0', fontFamily:'Fraunces,serif', color:'rgba(22,15,8,0.3)' }}>Survey not found</div>
@@ -1417,53 +1426,34 @@ export default function SurveyAnalytics() {
             {sv.expires_at && ` · Expires ${formatDateTime(sv.expires_at)}`}
           </div>
         </div>
-        <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
+        <div style={{ display:'flex', gap:4, flexWrap:'wrap', alignItems:'center',overflowX: 'auto', marginLeft: -550, paddingRight: 8 }}>
           <div style={{ width: 1, height: 24, background: 'rgba(22,15,8,0.1)', margin: '0 4px' }} />
-          <button onClick={() => { navigator.clipboard.writeText(window.location.href); import('react-hot-toast').then(m => m.default.success('Analytics link copied!')); }} style={{ ...S.exportBtn, display: 'flex', alignItems: 'center', gap: 5 }}
+          <button onClick={() => { navigator.clipboard.writeText(window.location.href); import('react-hot-toast').then(m => m.default.success('Analytics link copied!')); }}   style={{ ...smallBtn, display: 'flex', alignItems: 'center' }}
             onMouseEnter={e=>{ e.currentTarget.style.borderColor='var(--coral)'; e.currentTarget.style.color='var(--coral)'; }}
             onMouseLeave={e=>{ e.currentTarget.style.borderColor='rgba(22,15,8,0.12)'; e.currentTarget.style.color='rgba(22,15,8,0.55)'; }}>
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
             Share
           </button>
-          {/* Download dropdown — CSV · XLSX · PDF under one menu */}
-          <div style={{ position: 'relative' }}>
-            <button onClick={() => setDlOpen(o => !o)} style={{ ...S.exportBtn, display: 'flex', alignItems: 'center', gap: 6, borderColor: dlOpen ? 'var(--coral)' : 'rgba(22,15,8,0.12)', color: dlOpen ? 'var(--coral)' : 'rgba(22,15,8,0.55)' }}
-              onMouseEnter={e=>{ e.currentTarget.style.borderColor='var(--coral)'; e.currentTarget.style.color='var(--coral)'; }}
-              onMouseLeave={e=>{ if (!dlOpen) { e.currentTarget.style.borderColor='rgba(22,15,8,0.12)'; e.currentTarget.style.color='rgba(22,15,8,0.55)'; } }}>
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              Download
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: dlOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}><polyline points="6 9 12 15 18 9"/></svg>
-            </button>
+          <button onClick={csv}   style={{ ...smallBtn, display: 'flex', alignItems: 'center' }}
+            onMouseEnter={e=>{ e.currentTarget.style.borderColor='var(--espresso)'; e.currentTarget.style.color='var(--espresso)'; }}
+            onMouseLeave={e=>{ e.currentTarget.style.borderColor='rgba(22,15,8,0.12)'; e.currentTarget.style.color='rgba(22,15,8,0.55)'; }}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            CSV 
+          </button>
 
-            {dlOpen && (
-              <>
-                {/* click-away backdrop */}
-                <div onClick={() => setDlOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
-                <motion.div
-                  initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.16, ease: [0.16,1,0.3,1] }}
-                  style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, zIndex: 41, background: 'var(--warm-white)', border: '1px solid rgba(22,15,8,0.1)', borderRadius: 14, padding: 6, minWidth: 184, boxShadow: '0 16px 40px rgba(22,15,8,0.14)' }}>
-                  {[
-                    { label: 'CSV',  desc: 'Raw response data',  fn: csv,       color: 'var(--espresso)' },
-                    { label: 'XLSX', desc: 'Full Excel workbook', fn: excel,     color: 'var(--sage)'     },
-                    { label: 'PDF',  desc: 'Formatted report',    fn: exportPDF, color: 'var(--coral)'    },
-                  ].map(opt => (
-                    <button key={opt.label} onClick={() => { setDlOpen(false); opt.fn(); }}
-                      style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', padding: '9px 11px', border: 'none', background: 'transparent', borderRadius: 9, cursor: 'pointer', textAlign: 'left' }}
-                      onMouseEnter={e=>e.currentTarget.style.background='var(--cream)'}
-                      onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                      <span style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(22,15,8,0.04)', color: opt.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                      </span>
-                      <span style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                        <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--espresso)' }}>{opt.label}</span>
-                        <span style={{ fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 11, color: 'rgba(22,15,8,0.5)' }}>{opt.desc}</span>
-                      </span>
-                    </button>
-                  ))}
-                </motion.div>
-              </>
-            )}
-          </div>
+          <button onClick={excel} style={{ ...smallBtn, display: 'flex', alignItems: 'center' }}
+            onMouseEnter={e=>{ e.currentTarget.style.borderColor='var(--sage)'; e.currentTarget.style.color='var(--sage)'; }}
+            onMouseLeave={e=>{ e.currentTarget.style.borderColor='rgba(22,15,8,0.12)'; e.currentTarget.style.color='rgba(22,15,8,0.55)'; }}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            XLSX
+          </button>
+
+          <button onClick={exportPDF} style={{ ...smallBtn, display: 'flex', alignItems: 'center', gap: 5 }}
+            onMouseEnter={e=>{ e.currentTarget.style.borderColor='var(--coral)'; e.currentTarget.style.color='var(--coral)'; }}
+            onMouseLeave={e=>{ e.currentTarget.style.borderColor='rgba(22,15,8,0.12)'; e.currentTarget.style.color='rgba(22,15,8,0.55)'; }}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            PDF
+          </button>
         </div>
       </div>
 

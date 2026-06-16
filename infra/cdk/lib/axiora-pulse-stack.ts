@@ -26,6 +26,8 @@ export class AxioraPulseStack extends cdk.Stack {
     const shortEnv = (envName === 'production' || envName === 'prod') ? 'prod' : 
                     (envName === 'development' || envName === 'dev') ? 'dev' : 'qa';
 
+    const isProd = (shortEnv === 'prod');
+
     // Safety Check: Prevent production deployment unless explicitly overridden
     if (shortEnv === 'prod' && !props.prodOverride) {
       throw new Error('Production deployment is disabled. Set prodOverride: true to enable.');
@@ -46,6 +48,10 @@ export class AxioraPulseStack extends cdk.Stack {
     const vpc = new ec2.Vpc(this, 'Vpc', {
       maxAzs: 2,
     });
+
+    if (isProd) {
+      vpc.addFlowLog('VpcFlowLog');
+    }
 
     const cluster = new ecs.Cluster(this, 'Cluster', {
       vpc,
@@ -77,13 +83,18 @@ export class AxioraPulseStack extends cdk.Stack {
       engine: rds.DatabaseInstanceEngine.postgres({
         version: rds.PostgresEngineVersion.VER_16_13,
       }),
-      instanceType: ec2.InstanceType.of(ec2.InstanceClass.BURSTABLE3, ec2.InstanceSize.MICRO),
+      instanceType: isProd
+        ? ec2.InstanceType.of(ec2.InstanceClass.BURSTABLE3, ec2.InstanceSize.MEDIUM)
+        : ec2.InstanceType.of(ec2.InstanceClass.BURSTABLE3, ec2.InstanceSize.MICRO),
       vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       securityGroups: [dbSecurityGroup],
       databaseName: 'nexpulse',
       credentials: rds.Credentials.fromSecret(dbSecret),
-      removalPolicy: shortEnv === 'prod' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
+      removalPolicy: isProd ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
+      multiAz: isProd,
+      storageEncrypted: isProd,
+      backupRetention: isProd ? cdk.Duration.days(7) : undefined,
     });
 
     // Store DB connection details in SSM (non-sensitive fields)
@@ -152,7 +163,15 @@ export class AxioraPulseStack extends cdk.Stack {
       selfSignUpEnabled: true,
       signInAliases: { email: true },
       autoVerify: { email: true },
-      removalPolicy: shortEnv === 'prod' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
+      removalPolicy: isProd ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
+      mfa: isProd ? cognito.Mfa.REQUIRED : cognito.Mfa.OFF,
+      passwordPolicy: isProd ? {
+        minLength: 12,
+        requireLowercase: true,
+        requireUppercase: true,
+        requireDigits: true,
+        requireSymbols: true,
+      } : undefined,
     });
 
     NagSuppressions.addResourceSuppressions(userPool, [
@@ -246,7 +265,7 @@ export class AxioraPulseStack extends cdk.Stack {
     const backendService = new ecs.FargateService(this, 'BackendService', {
       cluster,
       taskDefinition: backendTaskDef,
-      desiredCount: 1,
+      desiredCount: isProd ? 2 : 1,
       serviceName: `pulse-backend-${shortEnv}`,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       assignPublicIp: false,
@@ -278,11 +297,21 @@ export class AxioraPulseStack extends cdk.Stack {
     const frontendService = new ecs.FargateService(this, 'FrontendService', {
       cluster,
       taskDefinition: frontendTaskDef,
-      desiredCount: 1,
+      desiredCount: isProd ? 2 : 1,
       serviceName: `pulse-frontend-${shortEnv}`,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       assignPublicIp: false,
     });
+
+    if (isProd) {
+      const backendScaling = backendService.autoScaleTaskCount({ maxCapacity: 10, minCapacity: 2 });
+      backendScaling.scaleOnCpuUtilization('BackendCpuScaling', { targetUtilizationPercent: 70 });
+      backendScaling.scaleOnMemoryUtilization('BackendMemoryScaling', { targetUtilizationPercent: 70 });
+
+      const frontendScaling = frontendService.autoScaleTaskCount({ maxCapacity: 10, minCapacity: 2 });
+      frontendScaling.scaleOnCpuUtilization('FrontendCpuScaling', { targetUtilizationPercent: 70 });
+      frontendScaling.scaleOnMemoryUtilization('FrontendMemoryScaling', { targetUtilizationPercent: 70 });
+    }
 
     // 4. Application Load Balancer
     const alb = new elbv2.ApplicationLoadBalancer(this, 'Alb', {
