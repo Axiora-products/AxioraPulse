@@ -720,7 +720,7 @@ export default function SurveyCreate() {
               <div style={{ background: 'rgba(255,69,0,0.03)', padding: 24, borderRadius: 20, border: `1.5px solid ${tc}30` }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
                   <span style={{ fontSize: 16 }}>✨</span>
-                  <h3 style={{ margin: 0, fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 18, color: 'var(--espresso)' }}>AI Survey Generator</h3>
+                  <h3 style={{ margin: 0, fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 18, color: 'var(--espresso)' }}>Pulse Survey Generator</h3>
                 </div>
                 <label style={LBL}>Describe your survey</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>

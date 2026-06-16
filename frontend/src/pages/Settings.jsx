@@ -103,6 +103,8 @@ export default function Settings() {
   // updated Supabase but never synced back to Zustand, so the nav header kept
   // showing the old org name until a full page refresh.
   const { profile, tenant, updateProfile, updateTenant } = useAuthStore();
+  // Personal accounts have no organisation / team — hide org + invite-domain settings
+  const isPersonal = tenant?.account_type === 'personal';
   const { stopLoading } = useLoading();
   // No async data fetch — stop the nav spinner immediately
   useEffect(() => { stopLoading(); }, [stopLoading]);
@@ -457,7 +459,7 @@ export default function Settings() {
       </div>
 
       {/* Organisation */}
-      {hasPermission(profile?.role, 'manage_tenant') && (
+      {!isPersonal && hasPermission(profile?.role, 'manage_tenant') && (
         <div style={card}>
           <div style={secH}>Organisation</div>
           <form onSubmit={saveT} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -505,7 +507,7 @@ export default function Settings() {
       )}
 
       {/* Approved Email Domains — req #5/#6/#12/#13 */}
-      {hasPermission(profile?.role, 'manage_tenant') && (
+      {!isPersonal && hasPermission(profile?.role, 'manage_tenant') && (
         <ApprovedDomainsCard tenant={tenant} onSaved={syncDomains} />
       )}
 

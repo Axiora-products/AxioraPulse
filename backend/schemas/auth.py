@@ -15,6 +15,7 @@ class SyncRequest(BaseModel):
     id_token: str
     tenant_name: Optional[str] = None
     tenant_slug: Optional[str] = None
+    account_type: Optional[str] = None  # 'personal' | 'organization'
 
 
 class SyncResponse(BaseModel):

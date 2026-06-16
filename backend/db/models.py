@@ -93,6 +93,7 @@ class Tenant(Base):
     name = Column(String(255), nullable=False)
     slug = Column(String(100), unique=True, index=True, nullable=False)
     plan = Column(String(50), default="free")
+    account_type = Column(String(20), nullable=False, default="organization")  # 'personal' | 'organization'
     primary_color = Column(String(20), default="#FF4500")
     approved_domains = Column(ARRAY(Text), default=[])
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -225,6 +226,7 @@ class SurveyResponse(Base):
     survey_id = Column(UUID(as_uuid=True), ForeignKey("surveys.id", ondelete="CASCADE"), index=True, nullable=False)
     session_token = Column(String(100), nullable=True)
     respondent_email = Column(String(255), nullable=True)
+    source = Column(String(50), nullable=True)  # acquisition channel: whatsapp|linkedin|email|qr|direct|…
     language = Column(String(10), nullable=False, default="en")
     status = Column(SAEnum(ResponseStatusEnum), default=ResponseStatusEnum.in_progress)
     started_at = Column(DateTime(timezone=True), server_default=func.now())

@@ -44,6 +44,12 @@ def update_tenant(
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
+    if getattr(tenant, "account_type", "organization") == "personal":
+        raise HTTPException(
+            status_code=403,
+            detail="Organisation settings are not available on personal accounts",
+        )
+
     if body.name is not None:
         tenant.name = body.name
     if body.primary_color is not None:

@@ -25,6 +25,8 @@ export default function DashboardLayout() {
   const [surveys, setSurveys] = useState([]);
   const [files, setFiles] = useState([]);
   const [sidebarLoading, setSidebarLoading] = useState(true);
+  const [activeOpen, setActiveOpen] = useState(true);
+  const [draftsOpen, setDraftsOpen] = useState(true);
 
   // Fetch surveys and files for sidebar
   useEffect(() => {
@@ -42,7 +44,9 @@ export default function DashboardLayout() {
       setSidebarLoading(false);
     };
     load();
-  }, [profile]);
+    // Key on the user id, not the profile object — checkSession() replaces the
+    // profile object on every navigation, which would otherwise refetch endlessly.
+  }, [profile?.id]);
 
   // Close user menu on outside click
   useEffect(() => {
@@ -77,7 +81,7 @@ export default function DashboardLayout() {
     if (loc.pathname === '/surveys' || loc.pathname === '/dashboard') {
       API.get('/surveys/?limit=50').then(r => setSurveys(r.data || [])).catch(() => { });
     }
-  }, [loc.pathname, profile]);
+  }, [loc.pathname, profile?.id]);
 
   const refreshFiles = async () => {
     try {
@@ -126,6 +130,9 @@ export default function DashboardLayout() {
   if (loading || !profile) return <PageLoader label="Loading workspace…" />;
 
   const initials = (profile?.full_name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+
+  // Personal accounts have no team-management surface
+  const isPersonal = tenant?.account_type === 'personal';
 
   // Group surveys by status
   const activeSurveys = surveys.filter(s => s.status === 'active');
@@ -209,7 +216,6 @@ export default function DashboardLayout() {
                 justifyContent: 'center',
                 transition: 'all 0.25s ease',
                 backdropFilter: 'blur(12px)',
-                marginTop: '-4px',
                 boxShadow: '0 4px 14px rgba(0,0,0,0.12)',
               }}
               onMouseEnter={e => {
@@ -265,31 +271,31 @@ export default function DashboardLayout() {
               </div>
               <span className="ws-sidebar-item-text">Surveys</span>
             </NavLink>
-                  {/* Uploaded Files */}
-            <div className="ws-sidebar-section">
-              <div className="ws-sidebar-section-label">Files</div>
-              <NavLink to="/files" className={`ws-sidebar-item${loc.pathname === '/files' ? ' active' : ''}`} onClick={() => setMobileOpen(false)}>
-                <div className="ws-sidebar-item-icon">📁</div>
-                <div className="ws-sidebar-item-text">
-                  <span className="ws-sidebar-item-title">All Files</span>
-                  <span className="ws-sidebar-item-meta">{files.length} uploaded</span>
-                </div>
-              </NavLink>
-            </div>
-          </div>
+            {!isPersonal && (
             <NavLink to="/team" className={`ws-sidebar-item${loc.pathname === '/team' ? ' active' : ''}`} onClick={() => setMobileOpen(false)}>
               <div className="ws-sidebar-item-icon">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
               </div>
               <span className="ws-sidebar-item-text">Team</span>
             </NavLink>
+            )}
+            <NavLink to="/files" className={`ws-sidebar-item${loc.pathname === '/files' ? ' active' : ''}`} onClick={() => setMobileOpen(false)}>
+              <div className="ws-sidebar-item-icon">📁</div>
+              <div className="ws-sidebar-item-text">
+                <span className="ws-sidebar-item-title">All Files</span>
+                <span className="ws-sidebar-item-meta">{files.length} uploaded</span>
+              </div>
+            </NavLink>
           </div>
 
           {/* Active Surveys */}
           {activeSurveys.length > 0 && (
             <div className="ws-sidebar-section">
-              <div className="ws-sidebar-section-label">Active ({activeSurveys.length})</div>
-              {activeSurveys.map(s => (
+              <button type="button" className="ws-sidebar-section-label ws-sidebar-section-toggle" onClick={() => setActiveOpen(o => !o)} aria-expanded={activeOpen}>
+                <span>Active ({activeSurveys.length})</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 'auto', transform: activeOpen ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.2s ease' }}><polyline points="6 9 12 15 18 9" /></svg>
+              </button>
+              {activeOpen && activeSurveys.map(s => (
                 <NavLink key={s.id} to={`/surveys/${s.id}/edit`} className={`ws-sidebar-item${loc.pathname.includes(s.id) ? ' active' : ''}`} onClick={() => setMobileOpen(false)}>
                   <div className="ws-sidebar-item-icon">📊</div>
                   <div className="ws-sidebar-item-text">
@@ -312,8 +318,11 @@ export default function DashboardLayout() {
           {/* Draft Surveys */}
           {draftSurveys.length > 0 && (
             <div className="ws-sidebar-section">
-              <div className="ws-sidebar-section-label">Drafts ({draftSurveys.length})</div>
-              {draftSurveys.map(s => {
+              <button type="button" className="ws-sidebar-section-label ws-sidebar-section-toggle" onClick={() => setDraftsOpen(o => !o)} aria-expanded={draftsOpen}>
+                <span>Drafts ({draftSurveys.length})</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 'auto', transform: draftsOpen ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.2s ease' }}><polyline points="6 9 12 15 18 9" /></svg>
+              </button>
+              {draftsOpen && draftSurveys.map(s => {
                 const isPromptDraft = !s.questions || s.questions.length === 0;
                 const linkTo = isPromptDraft ? `/surveys/new?draftId=${s.id}` : `/surveys/${s.id}/edit`;
                 return (
@@ -363,7 +372,8 @@ export default function DashboardLayout() {
             </div>
           )}
 
-          
+        </div>
+        {/* ── End scrollable body ── */}
 
         {/* User Section at bottom */}
         <div className="ws-sidebar-user" ref={userRef}>
@@ -474,6 +484,27 @@ export default function DashboardLayout() {
           background: rgba(253, 245, 232, 0.08) !important;
         }
 
+        /* Keep the logo and collapse button vertically centered in the header row
+           (the logo's base margin-bottom otherwise skews the centering upward) */
+        .ws-sidebar-header > div:first-child {
+          align-items: center;
+        }
+        .ws-sidebar-header > div:first-child .ws-sidebar-logo {
+          margin-bottom: 0;
+        }
+
+        /* Collapsible section header (Active / Drafts) */
+        .ws-sidebar-section-toggle {
+          width: 100%;
+          background: none;
+          border: none;
+          cursor: pointer;
+          transition: color 0.18s ease;
+        }
+        .ws-sidebar-section-toggle:hover {
+          color: rgba(253, 245, 232, 0.5);
+        }
+
         /* --- Left Sidebar Narrow Collapsed Strip Styles --- */
         @media (min-width: 769px) {
           .ws-layout.left-collapsed .ws-sidebar {
@@ -516,9 +547,13 @@ export default function DashboardLayout() {
             padding: 24px 8px;
           }
           .ws-layout.left-collapsed .ws-sidebar-logo {
+            position: absolute;
+            inset: 0;
             justify-content: center;
-            margin-bottom: 24px;
+            align-items: center;
+            margin: 0;
             padding: 0;
+            transition: opacity 0.2s ease;
           }
           .ws-layout.left-collapsed .ws-sidebar-logo-dot {
             margin: 0 !important;
@@ -586,15 +621,34 @@ export default function DashboardLayout() {
             margin: 0 auto !important;
           }
 
-          /* Smooth toggle transition positioning */
+          /* Collapsed: the Pulse dot and the expand button share one slot.
+             The dot shows by default; hovering the slot swaps in the expand button. */
           .ws-layout.left-collapsed .ws-sidebar-header > div:first-child {
+            position: relative;
             flex-direction: column !important;
             align-items: center !important;
-            gap: 16px !important;
+            justify-content: center !important;
+            gap: 0 !important;
+            min-height: 40px;
           }
           .ws-layout.left-collapsed .ws-sidebar-collapse-btn {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) !important;
             margin: 0 !important;
             padding: 8px !important;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+          }
+          .ws-layout.left-collapsed .ws-sidebar-header > div:first-child:hover .ws-sidebar-collapse-btn {
+            opacity: 1;
+            pointer-events: auto;
+          }
+          .ws-layout.left-collapsed .ws-sidebar-header > div:first-child:hover .ws-sidebar-logo {
+            opacity: 0;
+            pointer-events: none;
           }
         }
       `}</style>

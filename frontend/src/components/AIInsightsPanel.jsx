@@ -469,7 +469,7 @@ function buildInsightsReport(doc, r, survey) {
 
   // ── Title ──
   doc.setFont('helvetica', 'bold'); doc.setFontSize(22); doc.setTextColor(INK);
-  doc.text('AI Deep Analysis', M, y + 8); gap(28);
+  doc.text('Pulse Deep Analysis', M, y + 8); gap(28);
   doc.setFont('helvetica', 'normal'); doc.setFontSize(12); doc.setTextColor(SUB);
   doc.text(ascii(survey?.title || 'Survey insights'), M, y); gap(16);
   doc.setFontSize(9); doc.setTextColor(FAINT);
@@ -670,7 +670,7 @@ export default function AIInsightsPanel({ survey, analytics, questionAnalytics }
       setState('done');
     } catch (e) {
       console.error('AI insights:', e);
-      setErrMsg(e.response?.data?.detail || 'Could not connect to AI — ensure your API key is set on the server.');
+      setErrMsg(e.response?.data?.detail || 'Could not connect to Pulse — ensure your API key is set on the server.');
       setState('error');
     }
   }
@@ -829,7 +829,7 @@ export default function AIInsightsPanel({ survey, analytics, questionAnalytics }
                   <div>
                     <div style={{ ...S.h3, fontSize:14, marginBottom:4 }}>What does this score mean?</div>
                     <p style={{ ...S.body, fontSize:12, margin:0 }}>
-                      Calculated by AI from your survey responses — sentiment, purchase intent,
+                      Calculated by Pulse from your survey responses — sentiment, purchase intent,
                       recommendations and overall respondent engagement across every answer.
                     </p>
                   </div>
