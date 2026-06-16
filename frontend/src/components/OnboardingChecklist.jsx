@@ -20,7 +20,10 @@ const STEPS = [
 ];
 
 export default function OnboardingChecklist({ surveyCount, responseCount, teamCount }) {
-  const { profile } = useAuthStore();
+  const { profile, tenant } = useAuthStore();
+  const isPersonal = tenant?.account_type === 'personal';
+  // Personal accounts have no team — drop the "invite a team member" step
+  const steps = isPersonal ? STEPS.filter(s => s.id !== 'invite_team') : STEPS;
   const [dismissed, setDismissed] = useState(false);
   const [minimised, setMinimised] = useState(false);
 
@@ -33,7 +36,7 @@ export default function OnboardingChecklist({ surveyCount, responseCount, teamCo
     ...(teamCount > 1      ? ['invite_team']    : []), // > 1 because current user is always 1
   ]);
 
-  const pct = Math.round((completed.size / STEPS.length) * 100);
+  const pct = Math.round((completed.size / steps.length) * 100);
 
   // Persist dismissal in localStorage (safe outside artifacts — this is a real app)
   useEffect(() => {
@@ -96,7 +99,7 @@ export default function OnboardingChecklist({ surveyCount, responseCount, teamCo
             transition={{ duration: 0.22 }}
           >
             <div style={{ padding: '4px 16px 16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 }}>
-              {STEPS.map(step => {
+              {steps.map(step => {
                 const done = completed.has(step.id);
                 return (
                   <Link key={step.id} to={step.to} style={{ textDecoration: 'none' }}>

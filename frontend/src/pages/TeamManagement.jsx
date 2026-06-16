@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import API from '../api/axios';
-import { useLocation } from 'react-router-dom';
+import { useLocation, Navigate } from 'react-router-dom';
 import useAuthStore from '../hooks/useAuth';
 import { ROLE_LABELS, hasPermission } from '../lib/constants';
 import toast from 'react-hot-toast';
@@ -87,7 +87,11 @@ export default function TeamManagement() {
   const teamFull = members.length >= maxMembers;
 
   const location = useLocation();
-  useEffect(() => { if (profile?.id) load(); else stopLoading(); }, [profile?.id, location.key]);
+  const isPersonal = tenant?.account_type === 'personal';
+  useEffect(() => { if (profile?.id && !isPersonal) load(); else stopLoading(); }, [profile?.id, isPersonal, location.key]);
+
+  // Team Management is unavailable on personal accounts — bounce to dashboard
+  if (isPersonal) return <Navigate to="/dashboard" replace />;
 
   async function load() {
     try {

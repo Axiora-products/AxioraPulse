@@ -199,6 +199,28 @@ export function useAnalytics(qs, rs, ans, trendDays = 14, surveyCreatedAt = null
       deviceBreakdown[dev] = (deviceBreakdown[dev] || 0) + 1;
     });
 
+    // ── Source breakdown (acquisition channel: whatsapp, email, qr, …) ────
+    const SOURCE_LABELS = {
+      whatsapp: 'WhatsApp', linkedin: 'LinkedIn', email: 'Email', qr: 'QR Code',
+      telegram: 'Telegram', twitter: 'X / Twitter', instagram: 'Instagram',
+      messenger: 'Messenger', facebook: 'Facebook', embed: 'Embed', direct: 'Direct Link',
+    };
+    const srcMap = {};
+    rs.forEach(r => {
+      const key = (r.source || 'direct').toLowerCase();
+      if (!srcMap[key]) srcMap[key] = { source: key, total: 0, completed: 0 };
+      srcMap[key].total++;
+      if (r.status === 'completed') srcMap[key].completed++;
+    });
+    const sourceBreakdown = Object.values(srcMap)
+      .map(s => ({
+        ...s,
+        label: SOURCE_LABELS[s.source] || (s.source.charAt(0).toUpperCase() + s.source.slice(1)),
+        completionRate: s.total ? Math.round((s.completed / s.total) * 100) : 0,
+        share: total ? Math.round((s.total / total) * 100) : 0,
+      }))
+      .sort((a, b) => b.total - a.total);
+
     // ── Location breakdown (from respondent demographics `city`) ──────────
     // City is free-text, so normalise casing/whitespace before grouping.
     const locMap = {};       // { displayCity: count }
@@ -241,6 +263,7 @@ export function useAnalytics(qs, rs, ans, trendDays = 14, surveyCreatedAt = null
       qualityBreakdown,
       responseTrend,
       deviceBreakdown,
+      sourceBreakdown,
       locationStats,
       questionAnalytics,
     };
@@ -379,6 +402,7 @@ function emptyResult() {
     dropOffFunnel: [], timingHeatmap: [],
     qualityBreakdown: { high: 0, medium: 0, low: 0, unscored: 0 },
     responseTrend: [], deviceBreakdown: { desktop: 0, mobile: 0, tablet: 0, unknown: 0 },
+    sourceBreakdown: [],
     locationStats: { breakdown: [], located: 0, unknown: 0, uniqueCities: 0 },
     questionAnalytics: [],
   };

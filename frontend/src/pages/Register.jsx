@@ -256,6 +256,7 @@ export default function Register() {
       await initialize(true, {
         tenant_name: tenantName,
         tenant_slug: tenantSlug,
+        account_type: f.accountType,
       });
       const storeUser = useAuthStore.getState().user;
       if (!storeUser) {

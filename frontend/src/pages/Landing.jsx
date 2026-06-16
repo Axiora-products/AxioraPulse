@@ -1076,7 +1076,7 @@ export default function Landing() {
         <div className="lp-pricing-grid">
           {[
             { cls: "std", badge: "Starter", name: "Free", curr: "₹", amt: "0", per: "/ month", desc: "Ad hoc studies, concept testing, and quick pulse checks. Ideal for brand teams conducting research independently.", feats: ["3 active surveys", "100 responses / month", "Basic analytics", "5 question types"], btn: "Start Free Study" },
-            { cls: "pro", badge: "Most Used", name: "Pro", curr: "₹", amt: "2,499", per: "/ month", desc: "For insight teams running continuous trackers, usage & attitude studies, and brand equity waves.", feats: ["Unlimited surveys", "10,000 responses / month", "Full analytics + AI insights", "All 24+ question types", "Custom branding", "Team collaboration (5 seats)"], btn: "Start 14-Day Trial" },
+            { cls: "pro", badge: "Most Used", name: "Pro", curr: "₹", amt: "2,499", per: "/ month", desc: "For insight teams running continuous trackers, usage & attitude studies, and brand equity waves.", feats: ["Unlimited surveys", "10,000 responses / month", "Full analytics + Pulse insights", "All 24+ question types", "Custom branding", "Team collaboration (5 seats)"], btn: "Start 14-Day Trial" },
             { cls: "ent", badge: "Enterprise", name: "Custom", curr: "", amt: "Talk to us", per: "", desc: "For research agencies, FMCG conglomerates, and financial institutions running multi-country, longitudinal, or panel-based programmes.", feats: ["Unlimited everything", "On-premise deployment", "Dedicated research analyst", "99.9% SLA guarantee", "API + Webhooks"], btn: "Contact Sales" },
           ].map((p, i) => (
             <div className={`lp-pcard ${p.cls} lp-sr lp-sr-d${i + 1}`} key={p.cls}>

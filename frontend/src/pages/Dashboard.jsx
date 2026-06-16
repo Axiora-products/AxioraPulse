@@ -119,11 +119,13 @@ export default function Dashboard() {
   const greet = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
   const firstName = profile?.full_name?.split(' ')[0] || 'there';
 
+  const isPersonal = tenant?.account_type === 'personal';
   const statItems = [
     { label: 'Total Surveys', val: stats.surveys },
     { label: 'Responses', val: stats.responses },
     { label: 'Completed', val: stats.completions },
-    { label: 'Team Members', val: stats.team },
+    // Team Members is irrelevant for personal accounts
+    ...(!isPersonal ? [{ label: 'Team Members', val: stats.team }] : []),
   ];
 
   return (
