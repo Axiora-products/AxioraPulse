@@ -27,6 +27,8 @@ import requests
 from functools import lru_cache
 from datetime import datetime, timezone
 from typing import Any, List
+from html import escape
+from urllib.parse import quote
 from core.rate_limiter import limiter
 from fastapi import Request
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -475,15 +477,16 @@ def get_survey_og(slug: str, db: Session = Depends(get_db)):
         or "https://app.axiorapulse.com"
     ).rstrip("/")
 
-    survey_url   = f"{frontend_url}/s/{slug}"
+    safe_slug = quote(slug, safe="")
+    survey_url   = f"{frontend_url}/s/{safe_slug}"
     og_image_url = f"{frontend_url}/og-share-card.png"
 
-    title = (survey.title or "Survey").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+    title = escape(survey.title or "Survey", quote=True)
     raw_desc = (
         survey.description
         or f"Take this short survey and share your perspective on: {survey.title or 'User Feedback'}."
     )
-    description = raw_desc[:200].replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+    description = escape(raw_desc[:200], quote=True)
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
