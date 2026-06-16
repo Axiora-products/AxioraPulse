@@ -35,7 +35,7 @@ export class AxioraPulseStack extends cdk.Stack {
     const expectedAccounts: { [key: string]: string } = {
       'dev': '079975324160',
       'qa': '399894608507',
-      'prod': '217757579310',
+      'prod': '683354427635',
     };
 
     if (expectedAccounts[shortEnv] && this.account !== expectedAccounts[shortEnv]) {
@@ -128,7 +128,7 @@ export class AxioraPulseStack extends cdk.Stack {
       });
 
       // Allow Production account to pull from QA repository for promotion
-      const prodAccount = '217757579310';
+      const prodAccount = '683354427635';
       [backendRepo, frontendRepo].forEach(repo => {
         repo.addToResourcePolicy(new iam.PolicyStatement({
           sid: 'AllowProdPull',
@@ -422,6 +422,10 @@ export class AxioraPulseStack extends cdk.Stack {
       {
         id: 'AwsSolutions-IAM4',
         reason: 'ECS Task role requires AmazonSSMReadOnlyAccess to read parameters from SSM.'
+      },
+      {
+        id: 'AwsSolutions-IAM5',
+        reason: 'ECS Task role needs wildcard permission to publish SMS notifications to any phone number via SNS.'
       }
     ], true);
 
