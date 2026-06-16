@@ -3,7 +3,7 @@ name: Promote to Production
 on:
   push:
     branches:
-      - main
+      - 'release/prod/**'
 
 permissions:
   id-token: write
@@ -13,6 +13,7 @@ jobs:
   promote:
     name: Promote Image & Deploy Prod
     runs-on: ubuntu-latest
+    environment: production
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -20,7 +21,7 @@ jobs:
       - name: Configure AWS Credentials (Prod)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::217757579310:role/GitHubActionsDeployerRole
+          role-to-assume: arn:aws:iam::683354427635:role/GitHubActionsDeployerRole
           aws-region: ap-south-1
 
       - name: Login to Amazon ECR (Prod)
@@ -91,10 +92,10 @@ jobs:
           DB_SECRET_ARN=$(aws ssm get-parameter --name "/axiorapulse/prod/DB_SECRET_ARN" --region ap-south-1 --query "Parameter.Value" --output text)
           sed -i "s|\${DB_SECRET_ARN}|$DB_SECRET_ARN|g" backend/ecs-task-def.json
           sed -i 's/${ENV}/prod/g' backend/ecs-task-def.json
-          sed -i 's/${ROLE_ARN}/arn:aws:iam::217757579310:role\/GitHubActionsDeployerRole/g' backend/ecs-task-def.json
-          sed -i 's/${ACCOUNT_ID}/217757579310/g' backend/ecs-task-def.json
+          sed -i 's/${ROLE_ARN}/arn:aws:iam::683354427635:role\/GitHubActionsDeployerRole/g' backend/ecs-task-def.json
+          sed -i 's/${ACCOUNT_ID}/683354427635/g' backend/ecs-task-def.json
           sed -i 's/${ENV}/prod/g' frontend/ecs-task-def.json
-          sed -i 's/${ROLE_ARN}/arn:aws:iam::217757579310:role\/GitHubActionsDeployerRole/g' frontend/ecs-task-def.json
+          sed -i 's/${ROLE_ARN}/arn:aws:iam::683354427635:role\/GitHubActionsDeployerRole/g' frontend/ecs-task-def.json
 
       - name: Render Backend Task Definition
         id: render-backend
