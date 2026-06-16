@@ -1651,7 +1651,17 @@ async def download_qr(url: str, filename: str):
     This bypasses cross-origin restrictions and iframe sandbox limitations.
     """
     from fastapi.responses import Response
+    from urllib.parse import urlparse
     import requests
+
+    allowed_hosts = {
+        "api.qrserver.com",
+        "quickchart.io",
+    }
+
+    parsed = urlparse(url)
+    if parsed.scheme != "https" or not parsed.hostname or parsed.hostname.lower() not in allowed_hosts:
+        raise HTTPException(status_code=400, detail="Invalid or disallowed QR code URL")
 
     try:
         res = requests.get(url, timeout=10)
