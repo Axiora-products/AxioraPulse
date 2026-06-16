@@ -1,8 +1,24 @@
 from fastapi.testclient import TestClient
 from app.main import app
+from db.database import SessionLocal
+from db.models import Tenant, UserProfile
 import uuid
 
 client = TestClient(app)
+
+
+def _set_account_type(account_type):
+    """Flip the dev user's tenant account_type, returning the previous value."""
+    db = SessionLocal()
+    try:
+        user = db.query(UserProfile).filter(UserProfile.email == "dev@axiorapulse.com").first()
+        tenant = db.query(Tenant).filter(Tenant.id == user.tenant_id).first()
+        previous = tenant.account_type
+        tenant.account_type = account_type
+        db.commit()
+        return previous
+    finally:
+        db.close()
 
 
 def test_list_users(auth_headers):
@@ -29,6 +45,23 @@ def test_invite_user(auth_headers):
     data = response.json()
     assert data["email"] == email
     assert data["account_status"] == "invited"
+
+
+def test_personal_account_blocks_team_management(auth_headers):
+    # Personal accounts cannot invite or delete team members (mutating endpoints 403).
+    previous = _set_account_type("personal")
+    try:
+        invite = client.post(
+            "/users/invite",
+            json={"email": f"p_{uuid.uuid4().hex}@example.com", "role": "viewer"},
+            headers=auth_headers,
+        )
+        assert invite.status_code == 403
+
+        delete = client.delete(f"/users/{uuid.uuid4()}", headers=auth_headers)
+        assert delete.status_code == 403
+    finally:
+        _set_account_type(previous)
 
 
 def test_bulk_invite_users(auth_headers):
