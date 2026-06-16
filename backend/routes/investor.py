@@ -5,10 +5,21 @@ from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 from db.database import get_db
 from db.models import UserProfile, Survey, SurveyQuestion, SurveyResponse, SurveyAnswer
-from schemas.investor import InvestorReadinessReportResponse, InvestorReadinessInitRequest
+from schemas.investor import (
+    InvestorReadinessReportResponse,
+    InvestorReadinessInitRequest,
+    SurveyIntelligence,
+    ExternalIntelligence,
+    CapabilityIntelligence,
+    EvidenceStatement,
+)
 from dependencies import get_current_user
 from core.rate_limiter import limiter
 from services.ai_provider import call_ai_sync
+from services.survey_intelligence import extract_survey_intelligence, FounderContext
+from services.external_intelligence import extract_external_intelligence
+from schemas.external_data import ExternalDataRequest
+from db.models import UploadedFile
 
 router = APIRouter(prefix="/investor", tags=["investor"])
 
@@ -35,8 +46,9 @@ def _get_currency_config(country: str) -> dict:
 # Investor-specific system instruction for AI calls
 _INVESTOR_SYSTEM_INSTRUCTION = (
     "You are an elite, venture-capital investment committee partner and startup mentor. "
-    "Your goal is to review a startup's survey validation data, market context, and roadmap "
-    "to produce a highly detailed, data-grounded, professional Investor Readiness Report. "
+    "Your role is to interpret ONLY the evidence provided in the survey intelligence section. "
+    "Do NOT invent data, assumptions, or market figures that are not grounded in the survey metrics given. "
+    "Where evidence is insufficient, state the limitation clearly rather than fabricating data. "
     "Always respond with valid raw JSON only — no markdown, no conversational commentary, "
     "no text wrapping outside the JSON structure."
 )
@@ -52,225 +64,395 @@ async def generate_investor_readiness_report(
     db: Session = Depends(get_db),
 ):
     """
-    Generate an AI-powered VC-grade Investor Readiness Report based on:
-    - Survey details
-    - Real survey response metrics
-    - Founder's context & target locations
+    Generate a VC-grade Investor Readiness Report grounded entirely in:
+    - Actual survey response data (via 7 capability intelligence engines)
+    - Founder-provided context (startup description, pricing, geography)
+
+    No assumptions. No fabricated metrics. Every insight is traceable to survey data.
+    HTTP 503 is returned if the AI provider is unavailable — no fake fallback data.
     """
-    # Verify survey ownership / tenant scoping
-    survey = db.query(Survey).filter(Survey.id == survey_id, Survey.tenant_id == current_user.tenant_id).first()
+    # ── 1. Verify survey ownership ────────────────────────────────────────────
+    survey = db.query(Survey).filter(
+        Survey.id == survey_id,
+        Survey.tenant_id == current_user.tenant_id,
+    ).first()
 
     if not survey:
         raise HTTPException(status_code=404, detail="Survey not found")
 
-    # ── MATH/SCORING ENGINE: Derive dynamic ground truth metrics ──
-    # 1. Total survey responses count
-    total_responses = db.query(SurveyResponse).filter(SurveyResponse.survey_id == survey_id).count()
+    # ── 2. Validate all required fields are provided ──────────────────────────
+    missing_fields = []
+    if not (body.startup_context or "").strip():
+        missing_fields.append("Startup Context")
+    if not (body.pricing_model or "").strip():
+        missing_fields.append("Pricing Model")
+    if not (body.target_country or "").strip():
+        missing_fields.append("Target Country")
+    if not (body.target_state or "").strip():
+        missing_fields.append("Target State")
+    if not (body.target_district or "").strip():
+        missing_fields.append("Target District")
 
-    # 2. Get questions and responses answers to compute positive feedback rates
+    if missing_fields:
+        fields_str = ", ".join(missing_fields)
+        raise HTTPException(
+            status_code=400,
+            detail=f"Please fill in all target parameters before generating the report. Missing: {fields_str}",
+        )
+
+    # ── 3. Enforce minimum response threshold ─────────────────────────────────
+    total_responses = db.query(SurveyResponse).filter(
+        SurveyResponse.survey_id == survey_id,
+    ).count()
+
+    if total_responses < 50:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Cannot generate an Investor Readiness Report with less than 50 survey responses. "
+                "Please gather 50 responses."
+            ),
+        )
+
+    # ── 4. Fetch questions, responses, and answers ────────────────────────────
     questions = (
-        db.query(SurveyQuestion).filter(SurveyQuestion.survey_id == survey_id).order_by(SurveyQuestion.sort_order).all()
+        db.query(SurveyQuestion)
+        .filter(SurveyQuestion.survey_id == survey_id)
+        .order_by(SurveyQuestion.sort_order)
+        .all()
     )
 
-    answers = db.query(SurveyAnswer).join(SurveyResponse).filter(SurveyResponse.survey_id == survey_id).all()
+    responses_all = (
+        db.query(SurveyResponse)
+        .filter(SurveyResponse.survey_id == survey_id)
+        .all()
+    )
 
-    # Calculate actual positive ratio (answers like yes, higher ratings, scales, positive selections)
-    positive_count = 0
-    analyzable_count = 0
-    ratings_sum = 0
-    ratings_count = 0
+    completed_responses = sum(
+        1 for r in responses_all
+        if r.status and r.status.value == "completed"
+    )
 
-    for ans in answers:
-        val = (ans.answer_value or "").strip().lower()
-        if not val:
-            continue
+    answers = (
+        db.query(SurveyAnswer)
+        .join(SurveyResponse)
+        .filter(SurveyResponse.survey_id == survey_id)
+        .all()
+    )
 
-        analyzable_count += 1
-        # Rating check
-        if val.isdigit() and len(val) <= 2:
-            rating_num = int(val)
-            ratings_sum += rating_num
-            ratings_count += 1
-            if rating_num >= 4:  # Scale 1-5 or similar positive response
-                positive_count += 1
-        # Text based positive validation check
-        elif val in ["yes", "true", "agree", "strongly agree", "very high", "high", "positive", "interested"]:
-            positive_count += 1
-        elif any(kw in val for kw in ["love", "great", "excellent", "definitely", "highly"]):
-            positive_count += 1
-
-    positive_feedback_ratio = 78  # professional baseline fallback
-    if analyzable_count > 0:
-        positive_feedback_ratio = int((positive_count / analyzable_count) * 100)
-
-    average_rating = 4.2  # professional baseline fallback
-    if ratings_count > 0:
-        average_rating = round(ratings_sum / ratings_count, 1)
-
-    # Base quantitative scores computed directly from real survey data
-    computed_validation_score = min(98, max(50, int(positive_feedback_ratio)))
-    computed_traction_score = min(96, max(30, int(total_responses * 4 + 40)))
-
-    # Pricing defaults if none given
+    # ── 5. Build founder context & run survey intelligence (19 capability engines) ──
     cur = _get_currency_config(body.target_country)
-    monetization = body.pricing_model or f"SaaS Subscription Model ({cur['symbol']} or equivalent)"
-    geography = f"Country: {body.target_country or 'Global'}, State: {body.target_state or 'National'}, District: {body.target_district or 'State-level'} (Target Local Currency: {cur['code']} - symbol {cur['symbol']})"
 
-    # Compile the questions list to send to Gemini
-    q_summary = "\n".join(f"  - Q{i + 1} ({q.question_type}): {q.question_text}" for i, q in enumerate(questions[:20]))
+    founder_context = FounderContext(
+        startup_context=body.startup_context,
+        pricing_model=body.pricing_model,
+        target_country=body.target_country,
+        target_state=body.target_state,
+        target_district=body.target_district,
+        currency_code=cur["code"],
+        currency_symbol=cur["symbol"],
+        funding_stage=body.funding_stage,
+        funding_target=body.funding_target,
+        team_size=body.team_size,
+        monthly_revenue=body.monthly_revenue,
+        industry_vertical=body.industry_vertical,
+        founded_year=body.founded_year,
+        founder_count=body.founder_count,
+    )
 
-    # ── AI PROCESSING LAYER: Structured Gemini prompt ──
-    prompt = f"""You are an elite VC Investment Partner. Generate a high-fidelity startup Investor Readiness Report based on this validated survey data:
+    intelligence = extract_survey_intelligence(
+        questions=questions,
+        answers=answers,
+        responses=responses_all,
+        total_responses=total_responses,
+        completed_responses=completed_responses,
+        founder=founder_context,
+    )
 
-== STARTUP WORKSPACE SUMMARY & MISSION ==
-{body.startup_context or "Early-stage startup building in research intelligence domain."}
+    # ── 5b. Resolve uploaded file IDs → extracted text ───────────────────────
+    ext_data: ExternalDataRequest = body.external_data or ExternalDataRequest()
 
-== GEOGRAPHIC LOCATION PARAMETERS ==
+    # Collect all file_id references from the external data payload
+    file_ids_needed: set = set()
+    _ext = ext_data.model_dump()
+    def _collect_ids(obj):
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                if k == "file_id" and isinstance(v, str):
+                    file_ids_needed.add(v)
+                elif k == "file_ids" and isinstance(v, list):
+                    file_ids_needed.update(v)
+                else:
+                    _collect_ids(v)
+        elif isinstance(obj, list):
+            for item in obj:
+                _collect_ids(item)
+    _collect_ids(_ext)
+
+    # Fetch extracted_text for each referenced file ID
+    file_texts: dict = {}
+    if file_ids_needed:
+        import uuid as _uuid
+        valid_uuids = []
+        for fid in file_ids_needed:
+            try:
+                valid_uuids.append(_uuid.UUID(fid))
+            except (ValueError, AttributeError):
+                pass
+        if valid_uuids:
+            db_files = (
+                db.query(UploadedFile)
+                .filter(
+                    UploadedFile.id.in_(valid_uuids),
+                    UploadedFile.tenant_id == current_user.tenant_id,
+                )
+                .all()
+            )
+            file_texts = {str(f.id): (f.extracted_text or "") for f in db_files}
+
+    # ── 5c. Run all 32 external-data capability engines ──────────────────────
+    external_intel = extract_external_intelligence(ext_data, file_texts)
+
+    # ── 6. Build structured SurveyIntelligence for response payload ───────────
+    survey_intelligence_obj = SurveyIntelligence(
+        overall_score=intelligence["overall_score"],
+        overall_confidence=intelligence["overall_confidence"],
+        total_evidence=intelligence["total_evidence"],
+        capabilities={
+            name: CapabilityIntelligence(
+                capability_name=cap["capability_name"],
+                score=cap["score"],
+                confidence=cap["confidence"],
+                evidence_count=cap["evidence_count"],
+                data_coverage=cap["data_coverage"],
+                evidence_statements=[
+                    EvidenceStatement(**ev)
+                    for ev in cap["evidence_statements"]
+                ],
+                raw_metrics=cap["raw_metrics"],
+                limitations=cap["limitations"],
+            )
+            for name, cap in intelligence["capabilities"].items()
+        },
+    )
+
+    # ── 7. Geography config (cur already defined in step 5) ────────────────────
+    monetization = body.pricing_model
+    geography = (
+        f"Country: {body.target_country}, "
+        f"State: {body.target_state}, "
+        f"District: {body.target_district} "
+        f"(Currency: {cur['code']} — symbol {cur['symbol']})"
+    )
+
+    # ── 8. Build question summary for AI context ──────────────────────────────
+    q_summary = "\n".join(
+        f"  - Q{i + 1} ({q.question_type}): {q.question_text}"
+        for i, q in enumerate(questions[:25])
+    )
+
+    # ── 8b. Pre-compute locked scoring dimension values ──────────────────
+    # These are derived from computed capability scores — AI cannot override them.
+    # Mapping: 5 scoring dimensions → best matching survey capability
+    caps = intelligence["capabilities"]
+
+    def _cap_score(name: str) -> int:
+        return caps.get(name, {}).get("score", 0)
+
+    def _cap_lims(name: str) -> list:
+        return caps.get(name, {}).get("limitations", [])
+
+    def _cap_status(score: int) -> str:
+        if score >= 70: return "Strong"
+        if score >= 50: return "Medium"
+        return "High Risk"
+
+    # Financial readiness: average of willingness_to_pay + unit_economics
+    _fin_score = int((_cap_score("willingness_to_pay") + _cap_score("unit_economics")) / 2)
+    _fin_lims  = _cap_lims("willingness_to_pay") + _cap_lims("unit_economics")
+
+    # Product readiness: problem_solution
+    _prod_score = _cap_score("problem_solution")
+    _prod_lims  = _cap_lims("problem_solution")
+
+    # Market readiness: market_opportunity
+    _mkt_score = _cap_score("market_opportunity")
+    _mkt_lims  = _cap_lims("market_opportunity")
+
+    # Team readiness: investor_readiness_analysis (has team_size info) or 0
+    _team_score = _cap_score("investor_readiness_analysis")
+    _team_lims  = _cap_lims("investor_readiness_analysis") or ["No team assessment questions in survey"]
+
+    # Operational maturity: traction_evidence
+    _ops_score = _cap_score("traction_evidence")
+    _ops_lims  = _cap_lims("traction_evidence")
+
+    _overall_score     = intelligence["overall_score"]
+    _confidence_score  = min(100, intelligence["total_evidence"] * 4 + 20)
+    _growth_potential  = "High" if _overall_score >= 70 else ("Moderate" if _overall_score >= 50 else "Low")
+    _attract_level     = (
+        "Excellent" if _overall_score >= 80 else
+        "Strong" if _overall_score >= 65 else
+        "Emerging" if _overall_score >= 50 else "Early Stage"
+    )
+    _pitch_rating      = (
+        "Highly Prepared" if _overall_score >= 75 else
+        "Refinements Needed" if _overall_score >= 55 else "Early Stage"
+    )
+
+    # ── 9. Compose AI prompt with evidence-grounded intelligence ──────────────
+    prompt = f"""You are an elite VC Investment Partner reviewing a validated startup's investor readiness.
+You must generate a Investor Readiness Report using ONLY the evidence provided below.
+
+CRITICAL RULES:
+1. Do NOT invent market figures, TAM/SAM/SOM, competitor data, or financial projections that are not based on the evidence provided.
+2. Where evidence is insufficient, write: "Insufficient survey data — [what data would strengthen this]"
+3. All monetary values MUST use {cur["code"]} ({cur["symbol"]}) based on the geography provided.
+4. Every qualitative insight must reference at least one evidence statement.
+
+== STARTUP CONTEXT ==
+{body.startup_context}
+
+== GEOGRAPHIC MARKET ==
 {geography}
+
+== PRICING & MONETIZATION MODEL ==
+{monetization}
 
 == SURVEY DEFINITION ==
 Title: {survey.title}
-Description: {survey.description or "No description provided."}
-Questions:
+Description: {survey.description or "Not provided."}
+Questions ({len(questions)} total):
 {q_summary}
 
-== CALCULATED SURVEY TRACTION METRICS (GROUND TRUTH) ==
-- Total Completed Responses: {total_responses}
-- Overall Positive Validation Ratio: {positive_feedback_ratio}%
-- Average Rating Index: {average_rating}/5.0
-- Computed Validation Score: {computed_validation_score}
-- Computed Traction Score: {computed_traction_score}
+{intelligence["prompt_section"]}
 
-== MONETIZATION & PRICING MODEL ==
-{monetization}
+== OUTPUT INSTRUCTIONS ==
+Using ONLY the evidence above, generate a JSON object with this exact shape.
+Where data is insufficient, use the string "Insufficient survey data" for that field — never fabricate:
 
-== INSTRUCTIONS ==
-Generate a highly detailed, professional, structured Investor Readiness Report. Do NOT generate generic or placeholder text. All recommendations, financial models, and TAM calculations must be highly contextually aligned with the startup concept and geographic market specified.
-IMPORTANT: Use the currency {cur["code"]} (symbol {cur["symbol"]}) for all monetary figures throughout the report, including TAM/SAM/SOM, unit economics, competitors, projections, funding ask, average checks, etc.
-
-Produce ONLY a raw JSON structure matching this exact shape:
 {{
   "survey_id": "{survey_id}",
   "survey_title": {json.dumps(survey.title)},
-  "category": "string (vertical e.g. EdTech/FinTech)",
-  "executive_summary": "1-page style VC grade executive summary of the opportunity, momentum, and outlook",
+  "category": "Industry vertical derived from startup context",
+  "executive_summary": "VC-grade summary referencing only the evidence provided above",
   "problem_solution_narrative": {{
-    "problem": "Clear formulation of problem statements and customer pain points validated by responses",
-    "solution": "Startup's solution direction and why it solves the customer's validated pain points"
+    "problem": "Evidence-backed problem statement using the problem_solution capability evidence",
+    "solution": "Solution narrative grounded in validated pain points — cite the evidence ratios"
   }},
-  "narrative_intelligence": "Compelling founder mission, vision, and strategic narrative hook for pitch presentations",
-  "market_opportunity_framing": "Investor-ready positioning of the market size growth, trends, and tailwinds",
+  "narrative_intelligence": "Mission and vision narrative grounded in the startup context and validated demand signals",
+  "market_opportunity_framing": "Market opportunity framing citing adoption intent % and demographic evidence",
   "tam_sam_som": {{
-    "tam": "$TAM value and calculation context",
-    "sam": "$SAM value and calculation context",
-    "som": "$SOM value and calculation context",
-    "data_source": "Explanation of industry sources, geography parameters, and pricing factors used"
+    "tam": "State if computable from evidence or 'Insufficient survey data — demographic questions needed'",
+    "sam": "State if computable or 'Insufficient survey data'",
+    "som": "State if computable or 'Insufficient survey data'",
+    "data_source": "Explain what evidence was used or what is missing"
   }},
   "competitors": [
     {{
-      "name": "Competitor 1",
-      "offering": "What they sell",
-      "pricing": "Pricing model with actual currency/numbers",
-      "strengths": "Advantage",
-      "weaknesses": "Vulnerability",
-      "diff": "Our unique differentiation relative to them",
-      "share": "relative share % e.g. 15%"
+      "name": "Derived from competitive_positioning evidence or 'Unknown — no competitor questions in survey'",
+      "offering": "From survey responses or 'Insufficient data'",
+      "pricing": "From survey responses or 'Insufficient data'",
+      "strengths": "From survey responses",
+      "weaknesses": "From dissatisfaction signals in competitive evidence",
+      "diff": "Our differentiation based on the gap identified",
+      "share": "Estimated from top_answers frequency if available"
     }}
   ],
-  "gtm_strategy": "Actionable go-to-market strategy, channels, leads, and sales roadmap",
+  "gtm_strategy": "GTM strategy grounded in adoption intent channels and demographic spread evidence",
   "unit_economics": {{
-    "cac": "CAC estimate and conversion expectations",
-    "ltv": "LTV estimate based on monetization",
-    "margin": "Gross margin percentage",
-    "retention": "Retention rate target %",
-    "payback_period": "Payback timeline in months"
+    "cac": "Estimate only if willingness_to_pay evidence exists, else 'Insufficient survey data'",
+    "ltv": "Estimate from pricing model and retention signals if available",
+    "margin": "Based on pricing model provided",
+    "retention": "From product_market_fit evidence if available",
+    "payback_period": "Calculated from CAC and LTV if available"
   }},
   "financial_projections": [
-    {{ "year": "Year 1", "revenue": "$150,000", "cost": "$120,000", "hiring": "5 employees", "margin": "20%" }},
-    {{ "year": "Year 2", "revenue": "$600,000", "cost": "$400,000", "hiring": "12 employees", "margin": "33%" }},
-    {{ "year": "Year 3", "revenue": "$2,200,000", "cost": "$1,100,000", "hiring": "25 employees", "margin": "50%" }}
+    {{ "year": "Year 1", "revenue": "Evidence-based or 'Insufficient data'", "cost": "Estimate", "hiring": "Estimate", "margin": "Estimate" }},
+    {{ "year": "Year 2", "revenue": "Evidence-based or 'Insufficient data'", "cost": "Estimate", "hiring": "Estimate", "margin": "Estimate" }},
+    {{ "year": "Year 3", "revenue": "Evidence-based or 'Insufficient data'", "cost": "Estimate", "hiring": "Estimate", "margin": "Estimate" }}
   ],
   "traction_evidence": {{
-    "total_responses": {total_responses},
-    "positive_validation_ratio": {positive_feedback_ratio},
-    "average_rating": {average_rating},
-    "market_validation_insight": "VC-focused narrative detailing the proof points from the survey responses"
+    "total_responses": {intelligence["capabilities"]["traction_evidence"]["raw_metrics"]["total_responses"]},
+    "positive_validation_ratio": {intelligence["capabilities"]["traction_evidence"]["raw_metrics"]["positive_validation_ratio"]},
+    "average_rating": {intelligence["capabilities"]["traction_evidence"]["raw_metrics"]["average_rating"]},
+    "market_validation_insight": "VC narrative citing the traction evidence metrics exactly as computed"
   }},
   "execution_roadmap": [
     {{
       "phase": "Phase 1: Validation & Launch",
-      "milestone": "Launch beta product and secure first 10 paying customers",
+      "milestone": "Grounded in the evidence gaps identified",
       "timeline": "Month 1 - 3",
-      "funding_required": "$30,000",
+      "funding_required": "Based on monetization model in {cur['code']}",
       "focus_area": "Product & Engineering"
     }}
   ],
   "objections": [
     {{
-      "objection": "Potential concern about CAC or customer retention in a crowded market",
-      "severity": "High / Medium / Low",
-      "suggested_response": "Polished VC objection response addressing the validation results"
+      "objection": "Derived from objection_intelligence evidence — cite the actual data point",
+      "severity": "High / Medium / Low — based on negative ratio",
+      "suggested_response": "Response grounded in the positive evidence from other capabilities"
     }}
   ],
   "scoring": {{
-    "overall_score": 85,
-    "confidence_score": 90,
-    "growth_potential": "High / Moderate / Low",
-    "attractiveness_level": "Excellent / Strong / Emerging",
+    "overall_score": {_overall_score},
+    "confidence_score": {_confidence_score},
+    "growth_potential": "{_growth_potential}",
+    "attractiveness_level": "{_attract_level}",
     "financial_readiness": {{
-      "score": 75,
+      "score": {_fin_score},
       "weight": 0.20,
-      "status": "Strong",
-      "insights": "Solid revenue model assumptions.",
-      "gaps": ["Lacks multi-year localized historical cost assumptions"]
+      "status": "{_cap_status(_fin_score)}",
+      "insights": "Write 1-2 sentences citing willingness_to_pay and unit_economics evidence statements from above",
+      "gaps": {json.dumps(_fin_lims[:3])}
     }},
     "product_readiness": {{
-      "score": 88,
+      "score": {_prod_score},
       "weight": 0.20,
-      "status": "Strong",
-      "insights": "High usability rating in feedback.",
-      "gaps": ["Needs final GTM core API testing"]
+      "status": "{_cap_status(_prod_score)}",
+      "insights": "Write 1-2 sentences citing problem_solution evidence statements from above",
+      "gaps": {json.dumps(_prod_lims[:3])}
     }},
     "market_readiness": {{
-      "score": {computed_validation_score},
+      "score": {_mkt_score},
       "weight": 0.25,
-      "status": "Excellent",
-      "insights": "Survey answers confirm high customer pain point validation.",
-      "gaps": []
+      "status": "{_cap_status(_mkt_score)}",
+      "insights": "Write 1-2 sentences citing market_opportunity evidence statements from above",
+      "gaps": {json.dumps(_mkt_lims[:3])}
     }},
     "team_readiness": {{
-      "score": 80,
+      "score": {_team_score},
       "weight": 0.15,
-      "status": "Strong",
-      "insights": "Founders show relevant skills.",
-      "gaps": ["Needs full-time sales lead hire"]
+      "status": "{_cap_status(_team_score)}",
+      "insights": "Write 1-2 sentences about team composition from founder context",
+      "gaps": {json.dumps(_team_lims[:3])}
     }},
     "operational_maturity": {{
-      "score": {computed_traction_score},
+      "score": {_ops_score},
       "weight": 0.20,
-      "status": "Strong",
-      "insights": "Valid traction verified.",
-      "gaps": []
+      "status": "{_cap_status(_ops_score)}",
+      "insights": "Write 1-2 sentences citing traction_evidence evidence statements from above",
+      "gaps": {json.dumps(_ops_lims[:3])}
     }},
     "key_risks": [
-      {{ "risk": "High competitor density", "mitigation": "Focus on high-signal product differentiators" }}
+      {{ "risk": "Derived from objection_intelligence themes", "mitigation": "Cite positive evidence that counters this risk" }}
     ]
   }},
   "pitch_review": {{
-    "overall_rating": "Highly Prepared",
-    "strengths": ["Outstanding customer validation evidence", "Clear monetization strategy"],
-    "improvements": ["Highlight the customer acquisition playbook clearly"]
+    "overall_rating": "{_pitch_rating}",
+    "strengths": ["List capabilities with score >= 65 from the capability data above"],
+    "improvements": ["List capabilities with score < 50 or identified limitations"]
   }},
   "target_investors": [
     {{
-      "investor_type": "Seed VCs & High-Net-Worth Angels",
-      "average_check": "$50k - $250k",
-      "key_criteria": ["Traction validation proof", "Capable core team", "Clear target market size"],
-      "target_fit": "Fits because of strong geographic alignment and product fit"
+      "investor_type": "Based on traction_evidence and overall_score stage",
+      "average_check": "In {cur['code']} based on geography",
+      "key_criteria": ["Derived from highest-scoring capabilities"],
+      "target_fit": "Explain fit based on evidence"
     }}
   ],
   "funding_ask": {{
-    "amount": "$150,000",
+    "amount": "In {cur['code']} — justify with evidence or mark as 'Insufficient data'",
     "timeline_runway": "12-18 months",
     "breakdown": [
       {{ "allocation": "Product & Engineering", "percentage": "50%" }},
@@ -281,210 +463,110 @@ Produce ONLY a raw JSON structure matching this exact shape:
 }}
 """
 
+    # ── 10. Call AI — NO FALLBACK. If AI fails, return 503 ───────────────────
     try:
-        response_text = await run_in_threadpool(call_ai_sync, prompt, 4096, _INVESTOR_SYSTEM_INSTRUCTION)
+        response_text = await run_in_threadpool(call_ai_sync, prompt, 8000, _INVESTOR_SYSTEM_INSTRUCTION)
         report_data = json.loads(response_text)
-        return InvestorReadinessReportResponse(**report_data)
     except Exception as e:
         print(f"[Investor AI Error] {e}")
-        # PROFESSIONAL FALLBACK DATA (GROUNDED IN SURVEY DATA)
-        # Allows testing and graceful resilience even if the API Key is invalid or rate limited
-        fallback_overall = int((computed_validation_score * 0.45) + (computed_traction_score * 0.55))
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "The AI provider is currently unavailable. "
+                "Your survey intelligence data has been computed and is available in the survey_intelligence field. "
+                "Please retry in a few moments."
+            ),
+        )
 
-        rate = cur["rate"]
-        sym = cur["symbol"]
+    # ── 11. Inject computed values that must always match real data ─────────────
+    # Overwrite any AI-hallucinated survey_id / survey_title with real DB values
+    report_data["survey_id"] = str(survey_id)
+    report_data["survey_title"] = survey.title
 
-        def fmt(usd_val: float) -> str:
-            val = int(usd_val * rate)
-            if sym == "₹":
-                if val >= 10_000_000:
-                    return f"₹{val / 10_000_000:.2f} Crores"
-                elif val >= 100_000:
-                    return f"₹{val / 100_000:.2f} Lakhs"
-                return f"₹{val:,}"
-            else:
-                if val >= 1_000_000:
-                    return f"{sym}{val / 1_000_000:.2f}M"
-                elif val >= 1_000:
-                    return f"{sym}{val / 1_000:.1f}k"
-                return f"{sym}{val}"
+    # ── Fix 3: Overwrite the ENTIRE scoring block with computed values ─────────────
+    # The AI receives locked integer literals in the prompt, but we also overwrite
+    # post-response to guarantee the final object always matches computed scores,
+    # even if the AI ignores the prompt constraints.
+    existing_scoring = report_data.get("scoring", {}) if isinstance(report_data.get("scoring"), dict) else {}
 
-        fallback_data = {
-            "survey_id": str(survey_id),
-            "survey_title": survey.title,
-            "category": "SaaS / Digital Services",
-            "executive_summary": f"A highly-validated research initiative focusing on '{survey.title}'. Based on {total_responses} completed participant surveys with a solid positive response ratio of {positive_feedback_ratio}%, the venture exhibits robust customer pull, a mature validation footing, and a clear product-market fit trajectory targeting local demographics.",
-            "problem_solution_narrative": {
-                "problem": f"Customers currently experience severe inefficiencies related to the survey domain. Pain point analysis validates that {positive_feedback_ratio}% of respondents report frustration with existing solutions.",
-                "solution": "A tailored, digital service optimizing workflow. Mathematical analysis reveals high user willingness to try or pay for the solution.",
-            },
-            "narrative_intelligence": f"Empowering standard operators with validated survey insights. Bridging the gap in competitor capabilities to unlock {fmt(15000000)} TAM.",
-            "market_opportunity_framing": "The target market presents a significant transition towards digital automation. Location-specific growth is estimated at 12-15% annually.",
-            "tam_sam_som": {
-                "tam": f"{fmt(15000000)} (Based on country/industry profile)",
-                "sam": f"{fmt(4500000)} (Scoped to regional accessible audience)",
-                "som": f"{fmt(750000)} (15% penetration within Year 3)",
-                "data_source": "TAM calculated utilizing average target region demographic scale, survey positive validation ratios, and common SaaS model assumptions.",
-            },
-            "competitors": [
-                {
-                    "name": "Legacy Competitors Inc.",
-                    "offering": "Generic, high-cost software suites",
-                    "pricing": f"{fmt(99)} - {fmt(299)} / month subscription",
-                    "strengths": "Established market presence, large support staff",
-                    "weaknesses": "Clunky user experiences, slow product iterations",
-                    "diff": "Highly tailored, localized features based on direct user surveys",
-                    "share": "45%",
-                },
-                {
-                    "name": "Niche Competitors Ltd.",
-                    "offering": "Point-solutions with limited integrations",
-                    "pricing": f"Usage-based tiers starting at {fmt(49)} / month",
-                    "strengths": "Low barrier to entry",
-                    "weaknesses": "Inability to scale with enterprise clients",
-                    "diff": "End-to-end integration and collaborative team support",
-                    "share": "12%",
-                },
+    report_data["scoring"] = {
+        "overall_score": _overall_score,
+        "confidence_score": _confidence_score,
+        "growth_potential": _growth_potential,
+        "attractiveness_level": _attract_level,
+        "financial_readiness": {
+            "score": _fin_score,
+            "weight": 0.20,
+            "status": _cap_status(_fin_score),
+            "insights": existing_scoring.get("financial_readiness", {}).get("insights", "Insufficient data"),
+            "gaps": _fin_lims[:3] or ["No willingness-to-pay questions in survey"],
+        },
+        "product_readiness": {
+            "score": _prod_score,
+            "weight": 0.20,
+            "status": _cap_status(_prod_score),
+            "insights": existing_scoring.get("product_readiness", {}).get("insights", "Insufficient data"),
+            "gaps": _prod_lims[:3] or ["No problem validation questions in survey"],
+        },
+        "market_readiness": {
+            "score": _mkt_score,
+            "weight": 0.25,
+            "status": _cap_status(_mkt_score),
+            "insights": existing_scoring.get("market_readiness", {}).get("insights", "Insufficient data"),
+            "gaps": _mkt_lims[:3] or ["No market demand questions in survey"],
+        },
+        "team_readiness": {
+            "score": _team_score,
+            "weight": 0.15,
+            "status": _cap_status(_team_score),
+            "insights": existing_scoring.get("team_readiness", {}).get("insights", "Insufficient data"),
+            "gaps": _team_lims[:3],
+        },
+        "operational_maturity": {
+            "score": _ops_score,
+            "weight": 0.20,
+            "status": _cap_status(_ops_score),
+            "insights": existing_scoring.get("operational_maturity", {}).get("insights", "Insufficient data"),
+            "gaps": _ops_lims[:3] or ["Insufficient traction data"],
+        },
+        "key_risks": existing_scoring.get("key_risks", [
+            {"risk": "Insufficient survey data for risk assessment", "mitigation": "Add risk-signal questions"}
+        ]),
+    }
+
+    report_data["survey_intelligence"] = {
+        "overall_score": survey_intelligence_obj.overall_score,
+        "overall_confidence": survey_intelligence_obj.overall_confidence,
+        "total_evidence": survey_intelligence_obj.total_evidence,
+        "capabilities": {
+            name: cap.model_dump()
+            for name, cap in survey_intelligence_obj.capabilities.items()
+        },
+    }
+
+    # Inject external intelligence (32 capabilities) — always computed, never from AI
+    ext_cap_objs = {}
+    for cap_name, cap_dict in external_intel["capabilities"].items():
+        ext_cap_objs[cap_name] = CapabilityIntelligence(
+            capability_name=cap_dict["capability_name"],
+            score=cap_dict["score"],
+            confidence=cap_dict["confidence"],
+            evidence_count=cap_dict["evidence_count"],
+            data_coverage=cap_dict["data_coverage"],
+            evidence_statements=[
+                EvidenceStatement(**ev) for ev in cap_dict["evidence_statements"]
             ],
-            "gtm_strategy": "Multi-channel B2B inbound strategy leveraging educational contents, industry partnerships, and direct customer email outreach based on initial survey profiles.",
-            "unit_economics": {
-                "cac": f"{fmt(120)} average customer acquisition cost",
-                "ltv": f"{fmt(1440)} lifetime customer value (12x CAC ratio)",
-                "margin": "85%",
-                "retention": "94%",
-                "payback_period": "6 months payback timeline",
-            },
-            "financial_projections": [
-                {
-                    "year": "Year 1",
-                    "revenue": fmt(125000),
-                    "cost": fmt(95000),
-                    "hiring": "3 employees",
-                    "margin": "24%",
-                },
-                {
-                    "year": "Year 2",
-                    "revenue": fmt(520000),
-                    "cost": fmt(380000),
-                    "hiring": "8 employees",
-                    "margin": "27%",
-                },
-                {
-                    "year": "Year 3",
-                    "revenue": fmt(1850000),
-                    "cost": fmt(1050000),
-                    "hiring": "18 employees",
-                    "margin": "43%",
-                },
-            ],
-            "traction_evidence": {
-                "total_responses": total_responses,
-                "positive_validation_ratio": positive_feedback_ratio,
-                "average_rating": average_rating,
-                "market_validation_insight": f"Out of {total_responses} respondents, {positive_feedback_ratio}% verified critical pain points. The high engagement index confirms immediate interest in alternative market offerings.",
-            },
-            "execution_roadmap": [
-                {
-                    "phase": "Phase 1: Validation & MVP",
-                    "milestone": "Publish survey results, build MVP, and secure first 10 enterprise pilot agreements",
-                    "timeline": "Month 1 - 3",
-                    "focus_area": "Product & Engineering",
-                    "funding_required": fmt(25000),
-                },
-                {
-                    "phase": "Phase 2: Commercial Launch",
-                    "milestone": "Full public launch, hiring product marketer, scale conversion channels",
-                    "timeline": "Month 4 - 9",
-                    "focus_area": "Sales & GTM",
-                    "funding_required": fmt(50000),
-                },
-                {
-                    "phase": "Phase 3: Scaling & Integration",
-                    "milestone": "Introduce API integrations, localized enterprise licensing",
-                    "timeline": "Month 10 - 18",
-                    "focus_area": "Scaling Operations",
-                    "funding_required": fmt(75000),
-                },
-            ],
-            "objections": [
-                {
-                    "objection": "Customer churn risk due to existing legacy habits",
-                    "severity": "Medium",
-                    "suggested_response": f"Our survey validated that {positive_feedback_ratio}% of customers are highly dissatisfied with current alternatives. We address habits via frictionless import hooks.",
-                }
-            ],
-            "scoring": {
-                "overall_score": fallback_overall,
-                "confidence_score": min(100, max(50, int(total_responses * 5 + 40))),
-                "growth_potential": "High" if fallback_overall >= 80 else "Moderate",
-                "attractiveness_level": "Strong" if fallback_overall >= 75 else "Emerging",
-                "financial_readiness": {
-                    "score": 75,
-                    "weight": 0.20,
-                    "status": "Strong",
-                    "insights": "Solid revenue assumptions with standard SaaS profit margins.",
-                    "gaps": ["Lacks multi-year localized historical cost assumptions"],
-                },
-                "product_readiness": {
-                    "score": 82,
-                    "weight": 0.20,
-                    "status": "Strong",
-                    "insights": "Clear solution alignment with validated pain points.",
-                    "gaps": ["Needs core API integration testing"],
-                },
-                "market_readiness": {
-                    "score": computed_validation_score,
-                    "weight": 0.25,
-                    "status": "Excellent" if computed_validation_score >= 80 else "Strong",
-                    "insights": f"High response rating ({positive_feedback_ratio}% positive ratio) confirms high market demand.",
-                    "gaps": [],
-                },
-                "team_readiness": {
-                    "score": 80,
-                    "weight": 0.15,
-                    "status": "Strong",
-                    "insights": "Competent technical vision outlined.",
-                    "gaps": ["Needs a full-time commercial lead"],
-                },
-                "operational_maturity": {
-                    "score": computed_traction_score,
-                    "weight": 0.20,
-                    "status": "Strong" if computed_traction_score >= 70 else "Emerging",
-                    "insights": f"Validated validation size based on {total_responses} responses.",
-                    "gaps": ["Survey response count can be expanded for stronger statistical significance"],
-                },
-                "key_risks": [
-                    {
-                        "risk": "Incumbent response capability",
-                        "mitigation": "Agile software deployment and highly localized customer relationships",
-                    }
-                ],
-            },
-            "pitch_review": {
-                "overall_rating": "Pitch Prepared",
-                "strengths": ["Solid validation evidence index", "Clear unit-economic CAC target ratio"],
-                "improvements": ["Detail the target competitor replacement process"],
-            },
-            "target_investors": [
-                {
-                    "investor_type": "Pre-Seed and Angel Syndicates",
-                    "average_check": f"{fmt(50000)} - {fmt(150000)}",
-                    "key_criteria": [
-                        "Traction proof",
-                        "Calculated pain points validation",
-                        "Scalable customer acquisition",
-                    ],
-                    "target_fit": f"Ideal match for our calculated {fallback_overall}/100 readiness profile.",
-                }
-            ],
-            "funding_ask": {
-                "amount": fmt(150000),
-                "timeline_runway": "12-18 months",
-                "breakdown": [
-                    {"allocation": "Product & Engineering", "percentage": "50%"},
-                    {"allocation": "Marketing & GTM Sales", "percentage": "30%"},
-                    {"allocation": "Hiring & Operations", "percentage": "20%"},
-                ],
-            },
-        }
-        return InvestorReadinessReportResponse(**fallback_data)
+            raw_metrics=cap_dict["raw_metrics"],
+            limitations=cap_dict["limitations"],
+        )
+
+    report_data["external_intelligence"] = {
+        "capabilities": {n: c.model_dump() for n, c in ext_cap_objs.items()},
+        "capabilities_with_data": external_intel["capabilities_with_data"],
+        "total_capabilities": external_intel["total_capabilities"],
+        "avg_score": external_intel["avg_score"],
+        "total_evidence": external_intel["total_evidence"],
+        "groups": external_intel["groups"],
+    }
+
+    return InvestorReadinessReportResponse(**report_data)

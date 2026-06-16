@@ -1,6 +1,7 @@
 # backend/schemas/investor.py
 from pydantic import BaseModel, Field
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
+from schemas.external_data import ExternalDataRequest
 
 
 class CompetitorEntry(BaseModel):
@@ -84,6 +85,51 @@ class PitchDeckQualityDetails(BaseModel):
     improvements: List[str] = Field(..., description="Priority items that need polish before pitching")
 
 
+class EvidenceStatement(BaseModel):
+    """A traceable evidence statement derived from actual survey response data."""
+    category: str = Field(..., description="Signal category (e.g. problem_validation, market_demand)")
+    statement: str = Field(..., description="Human-readable evidence statement")
+    data_point: str = Field(..., description="The key data point (e.g. '78%', '4.2/5')")
+    source_question: str = Field(..., description="The survey question this evidence comes from")
+    sample_size: int = Field(..., description="Number of responses this evidence is based on")
+
+
+class CapabilityIntelligence(BaseModel):
+    """Per-capability intelligence result from the survey/external intelligence engines."""
+    capability_name: str = Field(..., description="Capability identifier")
+    score: int = Field(..., description="Evidence-based score 0-100")
+    confidence: str = Field(..., description="Confidence level: high, medium, or low")
+    evidence_count: int = Field(..., description="Number of evidence statements")
+    data_coverage: float = Field(..., description="How much of this capability has data (0.0-1.0)")
+    evidence_statements: List[EvidenceStatement] = Field(default=[], description="Traceable evidence")
+    raw_metrics: Dict[str, Any] = Field(default={}, description="Raw computed metrics")
+    limitations: List[str] = Field(default=[], description="Data gaps or limitations")
+
+
+class SurveyIntelligence(BaseModel):
+    """Structured output from all 19 capability engines (survey + founder context)."""
+    capabilities: Dict[str, CapabilityIntelligence] = Field(
+        default={}, description="Per-capability intelligence keyed by capability name"
+    )
+    overall_score: int = Field(..., description="Weighted aggregate readiness score 0-100")
+    overall_confidence: str = Field(..., description="Aggregate confidence: high, medium, or low")
+    total_evidence: int = Field(..., description="Total evidence statements across all capabilities")
+
+
+class ExternalIntelligence(BaseModel):
+    """Intelligence from the 32 external-data capability engines."""
+    capabilities: Dict[str, CapabilityIntelligence] = Field(
+        default={}, description="32 external capability results"
+    )
+    capabilities_with_data: int = Field(default=0, description="Number of capabilities with actual data")
+    total_capabilities: int = Field(default=32, description="Total external capabilities")
+    avg_score: int = Field(default=0, description="Average score across capabilities with data")
+    total_evidence: int = Field(default=0, description="Total evidence statements")
+    groups: Dict[str, List[str]] = Field(
+        default={}, description="Capability names grouped by category"
+    )
+
+
 class InvestorReadinessReportResponse(BaseModel):
     survey_id: str
     survey_title: str
@@ -106,11 +152,35 @@ class InvestorReadinessReportResponse(BaseModel):
     pitch_review: PitchDeckQualityDetails = Field(..., description="Quality review feedback")
     target_investors: List[InvestorMatchDetails] = Field(default=[], description="Target matches")
     funding_ask: Dict[str, Any] = Field(..., description="Ask size and use of funds split")
+    survey_intelligence: Optional[SurveyIntelligence] = Field(
+        default=None,
+        description="Evidence-based intelligence from 19 capability engines (survey + founder context)"
+    )
+    external_intelligence: Optional[ExternalIntelligence] = Field(
+        default=None,
+        description="Intelligence from 32 external-data capabilities (documents, CRM, financials, strategy)"
+    )
 
 
 class InvestorReadinessInitRequest(BaseModel):
+    # Required fields
     startup_context: str = Field(default="", description="Founder summary of the startup and mission")
     pricing_model: str = Field(default="", description="Planned pricing or monetization details")
     target_country: str = Field(default="", description="Target country")
     target_state: str = Field(default="", description="Target state")
     target_district: str = Field(default="", description="Target city/district")
+
+    # Optional founder context — enriches the 12 hybrid capabilities
+    funding_stage: Optional[str] = Field(default=None, description="e.g. Pre-Seed, Seed, Series A")
+    funding_target: Optional[str] = Field(default=None, description="e.g. ₹75,00,000 or $500,000")
+    team_size: Optional[int] = Field(default=None, description="Current team size")
+    monthly_revenue: Optional[str] = Field(default=None, description="Current MRR if any, e.g. ₹50,000")
+    industry_vertical: Optional[str] = Field(default=None, description="e.g. EdTech, FinTech, HealthTech")
+    founded_year: Optional[int] = Field(default=None, description="Year the startup was founded")
+    founder_count: Optional[int] = Field(default=None, description="Number of co-founders")
+
+    # Optional external data — enriches the 32 external-data capabilities
+    external_data: Optional[ExternalDataRequest] = Field(
+        default=None,
+        description="Optional: documents, CRM data, financials, and strategic inputs"
+    )

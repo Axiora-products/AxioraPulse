@@ -33,6 +33,82 @@ export default function PitchInvestorReadinessPanel({ survey }) {
   const [targetState, setTargetState] = useState('');
   const [targetDistrict, setTargetDistrict] = useState('');
 
+  // Optional advanced context
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [fundingStage, setFundingStage] = useState('');
+  const [fundingTarget, setFundingTarget] = useState('');
+  const [teamSize, setTeamSize] = useState('');
+  const [monthlyRevenue, setMonthlyRevenue] = useState('');
+  const [industryVertical, setIndustryVertical] = useState('');
+  const [foundedYear, setFoundedYear] = useState('');
+  const [founderCount, setFounderCount] = useState('');
+
+  // External Data Room (32 capabilities)
+  const [showDataRoom, setShowDataRoom] = useState(false);
+  const [drTab, setDrTab] = useState('documents');
+  const [extDoc, setExtDoc] = useState({
+    pitch_deck: { slide_count: '', deck_version: '' },
+    term_sheet: { investment_amount: '', pre_money_valuation: '', equity_offered: '', term_sheet_stage: '', lead_investor: '' },
+    due_diligence: { incorporation_docs: false, cap_table_current: false, audited_financials: false, ip_assignments: false, customer_contracts: false, employment_agreements: false, board_resolutions: false, bank_statements_6m: false, tax_returns: false, regulatory_filings: false, founder_backgrounds: false, reference_checks_done: false },
+    data_room: { data_room_link: '', total_documents: '' },
+    legal_status: { nda_template_ready: null, ip_ownership_clear: null, no_pending_litigation: null, compliance_status: '', trademarks_filed: null, patents_filed: '' },
+    media_kit: { press_mentions: '', press_outlets_raw: '' },
+  });
+  const [extCRM, setExtCRM] = useState({
+    investor_pipeline: { total_targeted: '', meetings_held: '', term_sheets_received: '', soft_commits: '' },
+    vc_targeting: { target_vcs_raw: '', warm_intros_available: '', cold_outreach_done: '', accelerator_backed: null, accelerator_name: '' },
+    pitch_feedback: { pitches_completed: '', common_objections_raw: '', positive_signals_raw: '' },
+    investor_matching: { preferred_investor_type: '', check_size_min: '', check_size_max: '', board_seat_acceptable: null, looking_for_smart_money: null },
+  });
+  const [extFin, setExtFin] = useState({
+    burn_runway: { monthly_burn_rate: '', cash_in_bank: '', revenue_growth_mom: '' },
+    valuation: { valuation_method: '', target_pre_money: '', arr: '', revenue_multiple_used: '' },
+    cap_table: { founders_equity: '', employee_esop_pool: '', existing_investor_equity: '', new_round_dilution: '' },
+    revenue_metrics: { mrr: '', arr: '', churn_rate: '', net_revenue_retention: '', paying_customers: '' },
+    unit_economics_detail: { ltv: '', payback_period_months: '', gross_margin: '', net_margin: '' },
+    fundraising_timeline: { target_close_date: '', amount_committed_so_far: '', key_milestones_raw: '' },
+  });
+  const [extStrat, setExtStrat] = useState({
+    competitive_matrix: { primary_differentiator: '', network_effects: null, switching_cost_high: null, defensible_moats_raw: '' },
+    regulatory: { compliance_status: '', gdpr_compliant: null, data_residency_compliant: null },
+    ip_tracker: { patents_filed: '', patents_granted: '', trademarks_registered: '' },
+    exit_strategy: { preferred_exit: '', target_exit_timeline: '', potential_acquirers_raw: '', target_exit_valuation: '' },
+    accelerator_grant: { dpiit_recognized: null, iim_iit_incubated: null, accepted_by_raw: '', grant_funding_received: '' },
+    board_advisors: { total_board_size: '', independent_directors: '', advisor_network_reach: '' },
+  });
+
+  // Helper: build external_data payload (strips empty strings)
+  const buildExternalData = () => {
+    const clean = (v) => v === '' ? undefined : v;
+    const cleanNum = (v) => v === '' ? undefined : parseFloat(v) || undefined;
+    const cleanInt = (v) => v === '' ? undefined : parseInt(v) || undefined;
+    const splitLines = (v) => v ? v.split('\n').map(s => s.trim()).filter(Boolean) : undefined;
+    return {
+      pitch_deck: extDoc.pitch_deck.slide_count || extDoc.pitch_deck.deck_version ? { slide_count: cleanInt(extDoc.pitch_deck.slide_count), deck_version: clean(extDoc.pitch_deck.deck_version) } : undefined,
+      term_sheet: extDoc.term_sheet.investment_amount ? { ...extDoc.term_sheet, equity_offered: cleanNum(extDoc.term_sheet.equity_offered) } : undefined,
+      due_diligence: Object.values(extDoc.due_diligence).some(Boolean) ? extDoc.due_diligence : undefined,
+      data_room: extDoc.data_room.data_room_link || extDoc.data_room.total_documents ? { data_room_link: clean(extDoc.data_room.data_room_link), total_documents: cleanInt(extDoc.data_room.total_documents) } : undefined,
+      legal_status: extDoc.legal_status.compliance_status || extDoc.legal_status.nda_template_ready !== null ? { ...extDoc.legal_status, compliance_status: clean(extDoc.legal_status.compliance_status), patents_filed: cleanInt(extDoc.legal_status.patents_filed) } : undefined,
+      media_kit: extDoc.media_kit.press_mentions ? { press_mentions: cleanInt(extDoc.media_kit.press_mentions), press_outlets: splitLines(extDoc.media_kit.press_outlets_raw) } : undefined,
+      investor_pipeline: extCRM.investor_pipeline.total_targeted ? { total_targeted: cleanInt(extCRM.investor_pipeline.total_targeted), meetings_held: cleanInt(extCRM.investor_pipeline.meetings_held), term_sheets_received: cleanInt(extCRM.investor_pipeline.term_sheets_received), soft_commits: cleanInt(extCRM.investor_pipeline.soft_commits) } : undefined,
+      vc_targeting: extCRM.vc_targeting.target_vcs_raw ? { target_vcs: splitLines(extCRM.vc_targeting.target_vcs_raw), warm_intros_available: cleanInt(extCRM.vc_targeting.warm_intros_available), cold_outreach_done: cleanInt(extCRM.vc_targeting.cold_outreach_done), accelerator_backed: extCRM.vc_targeting.accelerator_backed, accelerator_name: clean(extCRM.vc_targeting.accelerator_name) } : undefined,
+      pitch_feedback: extCRM.pitch_feedback.pitches_completed ? { pitches_completed: cleanInt(extCRM.pitch_feedback.pitches_completed), common_objections: splitLines(extCRM.pitch_feedback.common_objections_raw), positive_signals: splitLines(extCRM.pitch_feedback.positive_signals_raw) } : undefined,
+      investor_matching: extCRM.investor_matching.preferred_investor_type ? { preferred_investor_type: clean(extCRM.investor_matching.preferred_investor_type), check_size_min: clean(extCRM.investor_matching.check_size_min), check_size_max: clean(extCRM.investor_matching.check_size_max), board_seat_acceptable: extCRM.investor_matching.board_seat_acceptable, looking_for_smart_money: extCRM.investor_matching.looking_for_smart_money } : undefined,
+      burn_runway: extFin.burn_runway.monthly_burn_rate ? { monthly_burn_rate: clean(extFin.burn_runway.monthly_burn_rate), cash_in_bank: clean(extFin.burn_runway.cash_in_bank), revenue_growth_mom: cleanNum(extFin.burn_runway.revenue_growth_mom) } : undefined,
+      valuation: extFin.valuation.target_pre_money ? { valuation_method: clean(extFin.valuation.valuation_method), target_pre_money: clean(extFin.valuation.target_pre_money), arr: clean(extFin.valuation.arr), revenue_multiple_used: cleanNum(extFin.valuation.revenue_multiple_used) } : undefined,
+      cap_table: extFin.cap_table.founders_equity ? { founders_equity: cleanNum(extFin.cap_table.founders_equity), employee_esop_pool: cleanNum(extFin.cap_table.employee_esop_pool), existing_investor_equity: cleanNum(extFin.cap_table.existing_investor_equity), new_round_dilution: cleanNum(extFin.cap_table.new_round_dilution) } : undefined,
+      revenue_metrics: extFin.revenue_metrics.mrr ? { mrr: clean(extFin.revenue_metrics.mrr), arr: clean(extFin.revenue_metrics.arr), churn_rate: cleanNum(extFin.revenue_metrics.churn_rate), net_revenue_retention: cleanNum(extFin.revenue_metrics.net_revenue_retention), paying_customers: cleanInt(extFin.revenue_metrics.paying_customers) } : undefined,
+      unit_economics_detail: extFin.unit_economics_detail.ltv ? { ltv: clean(extFin.unit_economics_detail.ltv), payback_period_months: cleanNum(extFin.unit_economics_detail.payback_period_months), gross_margin: cleanNum(extFin.unit_economics_detail.gross_margin), net_margin: cleanNum(extFin.unit_economics_detail.net_margin) } : undefined,
+      fundraising_timeline: extFin.fundraising_timeline.target_close_date ? { target_close_date: clean(extFin.fundraising_timeline.target_close_date), amount_committed_so_far: clean(extFin.fundraising_timeline.amount_committed_so_far), key_milestones_for_close: splitLines(extFin.fundraising_timeline.key_milestones_raw) } : undefined,
+      competitive_matrix: extStrat.competitive_matrix.primary_differentiator ? { primary_differentiator: clean(extStrat.competitive_matrix.primary_differentiator), network_effects: extStrat.competitive_matrix.network_effects, switching_cost_high: extStrat.competitive_matrix.switching_cost_high, defensible_moats: splitLines(extStrat.competitive_matrix.defensible_moats_raw) } : undefined,
+      regulatory: extStrat.regulatory.compliance_status ? { compliance_status: clean(extStrat.regulatory.compliance_status), gdpr_compliant: extStrat.regulatory.gdpr_compliant, data_residency_compliant: extStrat.regulatory.data_residency_compliant } : undefined,
+      ip_tracker: extStrat.ip_tracker.patents_filed ? { patents_filed: cleanInt(extStrat.ip_tracker.patents_filed), patents_granted: cleanInt(extStrat.ip_tracker.patents_granted), trademarks_registered: cleanInt(extStrat.ip_tracker.trademarks_registered) } : undefined,
+      exit_strategy: extStrat.exit_strategy.preferred_exit ? { preferred_exit: clean(extStrat.exit_strategy.preferred_exit), target_exit_timeline: clean(extStrat.exit_strategy.target_exit_timeline), potential_acquirers: splitLines(extStrat.exit_strategy.potential_acquirers_raw), target_exit_valuation: clean(extStrat.exit_strategy.target_exit_valuation) } : undefined,
+      accelerator_grant: extStrat.accelerator_grant.dpiit_recognized !== null || extStrat.accelerator_grant.accepted_by_raw ? { dpiit_recognized: extStrat.accelerator_grant.dpiit_recognized, iim_iit_incubated: extStrat.accelerator_grant.iim_iit_incubated, accepted_by: splitLines(extStrat.accelerator_grant.accepted_by_raw), grant_funding_received: clean(extStrat.accelerator_grant.grant_funding_received) } : undefined,
+      board_advisors: extStrat.board_advisors.total_board_size ? { total_board_size: cleanInt(extStrat.board_advisors.total_board_size), independent_directors: cleanInt(extStrat.board_advisors.independent_directors), advisor_network_reach: clean(extStrat.board_advisors.advisor_network_reach) } : undefined,
+    };
+  };
+
   const handleInitialize = async () => {
     setLoading(true);
     try {
@@ -41,7 +117,15 @@ export default function PitchInvestorReadinessPanel({ survey }) {
         pricingModel,
         targetCountry,
         targetState,
-        targetDistrict
+        targetDistrict,
+        fundingStage: fundingStage || undefined,
+        fundingTarget: fundingTarget || undefined,
+        teamSize: teamSize ? parseInt(teamSize) : undefined,
+        monthlyRevenue: monthlyRevenue || undefined,
+        industryVertical: industryVertical || undefined,
+        foundedYear: foundedYear ? parseInt(foundedYear) : undefined,
+        founderCount: founderCount ? parseInt(founderCount) : undefined,
+        externalData: buildExternalData(),
       });
       setReport(data);
       toast.success('Investor Readiness Journey initialized!');
@@ -79,7 +163,7 @@ export default function PitchInvestorReadinessPanel({ survey }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
-      
+
       {/* ── INITIALIZATION VIEW ── */}
       {!report && !loading && (
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} style={{ background: 'var(--warm-white)', borderRadius: 24, border: '1.5px solid rgba(22,15,8,0.07)', padding: 40, boxShadow: '0 8px 32px rgba(22,15,8,0.03)' }}>
@@ -94,11 +178,11 @@ export default function PitchInvestorReadinessPanel({ survey }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 540, margin: '0 auto 36px' }}>
             <div>
               <label style={LBL}>Startup Context & Mission (Junction/Idea)</label>
-              <textarea 
-                placeholder="e.g. We are building a high-fidelity collaboration workspace resolving team communication latency for hybrid engineering companies..." 
-                rows={3} 
-                value={startupContext} 
-                onChange={e => setStartupContext(e.target.value)} 
+              <textarea
+                placeholder="e.g. We are building a high-fidelity collaboration workspace resolving team communication latency for hybrid engineering companies..."
+                rows={3}
+                value={startupContext}
+                onChange={e => setStartupContext(e.target.value)}
                 style={INP}
               />
             </div>
@@ -106,21 +190,21 @@ export default function PitchInvestorReadinessPanel({ survey }) {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }} className="se-2col">
               <div>
                 <label style={LBL}>Monetization / Pricing Model</label>
-                <input 
-                  type="text" 
-                  placeholder="e.g. $19/user monthly SaaS" 
-                  value={pricingModel} 
-                  onChange={e => setPricingModel(e.target.value)} 
+                <input
+                  type="text"
+                  placeholder="e.g. $19/user monthly SaaS"
+                  value={pricingModel}
+                  onChange={e => setPricingModel(e.target.value)}
                   style={INP}
                 />
               </div>
               <div>
                 <label style={LBL}>Target Country (Leave blank for Global)</label>
-                <input 
-                  type="text" 
-                  placeholder="e.g. United States, India" 
-                  value={targetCountry} 
-                  onChange={e => setTargetCountry(e.target.value)} 
+                <input
+                  type="text"
+                  placeholder="e.g. United States, India"
+                  value={targetCountry}
+                  onChange={e => setTargetCountry(e.target.value)}
                   style={INP}
                 />
               </div>
@@ -129,30 +213,284 @@ export default function PitchInvestorReadinessPanel({ survey }) {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }} className="se-2col">
               <div>
                 <label style={LBL}>Target State (Leave blank for National)</label>
-                <input 
-                  type="text" 
-                  placeholder="e.g. California, Telangana" 
-                  value={targetState} 
-                  onChange={e => setTargetState(e.target.value)} 
+                <input
+                  type="text"
+                  placeholder="e.g. California, Telangana"
+                  value={targetState}
+                  onChange={e => setTargetState(e.target.value)}
                   style={INP}
                 />
               </div>
               <div>
                 <label style={LBL}>Target City/District (Leave blank for State-level)</label>
-                <input 
-                  type="text" 
-                  placeholder="e.g. San Francisco, Hyderabad" 
-                  value={targetDistrict} 
-                  onChange={e => setTargetDistrict(e.target.value)} 
+                <input
+                  type="text"
+                  placeholder="e.g. San Francisco, Hyderabad"
+                  value={targetDistrict}
+                  onChange={e => setTargetDistrict(e.target.value)}
                   style={INP}
                 />
               </div>
             </div>
+
+            {/* ── ADVANCED CONTEXT (COLLAPSIBLE) ── */}
+            <div style={{ borderTop: '1px solid rgba(22,15,8,0.06)', paddingTop: 20, marginTop: 4 }}>
+              <button
+                type="button"
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Syne', sans-serif", fontWeight: 600, fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--coral)', padding: 0, transition: 'all 0.2s' }}
+              >
+                <span style={{ transition: 'transform 0.25s', transform: showAdvanced ? 'rotate(90deg)' : 'rotate(0deg)', fontSize: 14 }}>▸</span>
+                Advanced Founder Context (Optional — enriches report)
+              </button>
+
+              {showAdvanced && (
+                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} style={{ display: 'flex', flexDirection: 'column', gap: 18, marginTop: 18 }}>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }} className="se-2col">
+                    <div>
+                      <label style={LBL}>Funding Stage</label>
+                      <select value={fundingStage} onChange={e => setFundingStage(e.target.value)} style={INP}>
+                        <option value="">Select stage...</option>
+                        <option value="Pre-Seed">Pre-Seed</option>
+                        <option value="Seed">Seed</option>
+                        <option value="Series A">Series A</option>
+                        <option value="Series B">Series B</option>
+                        <option value="Growth">Growth</option>
+                        <option value="Bootstrapped">Bootstrapped</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={LBL}>Funding Target</label>
+                      <input type="text" placeholder="e.g. ₹75,00,000 or $500,000" value={fundingTarget} onChange={e => setFundingTarget(e.target.value)} style={INP} />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }} className="se-2col">
+                    <div>
+                      <label style={LBL}>Team Size</label>
+                      <input type="number" placeholder="e.g. 5" min="1" value={teamSize} onChange={e => setTeamSize(e.target.value)} style={INP} />
+                    </div>
+                    <div>
+                      <label style={LBL}>Monthly Revenue (MRR)</label>
+                      <input type="text" placeholder="e.g. ₹50,000 or $0 (pre-revenue)" value={monthlyRevenue} onChange={e => setMonthlyRevenue(e.target.value)} style={INP} />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 18 }} className="se-2col">
+                    <div>
+                      <label style={LBL}>Industry Vertical</label>
+                      <input type="text" placeholder="e.g. EdTech, FinTech" value={industryVertical} onChange={e => setIndustryVertical(e.target.value)} style={INP} />
+                    </div>
+                    <div>
+                      <label style={LBL}>Founded Year</label>
+                      <input type="number" placeholder="e.g. 2024" min="2000" max="2030" value={foundedYear} onChange={e => setFoundedYear(e.target.value)} style={INP} />
+                    </div>
+                    <div>
+                      <label style={LBL}>Co-Founders</label>
+                      <input type="number" placeholder="e.g. 2" min="1" max="10" value={founderCount} onChange={e => setFounderCount(e.target.value)} style={INP} />
+                    </div>
+                  </div>
+
+                </motion.div>
+              )}
+            </div>
+
+            {/* ── DATA ROOM — 32 EXTERNAL CAPABILITIES (COLLAPSIBLE) ── */}
+            <div style={{ borderTop: '1px solid rgba(22,15,8,0.06)', paddingTop: 20, marginTop: 4 }}>
+              <button
+                type="button"
+                onClick={() => setShowDataRoom(!showDataRoom)}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Syne', sans-serif", fontWeight: 600, fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#6B5B4E', padding: 0 }}
+              >
+                <span style={{ transition: 'transform 0.25s', transform: showDataRoom ? 'rotate(90deg)' : 'rotate(0deg)', fontSize: 14 }}>▸</span>
+                <span>Data Room</span>
+                <span style={{ background: 'rgba(255,69,0,0.1)', color: 'var(--coral)', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99 }}>32 Capabilities</span>
+              </button>
+
+              {showDataRoom && (
+                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} style={{ marginTop: 20 }}>
+                  {/* Tab Bar */}
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 22, flexWrap: 'wrap' }}>
+                    {[['documents', '📄 Documents'], ['crm', '🤝 CRM & Pipeline'], ['financials', '💰 Financials'], ['strategy', '🧭 Strategy']].map(([id, label]) => (
+                      <button key={id} onClick={() => setDrTab(id)} style={{ padding: '6px 16px', borderRadius: 99, border: `1.5px solid ${drTab === id ? 'var(--coral)' : 'rgba(22,15,8,0.1)'}`, background: drTab === id ? 'rgba(255,69,0,0.07)' : 'transparent', color: drTab === id ? 'var(--coral)' : 'rgba(22,15,8,0.5)', fontFamily: "'Syne', sans-serif", fontWeight: 600, fontSize: 11, cursor: 'pointer', letterSpacing: '0.05em' }}>{label}</button>
+                    ))}
+                  </div>
+
+                  {/* ── GROUP D: DOCUMENTS ── */}
+                  {drTab === 'documents' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+                      <div style={{ background: 'rgba(22,15,8,0.025)', borderRadius: 14, padding: 18 }}>
+                        <div style={{ ...LBL, marginBottom: 14, color: 'rgba(22,15,8,0.5)' }}>📄 Pitch Deck</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                          <div><label style={LBL}>Slide Count</label><input type="number" placeholder="e.g. 12" style={INP} value={extDoc.pitch_deck.slide_count} onChange={e => setExtDoc(d => ({ ...d, pitch_deck: { ...d.pitch_deck, slide_count: e.target.value } }))} /></div>
+                          <div><label style={LBL}>Deck Version</label><input type="text" placeholder="e.g. v1.2" style={INP} value={extDoc.pitch_deck.deck_version} onChange={e => setExtDoc(d => ({ ...d, pitch_deck: { ...d.pitch_deck, deck_version: e.target.value } }))} /></div>
+                        </div>
+                      </div>
+                      <div style={{ background: 'rgba(22,15,8,0.025)', borderRadius: 14, padding: 18 }}>
+                        <div style={{ ...LBL, marginBottom: 14, color: 'rgba(22,15,8,0.5)' }}>📝 Term Sheet</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                          <div><label style={LBL}>Investment Amount</label><input type="text" placeholder="e.g. ₹75,00,000" style={INP} value={extDoc.term_sheet.investment_amount} onChange={e => setExtDoc(d => ({ ...d, term_sheet: { ...d.term_sheet, investment_amount: e.target.value } }))} /></div>
+                          <div><label style={LBL}>Pre-Money Valuation</label><input type="text" placeholder="e.g. ₹3,00,00,000" style={INP} value={extDoc.term_sheet.pre_money_valuation} onChange={e => setExtDoc(d => ({ ...d, term_sheet: { ...d.term_sheet, pre_money_valuation: e.target.value } }))} /></div>
+                          <div><label style={LBL}>Equity Offered (%)</label><input type="number" placeholder="e.g. 12.5" step="0.1" style={INP} value={extDoc.term_sheet.equity_offered} onChange={e => setExtDoc(d => ({ ...d, term_sheet: { ...d.term_sheet, equity_offered: e.target.value } }))} /></div>
+                          <div><label style={LBL}>Stage</label><select style={INP} value={extDoc.term_sheet.term_sheet_stage} onChange={e => setExtDoc(d => ({ ...d, term_sheet: { ...d.term_sheet, term_sheet_stage: e.target.value } }))} ><option value="">Select...</option>{['LOI', 'Draft', 'Final', 'Signed'].map(s => <option key={s}>{s}</option>)}</select></div>
+                          <div style={{ gridColumn: 'span 2' }}><label style={LBL}>Lead Investor</label><input type="text" placeholder="e.g. Sequoia Capital India" style={INP} value={extDoc.term_sheet.lead_investor} onChange={e => setExtDoc(d => ({ ...d, term_sheet: { ...d.term_sheet, lead_investor: e.target.value } }))} /></div>
+                        </div>
+                      </div>
+                      <div style={{ background: 'rgba(22,15,8,0.025)', borderRadius: 14, padding: 18 }}>
+                        <div style={{ ...LBL, marginBottom: 14, color: 'rgba(22,15,8,0.5)' }}>✅ Due Diligence Checklist</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                          {[['incorporation_docs', 'Incorporation Docs'], ['cap_table_current', 'Current Cap Table'], ['audited_financials', 'Audited Financials'], ['ip_assignments', 'IP Assignments'], ['customer_contracts', 'Customer Contracts'], ['employment_agreements', 'Employment Agreements'], ['board_resolutions', 'Board Resolutions'], ['bank_statements_6m', '6-Month Bank Statements'], ['tax_returns', 'Tax Returns'], ['regulatory_filings', 'Regulatory Filings'], ['founder_backgrounds', 'Founder Backgrounds'], ['reference_checks_done', 'Reference Checks Done']].map(([key, label]) => (
+                            <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: "'Fraunces', serif", fontSize: 13, color: 'var(--espresso)', cursor: 'pointer' }}>
+                              <input type="checkbox" checked={!!extDoc.due_diligence[key]} onChange={e => setExtDoc(d => ({ ...d, due_diligence: { ...d.due_diligence, [key]: e.target.checked } }))} style={{ accentColor: 'var(--coral)', width: 15, height: 15 }} />
+                              {label}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                      <div style={{ background: 'rgba(22,15,8,0.025)', borderRadius: 14, padding: 18 }}>
+                        <div style={{ ...LBL, marginBottom: 14, color: 'rgba(22,15,8,0.5)' }}>🗂 Data Room & Legal</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
+                            <div><label style={LBL}>Data Room URL</label><input type="text" placeholder="https://notion.so/..." style={INP} value={extDoc.data_room.data_room_link} onChange={e => setExtDoc(d => ({ ...d, data_room: { ...d.data_room, data_room_link: e.target.value } }))} /></div>
+                            <div><label style={LBL}>Total Docs</label><input type="number" placeholder="e.g. 24" style={INP} value={extDoc.data_room.total_documents} onChange={e => setExtDoc(d => ({ ...d, data_room: { ...d.data_room, total_documents: e.target.value } }))} /></div>
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                            {[['nda_template_ready', 'NDA Ready'], ['ip_ownership_clear', 'IP Clear'], ['no_pending_litigation', 'No Litigation']].map(([key, label]) => (
+                              <div key={key}><label style={LBL}>{label}</label><select style={INP} value={extDoc.legal_status[key] === null ? '' : String(extDoc.legal_status[key])} onChange={e => setExtDoc(d => ({ ...d, legal_status: { ...d.legal_status, [key]: e.target.value === '' ? null : e.target.value === 'true' } }))}><option value="">N/A</option><option value="true">Yes</option><option value="false">No</option></select></div>
+                            ))}
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                            <div><label style={LBL}>Compliance Status</label><input type="text" placeholder="e.g. Compliant" style={INP} value={extDoc.legal_status.compliance_status} onChange={e => setExtDoc(d => ({ ...d, legal_status: { ...d.legal_status, compliance_status: e.target.value } }))} /></div>
+                            <div><label style={LBL}>Patents Filed</label><input type="number" placeholder="e.g. 2" style={INP} value={extDoc.legal_status.patents_filed} onChange={e => setExtDoc(d => ({ ...d, legal_status: { ...d.legal_status, patents_filed: e.target.value } }))} /></div>
+                            <div><label style={LBL}>Press Mentions</label><input type="number" placeholder="e.g. 5" style={INP} value={extDoc.media_kit.press_mentions} onChange={e => setExtDoc(d => ({ ...d, media_kit: { ...d.media_kit, press_mentions: e.target.value } }))} /></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── GROUP C: CRM ── */}
+                  {drTab === 'crm' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+                      <div style={{ background: 'rgba(22,15,8,0.025)', borderRadius: 14, padding: 18 }}>
+                        <div style={{ ...LBL, marginBottom: 14, color: 'rgba(22,15,8,0.5)' }}>📊 Investor Pipeline</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                          <div><label style={LBL}>Total Investors Targeted</label><input type="number" placeholder="e.g. 50" style={INP} value={extCRM.investor_pipeline.total_targeted} onChange={e => setExtCRM(d => ({ ...d, investor_pipeline: { ...d.investor_pipeline, total_targeted: e.target.value } }))} /></div>
+                          <div><label style={LBL}>Meetings Held</label><input type="number" placeholder="e.g. 12" style={INP} value={extCRM.investor_pipeline.meetings_held} onChange={e => setExtCRM(d => ({ ...d, investor_pipeline: { ...d.investor_pipeline, meetings_held: e.target.value } }))} /></div>
+                          <div><label style={LBL}>Term Sheets Received</label><input type="number" placeholder="e.g. 2" style={INP} value={extCRM.investor_pipeline.term_sheets_received} onChange={e => setExtCRM(d => ({ ...d, investor_pipeline: { ...d.investor_pipeline, term_sheets_received: e.target.value } }))} /></div>
+                          <div><label style={LBL}>Soft Commits</label><input type="number" placeholder="e.g. 3" style={INP} value={extCRM.investor_pipeline.soft_commits} onChange={e => setExtCRM(d => ({ ...d, investor_pipeline: { ...d.investor_pipeline, soft_commits: e.target.value } }))} /></div>
+                        </div>
+                      </div>
+                      <div style={{ background: 'rgba(22,15,8,0.025)', borderRadius: 14, padding: 18 }}>
+                        <div style={{ ...LBL, marginBottom: 14, color: 'rgba(22,15,8,0.5)' }}>🎯 VC Targeting & Matching</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                          <div><label style={LBL}>Target VC Firms (one per line)</label><textarea rows={3} placeholder="Sequoia India&#10;Accel&#10;Blume Ventures" style={INP} value={extCRM.vc_targeting.target_vcs_raw} onChange={e => setExtCRM(d => ({ ...d, vc_targeting: { ...d.vc_targeting, target_vcs_raw: e.target.value } }))} /></div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                            <div><label style={LBL}>Warm Intros</label><input type="number" placeholder="e.g. 3" style={INP} value={extCRM.vc_targeting.warm_intros_available} onChange={e => setExtCRM(d => ({ ...d, vc_targeting: { ...d.vc_targeting, warm_intros_available: e.target.value } }))} /></div>
+                            <div><label style={LBL}>Cold Outreach</label><input type="number" placeholder="e.g. 20" style={INP} value={extCRM.vc_targeting.cold_outreach_done} onChange={e => setExtCRM(d => ({ ...d, vc_targeting: { ...d.vc_targeting, cold_outreach_done: e.target.value } }))} /></div>
+                            <div><label style={LBL}>Accelerator Backed</label><select style={INP} value={extCRM.vc_targeting.accelerator_backed === null ? '' : String(extCRM.vc_targeting.accelerator_backed)} onChange={e => setExtCRM(d => ({ ...d, vc_targeting: { ...d.vc_targeting, accelerator_backed: e.target.value === '' ? null : e.target.value === 'true' } }))}><option value="">N/A</option><option value="true">Yes</option><option value="false">No</option></select></div>
+                          </div>
+                          <div><label style={LBL}>Preferred Investor Type</label><select style={INP} value={extCRM.investor_matching.preferred_investor_type} onChange={e => setExtCRM(d => ({ ...d, investor_matching: { ...d.investor_matching, preferred_investor_type: e.target.value } }))} ><option value="">Any</option>{['Angel', 'VC', 'Family Office', 'Strategic', 'Corporate'].map(t => <option key={t}>{t}</option>)}</select></div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                            <div><label style={LBL}>Min Check Size</label><input type="text" placeholder="e.g. ₹25,00,000" style={INP} value={extCRM.investor_matching.check_size_min} onChange={e => setExtCRM(d => ({ ...d, investor_matching: { ...d.investor_matching, check_size_min: e.target.value } }))} /></div>
+                            <div><label style={LBL}>Max Check Size</label><input type="text" placeholder="e.g. ₹2,00,00,000" style={INP} value={extCRM.investor_matching.check_size_max} onChange={e => setExtCRM(d => ({ ...d, investor_matching: { ...d.investor_matching, check_size_max: e.target.value } }))} /></div>
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ background: 'rgba(22,15,8,0.025)', borderRadius: 14, padding: 18 }}>
+                        <div style={{ ...LBL, marginBottom: 14, color: 'rgba(22,15,8,0.5)' }}>💬 Pitch Feedback</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                          <div><label style={LBL}>Pitches Completed</label><input type="number" placeholder="e.g. 8" style={INP} value={extCRM.pitch_feedback.pitches_completed} onChange={e => setExtCRM(d => ({ ...d, pitch_feedback: { ...d.pitch_feedback, pitches_completed: e.target.value } }))} /></div>
+                          <div><label style={LBL}>Common Objections (one per line)</label><textarea rows={3} placeholder="Market too small&#10;No moat&#10;Early stage" style={INP} value={extCRM.pitch_feedback.common_objections_raw} onChange={e => setExtCRM(d => ({ ...d, pitch_feedback: { ...d.pitch_feedback, common_objections_raw: e.target.value } }))} /></div>
+                          <div><label style={LBL}>Positive Signals (one per line)</label><textarea rows={2} placeholder="Strong team&#10;Good traction" style={INP} value={extCRM.pitch_feedback.positive_signals_raw} onChange={e => setExtCRM(d => ({ ...d, pitch_feedback: { ...d.pitch_feedback, positive_signals_raw: e.target.value } }))} /></div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── GROUP F: FINANCIALS ── */}
+                  {drTab === 'financials' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+                      <div style={{ background: 'rgba(22,15,8,0.025)', borderRadius: 14, padding: 18 }}>
+                        <div style={{ ...LBL, marginBottom: 14, color: 'rgba(22,15,8,0.5)' }}>🔥 Burn Rate & Runway</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                          <div><label style={LBL}>Monthly Burn Rate</label><input type="text" placeholder="e.g. ₹3,50,000" style={INP} value={extFin.burn_runway.monthly_burn_rate} onChange={e => setExtFin(d => ({ ...d, burn_runway: { ...d.burn_runway, monthly_burn_rate: e.target.value } }))} /></div>
+                          <div><label style={LBL}>Cash in Bank</label><input type="text" placeholder="e.g. ₹18,00,000" style={INP} value={extFin.burn_runway.cash_in_bank} onChange={e => setExtFin(d => ({ ...d, burn_runway: { ...d.burn_runway, cash_in_bank: e.target.value } }))} /></div>
+                          <div><label style={LBL}>MoM Revenue Growth (%)</label><input type="number" placeholder="e.g. 15" style={INP} value={extFin.burn_runway.revenue_growth_mom} onChange={e => setExtFin(d => ({ ...d, burn_runway: { ...d.burn_runway, revenue_growth_mom: e.target.value } }))} /></div>
+                        </div>
+                      </div>
+                      <div style={{ background: 'rgba(22,15,8,0.025)', borderRadius: 14, padding: 18 }}>
+                        <div style={{ ...LBL, marginBottom: 14, color: 'rgba(22,15,8,0.5)' }}>📈 Revenue Metrics</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                          <div><label style={LBL}>MRR</label><input type="text" placeholder="e.g. ₹50,000" style={INP} value={extFin.revenue_metrics.mrr} onChange={e => setExtFin(d => ({ ...d, revenue_metrics: { ...d.revenue_metrics, mrr: e.target.value } }))} /></div>
+                          <div><label style={LBL}>ARR</label><input type="text" placeholder="e.g. ₹6,00,000" style={INP} value={extFin.revenue_metrics.arr} onChange={e => setExtFin(d => ({ ...d, revenue_metrics: { ...d.revenue_metrics, arr: e.target.value } }))} /></div>
+                          <div><label style={LBL}>Churn Rate (%/month)</label><input type="number" placeholder="e.g. 3.5" step="0.1" style={INP} value={extFin.revenue_metrics.churn_rate} onChange={e => setExtFin(d => ({ ...d, revenue_metrics: { ...d.revenue_metrics, churn_rate: e.target.value } }))} /></div>
+                          <div><label style={LBL}>NRR (%)</label><input type="number" placeholder="e.g. 108" style={INP} value={extFin.revenue_metrics.net_revenue_retention} onChange={e => setExtFin(d => ({ ...d, revenue_metrics: { ...d.revenue_metrics, net_revenue_retention: e.target.value } }))} /></div>
+                          <div style={{ gridColumn: 'span 2' }}><label style={LBL}>Paying Customers</label><input type="number" placeholder="e.g. 24" style={INP} value={extFin.revenue_metrics.paying_customers} onChange={e => setExtFin(d => ({ ...d, revenue_metrics: { ...d.revenue_metrics, paying_customers: e.target.value } }))} /></div>
+                        </div>
+                      </div>
+                      <div style={{ background: 'rgba(22,15,8,0.025)', borderRadius: 14, padding: 18 }}>
+                        <div style={{ ...LBL, marginBottom: 14, color: 'rgba(22,15,8,0.5)' }}>⚖️ Cap Table & Valuation</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                          <div><label style={LBL}>Founder Equity (%)</label><input type="number" placeholder="e.g. 75" style={INP} value={extFin.cap_table.founders_equity} onChange={e => setExtFin(d => ({ ...d, cap_table: { ...d.cap_table, founders_equity: e.target.value } }))} /></div>
+                          <div><label style={LBL}>ESOP Pool (%)</label><input type="number" placeholder="e.g. 10" style={INP} value={extFin.cap_table.employee_esop_pool} onChange={e => setExtFin(d => ({ ...d, cap_table: { ...d.cap_table, employee_esop_pool: e.target.value } }))} /></div>
+                          <div><label style={LBL}>Pre-Money Valuation</label><input type="text" placeholder="e.g. ₹3,00,00,000" style={INP} value={extFin.valuation.target_pre_money} onChange={e => setExtFin(d => ({ ...d, valuation: { ...d.valuation, target_pre_money: e.target.value } }))} /></div>
+                          <div><label style={LBL}>Valuation Method</label><select style={INP} value={extFin.valuation.valuation_method} onChange={e => setExtFin(d => ({ ...d, valuation: { ...d.valuation, valuation_method: e.target.value } }))} ><option value="">Select...</option>{['Revenue Multiple', 'Comparable', 'DCF', 'Berkus'].map(m => <option key={m}>{m}</option>)}</select></div>
+                          <div><label style={LBL}>LTV</label><input type="text" placeholder="e.g. ₹18,000" style={INP} value={extFin.unit_economics_detail.ltv} onChange={e => setExtFin(d => ({ ...d, unit_economics_detail: { ...d.unit_economics_detail, ltv: e.target.value } }))} /></div>
+                          <div><label style={LBL}>Gross Margin (%)</label><input type="number" placeholder="e.g. 72" style={INP} value={extFin.unit_economics_detail.gross_margin} onChange={e => setExtFin(d => ({ ...d, unit_economics_detail: { ...d.unit_economics_detail, gross_margin: e.target.value } }))} /></div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── GROUP S: STRATEGY ── */}
+                  {drTab === 'strategy' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+                      <div style={{ background: 'rgba(22,15,8,0.025)', borderRadius: 14, padding: 18 }}>
+                        <div style={{ ...LBL, marginBottom: 14, color: 'rgba(22,15,8,0.5)' }}>🛡 Competitive Moat</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                          <div><label style={LBL}>Primary Differentiator</label><input type="text" placeholder="e.g. Proprietary AI engine trained on Indian SMB workflows" style={INP} value={extStrat.competitive_matrix.primary_differentiator} onChange={e => setExtStrat(d => ({ ...d, competitive_matrix: { ...d.competitive_matrix, primary_differentiator: e.target.value } }))} /></div>
+                          <div><label style={LBL}>Defensible Moats (one per line)</label><textarea rows={2} placeholder="Proprietary data&#10;Network effects&#10;Brand trust" style={INP} value={extStrat.competitive_matrix.defensible_moats_raw} onChange={e => setExtStrat(d => ({ ...d, competitive_matrix: { ...d.competitive_matrix, defensible_moats_raw: e.target.value } }))} /></div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                            <div><label style={LBL}>Network Effects</label><select style={INP} value={extStrat.competitive_matrix.network_effects === null ? '' : String(extStrat.competitive_matrix.network_effects)} onChange={e => setExtStrat(d => ({ ...d, competitive_matrix: { ...d.competitive_matrix, network_effects: e.target.value === '' ? null : e.target.value === 'true' } }))}><option value="">N/A</option><option value="true">Yes</option><option value="false">No</option></select></div>
+                            <div><label style={LBL}>High Switching Cost</label><select style={INP} value={extStrat.competitive_matrix.switching_cost_high === null ? '' : String(extStrat.competitive_matrix.switching_cost_high)} onChange={e => setExtStrat(d => ({ ...d, competitive_matrix: { ...d.competitive_matrix, switching_cost_high: e.target.value === '' ? null : e.target.value === 'true' } }))}><option value="">N/A</option><option value="true">Yes</option><option value="false">No</option></select></div>
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ background: 'rgba(22,15,8,0.025)', borderRadius: 14, padding: 18 }}>
+                        <div style={{ ...LBL, marginBottom: 14, color: 'rgba(22,15,8,0.5)' }}>🚀 Accelerator, Grants & Exit</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                          <div><label style={LBL}>DPIIT Recognized</label><select style={INP} value={extStrat.accelerator_grant.dpiit_recognized === null ? '' : String(extStrat.accelerator_grant.dpiit_recognized)} onChange={e => setExtStrat(d => ({ ...d, accelerator_grant: { ...d.accelerator_grant, dpiit_recognized: e.target.value === '' ? null : e.target.value === 'true' } }))}><option value="">N/A</option><option value="true">Yes ✓</option><option value="false">No</option></select></div>
+                          <div><label style={LBL}>IIM/IIT Incubated</label><select style={INP} value={extStrat.accelerator_grant.iim_iit_incubated === null ? '' : String(extStrat.accelerator_grant.iim_iit_incubated)} onChange={e => setExtStrat(d => ({ ...d, accelerator_grant: { ...d.accelerator_grant, iim_iit_incubated: e.target.value === '' ? null : e.target.value === 'true' } }))}><option value="">N/A</option><option value="true">Yes ✓</option><option value="false">No</option></select></div>
+                          <div><label style={LBL}>Accelerator Programs (one per line)</label><textarea rows={2} placeholder="Y Combinator&#10;T-Hub&#10;IIM-A CIIE" style={INP} value={extStrat.accelerator_grant.accepted_by_raw} onChange={e => setExtStrat(d => ({ ...d, accelerator_grant: { ...d.accelerator_grant, accepted_by_raw: e.target.value } }))} /></div>
+                          <div><label style={LBL}>Grant Funding Received</label><input type="text" placeholder="e.g. ₹10,00,000" style={INP} value={extStrat.accelerator_grant.grant_funding_received} onChange={e => setExtStrat(d => ({ ...d, accelerator_grant: { ...d.accelerator_grant, grant_funding_received: e.target.value } }))} /></div>
+                          <div><label style={LBL}>Preferred Exit Route</label><select style={INP} value={extStrat.exit_strategy.preferred_exit} onChange={e => setExtStrat(d => ({ ...d, exit_strategy: { ...d.exit_strategy, preferred_exit: e.target.value } }))} ><option value="">Select...</option>{['IPO', 'Strategic Acquisition', 'PE Buyout', 'Secondary Sale'].map(m => <option key={m}>{m}</option>)}</select></div>
+                          <div><label style={LBL}>Exit Timeline</label><input type="text" placeholder="e.g. 5-7 years" style={INP} value={extStrat.exit_strategy.target_exit_timeline} onChange={e => setExtStrat(d => ({ ...d, exit_strategy: { ...d.exit_strategy, target_exit_timeline: e.target.value } }))} /></div>
+                          <div style={{ gridColumn: 'span 2' }}><label style={LBL}>Potential Acquirers (one per line)</label><textarea rows={2} placeholder="Zoho&#10;Freshworks&#10;SAP" style={INP} value={extStrat.exit_strategy.potential_acquirers_raw} onChange={e => setExtStrat(d => ({ ...d, exit_strategy: { ...d.exit_strategy, potential_acquirers_raw: e.target.value } }))} /></div>
+                        </div>
+                      </div>
+                      <div style={{ background: 'rgba(22,15,8,0.025)', borderRadius: 14, padding: 18 }}>
+                        <div style={{ ...LBL, marginBottom: 14, color: 'rgba(22,15,8,0.5)' }}>⚖️ Regulatory & IP</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                          <div><label style={LBL}>GDPR/Data Compliant</label><select style={INP} value={extStrat.regulatory.gdpr_compliant === null ? '' : String(extStrat.regulatory.gdpr_compliant)} onChange={e => setExtStrat(d => ({ ...d, regulatory: { ...d.regulatory, gdpr_compliant: e.target.value === '' ? null : e.target.value === 'true' } }))}><option value="">N/A</option><option value="true">Yes ✓</option><option value="false">No</option></select></div>
+                          <div><label style={LBL}>Data Residency (India)</label><select style={INP} value={extStrat.regulatory.data_residency_compliant === null ? '' : String(extStrat.regulatory.data_residency_compliant)} onChange={e => setExtStrat(d => ({ ...d, regulatory: { ...d.regulatory, data_residency_compliant: e.target.value === '' ? null : e.target.value === 'true' } }))}><option value="">N/A</option><option value="true">Yes ✓</option><option value="false">No</option></select></div>
+                          <div><label style={LBL}>Compliance Status</label><input type="text" placeholder="e.g. Compliant" style={INP} value={extStrat.regulatory.compliance_status} onChange={e => setExtStrat(d => ({ ...d, regulatory: { ...d.regulatory, compliance_status: e.target.value } }))} /></div>
+                          <div><label style={LBL}>Patents Filed</label><input type="number" placeholder="e.g. 2" style={INP} value={extStrat.ip_tracker.patents_filed} onChange={e => setExtStrat(d => ({ ...d, ip_tracker: { ...d.ip_tracker, patents_filed: e.target.value } }))} /></div>
+                          <div><label style={LBL}>Patents Granted</label><input type="number" placeholder="e.g. 1" style={INP} value={extStrat.ip_tracker.patents_granted} onChange={e => setExtStrat(d => ({ ...d, ip_tracker: { ...d.ip_tracker, patents_granted: e.target.value } }))} /></div>
+                          <div><label style={LBL}>Trademarks Registered</label><input type="number" placeholder="e.g. 1" style={INP} value={extStrat.ip_tracker.trademarks_registered} onChange={e => setExtStrat(d => ({ ...d, ip_tracker: { ...d.ip_tracker, trademarks_registered: e.target.value } }))} /></div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </div>
           </div>
 
           <div style={{ textAlign: 'center' }}>
-            <button 
-              onClick={handleInitialize} 
+            <button
+              onClick={handleInitialize}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 10, padding: '16px 40px', borderRadius: 999, background: 'var(--espresso)', color: 'var(--cream)', fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', border: 'none', cursor: 'pointer', transition: 'all 0.25s', boxShadow: '0 8px 30px rgba(22,15,8,0.2)' }}
               onMouseEnter={e => { e.currentTarget.style.background = 'var(--coral)'; e.currentTarget.style.boxShadow = '0 12px 36px rgba(255,69,0,0.45)'; }}
               onMouseLeave={e => { e.currentTarget.style.background = 'var(--espresso)'; e.currentTarget.style.boxShadow = '0 8px 30px rgba(22,15,8,0.2)'; }}
@@ -166,7 +504,7 @@ export default function PitchInvestorReadinessPanel({ survey }) {
       {/* ── LOADING STATE ── */}
       {loading && (
         <div style={{ textAlign: 'center', padding: '80px 0' }}>
-          <div style={{ width: 44, height: 44, border: '3px solid rgba(255,69,0,0.1)', borderTopColor: 'var(--coral)', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 24px' }}/>
+          <div style={{ width: 44, height: 44, border: '3px solid rgba(255,69,0,0.1)', borderTopColor: 'var(--coral)', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 24px' }} />
           <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, color: 'var(--espresso)', margin: '0 0 8px' }}>Assembling narratives and scoring calculations...</h3>
           <p style={{ fontFamily: "'Fraunces', serif", fontSize: 14, color: 'rgba(22,15,8,0.4)', margin: 0 }}>Grounding projections in raw survey metrics. Please stand by.</p>
           <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
@@ -176,22 +514,22 @@ export default function PitchInvestorReadinessPanel({ survey }) {
       {/* ── REPORT DASHBOARD VIEW ── */}
       {report && !loading && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ display: 'flex', flexDirection: 'column', gap: 36 }}>
-          
+
           {/* Header Dashboard Metrics */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--warm-white)', padding: '24px 32px', borderRadius: 22, border: '1.5px solid rgba(22,15,8,0.07)', flexWrap: 'wrap', gap: 20 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-              <div 
-                style={{ 
-                  width: 72, 
-                  height: 72, 
-                  borderRadius: '50%', 
-                  background: getScoreColor(report.scoring?.overall_score), 
-                  color: '#fff', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center', 
-                  fontFamily: "'Playfair Display', serif", 
-                  fontSize: 28, 
+              <div
+                style={{
+                  width: 72,
+                  height: 72,
+                  borderRadius: '50%',
+                  background: getScoreColor(report.scoring?.overall_score),
+                  color: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontFamily: "'Playfair Display', serif",
+                  fontSize: 28,
                   fontWeight: 900,
                   boxShadow: `0 8px 24px ${getScoreColor(report.scoring?.overall_score)}40`
                 }}
@@ -207,16 +545,16 @@ export default function PitchInvestorReadinessPanel({ survey }) {
             </div>
 
             <div style={{ display: 'flex', gap: 10 }}>
-              <button 
-                onClick={handleCSV} 
+              <button
+                onClick={handleCSV}
                 style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 20px', borderRadius: 999, border: '1.5px solid rgba(22,15,8,0.15)', background: 'transparent', fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.55)', cursor: 'pointer', transition: 'all 0.2s' }}
                 onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--espresso)'; e.currentTarget.style.color = 'var(--espresso)'; }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(22,15,8,0.15)'; e.currentTarget.style.color = 'rgba(22,15,8,0.55)'; }}
               >
                 Download CSV Model
               </button>
-              <button 
-                onClick={handlePDF} 
+              <button
+                onClick={handlePDF}
                 style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 24px', borderRadius: 999, border: 'none', background: 'var(--espresso)', color: 'var(--cream)', fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', transition: 'all 0.25s', boxShadow: '0 6px 20px rgba(22,15,8,0.2)' }}
                 onMouseEnter={e => { e.currentTarget.style.background = 'var(--coral)'; e.currentTarget.style.boxShadow = '0 10px 30px rgba(255,69,0,0.4)'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'var(--espresso)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(22,15,8,0.2)'; }}
@@ -231,9 +569,9 @@ export default function PitchInvestorReadinessPanel({ survey }) {
             {TABS.map(t => {
               const active = activeTab === t.id;
               return (
-                <button 
-                  key={t.id} 
-                  onClick={() => setActiveTab(t.id)} 
+                <button
+                  key={t.id}
+                  onClick={() => setActiveTab(t.id)}
                   style={{ padding: '8px 16px', borderRadius: 999, border: 'none', cursor: 'pointer', fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 9, letterSpacing: '0.05em', textTransform: 'uppercase', transition: 'all 0.2s', background: active ? 'var(--espresso)' : 'transparent', color: active ? 'var(--cream)' : 'rgba(22,15,8,0.35)' }}
                 >
                   {t.label}
@@ -245,11 +583,11 @@ export default function PitchInvestorReadinessPanel({ survey }) {
           {/* Tab Contents */}
           <div style={{ minHeight: 280 }}>
             <AnimatePresence mode="wait">
-              <motion.div 
-                key={activeTab} 
-                initial={{ opacity: 0, y: 8 }} 
-                animate={{ opacity: 1, y: 0 }} 
-                exit={{ opacity: 0, y: -8 }} 
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.2 }}
               >
                 {activeTab === 'executive' && <ExecutiveSummarySection report={report} />}

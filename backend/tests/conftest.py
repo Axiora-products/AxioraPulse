@@ -111,8 +111,138 @@ def mock_gemini(monkeypatch):
             }
         )
 
-    def mock_investor_call_gemini(*args, **kwargs):
-        raise ValueError("Simulated Gemini error for fallback testing")
+    def mock_investor_call_gemini(prompt: str, max_tokens: int = 8000, system_instruction=None) -> str:
+        """Return a valid investor readiness report JSON for testing."""
+        return json.dumps({
+            "survey_id": "test-survey-id",
+            "survey_title": "Mock Investor Survey",
+            "category": "SaaS / Productivity Tech",
+            "executive_summary": "Mock executive summary grounded in survey evidence.",
+            "problem_solution_narrative": {
+                "problem": "Mock problem derived from survey validation evidence.",
+                "solution": "Mock solution aligned with validated pain points.",
+            },
+            "narrative_intelligence": "Mock narrative intelligence.",
+            "market_opportunity_framing": "Mock market opportunity based on adoption intent signals.",
+            "tam_sam_som": {
+                "tam": "Insufficient survey data — demographic questions needed",
+                "sam": "Insufficient survey data",
+                "som": "Insufficient survey data",
+                "data_source": "Survey did not include market sizing questions.",
+            },
+            "competitors": [
+                {
+                    "name": "Mock Competitor",
+                    "offering": "Generic workflow tools",
+                    "pricing": "Free tier available",
+                    "strengths": "Established user base",
+                    "weaknesses": "Poor AI integration",
+                    "diff": "AI-first approach",
+                    "share": "30%",
+                }
+            ],
+            "gtm_strategy": "Mock GTM strategy based on demographic evidence.",
+            "unit_economics": {
+                "cac": "Insufficient survey data",
+                "ltv": "Insufficient survey data",
+                "margin": "Based on SaaS pricing model",
+                "retention": "Insufficient survey data",
+                "payback_period": "Insufficient survey data",
+            },
+            "financial_projections": [
+                {"year": "Year 1", "revenue": "Insufficient data", "cost": "Estimate", "hiring": "3", "margin": "20%"},
+                {"year": "Year 2", "revenue": "Insufficient data", "cost": "Estimate", "hiring": "8", "margin": "28%"},
+                {"year": "Year 3", "revenue": "Insufficient data", "cost": "Estimate", "hiring": "18", "margin": "40%"},
+            ],
+            "traction_evidence": {
+                "total_responses": 50,
+                "positive_validation_ratio": 75,
+                "average_rating": 4.1,
+                "market_validation_insight": "Mock traction insight from 50 survey responses.",
+            },
+            "execution_roadmap": [
+                {
+                    "phase": "Phase 1: Validation & Launch",
+                    "milestone": "Secure first 10 paying customers",
+                    "timeline": "Month 1 - 3",
+                    "funding_required": "₹25,00,000",
+                    "focus_area": "Product & Engineering",
+                }
+            ],
+            "objections": [
+                {
+                    "objection": "Low sample size for statistical significance",
+                    "severity": "Medium",
+                    "suggested_response": "Expand survey to 200+ respondents before Series A.",
+                }
+            ],
+            "scoring": {
+                "overall_score": 72,
+                "confidence_score": 60,
+                "growth_potential": "Moderate",
+                "attractiveness_level": "Strong",
+                "financial_readiness": {
+                    "score": 40,
+                    "weight": 0.20,
+                    "status": "Insufficient Data",
+                    "insights": "No willingness-to-pay questions found.",
+                    "gaps": ["Add pricing preference questions"],
+                },
+                "product_readiness": {
+                    "score": 75,
+                    "weight": 0.20,
+                    "status": "Strong",
+                    "insights": "Problem validation score derived from survey.",
+                    "gaps": [],
+                },
+                "market_readiness": {
+                    "score": 70,
+                    "weight": 0.25,
+                    "status": "Strong",
+                    "insights": "Adoption intent signals from survey.",
+                    "gaps": [],
+                },
+                "team_readiness": {
+                    "score": 0,
+                    "weight": 0.15,
+                    "status": "Insufficient survey data",
+                    "insights": "No team assessment questions.",
+                    "gaps": ["Add team evaluation questions"],
+                },
+                "operational_maturity": {
+                    "score": 72,
+                    "weight": 0.20,
+                    "status": "Strong",
+                    "insights": "Traction evidence from response volume.",
+                    "gaps": [],
+                },
+                "key_risks": [
+                    {"risk": "Low response volume", "mitigation": "Expand survey reach"}
+                ],
+            },
+            "pitch_review": {
+                "overall_rating": "Refinements Needed",
+                "strengths": ["Strong problem validation", "Clear market demand signals"],
+                "improvements": ["Add willingness-to-pay data", "Expand competitor research"],
+            },
+            "target_investors": [
+                {
+                    "investor_type": "Pre-Seed Angels",
+                    "average_check": "₹25L - ₹1Cr",
+                    "key_criteria": ["Validated problem", "Clear market demand"],
+                    "target_fit": "Matches based on validation score and India geography.",
+                }
+            ],
+            "funding_ask": {
+                "amount": "₹75,00,000",
+                "timeline_runway": "12-18 months",
+                "breakdown": [
+                    {"allocation": "Product & Engineering", "percentage": "50%"},
+                    {"allocation": "Marketing & GTM Sales", "percentage": "30%"},
+                    {"allocation": "Hiring & Operations", "percentage": "20%"},
+                ],
+            },
+        })
 
     monkeypatch.setattr(routes.ai, "call_ai_sync", mock_call_gemini)
     monkeypatch.setattr(routes.investor, "call_ai_sync", mock_investor_call_gemini)
