@@ -1455,7 +1455,6 @@ Original Survey JSON:
 
 def _deterministic_social_content(title: str, description: str, questions: list) -> SocialShareContentResponse:
     """Fallback: build sensible share content without the AI."""
-    q_snippet = "; ".join(q.get("question_text", "") for q in questions[:3] if q.get("question_text"))
     clean_title = title.strip()
     tagline = f"Share your thoughts on: {clean_title}"[:99]
     desc = description.strip() if description else f"A survey about {clean_title}. Your opinion matters — take a few minutes to respond!"
