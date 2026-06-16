@@ -815,9 +815,9 @@ export default function SurveyEdit() {
       }}>
 
         {/* LEFT — Editor */}
-        <div>
+        <div className="tabs-scroll">
           {/* ── EDITORIAL TAB NAVIGATION ── */}
-          <div style={{ display: 'flex', gap: 0, marginBottom: 40, borderBottom: '1px solid rgba(22,15,8,0.07)' }}>
+          <div className="tabs-inner" style={{ display: 'flex', gap: 0, marginBottom: 40, borderBottom: '1px solid rgba(22,15,8,0.07)' }}>
             {TABS.map(t => {
               const isSettings = t.id === 'settings';
               return (
@@ -1464,109 +1464,363 @@ export default function SurveyEdit() {
 
       <style>
         {`/* =========================================
-   AXIORA EDIT PAGE LAYOUT FIX
+   GLOBAL RESET
 ========================================= */
 
-.se-grid {
-  display: grid !important;
-  grid-template-columns: minmax(0, 1fr) 290px !important;
-  gap: 28px !important;
-  align-items: start !important;
-  width: 100%;
-  overflow: hidden;
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  min-width: 0;
 }
 
-/* RIGHT SIDEBAR */
+html,
+body,
+#root {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  margin: 0;
+}
+
+/* =========================================
+   MAIN GRID
+========================================= */
+
+/* VERY IMPORTANT */
+.se-grid{
+  overflow: visible !important;
+}
+
+.se-content{
+  overflow: visible !important;
+}
+
+.se-main{
+  overflow: visible !important;
+}
+
+.card,
+.form-card,
+.survey-card{
+  overflow: visible !important;
+}
+
+.se-grid > * {
+  min-width: 0;
+}
+
+/* =========================================
+   CONTENT AREA
+========================================= */
+
+.se-content,
+.se-main,
+.se-form-area {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* =========================================
+   SIDEBAR
+========================================= */
+
 .se-sidebar {
-  width: 290px !important;
-  min-width: 290px !important;
-  max-width: 290px !important;
+  width: 290px;
+  min-width: 290px;
+  max-width: 290px;
 
-  flex-shrink: 0;
-
-  position: sticky !important;
+  position: sticky;
   top: 24px;
 
   align-self: start;
-
-  overflow: hidden;
-    padding-top: 72px !important;
-
-} > * {
-  flex-shrink: 0;
+  padding-top: 72px;
 }
 
-/* PREVIEW CARD */
 .se-sidebar .survey-preview-card {
-  width: 100% !important;
-  max-width: 290px !important;
+  width: 100%;
+  max-width: 290px;
   overflow: hidden;
   border-radius: 28px;
- 
-  }
+}
 
-/* PREVIEW BUTTON */
 .se-sidebar .preview-btn {
+  width: 100%;
+  height: 64px;
+  border-radius: 22px !important;
 
   display: flex;
   align-items: center;
   justify-content: center;
-
-  height: 64px;
-
-  border-radius: 22px !important;
-  }
+}
 
 /* =========================================
-   TABS FIX
+   TABS
 ========================================= */
 
 .se-tabs {
-  display: flex !important;
+  display: flex;
   align-items: center;
-  gap: 18px;
-
-  flex-wrap: nowrap !important;
+  gap: 16px;
 
   overflow-x: auto;
   overflow-y: hidden;
 
+  flex-wrap: nowrap;
   scrollbar-width: none;
 
-  padding-bottom: 4px;
+  width: 100%;
 }
 
 .se-tabs::-webkit-scrollbar {
   display: none;
 }
 
-/* TAB BUTTON */
 .se-tab-btn {
-  flex-shrink: 0 !important;
-
-  white-space: nowrap !important;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
-/* EXECUTE TAB FIX */
 .se-tab-btn span {
-  white-space: nowrap !important;
+  white-space: nowrap;
 }
 
 /* =========================================
-   RESPONSIVE
+   STATUS BUTTONS
+========================================= */
+
+.status-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  width: 100%;
+}
+
+.status-tabs button {
+  white-space: nowrap;
+}
+
+/* =========================================
+   FORM ELEMENTS
+========================================= */
+
+input,
+textarea,
+select {
+  width: 100%;
+  max-width: 100%;
+}
+
+textarea {
+  resize: vertical;
+}
+
+/* =========================================
+   MEDIA
+========================================= */
+
+img,
+video,
+iframe,
+canvas,
+svg {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+table {
+  width: 100%;
+  display: block;
+  overflow-x: auto;
+}
+
+/* =========================================
+   CARDS
+========================================= */
+
+.survey-preview-card,
+.card,
+.form-card {
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+/* =========================================
+   TABLET
 ========================================= */
 
 @media (max-width: 1200px) {
   .se-grid {
-    grid-template-columns: 1fr !important;
+    grid-template-columns: 1fr;
+    gap: 20px;
   }
 
   .se-sidebar {
     width: 100% !important;
     max-width: 100% !important;
+    min-width: 0 !important;
+
     position: relative !important;
+    top: auto !important;
+
+    padding-top: 0 !important;
+    order: -1;
   }
-}`}
+
+  .se-sidebar .survey-preview-card {
+    max-width: 100%;
+  }
+}
+
+/* =========================================
+   MOBILE
+========================================= */
+
+@media (max-width: 768px) {
+
+  .se-grid {
+    gap: 16px;
+  }
+
+  .se-tabs{
+    display:flex !important;
+    flex-wrap:nowrap !important;
+
+    overflow-x:auto !important;
+    overflow-y:hidden !important;
+
+    -webkit-overflow-scrolling:touch;
+
+    scrollbar-width:none;
+    -ms-overflow-style:none;
+
+    width:100%;
+    padding-bottom:8px;
+
+    gap:18px !important;
+  }
+.tabs-scroll {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .tabs-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tabs-inner {
+    width: max-content;
+    flex-wrap: nowrap;
+    padding-bottom: 4px;
+  }
+
+  .tabs-inner .se-tab-btn {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .se-tabs::-webkit-scrollbar{
+    display:none;
+  }
+
+  .se-tab-btn{
+    flex:0 0 auto !important;
+    white-space:nowrap !important;
+    min-width:max-content !important;
+  }
+
+
+  .status-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
+  }
+
+  .status-tabs button {
+    width: 100%;
+    min-width: 0;
+  }
+
+  input,
+  textarea,
+  select {
+    width: 100% !important;
+    max-width: 100% !important;
+    font-size: 16px !important;
+  }
+
+  .survey-preview-card,
+  .card,
+  .form-card {
+    border-radius: 18px !important;
+  }
+
+  .flex-row,
+  .row,
+  .form-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .flex-row > *,
+  .row > *,
+  .form-row > * {
+    width: 100% !important;
+  }
+}
+
+/* =========================================
+   SMALL MOBILE
+========================================= */
+
+@media (max-width: 480px) {
+
+  .se-grid {
+    gap: 12px;
+  }
+
+  .se-tab-btn {
+    padding: 8px 12px !important;
+    font-size: 11px !important;
+  }
+
+  .status-tabs {
+    grid-template-columns: 1fr;
+  }
+
+  .status-tabs button {
+    width: 100%;
+    font-size: 12px !important;
+    padding: 10px !important;
+  }
+
+  .survey-preview-card,
+  .card,
+  .form-card {
+    border-radius: 14px !important;
+  }
+
+  h1 {
+    font-size: 22px !important;
+  }
+
+  h2 {
+    font-size: 18px !important;
+  }
+
+  h3 {
+    font-size: 16px !important;
+  }
+}
+`}
       </style>
     </div>
   );
