@@ -422,6 +422,10 @@ export class AxioraPulseStack extends cdk.Stack {
       {
         id: 'AwsSolutions-IAM4',
         reason: 'ECS Task role requires AmazonSSMReadOnlyAccess to read parameters from SSM.'
+      },
+      {
+        id: 'AwsSolutions-IAM5',
+        reason: 'ECS Task role needs wildcard permission to publish SMS notifications to any phone number via SNS.'
       }
     ], true);
 
