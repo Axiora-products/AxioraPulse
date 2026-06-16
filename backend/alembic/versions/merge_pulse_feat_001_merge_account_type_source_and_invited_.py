@@ -7,9 +7,6 @@ Create Date: 2026-06-16 17:52:46.801113
 """
 from typing import Sequence, Union
 
-from alembic import op
-import sqlalchemy as sa
-
 
 # revision identifiers, used by Alembic.
 revision: str = 'merge_pulse_feat_001'
