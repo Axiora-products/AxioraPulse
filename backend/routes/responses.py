@@ -28,6 +28,7 @@ from schemas import (
     AnswerIn,
     ResponseOut,
 )
+from services.offline_translation import SUPPORTED_OFFLINE_LANGUAGES, translation_model_signature
 
 router = APIRouter(prefix="/responses", tags=["responses"])
 SUPPORTED_RESPONSE_LANGUAGES = {"en", "te", "hi"}
@@ -52,6 +53,25 @@ def _response_language(value: str | None) -> str:
     return value if value in SUPPORTED_RESPONSE_LANGUAGES else "en"
 
 
+def _response_translation_metadata(language: str) -> dict | None:
+    if language not in SUPPORTED_OFFLINE_LANGUAGES:
+        return None
+    return {
+        "translation": {
+            "mode": "offline",
+            "source_language": "en",
+            "target_language": language,
+            "model_signature": translation_model_signature(),
+        }
+    }
+
+
+def _merge_response_metadata(existing: dict | None, extra: dict | None) -> dict | None:
+    if not extra:
+        return existing
+    return {**(existing or {}), **extra}
+
+
 # ── Create ────────────────────────────────────────────────────────────────────
 
 
@@ -69,16 +89,22 @@ def create_response(request: Request, body: ResponseCreate, db: Session = Depend
         if existing:
             if body.language:
                 existing.language = _response_language(body.language)
+                existing.response_metadata = _merge_response_metadata(
+                    existing.response_metadata,
+                    _response_translation_metadata(existing.language),
+                )
                 db.commit()
                 db.refresh(existing)
             return ResponseOut.model_validate(existing)
 
+    language = _response_language(body.language)
     row = SurveyResponse(
         id=uuid.uuid4(),
         survey_id=body.survey_id,
         session_token=body.session_token or str(uuid.uuid4()),
         respondent_email=body.respondent_email,
-        language=_response_language(body.language),
+        language=language,
+        response_metadata=_response_translation_metadata(language),
         age_range=body.age_range,
         gender=body.gender,
         occupation=body.occupation,
@@ -145,6 +171,10 @@ def update_response(
         r.respondent_email = body.respondent_email
     if body.language is not None:
         r.language = _response_language(body.language)
+        r.response_metadata = _merge_response_metadata(
+            r.response_metadata,
+            _response_translation_metadata(r.language),
+        )
     if body.status is not None:
         try:
             r.status = ResponseStatusEnum(body.status)

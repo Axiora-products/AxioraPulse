@@ -86,18 +86,102 @@ def test_post_survey_intelligence(auth_headers):
     assert response.status_code == 200
 
 
-def test_translate_survey(auth_headers):
+def test_translate_survey(auth_headers, monkeypatch):
+    import routes.ai
+
+    monkeypatch.setattr(routes.ai, "translate_text", lambda text, language: f"{language}:{text}")
+    monkeypatch.setattr(routes.ai, "translate_options", lambda options, language: options)
+
     payload = {
         "title": "Welcome Survey",
         "description": "Please fill this in",
         "welcome_message": "Hello",
         "thank_you_message": "Goodbye",
-        "questions": [{"text": "How are you?"}],
-        "language": "spanish",
+        "questions": [{"id": "q1", "type": "short_text", "question_text": "How are you?"}],
+        "language": "hi",
     }
     response = client.post("/ai/translate-survey", json=payload, headers=auth_headers)
     assert response.status_code == 200
-    assert "translated_text" in response.json()
+    data = response.json()
+    assert data["title"] == "hi:Welcome Survey"
+    assert data["questions"][0]["question_text"] == "hi:How are you?"
+
+
+def test_translate_survey_translates_question_options(auth_headers, monkeypatch):
+    import routes.ai
+
+    monkeypatch.setattr(routes.ai, "translate_text", lambda text, language: f"{language}:{text}")
+    monkeypatch.setattr(
+        routes.ai,
+        "translate_options",
+        lambda options, language: [{"label": f"{language}:{options[0]['label']}", "value": options[0]["value"]}],
+    )
+
+    payload = {
+        "title": "Welcome Survey",
+        "description": "Please fill this in",
+        "questions": [
+            {
+                "id": "q1",
+                "type": "single_choice",
+                "question_text": "Pick one",
+                "description": "Choose carefully",
+                "options": [{"label": "Option A", "value": "a"}],
+            }
+        ],
+        "language": "te",
+    }
+    response = client.post("/ai/translate-survey", json=payload, headers=auth_headers)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["questions"][0]["description"] == "te:Choose carefully"
+    assert data["questions"][0]["options"] == [{"label": "te:Option A", "value": "a"}]
+
+
+def test_translate_survey_offline_error_returns_503(auth_headers, monkeypatch):
+    import routes.ai
+
+    monkeypatch.setattr(
+        routes.ai,
+        "translate_text",
+        MagicMock(side_effect=routes.ai.OfflineTranslationError("missing offline model")),
+    )
+
+    response = client.post(
+        "/ai/translate-survey",
+        json={"title": "T", "questions": [{"question_text": "Q"}], "language": "hi"},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "missing offline model"
+
+
+def test_translate_survey_unexpected_error_returns_500(auth_headers, monkeypatch):
+    import routes.ai
+
+    monkeypatch.setattr(routes.ai, "translate_text", MagicMock(side_effect=RuntimeError("boom")))
+
+    response = client.post(
+        "/ai/translate-survey",
+        json={"title": "T", "questions": [{"question_text": "Q"}], "language": "hi"},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 500
+    assert "Failed to translate survey offline: boom" in response.json()["detail"]
+
+
+def test_translation_status(monkeypatch):
+    import routes.ai
+
+    monkeypatch.setattr(routes.ai, "translation_status", lambda: {"mode": "offline", "supported_languages": ["hi"]})
+
+    response = client.get("/ai/translation-status")
+
+    assert response.status_code == 200
+    assert response.json() == {"mode": "offline", "supported_languages": ["hi"]}
 
 
 def test_post_ai_insights_normalization_branches(auth_headers, monkeypatch):

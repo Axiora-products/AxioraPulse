@@ -53,6 +53,8 @@ services:
       - AWS_DEFAULT_REGION=ap-south-1
     volumes:
       - ./backend:/app
+      - offline-translation-cache:/root/.cache
+      - argos-translation-data:/root/.local/share/argos-translate
     depends_on:
       pulse-db:
         condition: service_healthy
@@ -83,6 +85,10 @@ services:
 volumes:
   pulse-db-data:
     name: pulse-db-data
+  offline-translation-cache:
+    name: offline-translation-cache
+  argos-translation-data:
+    name: argos-translation-data
 
 networks:
   pulse-network:

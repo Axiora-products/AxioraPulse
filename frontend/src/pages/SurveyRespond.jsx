@@ -335,36 +335,9 @@ useEffect(() => {
   const activeQs = (currentLang !== 'en' && translatedData[currentLang]?.qs) ? translatedData[currentLang].qs : qs;
   const ui = UI_TEXT[currentLang] || UI_TEXT.en;
 
-  const getBrandedName = () => {
-    const creatorName = sv?.creator?.full_name;
-    if (!orgName) return creatorName || '';
-    
-    // Checks if the workspace name represents a personal/individual account
-    const isPersonal = 
-      orgName.toLowerCase().trim().endsWith("workspace") || 
-      orgName.toLowerCase().trim() === 'personal' ||
-      orgName.toLowerCase().includes("gmail") ||
-      orgName.toLowerCase().includes("yahoo") ||
-      orgName.toLowerCase().includes("outlook") ||
-      orgName.toLowerCase().includes("hotmail") ||
-      orgName.toLowerCase().includes("proton") ||
-      orgName.toLowerCase().includes("icloud") ||
-      (creatorName && orgName.toLowerCase().trim() === creatorName.toLowerCase().trim());
-
-    return (isPersonal && creatorName) ? creatorName : orgName;
-  };
-  const brandedName = getBrandedName();
-
-  const hasBackendTranslation = (langCode) => {
-    if (!sv || langCode === 'en') return true;
-    if (textFor(sv.title, langCode) && textFor(sv.title, langCode) !== textFor(sv.title, 'en')) return true;
-    return qs.some(q => textFor(q.question_text, langCode) && textFor(q.question_text, langCode) !== textFor(q.question_text, 'en'));
-  };
-
   const fetchTranslation = async (langCode) => {
     if (langCode === 'en') return;
     if (translatedData[langCode]) return;
-    if (hasBackendTranslation(langCode)) return;
     
     setTranslating(true);
     try {
@@ -415,9 +388,11 @@ useEffect(() => {
         ...prev,
         [langCode]: { sv: mergedSv, qs: mergedQs }
       }));
+      setSv(mergedSv);
+      setQs(mergedQs);
     } catch (e) {
       console.error('Failed to translate survey:', e);
-      toast.error('Failed to translate survey. Please try again.');
+      toast.error(e.response?.data?.detail || 'Failed to translate survey. Please try again.');
     } finally {
       setTranslating(false);
     }
