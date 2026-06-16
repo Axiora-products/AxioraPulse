@@ -412,7 +412,10 @@ def list_surveys(
         db.query(Survey)
         .options(joinedload(Survey.questions))
         .options(joinedload(Survey.creator))
-        .filter(Survey.tenant_id == current_user.tenant_id)
+        .filter(
+            Survey.tenant_id == current_user.tenant_id,
+            Survey.created_by == current_user.id,
+        )
     )
 
     if q:

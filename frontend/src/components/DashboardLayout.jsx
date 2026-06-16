@@ -25,6 +25,7 @@ export default function DashboardLayout() {
   const [surveys, setSurveys] = useState([]);
   const [files, setFiles] = useState([]);
   const [sidebarLoading, setSidebarLoading] = useState(true);
+  const [showSurveys, setShowSurveys] = useState(true);
 
   // Fetch surveys and files for sidebar
   useEffect(() => {
@@ -284,9 +285,30 @@ export default function DashboardLayout() {
               <span className="ws-sidebar-item-text">Team</span>
             </NavLink>
           </div>
+          <div
+            className="ws-sidebar-section"
+            onClick={() => setShowSurveys(!showSurveys)}
+            style={{
+              cursor: "pointer",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginTop: "12px",
+            }}
+          >
+            <div className="ws-sidebar-section-label">
+              My Surveys ({surveys.length})
+            </div>
+            
+            <span style={{ fontSize: "12px" }}>
+              {showSurveys ? "▾" : "▸"}
+            </span>
+          </div>
 
-          {/* Active Surveys */}
-          {activeSurveys.length > 0 && (
+          {showSurveys && (
+          <>
+            {/* Active Surveys */}
+            {activeSurveys.length > 0 && (
             <div className="ws-sidebar-section">
               <div className="ws-sidebar-section-label">Active ({activeSurveys.length})</div>
               {activeSurveys.map(s => (
@@ -363,7 +385,8 @@ export default function DashboardLayout() {
             </div>
           )}
 
-          
+        </>
+)}
 
         {/* User Section at bottom */}
         <div className="ws-sidebar-user" ref={userRef}>
