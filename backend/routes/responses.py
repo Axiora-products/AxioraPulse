@@ -13,6 +13,7 @@ POST   /responses/{id}/submit   — mark as completed (replaces Netlify respond 
 GET    /responses/session/{token} — find in-progress response by session_token
 """
 
+import re
 import uuid
 from datetime import datetime, timezone
 from typing import List, Optional
@@ -31,6 +32,20 @@ from schemas import (
 
 router = APIRouter(prefix="/responses", tags=["responses"])
 SUPPORTED_RESPONSE_LANGUAGES = {"en", "te", "hi"}
+
+
+def _normalize_source(value: str | None) -> str:
+    """Normalize the acquisition channel (whatsapp, linkedin, email, qr, …).
+
+    Sanitizes to a safe slug, collapses link/copy variants to 'direct', and keeps
+    any other reasonable value (so custom campaign sources are still tracked).
+    """
+    if not value:
+        return "direct"
+    slug = re.sub(r"[^a-z0-9_-]", "", str(value).strip().lower())[:50]
+    if not slug or slug in {"link", "copy", "direct_link", "directlink"}:
+        return "direct"
+    return slug
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -78,6 +93,7 @@ def create_response(request: Request, body: ResponseCreate, db: Session = Depend
         survey_id=body.survey_id,
         session_token=body.session_token or str(uuid.uuid4()),
         respondent_email=body.respondent_email,
+        source=_normalize_source(body.source),
         language=_response_language(body.language),
         age_range=body.age_range,
         gender=body.gender,

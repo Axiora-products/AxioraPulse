@@ -276,6 +276,7 @@ function EmptyState({ message='No data yet.' }) {
 // ── Tab bar ───────────────────────────────────────────────────────────────────
 const TABS = [
   { id:'Overview',      label:'Overview'      },
+  { id:'Sources',       label:'Sources'      },
   { id:'Dropoff',       label:'Drop-off'      },
   { id:'Questions',     label:'Questions'     },
   { id:'TextInsights',  label:'Text Insights' },
@@ -300,6 +301,75 @@ function TabBar({ active, onChange }) {
           {t.label}
         </button>
       ))}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TAB: SOURCES — respondent source / acquisition-channel tracking
+// ─────────────────────────────────────────────────────────────────────────────
+function SourcesTab({ analytics }) {
+  const { sourceBreakdown, total } = analytics;
+
+  if (!total || sourceBreakdown.length === 0) {
+    return (
+      <div style={{ ...S.card }}>
+        <div style={S.secLabel}>Response Sources</div>
+        <p style={{ ...S.body, color:'rgba(22,15,8,0.4)', margin:0 }}>
+          No responses yet. Share your survey from the Share dialog — each channel (WhatsApp,
+          LinkedIn, Email, QR Code, Direct Link, …) tags its link, so responses are attributed
+          to their source here automatically.
+        </p>
+      </div>
+    );
+  }
+
+  const top = sourceBreakdown[0];
+  const bestCompletion = sourceBreakdown.slice().sort((a, b) => b.completionRate - a.completionRate)[0];
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
+      {/* Summary tiles */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(170px,1fr))', gap:14 }}>
+        <div style={{ ...S.card }}>
+          <div style={{ fontFamily:'Playfair Display,serif', fontWeight:900, fontSize:34, color:'var(--espresso)' }}>{sourceBreakdown.length}</div>
+          <div style={S.statLbl}>Channels used</div>
+        </div>
+        <div style={{ ...S.card }}>
+          <div style={{ fontFamily:'Playfair Display,serif', fontWeight:900, fontSize:28, color:'var(--coral)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{top.label}</div>
+          <div style={S.statLbl}>Top source · {top.total} ({top.share}%)</div>
+        </div>
+        <div style={{ ...S.card }}>
+          <div style={{ fontFamily:'Playfair Display,serif', fontWeight:900, fontSize:34, color:'#1E7A4A' }}>{bestCompletion.completionRate}%</div>
+          <div style={S.statLbl}>Best completion · {bestCompletion.label}</div>
+        </div>
+      </div>
+
+      {/* Per-source breakdown */}
+      <div style={{ ...S.card }}>
+        <div style={S.secLabel}>Responses by Source</div>
+        <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+          {sourceBreakdown.map((s, i) => {
+            const c = COLS[i % COLS.length];
+            return (
+              <div key={s.source}>
+                <div style={{ display:'flex', alignItems:'baseline', justifyContent:'space-between', marginBottom:6, flexWrap:'wrap', gap:8 }}>
+                  <span style={{ display:'inline-flex', alignItems:'center', gap:8, fontFamily:'Syne,sans-serif', fontSize:12, fontWeight:700, color:'var(--espresso)' }}>
+                    <span style={{ width:10, height:10, borderRadius:3, background:c }} />
+                    {s.label}
+                  </span>
+                  <span style={{ fontFamily:'Syne,sans-serif', fontSize:11, fontWeight:700, letterSpacing:'0.06em', color:'rgba(22,15,8,0.45)' }}>
+                    {s.total} {s.total === 1 ? 'response' : 'responses'} · {s.share}% of total · {s.completionRate}% completed
+                  </span>
+                </div>
+                <div style={{ height:8, borderRadius:999, background:'rgba(22,15,8,0.06)', overflow:'hidden' }}>
+                  <div style={{ width:`${Math.max(s.share, 2)}%`, height:'100%', background:c, borderRadius:999, transition:'width 0.4s' }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1397,6 +1467,7 @@ const smallBtn = {
           transition={{ duration:0.2, ease:[0.16,1,0.3,1] }}>
 
           {tab === 'Overview'     && <OverviewTab     analytics={analytics} trendDays={trendDays} setTrendDays={setTrendDays} />}
+          {tab === 'Sources'      && <SourcesTab      analytics={analytics} />}
           {tab === 'Dropoff'      && <DropoffTab      analytics={analytics} />}
           {tab === 'Questions'    && <QuestionsTab    analytics={analytics} />}
           {tab === 'TextInsights' && <TextInsightsTab analytics={analytics} />}

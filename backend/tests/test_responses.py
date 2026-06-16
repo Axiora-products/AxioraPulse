@@ -1,3 +1,4 @@
+import uuid
 from fastapi.testclient import TestClient
 from app.main import app
 
@@ -106,3 +107,28 @@ def test_response_language_tracking(auth_headers):
     update_resp_invalid = client.patch(f"/responses/{response_again.json()['id']}", json=update_payload_invalid)
     assert update_resp_invalid.status_code == 200
     assert update_resp_invalid.json()["language"] == "en"
+
+
+def test_response_source_tracking():
+    # Acquisition source is captured + normalized on the response row.
+    # Unique session tokens guarantee a fresh row each run (no dedup early-return).
+    suffix = uuid.uuid4().hex
+
+    # 1. An explicit channel source is stored as-is.
+    r1 = client.post(
+        "/responses/", json={"survey_id": SURVEY_ID, "session_token": f"src-wa-{suffix}", "source": "whatsapp"}
+    )
+    assert r1.status_code == 201
+    assert r1.json()["source"] == "whatsapp"
+
+    # 2. Generic link/copy variants normalize to 'direct'.
+    r2 = client.post(
+        "/responses/", json={"survey_id": SURVEY_ID, "session_token": f"src-link-{suffix}", "source": "link"}
+    )
+    assert r2.status_code == 201
+    assert r2.json()["source"] == "direct"
+
+    # 3. A missing source defaults to 'direct'.
+    r3 = client.post("/responses/", json={"survey_id": SURVEY_ID, "session_token": f"src-none-{suffix}"})
+    assert r3.status_code == 201
+    assert r3.json()["source"] == "direct"
