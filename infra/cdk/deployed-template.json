@@ -944,7 +944,7 @@
                             ],
                             "Effect": "Allow",
                             "Principal": {
-                                "AWS": "arn:aws:iam::217757579310:root"
+                                "AWS": "arn:aws:iam::683354427635:root"
                             },
                             "Sid": "AllowProdPull"
                         }
@@ -973,7 +973,7 @@
                             ],
                             "Effect": "Allow",
                             "Principal": {
-                                "AWS": "arn:aws:iam::217757579310:root"
+                                "AWS": "arn:aws:iam::683354427635:root"
                             },
                             "Sid": "AllowProdPull"
                         }
