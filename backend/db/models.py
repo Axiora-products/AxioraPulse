@@ -121,6 +121,12 @@ class UserProfile(Base):
     phone_verified = Column(Boolean, default=False)
     role = Column(SAEnum(RoleEnum), nullable=False, default=RoleEnum.viewer)
     tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), index=True, nullable=True)
+    invited_by = Column(
+        UUID(as_uuid=True),
+        ForeignKey("user_profiles.id"),
+        nullable=True,
+        index=True,
+    )
     is_active = Column(Boolean, default=True)
     is_internal = Column(Boolean, nullable=False, default=False)  # Axiora team members bypass payment gates
     account_status = Column(String(50), default="active")  # 'active' | 'invited'
@@ -172,6 +178,9 @@ class Survey(Base):
     created_by = Column(UUID(as_uuid=True), ForeignKey("user_profiles.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     ai_intelligence = Column(JSONB, nullable=True)
+    # Cached Pulse Insights: { "data": {...}, "responseCount": int, "generatedAt": iso }
+    # Re-generated on demand once enough new responses arrive (see routes/ai.py).
+    cached_insights = Column(JSONB, nullable=True)
 
     # relationships
     tenant = relationship("Tenant", back_populates="surveys")

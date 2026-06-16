@@ -741,3 +741,21 @@ body {
 .np-hovering #np-cur-ring { width: 40px; height: 40px; opacity: .28; }
 .np-clicking  #np-cur-dot { width: 4px; height: 4px; }
 .np-clicking  #np-cur-ring { width: 22px; height: 22px; opacity: .65; }
+
+/* ── Text fields: real caret, no floating cursor ──────────────────────────
+   The global `cursor: none` above also kills the I-beam inside text inputs,
+   leaving the custom dot hovering over the text with no caret to show where
+   you are typing. Restore the native text caret in editable fields, and hide
+   the custom dot/ring while one is hovered so they don't clutter the box. */
+textarea,
+input[type="text"], input[type="email"], input[type="number"], input[type="search"],
+input[type="url"], input[type="password"], input[type="tel"], input[type="date"],
+input[type="time"], input[type="datetime-local"], input:not([type]),
+[contenteditable="true"] {
+  cursor: text !important;
+}
+
+html:has(textarea:hover, input[type="text"]:hover, input[type="email"]:hover, input[type="number"]:hover, input[type="search"]:hover, input[type="url"]:hover, input[type="password"]:hover, input[type="tel"]:hover, input[type="date"]:hover, input[type="time"]:hover, input[type="datetime-local"]:hover, input:not([type]):hover, [contenteditable="true"]:hover) #np-cur-dot,
+html:has(textarea:hover, input[type="text"]:hover, input[type="email"]:hover, input[type="number"]:hover, input[type="search"]:hover, input[type="url"]:hover, input[type="password"]:hover, input[type="tel"]:hover, input[type="date"]:hover, input[type="time"]:hover, input[type="datetime-local"]:hover, input:not([type]):hover, [contenteditable="true"]:hover) #np-cur-ring {
+  opacity: 0 !important;
+}

@@ -286,6 +286,18 @@ export default function DashboardLayout() {
               </div>
               <span className="ws-sidebar-item-text">Surveys</span>
             </NavLink>
+                  {/* Uploaded Files */}
+            <div className="ws-sidebar-section">
+              <div className="ws-sidebar-section-label">Files</div>
+              <NavLink to="/files" className={`ws-sidebar-item${loc.pathname === '/files' ? ' active' : ''}`} onClick={() => setMobileOpen(false)}>
+                <div className="ws-sidebar-item-icon">📁</div>
+                <div className="ws-sidebar-item-text">
+                  <span className="ws-sidebar-item-title">All Files</span>
+                  <span className="ws-sidebar-item-meta">{files.length} uploaded</span>
+                </div>
+              </NavLink>
+            </div>
+          </div>
             <NavLink to="/team" className={`ws-sidebar-item${loc.pathname === '/team' ? ' active' : ''}`} onClick={() => setMobileOpen(false)}>
               <div className="ws-sidebar-item-icon">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
@@ -372,18 +384,7 @@ export default function DashboardLayout() {
             </div>
           )}
 
-          {/* Uploaded Files */}
-          <div className="ws-sidebar-section">
-            <div className="ws-sidebar-section-label">Files</div>
-            <NavLink to="/files" className={`ws-sidebar-item${loc.pathname === '/files' ? ' active' : ''}`} onClick={() => setMobileOpen(false)}>
-              <div className="ws-sidebar-item-icon">📁</div>
-              <div className="ws-sidebar-item-text">
-                <span className="ws-sidebar-item-title">All Files</span>
-                <span className="ws-sidebar-item-meta">{files.length} uploaded</span>
-              </div>
-            </NavLink>
-          </div>
-        </div>
+          
 
         {/* User Section at bottom */}
         <div className="ws-sidebar-user" ref={userRef}>
@@ -442,9 +443,9 @@ export default function DashboardLayout() {
         </main>
 
         {/* Footer */}
-        <footer style={{ maxWidth: 1320, margin: '0 auto', padding: '24px 48px 40px', width: '100%', boxSizing: 'border-box', borderTop: '1px solid rgba(22,15,8,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <footer style={{ maxWidth: 1320, margin: '0 auto', padding: '12px 48px 14px', width: '100%', boxSizing: 'border-box', borderTop: '1px solid rgba(22,15,8,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <p style={{ fontFamily: 'Syne, sans-serif', fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', color: 'rgba(22,15,8,0.25)', textAlign: 'center', margin: 0 }}>
-            © 2026 Axiora Pulse is a product of Axiora Labs · Built for researchers, by researchers · Hyderabad
+            © 2026 Axiora Pulse is a product of Axiora Global Solutions · Built for researchers, by researchers · Hyderabad
           </p>
         </footer>
       </div>

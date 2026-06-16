@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import API from '../api/axios';
-import AISurveySuggestions from '../components/AISurveySuggestions';
+
 import SurveyPromptScreen, { SURVEY_MODES, getSurveyModeLabel } from '../components/SurveyPromptScreen';
+import AISurveySuggestions from '../components/AISurveySuggestions';
 import useAuthStore from '../hooks/useAuth';
 import { QUESTION_TYPES, SHORT_SURVEY_RULES, estimateSurveyMinutes, getFormatDiversityScore, getQuestionWordCount, isExpired } from '../lib/constants';
 import { Reorder, useDragControls, motion } from 'framer-motion';
@@ -196,10 +197,8 @@ export default function SurveyCreate() {
   const [qs, sQs] = useState([newQ()]);
   const [dirty, setDirty] = useState(false);
   const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiGenerated, setAiGenerated] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
-  const [modeOpen, setModeOpen] = useState(false);
-  const modeRef = useRef(null);
-  const [pendingGen, setPendingGen] = useState(null);
   const [showTemplates, setShowTemplates] = useState(false);
   const [tmplTab, setTmplTab] = useState('gallery');
   const [catFilter, setCatFilter] = useState('All');
@@ -209,19 +208,14 @@ export default function SurveyCreate() {
   const [tmplDesc, setTmplDesc] = useState('');
   const [tmplNewCat, setTmplNewCat] = useState('');
   const [tmplQs, setTmplQs] = useState([{ _id: 'tq0', question_text: '', question_type: 'short_text', is_required: false }]);
+  const [modeOpen, setModeOpen] = useState(false);
+  const modeRef = useRef(null);
   const [customTemplates, setCustomTemplates] = useState(() => {
     try { return JSON.parse(localStorage.getItem('np-custom-templates') || '[]'); } catch { return []; }
   });
 
   const persistCustom = list => { setCustomTemplates(list); localStorage.setItem('np-custom-templates', JSON.stringify(list)); };
-  const selectedAIMode = SURVEY_MODES.find(m => m.id === f.ai_mode) || SURVEY_MODES[0];
 
-  useEffect(() => {
-    if (!modeOpen) return;
-    const handler = e => { if (modeRef.current && !modeRef.current.contains(e.target)) setModeOpen(false); };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [modeOpen]);
 
   function saveAsTemplate() {
     if (!tmplName.trim()) return toast.error('Template name required');
@@ -260,6 +254,13 @@ export default function SurveyCreate() {
     return () => window.removeEventListener('beforeunload', h);
   }, [dirty]);
 
+  useEffect(() => {
+    if (!modeOpen) return;
+    const handler = e => { if (modeRef.current && !modeRef.current.contains(e.target)) setModeOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [modeOpen]);
+
   const s = (k, v) => { sf(p => ({ ...p, [k]: v })); setDirty(true); };
   const sQ = (id, k, v) => { sQs(a => a.map(q => q._id === id ? { ...q, [k]: v } : q)); setDirty(true); };
   const addQ = () => { sQs(a => [...a, newQ()]); setDirty(true); };
@@ -268,6 +269,12 @@ export default function SurveyCreate() {
   const addOpt = id => { sQs(a => a.map(q => q._id === id ? { ...q, options: [...(q.options || []), { label: '', value: '' }] } : q)); setDirty(true); };
   const sOpt = (id, i, v, imageUrl) => { sQs(a => a.map(q => { if (q._id !== id) return q; const o = [...(q.options || [])]; o[i] = { ...o[i], label: v, value: v.toLowerCase().replace(/\s+/g, '_'), ...(imageUrl !== undefined ? { image_url: imageUrl } : {}) }; return { ...q, options: o }; })); setDirty(true); };
   const delOpt = (id, i) => { sQs(a => a.map(q => q._id !== id ? q : { ...q, options: q.options.filter((_, j) => j !== i) })); setDirty(true); };
+
+
+
+  // ── Prompt Screen Handlers ──
+
+  const selectedAIMode = SURVEY_MODES.find(m => m.id === f.ai_mode) || SURVEY_MODES[0];
 
   const applyAIGeneration = (data) => {
     sf(p => ({
@@ -287,27 +294,22 @@ export default function SurveyCreate() {
       })));
     }
     setDirty(true);
-    setPendingGen(null);
+    setAiGenerated(true);
     setShowConfirm(false);
     toast.success('Survey generated successfully!');
   };
 
   const handleAIGenerate = async () => {
-    if (!f.ai_context.trim()) return toast.error('Please describe your survey first');
-    if (f.ai_mode === 'custom' && !f.ai_custom_instruction.trim()) return toast.error('Add custom mode instructions first');
+    if (!f.ai_context.trim()) return toast.error('Describe your survey first');
     setAiGenerating(true);
     try {
       const { data } = await API.post('/ai/generate', {
         aiContext: f.ai_context,
-        mode: f.ai_mode,
+        mode: f.ai_mode || 'conversational',
         customInstruction: f.ai_custom_instruction || null,
       });
-      if (f.title || qs.length > 1 || (qs.length === 1 && qs[0].question_text)) {
-        setPendingGen(data);
-        setShowConfirm(true);
-      } else {
-        applyAIGeneration(data);
-      }
+      applyAIGeneration(data);
+      setTab('questions');
     } catch (e) {
       toast.error('Failed to generate survey');
       console.error(e);
@@ -391,9 +393,13 @@ export default function SurveyCreate() {
 
   const tc = f.theme_color || '#FF4500';
   const reqCount = qs.filter(q => q.is_required).length;
-  const estimatedMinutes = estimateSurveyMinutes(qs);
-  const conciseQuestionCount = qs.filter(q => getQuestionWordCount(q) <= SHORT_SURVEY_RULES.maxHighSignalWords).length;
-  const hasAdaptiveFormats = getFormatDiversityScore(qs) >= 3;
+  // Only questions that actually have text count toward quality targets — empty
+  // placeholder questions must not mark targets as achieved.
+  const realQuestions = qs.filter(q => getQuestionWordCount(q) > 0);
+  const hasRealQuestions = realQuestions.length > 0;
+  const conciseQuestionCount = realQuestions.filter(q => getQuestionWordCount(q) <= SHORT_SURVEY_RULES.maxHighSignalWords).length;
+  const hasAdaptiveFormats = getFormatDiversityScore(realQuestions) >= 3;
+  // Single source of truth: the same checks drive both the % and the checklist below.
   const healthChecks = [
     f.title.trim(),
     f.description.trim(),
@@ -405,13 +411,7 @@ export default function SurveyCreate() {
     qs.length > 0 && conciseQuestionCount === qs.length,
     f.expires_at
   ];
-  // Filter out checks that shouldn't contribute to 0% state
-  const activeChecks = healthChecks.filter((_, i) => {
-    // reqCount <= 5 is true by default, but shouldn't count if title is empty (fresh state)
-    if (i === 4 && !f.title.trim() && qs.length <= 1) return false;
-    return true;
-  });
-  const health = Math.round((activeChecks.filter(Boolean).length / activeChecks.length) * 100);
+  const health = Math.round((healthChecks.filter(([done]) => done).length / healthChecks.length) * 100);
   const healthColor = health >= 70 ? 'var(--sage)' : health >= 40 ? 'var(--saffron)' : 'var(--terracotta)';
   const TABS = [{ id: 'details', n: '01', label: 'Details' }, { id: 'questions', n: '02', label: 'Questions', count: qs.length }, { id: 'settings', n: '03', label: 'Settings' }];
 
@@ -464,7 +464,7 @@ export default function SurveyCreate() {
     return (
       <SurveyPromptScreen
         onGenerate={handlePromptGenerate}
-        onSkip={() => setPhase('builder')}
+        onSkip={() => { setAiGenerated(true); setPhase('builder'); }}
         onLoadTemplate={handlePromptTemplate}
         galleryTemplates={GALLERY_TEMPLATES}
         aiGenerating={aiGenerating}
@@ -1125,6 +1125,7 @@ export default function SurveyCreate() {
                   )}
                 </div>
               </div>
+              )}
 
               <div>
                 <label style={LBL}>Survey Title *</label>
@@ -1157,7 +1158,7 @@ export default function SurveyCreate() {
                 {[
                   [`${SHORT_SURVEY_RULES.defaultQuestionCount}`, 'default questions'],
                   [`${SHORT_SURVEY_RULES.targetCompletionMinutes} min`, 'target time'],
-                  [`${conciseQuestionCount}/${qs.length}`, 'concise'],
+                  [`${conciseQuestionCount}/${realQuestions.length}`, 'concise'],
                   [hasAdaptiveFormats ? 'Balanced' : 'Mix formats', 'adaptive flow'],
                 ].map(([value, label]) => (
                   <div key={label} style={{ background: 'var(--warm-white)', border: '1.5px solid rgba(22,15,8,0.07)', borderRadius: 18, padding: '14px 16px' }}>

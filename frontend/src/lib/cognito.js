@@ -35,50 +35,34 @@ function getUserPool() {
   return _userPool;
 }
 
-export function cognitoSignIn(email, password) {
+// cognito.js — replace cognitoSignIn
+
+export async function cognitoSignIn(email, password) {
   if (isMockAuth()) {
-    return new Promise(async (resolve, reject) => {
-      try {
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-        const name = localStorage.getItem(`mock_name_${email}`) || undefined;
-        
-        const response = await fetch(`${baseUrl}/auth/mock-login`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ email, name }),
-        });
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+    const name = localStorage.getItem(`mock_name_${email}`) || undefined;
 
-        if (!response.ok) {
-          const errData = await response.json().catch(() => ({}));
-          throw new Error(errData.detail || 'Mock login failed');
-        }
-
-        const data = await response.json();
-
-        // Clean up the name from localStorage
-        localStorage.removeItem(`mock_name_${email}`);
-
-        const mockSession = {
-          getIdToken: () => ({
-            getJwtToken: () => data.id_token,
-          }),
-          getAccessToken: () => ({
-            getJwtToken: () => 'mock-access-token',
-          }),
-          getRefreshToken: () => ({
-            getToken: () => 'mock-refresh-token',
-          }),
-          isValid: () => true,
-        };
-
-        localStorage.setItem('token', data.id_token);
-        resolve(mockSession);
-      } catch (err) {
-        reject(err);
-      }
+    const response = await fetch(`${baseUrl}/auth/mock-login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, name }),
     });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.detail || 'Mock login failed');
+    }
+
+    const data = await response.json();
+    localStorage.removeItem(`mock_name_${email}`);
+    localStorage.setItem('token', data.id_token);
+
+    return {
+      getIdToken: () => ({ getJwtToken: () => data.id_token }),
+      getAccessToken: () => ({ getJwtToken: () => 'mock-access-token' }),
+      getRefreshToken: () => ({ getToken: () => 'mock-refresh-token' }),
+      isValid: () => true,
+    };
   }
 
   return new Promise((resolve, reject) => {
@@ -219,4 +203,37 @@ export function cognitoSignOut() {
   } catch {
     // pool not configured yet — nothing to sign out
   }
+}
+
+/**
+ * Change password for the currently logged-in user.
+ * Uses the Cognito changePassword flow which verifies the old password
+ * before setting the new one — no full re-login required.
+ */
+
+export function cognitoChangePassword(email, oldPassword, newPassword) {
+  if (isMockAuth()) {
+    return Promise.resolve('SUCCESS');
+  }
+
+  return new Promise((resolve, reject) => {
+    // pool.getCurrentUser() restores the stored session from localStorage.
+    // new CognitoUser({ Username, Pool }) does NOT — it starts with no tokens.
+    const cognitoUser = getUserPool().getCurrentUser();
+
+    if (!cognitoUser) {
+      return reject(new Error('NO_USER'));
+    }
+
+    cognitoUser.getSession((sessionErr, session) => {
+      if (sessionErr || !session?.isValid()) {
+        return reject(new Error('SESSION_EXPIRED'));
+      }
+
+      cognitoUser.changePassword(oldPassword, newPassword, (err, result) => {
+        if (err) reject(err);
+        else resolve(result);
+      });
+    });
+  });
 }

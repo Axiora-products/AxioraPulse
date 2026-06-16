@@ -5,13 +5,14 @@ import toast from 'react-hot-toast';
 import { useLoading } from '../context/LoadingContext';
 import API from '../api/axios';
 import { sendPhoneLinkOTP, verifyPhoneLinkOTP, removePhone } from '../lib/otp';
+import { cognitoChangePassword } from '../lib/cognito';
 
-const card  = { background: 'var(--warm-white)', borderRadius: 20, border: '1px solid rgba(22,15,8,0.07)', padding: '36px 40px', marginBottom: 20 };
+const card = { background: 'var(--warm-white)', borderRadius: 20, border: '1px solid rgba(22,15,8,0.07)', padding: '36px 40px', marginBottom: 20 };
 const label = { fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.38)', display: 'block', marginBottom: 10 };
-const inp   = { width: '100%', boxSizing: 'border-box', padding: '14px 18px', background: 'var(--cream)', border: '1px solid rgba(22,15,8,0.1)', borderRadius: 12, fontFamily: 'Fraunces, serif', fontSize: 16, color: 'var(--espresso)', outline: 'none', transition: 'border-color 0.2s' };
-const dis   = { ...inp, background: 'var(--cream-deep)', color: 'rgba(22,15,8,0.3)', cursor: 'not-allowed' };
-const btn   = { padding: '13px 28px', borderRadius: 999, border: 'none', background: 'var(--espresso)', color: 'var(--cream)', fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', transition: 'background 0.25s ease' };
-const secH  = { fontFamily: 'Syne, sans-serif', fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.35)', marginBottom: 28 };
+const inp = { width: '100%', boxSizing: 'border-box', padding: '14px 18px', background: 'var(--cream)', border: '1px solid rgba(22,15,8,0.1)', borderRadius: 12, fontFamily: 'Fraunces, serif', fontSize: 16, color: 'var(--espresso)', outline: 'none', transition: 'border-color 0.2s' };
+const dis = { ...inp, background: 'var(--cream-deep)', color: 'rgba(22,15,8,0.3)', cursor: 'not-allowed' };
+const btn = { padding: '13px 28px', borderRadius: 999, border: 'none', background: 'var(--espresso)', color: 'var(--cream)', fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', transition: 'background 0.25s ease' };
+const secH = { fontFamily: 'Syne, sans-serif', fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.35)', marginBottom: 28 };
 
 // ── ApprovedDomainsCard ───────────────────────────────────────────────────────
 // req #5/#6/#12/#13: only super_admin can view/edit; saved per tenant
@@ -35,15 +36,10 @@ function ApprovedDomainsCard({ tenant, onSaved }) {
         .map(d => d.trim().toLowerCase().replace(/^@/, ''))
         .filter(d => d && d.includes('.'));
 
-      if (parsed.length === 0) {
-        toast.error('Enter at least one valid domain (e.g. company.com)');
-        return;
-      }
-
       await API.patch('/tenants/me', { approved_domains: parsed });
       onSaved(parsed);
       setDomains(parsed.join(', '));
-      toast.success('Approved domains saved');
+      toast.success(parsed.length === 0 ? 'Domain restrictions cleared — all email addresses can now be invited' : 'Approved domains saved');
     } catch (err) {
       toast.error(err.response?.data?.detail || err.message || 'Failed to save domains');
     } finally {
@@ -57,8 +53,8 @@ function ApprovedDomainsCard({ tenant, onSaved }) {
     <div style={card}>
       <div style={secH}>Approved Email Domains</div>
       <p style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 14, color: 'rgba(22,15,8,0.5)', lineHeight: 1.65, marginBottom: 20, marginTop: -16 }}>
-        Invitations can only be sent to addresses belonging to these domains.
-        You must set at least one domain before any invites can be sent.
+        Optionally restrict invitations to specific email domains.
+        When set, only addresses from these domains can be invited. Leave empty to allow any email address.
       </p>
 
       {/* Current approved domains pill list */}
@@ -72,12 +68,7 @@ function ApprovedDomainsCard({ tenant, onSaved }) {
         </div>
       )}
 
-      {approvedList.length === 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderRadius: 12, background: 'rgba(255,184,0,0.08)', border: '1px solid rgba(255,184,0,0.2)', marginBottom: 20 }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#A07000" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-          <span style={{ fontFamily: 'Syne, sans-serif', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', color: '#A07000' }}>No domains set — invitations are blocked until you add at least one.</span>
-        </div>
-      )}
+
 
       <form onSubmit={save} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div>
@@ -137,7 +128,7 @@ export default function Settings() {
   async function sendPhoneOtp() {
     if (!phoneForm.number) return toast.error('Enter your mobile number');
     if (!isValidPhone(phoneForm.number))
-    return toast.error('Enter a valid 10-digit Indian mobile number');
+      return toast.error('Enter a valid 10-digit Indian mobile number');
     setPhoneBusy(true);
     try {
       await sendPhoneLinkOTP(phoneForm.number);
@@ -186,27 +177,61 @@ export default function Settings() {
   }
 
   async function savePw(e) {
-    e.preventDefault();
-    if (pwF.next.length < 8) return toast.error('Password must be at least 8 characters');
-    if (pwF.next !== pwF.confirm) return toast.error('Passwords do not match');
-    setSPw(true);
-    try {
-      await API.patch('/auth/me/password', { new_password: pwF.next });
-      toast.success('Password updated');
-      setPwF({ current: '', next: '', confirm: '' });
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Failed to update password');
-    } finally { setSPw(false); }
+  e.preventDefault();
+  if (!pwF.current) return toast.error('Enter your current password');
+  if (pwF.next.length < 8) return toast.error('New password must be at least 8 characters');
+  if (pwF.next !== pwF.confirm) return toast.error('New passwords do not match');
+  if (pwF.current === pwF.next) return toast.error('New password must be different from your current password');
+  setSPw(true);
+
+  try {
+    await cognitoChangePassword(profile?.email, pwF.current, pwF.next);
+  } catch (err) {
+    // Map structured error codes from cognitoChangePassword
+    const code = err?.code || '';
+    const msg  = (err?.message || '').toLowerCase();
+
+    if (code === 'NotAuthorizedException' || msg.includes('incorrect') || msg.includes('not authorized')) {
+      toast.error('Current password is incorrect.');
+    } else if (err?.message === 'NO_USER') {
+      toast.error('No active session found. Please sign in again.');
+    } else if (err?.message === 'SESSION_EXPIRED') {
+      toast.error('Your session has expired. Please sign in again.');
+    } else if (code === 'InvalidPasswordException' || msg.includes('policy') || msg.includes('conform')) {
+      toast.error('New password is too weak. Use 8+ characters with letters, numbers and symbols.');
+    } else if (code === 'LimitExceededException') {
+      toast.error('Too many attempts. Please wait a moment before trying again.');
+    } else {
+      toast.error(err?.message || 'Failed to update password. Please try again.');
+    }
+    setSPw(false);
+    return;
   }
+
+  // Cognito succeeded — sync to backend for audit trail, but never block the user on this
+  try {
+    await API.patch('/auth/me/password', {
+      current_password: pwF.current,
+      new_password: pwF.next,
+    });
+  } catch (syncErr) {
+    // Log only — the password already changed in Cognito
+    console.warn('[savePw] Backend sync failed after Cognito success:', syncErr?.response?.status, syncErr?.message);
+  }
+
+  toast.success('Password updated successfully');
+  setPwF({ current: '', next: '', confirm: '' });
+  setSPw(false);
+}
 
   const [dark, setDark] = useState(() => document.documentElement.getAttribute('data-theme') === 'dark');
 
-  function toggleDark() {
-    const next = !dark;
-    setDark(next);
-    document.documentElement.setAttribute('data-theme', next ? 'dark' : 'light');
-    localStorage.setItem('np-theme', next ? 'dark' : 'light');
-  }
+  // function toggleDark() {
+  //   const next = !dark;
+  //   setDark(next);
+  //   document.documentElement.setAttribute('data-theme', next ? 'dark' : 'light');
+  //   localStorage.setItem('np-theme', next ? 'dark' : 'light');
+  // }
 
   // Sync approved_domains back into the Zustand store after save
   // (updateTenant re-fetches the whole row; this is a lightweight local patch)
@@ -390,7 +415,17 @@ export default function Settings() {
       {/* Password */}
       <div style={card}>
         <div style={secH}>Change Password</div>
+        <p style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 14, color: 'rgba(22,15,8,0.5)', lineHeight: 1.65, marginBottom: 20, marginTop: -16 }}>
+          Enter your current password to verify your identity, then set a new one.
+        </p>
         <form onSubmit={savePw} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div>
+            <label style={label}>Current Password</label>
+            <input type="password" value={pwF.current} onChange={e => setPwF(p => ({ ...p, current: e.target.value }))}
+              placeholder="Your current password" style={inp}
+              onFocus={e => e.target.style.borderColor = 'var(--coral)'}
+              onBlur={e => e.target.style.borderColor = 'rgba(22,15,8,0.1)'} />
+          </div>
           <div>
             <label style={label}>New Password</label>
             <input type="password" value={pwF.next} onChange={e => setPwF(p => ({ ...p, next: e.target.value }))}
@@ -408,8 +443,11 @@ export default function Settings() {
           {pwF.next && pwF.confirm && pwF.next !== pwF.confirm && (
             <p style={{ fontFamily: 'Syne, sans-serif', fontSize: 10, fontWeight: 700, color: 'var(--terracotta)', margin: '-10px 0 0', letterSpacing: '0.06em' }}>Passwords don't match</p>
           )}
+          {pwF.current && pwF.next && pwF.current === pwF.next && (
+            <p style={{ fontFamily: 'Syne, sans-serif', fontSize: 10, fontWeight: 700, color: 'var(--terracotta)', margin: '-10px 0 0', letterSpacing: '0.06em' }}>New password must be different</p>
+          )}
           <div>
-            <button type="submit" disabled={sPw || !pwF.next || !pwF.confirm} style={{ ...btn, opacity: (sPw || !pwF.next || !pwF.confirm) ? 0.5 : 1 }}
+            <button type="submit" disabled={sPw || !pwF.current || !pwF.next || !pwF.confirm} style={{ ...btn, opacity: (sPw || !pwF.current || !pwF.next || !pwF.confirm) ? 0.5 : 1 }}
               onMouseEnter={e => { if (!sPw) e.currentTarget.style.background = 'var(--coral)'; }}
               onMouseLeave={e => { if (!sPw) e.currentTarget.style.background = 'var(--espresso)'; }}>
               {sPw ? 'Updating…' : 'Update password'}
@@ -472,20 +510,20 @@ export default function Settings() {
       )}
 
       {/* Preferences */}
-      <div style={card}>
+      {/* <div style={card}>
         <div style={secH}>Preferences</div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 0' }}>
           <div>
             <div style={{ fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 13, color: 'var(--espresso)', marginBottom: 4 }}>Dark mode</div>
             <div style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 13, color: 'rgba(22,15,8,0.5)' }}>Easy on the eyes at night</div>
-          </div>
-          {/* Toggle switch */}
-          <button onClick={toggleDark} role="switch" aria-checked={dark}
+          </div> */}
+      {/* Toggle switch */}
+      {/* <button onClick={toggleDark} role="switch" aria-checked={dark}
             style={{ width: 48, height: 26, borderRadius: 999, border: 'none', background: dark ? 'var(--coral)' : 'rgba(22,15,8,0.15)', cursor: 'pointer', position: 'relative', transition: 'background 0.25s', flexShrink: 0 }}>
             <span style={{ position: 'absolute', top: 3, left: dark ? 24 : 4, width: 20, height: 20, borderRadius: '50%', background: '#fff', boxShadow: '0 1px 4px rgba(0,0,0,0.2)', transition: 'left 0.25s cubic-bezier(0.34,1.56,0.64,1)' }} />
           </button>
         </div>
-      </div>
+      </div> */}
     </div>
   );
 }
