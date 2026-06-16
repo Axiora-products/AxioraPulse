@@ -241,7 +241,7 @@ export default function SurveyEdit() {
         setLocationState(s.ai_intelligence.location_state || '');
         setLocationDistrict(s.ai_intelligence.location_district || '');
       }
-      sQs((q||[]).map(x => {
+      sQs((q || []).map(x => {
         const opts = isMx(x.question_type) ? parseOpts(x.options, true) : hasO(x.question_type) ? parseOpts(x.options) : x.options;
         return { ...x, _id: x.id, options: opts };
       }));
@@ -375,8 +375,9 @@ export default function SurveyEdit() {
 
   function calcHealth() {
     let score = 100;
+    const realCount = qs.filter(q => getQuestionWordCount(q) > 0).length;
     if (!sv.welcome_message) score -= 5; if (!sv.expires_at) score -= 5;
-    if (qs.length > SHORT_SURVEY_RULES.defaultQuestionCount) score -= 15;
+    if (realCount < SHORT_SURVEY_RULES.defaultQuestionCount) score -= 15;
     if (qs.filter(q => q.is_required).length > SHORT_SURVEY_RULES.preferredRequiredQuestionLimit) score -= 10;
     if (getFormatDiversityScore(qs) < 3) score -= 15;
     if (qs.some(q => getQuestionWordCount(q) > SHORT_SURVEY_RULES.maxHighSignalWords)) score -= 10;
@@ -692,7 +693,15 @@ export default function SurveyEdit() {
       <ShareModal survey={{ id: sv.id, slug: sv.slug, title: sv.title, description: sv.description }} isOpen={pubShareOpen} onClose={() => setPubShareOpen(false)} />
 
       {/* ── PAGE HEADER ── */}
-      <div style={{ position: 'relative', marginBottom: 48, paddingBottom: 44, overflow: 'hidden' }}>
+      {/* ── PAGE HEADER ── */}
+      <div
+        style={{
+          position: 'relative',
+          marginBottom: 12,
+          paddingBottom: 8,
+          overflow: 'hidden'
+        }}
+      >
         <div style={{ position: 'absolute', inset: 0, backgroundImage: GRAIN, backgroundSize: '250px', opacity: 0.025, pointerEvents: 'none' }} />
         <div style={{ position: 'absolute', right: -120, top: -120, width: 360, height: 360, borderRadius: '50%', background: `radial-gradient(circle,${tc}20,transparent 70%)`, pointerEvents: 'none' }} />
         <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '1px', background: 'linear-gradient(90deg,transparent,rgba(22,15,8,0.08) 30%,rgba(22,15,8,0.08) 70%,transparent)' }} />
@@ -708,8 +717,17 @@ export default function SurveyEdit() {
             <span style={{ fontFamily: "'Syne',sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.35)' }}>Edit</span>
           </div>
 
-          <div className="np-page-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div
+            className="np-page-header"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: 4,
+              flexWrap: 'wrap',
+              gap: 16
+            }}
+          >            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ width: 28, height: 1.5, background: 'var(--coral)', borderRadius: 1 }} />
               <span style={{ fontFamily: "'Syne',sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--coral)' }}>Research Studio</span>
               {/* Status badge */}
@@ -800,9 +818,9 @@ export default function SurveyEdit() {
       }}>
 
         {/* LEFT — Editor */}
-        <div>
+        <div className="tabs-scroll">
           {/* ── EDITORIAL TAB NAVIGATION ── */}
-          <div style={{ display: 'flex', gap: 0, marginBottom: 40, borderBottom: '1px solid rgba(22,15,8,0.07)' }}>
+          <div className="tabs-inner" style={{ display: 'flex', gap: 0, marginBottom: 40, borderBottom: '1px solid rgba(22,15,8,0.07)' }}>
             {TABS.map(t => {
               const isSettings = t.id === 'settings';
               return (
@@ -938,7 +956,7 @@ export default function SurveyEdit() {
 
           {/* ── EXECUTE TAB ── */}
           {tab === 'execute' && (
-            <div style={{ display:'flex',flexDirection:'column',gap:32 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
               {/* Premium Pitch & Investor Readiness Dashboard */}
               <PitchInvestorReadinessPanel survey={sv} />
 
@@ -956,9 +974,9 @@ export default function SurveyEdit() {
                   {/* Option 1 */}
                   <div style={{ background: 'var(--cream-deep)', borderRadius: 18, padding: 24, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'flex-start', border: '1px solid rgba(22,15,8,0.04)' }}>
                     <div>
-                      <div style={{ fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:10,letterSpacing:'0.12em',textTransform:'uppercase',color:tc,marginBottom:8 }}>1-on-1 Office Hours</div>
-                      <h3 style={{ fontFamily:"'Playfair Display',serif",fontWeight:700,fontSize:18,color:'var(--espresso)',marginBottom:6 }}> Mentor Consultation Sessions</h3>
-                      <p style={{ fontFamily:"'Fraunces',serif",fontWeight:300,fontSize:13,color:'rgba(22,15,8,0.55)',lineHeight:1.5,margin:'0 0 20px' }}>
+                      <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: tc, marginBottom: 8 }}>1-on-1 Office Hours</div>
+                      <h3 style={{ fontFamily: "'Playfair Display',serif", fontWeight: 700, fontSize: 18, color: 'var(--espresso)', marginBottom: 6 }}> Mentor Consultation Sessions</h3>
+                      <p style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 13, color: 'rgba(22,15,8,0.55)', lineHeight: 1.5, margin: '0 0 20px' }}>
                         Book a consultation session to discuss survey insights, challenges, and recommendations based on your needs.
                       </p>
                     </div>
@@ -1091,25 +1109,25 @@ export default function SurveyEdit() {
 
             if (!locationSubmitted) {
               return (
-                <div style={{ background:'var(--warm-white)',borderRadius:22,border:'1.5px solid rgba(22,15,8,0.07)',padding:40,textAlign:'center',boxShadow:'0 8px 32px rgba(22,15,8,0.03)' }}>
-                  <div style={{ width:56,height:56,borderRadius:16,background:'rgba(255,184,0,0.1)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 24px',fontSize:24,color:'var(--saffron)' }}>📍</div>
-                  <h2 style={{ fontFamily:"'Playfair Display',serif",fontWeight:900,fontSize:24,color:'var(--espresso)',marginBottom:8 }}>Define Target Market Geography</h2>
-                  <p style={{ fontFamily:"'Fraunces',serif",fontWeight:300,fontSize:14,color:'rgba(22,15,8,0.5)',lineHeight:1.6,maxWidth:420,margin:'0 auto 32px' }}>
+                <div style={{ background: 'var(--warm-white)', borderRadius: 22, border: '1.5px solid rgba(22,15,8,0.07)', padding: 40, textAlign: 'center', boxShadow: '0 8px 32px rgba(22,15,8,0.03)' }}>
+                  <div style={{ width: 56, height: 56, borderRadius: 16, background: 'rgba(255,184,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', fontSize: 24, color: 'var(--saffron)' }}>📍</div>
+                  <h2 style={{ fontFamily: "'Playfair Display',serif", fontWeight: 900, fontSize: 24, color: 'var(--espresso)', marginBottom: 8 }}>Define Target Market Geography</h2>
+                  <p style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 14, color: 'rgba(22,15,8,0.5)', lineHeight: 1.6, maxWidth: 420, margin: '0 auto 32px' }}>
                     Specify the geographic scale to analyze competitors, localized target customer personas, and strategic milestone steps. Leave inputs blank to analyze at a broader level.
                   </p>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 18, maxWidth: 400, margin: '0 auto 32px', textAlign: 'left' }}>
                     <div>
                       <label style={LBL}>Target Country (Leave blank for Global)</label>
-                      <input type="text" placeholder="e.g. United States, India, Germany" value={locationCountry} onChange={e=>setLocationCountry(e.target.value)} style={INP} onFocus={fi} onBlur={fo}/>
+                      <input type="text" placeholder="e.g. United States, India, Germany" value={locationCountry} onChange={e => setLocationCountry(e.target.value)} style={INP} onFocus={fi} onBlur={fo} />
                     </div>
                     <div>
                       <label style={LBL}>Target State / Region (Leave blank for National)</label>
-                      <input type="text" placeholder="e.g. California, Telangana, Bavaria" value={locationState} onChange={e=>setLocationState(e.target.value)} style={INP} onFocus={fi} onBlur={fo}/>
+                      <input type="text" placeholder="e.g. California, Telangana, Bavaria" value={locationState} onChange={e => setLocationState(e.target.value)} style={INP} onFocus={fi} onBlur={fo} />
                     </div>
                     <div>
                       <label style={LBL}>Target District / City (Leave blank for State-level)</label>
-                      <input type="text" placeholder="e.g. Los Angeles, Hyderabad, Munich" value={locationDistrict} onChange={e=>setLocationDistrict(e.target.value)} style={INP} onFocus={fi} onBlur={fo}/>
+                      <input type="text" placeholder="e.g. Los Angeles, Hyderabad, Munich" value={locationDistrict} onChange={e => setLocationDistrict(e.target.value)} style={INP} onFocus={fi} onBlur={fo} />
                     </div>
                   </div>
 
@@ -1117,9 +1135,9 @@ export default function SurveyEdit() {
                     setLocationSubmitted(true);
                     fetchAIIntelligence(true, locationCountry, locationState, locationDistrict);
                   }}
-                    style={{ padding:'14px 32px',borderRadius:999,background:'var(--espresso)',color:'var(--cream)',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:11,letterSpacing:'0.12em',textTransform:'uppercase',border:'none',cursor:'pointer',transition:'all 0.25s',boxShadow:'0 6px 20px rgba(22,15,8,0.15)' }}
-                    onMouseEnter={e=>{e.currentTarget.style.background=tc;e.currentTarget.style.boxShadow=`0 10px 30px ${tc}40`;}}
-                    onMouseLeave={e=>{e.currentTarget.style.background='var(--espresso)';e.currentTarget.style.boxShadow='0 6px 20px rgba(22,15,8,0.15)';}}>
+                    style={{ padding: '14px 32px', borderRadius: 999, background: 'var(--espresso)', color: 'var(--cream)', fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', border: 'none', cursor: 'pointer', transition: 'all 0.25s', boxShadow: '0 6px 20px rgba(22,15,8,0.15)' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = tc; e.currentTarget.style.boxShadow = `0 10px 30px ${tc}40`; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'var(--espresso)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(22,15,8,0.15)'; }}>
                     ✦ Generate Market Intelligence
                   </button>
                 </div>
@@ -1136,9 +1154,9 @@ export default function SurveyEdit() {
                       <div style={{ fontFamily: "'Playfair Display',serif", fontWeight: 700, fontSize: 18, color: 'var(--espresso)', marginBottom: 4 }}>
                         {aiIntel ? `Intelligence Classification: ${aiIntel.category}` : 'AI Market Intelligence'}
                       </div>
-                      <div style={{ fontFamily:"'Fraunces',serif",fontWeight:300,fontSize:13,color:'rgba(22,15,8,0.6)',display:'flex',alignItems:'center',gap:8,flexWrap:'wrap' }}>
+                      <div style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 13, color: 'rgba(22,15,8,0.6)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                         <span>Target Market: <strong>{locationDistrict ? `${locationDistrict}, ` : ''}{locationState ? `${locationState}, ` : ''}{locationCountry || 'Global'}</strong></span>
-                        <button onClick={() => setLocationSubmitted(false)} style={{ background:'none',border:'none',color:tc,fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:9,letterSpacing:'0.05em',textTransform:'uppercase',cursor:'pointer',padding:0,textDecoration:'underline' }}>✎ Change</button>
+                        <button onClick={() => setLocationSubmitted(false)} style={{ background: 'none', border: 'none', color: tc, fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 9, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>✎ Change</button>
                       </div>
                     </div>
                   </div>
@@ -1247,25 +1265,25 @@ export default function SurveyEdit() {
 
             if (!locationSubmitted) {
               return (
-                <div style={{ background:'var(--warm-white)',borderRadius:22,border:'1.5px solid rgba(22,15,8,0.07)',padding:40,textAlign:'center',boxShadow:'0 8px 32px rgba(22,15,8,0.03)' }}>
-                  <div style={{ width:56,height:56,borderRadius:16,background:'rgba(255,184,0,0.1)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 24px',fontSize:24,color:'var(--saffron)' }}>📍</div>
-                  <h2 style={{ fontFamily:"'Playfair Display',serif",fontWeight:900,fontSize:24,color:'var(--espresso)',marginBottom:8 }}>Define Target Market Geography</h2>
-                  <p style={{ fontFamily:"'Fraunces',serif",fontWeight:300,fontSize:14,color:'rgba(22,15,8,0.5)',lineHeight:1.6,maxWidth:420,margin:'0 auto 32px' }}>
+                <div style={{ background: 'var(--warm-white)', borderRadius: 22, border: '1.5px solid rgba(22,15,8,0.07)', padding: 40, textAlign: 'center', boxShadow: '0 8px 32px rgba(22,15,8,0.03)' }}>
+                  <div style={{ width: 56, height: 56, borderRadius: 16, background: 'rgba(255,184,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', fontSize: 24, color: 'var(--saffron)' }}>📍</div>
+                  <h2 style={{ fontFamily: "'Playfair Display',serif", fontWeight: 900, fontSize: 24, color: 'var(--espresso)', marginBottom: 8 }}>Define Target Market Geography</h2>
+                  <p style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 14, color: 'rgba(22,15,8,0.5)', lineHeight: 1.6, maxWidth: 420, margin: '0 auto 32px' }}>
                     Specify the geographic scale to analyze competitors, localized target customer personas, and strategic milestone steps. Leave inputs blank to analyze at a broader level.
                   </p>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 18, maxWidth: 400, margin: '0 auto 32px', textAlign: 'left' }}>
                     <div>
                       <label style={LBL}>Target Country (Leave blank for Global)</label>
-                      <input type="text" placeholder="e.g. United States, India, Germany" value={locationCountry} onChange={e=>setLocationCountry(e.target.value)} style={INP} onFocus={fi} onBlur={fo}/>
+                      <input type="text" placeholder="e.g. United States, India, Germany" value={locationCountry} onChange={e => setLocationCountry(e.target.value)} style={INP} onFocus={fi} onBlur={fo} />
                     </div>
                     <div>
                       <label style={LBL}>Target State / Region (Leave blank for National)</label>
-                      <input type="text" placeholder="e.g. California, Telangana, Bavaria" value={locationState} onChange={e=>setLocationState(e.target.value)} style={INP} onFocus={fi} onBlur={fo}/>
+                      <input type="text" placeholder="e.g. California, Telangana, Bavaria" value={locationState} onChange={e => setLocationState(e.target.value)} style={INP} onFocus={fi} onBlur={fo} />
                     </div>
                     <div>
                       <label style={LBL}>Target District / City (Leave blank for State-level)</label>
-                      <input type="text" placeholder="e.g. Los Angeles, Hyderabad, Munich" value={locationDistrict} onChange={e=>setLocationDistrict(e.target.value)} style={INP} onFocus={fi} onBlur={fo}/>
+                      <input type="text" placeholder="e.g. Los Angeles, Hyderabad, Munich" value={locationDistrict} onChange={e => setLocationDistrict(e.target.value)} style={INP} onFocus={fi} onBlur={fo} />
                     </div>
                   </div>
 
@@ -1273,9 +1291,9 @@ export default function SurveyEdit() {
                     setLocationSubmitted(true);
                     fetchAIIntelligence(true, locationCountry, locationState, locationDistrict);
                   }}
-                    style={{ padding:'14px 32px',borderRadius:999,background:'var(--espresso)',color:'var(--cream)',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:11,letterSpacing:'0.12em',textTransform:'uppercase',border:'none',cursor:'pointer',transition:'all 0.25s',boxShadow:'0 6px 20px rgba(22,15,8,0.15)' }}
-                    onMouseEnter={e=>{e.currentTarget.style.background=tc;e.currentTarget.style.boxShadow=`0 10px 30px ${tc}40`;}}
-                    onMouseLeave={e=>{e.currentTarget.style.background='var(--espresso)';e.currentTarget.style.boxShadow='0 6px 20px rgba(22,15,8,0.15)';}}>
+                    style={{ padding: '14px 32px', borderRadius: 999, background: 'var(--espresso)', color: 'var(--cream)', fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', border: 'none', cursor: 'pointer', transition: 'all 0.25s', boxShadow: '0 6px 20px rgba(22,15,8,0.15)' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = tc; e.currentTarget.style.boxShadow = `0 10px 30px ${tc}40`; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'var(--espresso)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(22,15,8,0.15)'; }}>
                     ✦ Generate Market Intelligence
                   </button>
                 </div>
@@ -1289,10 +1307,10 @@ export default function SurveyEdit() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
                     <div style={{ width: 48, height: 48, borderRadius: 14, background: tc, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 20 }}>🚀</div>
                     <div>
-                      <div style={{ fontFamily:"'Playfair Display',serif",fontWeight:700,fontSize:18,color:'var(--espresso)',marginBottom:4 }}>Adaptive Development Roadmap</div>
-                      <div style={{ fontFamily:"'Fraunces',serif",fontWeight:300,fontSize:13,color:'rgba(22,15,8,0.6)',display:'flex',alignItems:'center',gap:8,flexWrap:'wrap' }}>
+                      <div style={{ fontFamily: "'Playfair Display',serif", fontWeight: 700, fontSize: 18, color: 'var(--espresso)', marginBottom: 4 }}>Adaptive Development Roadmap</div>
+                      <div style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 13, color: 'rgba(22,15,8,0.6)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                         <span>Target Market: <strong>{locationDistrict ? `${locationDistrict}, ` : ''}{locationState ? `${locationState}, ` : ''}{locationCountry || 'Global'}</strong></span>
-                        <button onClick={() => setLocationSubmitted(false)} style={{ background:'none',border:'none',color:tc,fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:9,letterSpacing:'0.05em',textTransform:'uppercase',cursor:'pointer',padding:0,textDecoration:'underline' }}>✎ Change</button>
+                        <button onClick={() => setLocationSubmitted(false)} style={{ background: 'none', border: 'none', color: tc, fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 9, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>✎ Change</button>
                       </div>
                     </div>
                   </div>
@@ -1409,7 +1427,7 @@ export default function SurveyEdit() {
                   {[
                     [sv.welcome_message, 'Welcome message'],
                     [sv.expires_at, 'Expiry date set'],
-                    [qs.length <= SHORT_SURVEY_RULES.defaultQuestionCount, `At or below ${SHORT_SURVEY_RULES.defaultQuestionCount} questions`],
+                    [realQuestions.length >= SHORT_SURVEY_RULES.defaultQuestionCount, `${SHORT_SURVEY_RULES.defaultQuestionCount}-question target`],
                     [qs.filter(q => q.is_required).length <= SHORT_SURVEY_RULES.preferredRequiredQuestionLimit, `≤${SHORT_SURVEY_RULES.preferredRequiredQuestionLimit} required questions`],
                     [hasRealQuestions && conciseQuestionCount === realQuestions.length, 'Concise wording'],
                     [hasAdaptiveFormats, 'Adaptive formats'],
@@ -1448,109 +1466,363 @@ export default function SurveyEdit() {
 
       <style>
         {`/* =========================================
-   AXIORA EDIT PAGE LAYOUT FIX
+   GLOBAL RESET
 ========================================= */
 
-.se-grid {
-  display: grid !important;
-  grid-template-columns: minmax(0, 1fr) 290px !important;
-  gap: 28px !important;
-  align-items: start !important;
-  width: 100%;
-  overflow: hidden;
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  min-width: 0;
 }
 
-/* RIGHT SIDEBAR */
+html,
+body,
+#root {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  margin: 0;
+}
+
+/* =========================================
+   MAIN GRID
+========================================= */
+
+/* VERY IMPORTANT */
+.se-grid{
+  overflow: visible !important;
+}
+
+.se-content{
+  overflow: visible !important;
+}
+
+.se-main{
+  overflow: visible !important;
+}
+
+.card,
+.form-card,
+.survey-card{
+  overflow: visible !important;
+}
+
+.se-grid > * {
+  min-width: 0;
+}
+
+/* =========================================
+   CONTENT AREA
+========================================= */
+
+.se-content,
+.se-main,
+.se-form-area {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* =========================================
+   SIDEBAR
+========================================= */
+
 .se-sidebar {
-  width: 290px !important;
-  min-width: 290px !important;
-  max-width: 290px !important;
+  width: 290px;
+  min-width: 290px;
+  max-width: 290px;
 
-  flex-shrink: 0;
-
-  position: sticky !important;
+  position: sticky;
   top: 24px;
 
   align-self: start;
-
-  overflow: hidden;
-    padding-top: 72px !important;
-
-} > * {
-  flex-shrink: 0;
+  padding-top: 72px;
 }
 
-/* PREVIEW CARD */
 .se-sidebar .survey-preview-card {
-  width: 100% !important;
-  max-width: 290px !important;
+  width: 100%;
+  max-width: 290px;
   overflow: hidden;
   border-radius: 28px;
- 
-  }
+}
 
-/* PREVIEW BUTTON */
 .se-sidebar .preview-btn {
+  width: 100%;
+  height: 64px;
+  border-radius: 22px !important;
 
   display: flex;
   align-items: center;
   justify-content: center;
-
-  height: 64px;
-
-  border-radius: 22px !important;
-  }
+}
 
 /* =========================================
-   TABS FIX
+   TABS
 ========================================= */
 
 .se-tabs {
-  display: flex !important;
+  display: flex;
   align-items: center;
-  gap: 18px;
-
-  flex-wrap: nowrap !important;
+  gap: 16px;
 
   overflow-x: auto;
   overflow-y: hidden;
 
+  flex-wrap: nowrap;
   scrollbar-width: none;
 
-  padding-bottom: 4px;
+  width: 100%;
 }
 
 .se-tabs::-webkit-scrollbar {
   display: none;
 }
 
-/* TAB BUTTON */
 .se-tab-btn {
-  flex-shrink: 0 !important;
-
-  white-space: nowrap !important;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
-/* EXECUTE TAB FIX */
 .se-tab-btn span {
-  white-space: nowrap !important;
+  white-space: nowrap;
 }
 
 /* =========================================
-   RESPONSIVE
+   STATUS BUTTONS
+========================================= */
+
+.status-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  width: 100%;
+}
+
+.status-tabs button {
+  white-space: nowrap;
+}
+
+/* =========================================
+   FORM ELEMENTS
+========================================= */
+
+input,
+textarea,
+select {
+  width: 100%;
+  max-width: 100%;
+}
+
+textarea {
+  resize: vertical;
+}
+
+/* =========================================
+   MEDIA
+========================================= */
+
+img,
+video,
+iframe,
+canvas,
+svg {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+table {
+  width: 100%;
+  display: block;
+  overflow-x: auto;
+}
+
+/* =========================================
+   CARDS
+========================================= */
+
+.survey-preview-card,
+.card,
+.form-card {
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+/* =========================================
+   TABLET
 ========================================= */
 
 @media (max-width: 1200px) {
   .se-grid {
-    grid-template-columns: 1fr !important;
+    grid-template-columns: 1fr;
+    gap: 20px;
   }
 
   .se-sidebar {
     width: 100% !important;
     max-width: 100% !important;
+    min-width: 0 !important;
+
     position: relative !important;
+    top: auto !important;
+
+    padding-top: 0 !important;
+    order: -1;
   }
-}`}
+
+  .se-sidebar .survey-preview-card {
+    max-width: 100%;
+  }
+}
+
+/* =========================================
+   MOBILE
+========================================= */
+
+@media (max-width: 768px) {
+
+  .se-grid {
+    gap: 16px;
+  }
+
+  .se-tabs{
+    display:flex !important;
+    flex-wrap:nowrap !important;
+
+    overflow-x:auto !important;
+    overflow-y:hidden !important;
+
+    -webkit-overflow-scrolling:touch;
+
+    scrollbar-width:none;
+    -ms-overflow-style:none;
+
+    width:100%;
+    padding-bottom:8px;
+
+    gap:18px !important;
+  }
+.tabs-scroll {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .tabs-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tabs-inner {
+    width: max-content;
+    flex-wrap: nowrap;
+    padding-bottom: 4px;
+  }
+
+  .tabs-inner .se-tab-btn {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .se-tabs::-webkit-scrollbar{
+    display:none;
+  }
+
+  .se-tab-btn{
+    flex:0 0 auto !important;
+    white-space:nowrap !important;
+    min-width:max-content !important;
+  }
+
+
+  .status-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
+  }
+
+  .status-tabs button {
+    width: 100%;
+    min-width: 0;
+  }
+
+  input,
+  textarea,
+  select {
+    width: 100% !important;
+    max-width: 100% !important;
+    font-size: 16px !important;
+  }
+
+  .survey-preview-card,
+  .card,
+  .form-card {
+    border-radius: 18px !important;
+  }
+
+  .flex-row,
+  .row,
+  .form-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .flex-row > *,
+  .row > *,
+  .form-row > * {
+    width: 100% !important;
+  }
+}
+
+/* =========================================
+   SMALL MOBILE
+========================================= */
+
+@media (max-width: 480px) {
+
+  .se-grid {
+    gap: 12px;
+  }
+
+  .se-tab-btn {
+    padding: 8px 12px !important;
+    font-size: 11px !important;
+  }
+
+  .status-tabs {
+    grid-template-columns: 1fr;
+  }
+
+  .status-tabs button {
+    width: 100%;
+    font-size: 12px !important;
+    padding: 10px !important;
+  }
+
+  .survey-preview-card,
+  .card,
+  .form-card {
+    border-radius: 14px !important;
+  }
+
+  h1 {
+    font-size: 22px !important;
+  }
+
+  h2 {
+    font-size: 18px !important;
+  }
+
+  h3 {
+    font-size: 16px !important;
+  }
+}
+`}
       </style>
     </div>
   );
