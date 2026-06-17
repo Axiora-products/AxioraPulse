@@ -211,3 +211,180 @@ def test_post_survey_intelligence_http_exception_reraise(auth_headers, monkeypat
     payload = {"surveyTitle": "T", "surveyDescription": "D", "existingQuestions": []}
     response = client.post("/ai/survey-intelligence", json=payload, headers=auth_headers)
     assert response.status_code == 503
+
+
+def test_social_share_content_success(auth_headers, monkeypatch):
+    import routes.ai
+    from db.models import Survey
+    from unittest.mock import patch
+
+    mock_survey = MagicMock(spec=Survey)
+    mock_survey.title = "Test Survey Title"
+    mock_survey.description = "Test description"
+    mock_q = MagicMock()
+    mock_q.question_text = "What is your feedback?"
+    mock_q.question_type.value = "short_text"
+    mock_survey.questions = [mock_q]
+
+    mock_query = MagicMock()
+    mock_query.options.return_value.filter.return_value.first.return_value = mock_survey
+
+    mock_response = json.dumps(
+        {
+            "description": "This is a test AI survey description.",
+            "tagline": "A punchy tagline",
+            "hashtags": ["#TestSurvey", "", "#Feedback"],
+            "captions": {
+                "linkedin": "LinkedIn: [link] #Feedback",
+                "twitter": "Twitter: [link] #Feedback",
+                "instagram": "Instagram: [link] #Feedback",
+                "whatsapp": "WhatsApp: [link]",
+                "telegram": "Telegram: [link]",
+                "facebook": "Facebook: [link]",
+            },
+        }
+    )
+    monkeypatch.setattr(routes.ai, "call_ai_sync", MagicMock(return_value=mock_response))
+
+    with patch("sqlalchemy.orm.Session.query", return_value=mock_query):
+        payload = {"survey_id": SURVEY_ID}
+        response = client.post("/ai/social-share-content", json=payload, headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["fallback_used"] is False
+        assert data["description"] == "This is a test AI survey description."
+        assert data["tagline"] == "A punchy tagline"
+        assert data["hashtags"] == ["#TestSurvey", "#Feedback"]
+        assert data["captions"]["linkedin"] == "LinkedIn: [link] #Feedback"
+
+
+def test_social_share_content_ai_invalid_hashtags(auth_headers, monkeypatch):
+    import routes.ai
+    from db.models import Survey
+    from unittest.mock import patch
+
+    mock_survey = MagicMock(spec=Survey)
+    mock_survey.title = "Test Survey Title"
+    mock_survey.description = "Test description"
+    mock_survey.questions = []
+
+    mock_query = MagicMock()
+    mock_query.options.return_value.filter.return_value.first.return_value = mock_survey
+
+    mock_response = json.dumps(
+        {
+            "description": "This is a test AI survey description.",
+            "tagline": "A punchy tagline",
+            "hashtags": "invalid-string-not-list",
+            "captions": {
+                "linkedin": "LinkedIn: [link] #Feedback",
+                "twitter": "Twitter: [link] #Feedback",
+                "instagram": "Instagram: [link] #Feedback",
+                "whatsapp": "WhatsApp: [link]",
+                "telegram": "Telegram: [link]",
+                "facebook": "Facebook: [link]",
+            },
+        }
+    )
+    monkeypatch.setattr(routes.ai, "call_ai_sync", MagicMock(return_value=mock_response))
+
+    with patch("sqlalchemy.orm.Session.query", return_value=mock_query):
+        payload = {"survey_id": SURVEY_ID}
+        response = client.post("/ai/social-share-content", json=payload, headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["fallback_used"] is False
+        assert data["hashtags"] == []
+
+
+def test_social_share_content_fallback_no_desc(auth_headers, monkeypatch):
+    import routes.ai
+    from db.models import Survey
+    from unittest.mock import patch
+
+    mock_survey = MagicMock(spec=Survey)
+    mock_survey.title = "Test Survey Title"
+    mock_survey.description = None
+    mock_survey.questions = []
+
+    mock_query = MagicMock()
+    mock_query.options.return_value.filter.return_value.first.return_value = mock_survey
+
+    monkeypatch.setattr(routes.ai, "call_ai_sync", MagicMock(side_effect=Exception("AI error")))
+
+    with patch("sqlalchemy.orm.Session.query", return_value=mock_query):
+        payload = {"survey_id": SURVEY_ID}
+        response = client.post("/ai/social-share-content", json=payload, headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["fallback_used"] is True
+        assert (
+            data["description"]
+            == "A survey about Test Survey Title. Your opinion matters — take a few minutes to respond!"
+        )
+
+
+def test_social_share_content_not_found(auth_headers, monkeypatch):
+    from unittest.mock import patch
+
+    mock_query = MagicMock()
+    mock_query.options.return_value.filter.return_value.first.return_value = None
+
+    with patch("sqlalchemy.orm.Session.query", return_value=mock_query):
+        payload = {"survey_id": "00000000-0000-0000-0000-000000000000"}
+        response = client.post("/ai/social-share-content", json=payload, headers=auth_headers)
+        assert response.status_code == 404
+
+
+def test_download_image_success():
+    payload = {
+        "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+        "filename": "custom-card.png",
+    }
+    response = client.post("/ai/download-image", data=payload)
+    assert response.status_code == 200
+    assert response.headers["Content-Disposition"] == 'attachment; filename="custom-card.png"'
+    assert response.headers["content-type"] == "image/png"
+
+
+def test_download_image_invalid():
+    payload = {"image": "invalid-image-data-no-comma", "filename": "custom-card.png"}
+    response = client.post("/ai/download-image", data=payload)
+    assert response.status_code == 400
+
+    payload_bad_b64 = {"image": "data:image/png;base64,invalid!!!b64", "filename": "custom-card.png"}
+    response = client.post("/ai/download-image", data=payload_bad_b64)
+    assert response.status_code == 400
+
+
+def test_download_qr_success(monkeypatch):
+    import requests
+
+    mock_res = MagicMock()
+    mock_res.content = b"fake-qr-code-bytes"
+    mock_res.raise_for_status.return_value = None
+    monkeypatch.setattr(requests, "get", MagicMock(return_value=mock_res))
+
+    response = client.get("/ai/download-qr?url=https://quickchart.io/qr?text=hello&filename=qr.png")
+    assert response.status_code == 200
+    assert response.headers["Content-Disposition"] == 'attachment; filename="qr.png"'
+    assert response.headers["content-type"] == "image/png"
+    assert response.content == b"fake-qr-code-bytes"
+
+
+def test_download_qr_disallowed_host():
+    response = client.get("/ai/download-qr?url=https://malicious.com/qr?text=hello&filename=qr.png")
+    assert response.status_code == 400
+    assert "disallowed" in response.json()["detail"].lower()
+
+    response_http = client.get("/ai/download-qr?url=http://quickchart.io/qr?text=hello&filename=qr.png")
+    assert response_http.status_code == 400
+
+
+def test_download_qr_failure(monkeypatch):
+    import requests
+
+    monkeypatch.setattr(requests, "get", MagicMock(side_effect=Exception("Connection timed out")))
+    response = client.get("/ai/download-qr?url=https://quickchart.io/qr?text=hello&filename=qr.png")
+    assert response.status_code == 400
+    assert "failed" in response.json()["detail"].lower()

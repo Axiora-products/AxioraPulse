@@ -272,3 +272,13 @@ def test_survey_localization_helpers_direct():
 
     # non-dict/list fallback
     assert _localize_options("plain_string", translations) == "plain_string"
+
+
+def test_get_survey_og():
+    response = client.get("/surveys/og/test-survey")
+    assert response.status_code == 200
+    assert "og:title" in response.text
+    assert "test-survey" in response.text
+
+    response_nf = client.get("/surveys/og/non-existent-slug")
+    assert response_nf.status_code == 404

@@ -14,6 +14,7 @@ GET    /surveys/{id}/questions       — get questions only
 PUT    /surveys/{id}/questions       — replace all questions
 POST   /surveys/{id}/duplicate       — duplicate survey
 GET    /surveys/slug/{slug}          — PUBLIC fetch by slug (SurveyRespond)
+GET    /surveys/og/{slug}            — PUBLIC OG meta-tag HTML for social-media bots
 """
 
 import uuid
@@ -26,9 +27,12 @@ import requests
 from functools import lru_cache
 from datetime import datetime, timezone
 from typing import Any, List
+from html import escape
+from urllib.parse import quote
 from core.rate_limiter import limiter
 from fastapi import Request
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session, joinedload
 from fastapi import Query
 
@@ -449,6 +453,75 @@ def get_survey_by_slug(request: Request, slug: str, db: Session = Depends(get_db
         if tenant:
             out.tenant_name = tenant.name
     return out
+
+
+# ── Public: OG meta-tag page for social-media bots ───────────────────────────
+
+
+@router.get("/og/{slug}", response_class=HTMLResponse, include_in_schema=False)
+def get_survey_og(slug: str, db: Session = Depends(get_db)):
+    """
+    Returns a minimal HTML page with Open Graph / Twitter Card meta tags
+    for the given survey slug.  Social-media crawlers (WhatsApp, Telegram,
+    LinkedIn, Facebook, Twitter) visit this URL and use the tags to render
+    rich link previews.  Human visitors are immediately JS-redirected to the
+    React SPA at /s/{slug}.
+
+    Nginx bot-detection routes crawler User-Agents from /s/{slug} to
+    /api/surveys/og/{slug} so the share URL stays clean.
+    """
+    survey = db.query(Survey).filter(Survey.slug == slug).first()
+    if not survey:
+        raise HTTPException(status_code=404, detail="Survey not found")
+
+    frontend_url = (
+        os.environ.get("FRONTEND_URL") or os.environ.get("VITE_FRONTEND_URL") or "https://app.axiorapulse.com"
+    ).rstrip("/")
+
+    safe_slug = quote(slug, safe="")
+    survey_url = f"{frontend_url}/s/{safe_slug}"
+    og_image_url = f"{frontend_url}/og-share-card.png"
+
+    title = escape(survey.title or "Survey", quote=True)
+    raw_desc = (
+        survey.description
+        or f"Take this short survey and share your perspective on: {survey.title or 'User Feedback'}."
+    )
+    description = escape(raw_desc[:200], quote=True)
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{title} — Axiora Pulse</title>
+  <meta name="description" content="{description}" />
+
+  <!-- Open Graph -->
+  <meta property="og:type"        content="website" />
+  <meta property="og:url"         content="{survey_url}" />
+  <meta property="og:title"       content="{title}" />
+  <meta property="og:description" content="{description}" />
+  <meta property="og:image"       content="{og_image_url}" />
+  <meta property="og:image:width"  content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:site_name"   content="Axiora Pulse" />
+
+  <!-- Twitter / X Card -->
+  <meta name="twitter:card"        content="summary_large_image" />
+  <meta name="twitter:title"       content="{title}" />
+  <meta name="twitter:description" content="{description}" />
+  <meta name="twitter:image"       content="{og_image_url}" />
+
+  <!-- Redirect human visitors to the React SPA immediately -->
+  <meta http-equiv="refresh" content="0; url={survey_url}" />
+  <script>window.location.replace("{survey_url}");</script>
+</head>
+<body style="margin:0;background:#160F08;color:#FDF5E8;font-family:Georgia,serif;display:flex;align-items:center;justify-content:center;min-height:100vh;">
+  <p>Redirecting… <a href="{survey_url}" style="color:#FF4500;">{title}</a></p>
+</body>
+</html>"""
+    return HTMLResponse(content=html)
 
 
 # ── Create ────────────────────────────────────────────────────────────────────
