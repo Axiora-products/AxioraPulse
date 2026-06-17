@@ -133,6 +133,38 @@ export function getFormatDiversityScore(questions = []) {
   return new Set(questions.map(q => q.question_type || q.type).filter(Boolean)).size;
 }
 
+// ── Survey content validation ───────────────────────────────────────────────
+// Text fields must contain real words — at least one letter, so a value made up
+// of only digits/symbols is rejected — and meet a minimum character length.
+// Drives the survey-health checklist and the publish guard.
+export const SURVEY_TEXT_RULES = {
+  titleMinChars: 20,
+  longTextMinChars: 50,   // description + welcome message
+  questionMinChars: 25,
+};
+
+// At least one alphabetic letter (incl. accented Latin) — blocks numbers-only.
+const HAS_LETTER = /[A-Za-zÀ-ɏ]/;
+
+export function hasLetters(value = '') {
+  return HAS_LETTER.test(value || '');
+}
+
+export function isValidSurveyTitle(value = '') {
+  const v = (value || '').trim();
+  return v.length >= SURVEY_TEXT_RULES.titleMinChars && hasLetters(v);
+}
+
+export function isValidSurveyLongText(value = '') {
+  const v = (value || '').trim();
+  return v.length >= SURVEY_TEXT_RULES.longTextMinChars && hasLetters(v);
+}
+
+export function isValidQuestionText(value = '') {
+  const v = (value || '').trim();
+  return v.length >= SURVEY_TEXT_RULES.questionMinChars && hasLetters(v);
+}
+
 // Question types that use options arrays
 export const OPTION_TYPES = [
   'single_choice', 'multiple_choice', 'dropdown', 'ranking',
