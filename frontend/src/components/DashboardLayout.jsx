@@ -330,7 +330,7 @@ export default function DashboardLayout() {
           </div>
 
           {showSurveys && (
-          <>
+            <>
             {/* Active Surveys */}
             {activeSurveys.length > 0 && (
             <div className="ws-sidebar-section">
@@ -415,9 +415,9 @@ export default function DashboardLayout() {
             </div>
           )}
 
-        </>
-)}
-
+          </>
+        )}
+        </div> 
         {/* User Section at bottom */}
         <div className="ws-sidebar-user" ref={userRef}>
           <div className="ws-sidebar-avatar" onClick={() => setUserMenu(v => !v)}>
