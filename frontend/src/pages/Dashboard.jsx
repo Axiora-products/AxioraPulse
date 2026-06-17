@@ -30,12 +30,26 @@ function useCountUp(target, duration = 700) {
   return display;
 }
 
-function AnimatedStat({ val, label, accent }) {
+// Icon set for the dashboard stat cards (lucide-style) — mirrors the
+// analytics overview KPI cards for a consistent look across the app.
+const DB_ICONS = {
+  surveys: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>,
+  responses: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,
+  completed: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
+  team: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+};
+
+function AnimatedStat({ val, label, accent, icon }) {
   const display = useCountUp(val);
   return (
     <>
-      <div style={S.statNum} className="count-up">{display}</div>
-      <div style={S.statLabel}>{label}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+        {icon && (
+          <div style={{ width: 34, height: 34, borderRadius: 10, background: `${accent}1A`, color: accent, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{icon}</div>
+        )}
+        <div style={{ ...S.statLabel, letterSpacing: '0.08em', flex: 1, minWidth: 0, lineHeight: 1.25, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
+      </div>
+      <div style={{ ...S.statNum, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }} className="count-up">{display}</div>
     </>
   );
 }
@@ -44,18 +58,19 @@ const S = {
   page: {},
   header: {},
   tag: { fontFamily: "'Syne', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--coral)', marginBottom: 12 },
-  h1: { fontFamily: "'Playfair Display', serif", fontWeight: 900, fontSize: 'clamp(34px,4vw,52px)', letterSpacing: '-2px', color: 'var(--espresso)', lineHeight: 1.05, margin: 0 },
+  h1: { fontFamily: "'Playfair Display', serif", fontWeight: 900, fontSize: 'clamp(26px,2.8vw,38px)', letterSpacing: '-1.5px', color: 'var(--espresso)', lineHeight: 1.05, margin: 0 },
   statsGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(4, minmax(120px, 1fr))',
-    gap: 28,
-    marginBottom: 72,
+    gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+    gap: 16,
+    marginBottom: 40,
+    alignItems: 'start',
     position: 'relative',
     zIndex: 1,
     maxWidth: '100%',
   },
-  statCard: (accent) => ({ background: 'var(--warm-white)', borderRadius: 20, padding: '36px 30px 30px', border: '1px solid rgba(22,15,8,0.07)', borderTop: `3px solid ${accent}`, cursor: 'default' }),
-  statNum: { fontFamily: "'Playfair Display', serif", fontWeight: 900, fontSize: 48, letterSpacing: '-3px', color: 'var(--espresso)', lineHeight: 1, marginBottom: 8 },
+  statCard: () => ({ background: 'var(--warm-white)', borderRadius: 16, padding: '16px 18px 16px', border: '1px solid rgba(22,15,8,0.07)', cursor: 'default', display: 'flex', flexDirection: 'column', minWidth: 0, boxSizing: 'border-box' }),
+  statNum: { fontFamily: "'Playfair Display', serif", fontWeight: 900, fontSize: 'clamp(24px,2.2vw,34px)', letterSpacing: '-1.5px', color: 'var(--espresso)', lineHeight: 1, whiteSpace: 'nowrap' },
   statLabel: { fontFamily: "'Syne', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.35)' },
   sectionHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, position: 'relative', zIndex: 1 },
   sectionTitle: { fontFamily: "'Syne', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.35)' },
@@ -70,8 +85,6 @@ const S = {
   emptyBody: { fontFamily: "'Fraunces', serif", fontWeight: 300, fontSize: 16, color: 'rgba(22,15,8,0.45)', marginBottom: 32, lineHeight: 1.7 },
   cta: { display: 'inline-flex', alignItems: 'center', gap: 8, background: 'var(--espresso)', color: 'var(--cream)', fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', padding: '14px 28px', borderRadius: 999, textDecoration: 'none', transition: 'background 0.25s ease' },
 };
-
-const STAT_ACCENTS = ['var(--coral)', 'var(--espresso)', 'var(--saffron)', 'var(--coral)'];
 
 export default function Dashboard() {
   const { profile, tenant } = useAuthStore();
@@ -121,11 +134,11 @@ export default function Dashboard() {
 
   const isPersonal = tenant?.account_type === 'personal';
   const statItems = [
-    { label: 'Total Surveys', val: stats.surveys },
-    { label: 'Responses', val: stats.responses },
-    { label: 'Completed', val: stats.completions },
+    { label: 'Total Surveys', val: stats.surveys,     accent: 'var(--coral)', icon: DB_ICONS.surveys },
+    { label: 'Responses',     val: stats.responses,   accent: '#0047FF',      icon: DB_ICONS.responses },
+    { label: 'Completed',     val: stats.completions, accent: '#1E7A4A',      icon: DB_ICONS.completed },
     // Team Members is irrelevant for personal accounts
-    ...(!isPersonal ? [{ label: 'Team Members', val: stats.team }] : []),
+    ...(!isPersonal ? [{ label: 'Team Members', val: stats.team, accent: '#9A6D00', icon: DB_ICONS.team }] : []),
   ];
 
   return (
@@ -147,9 +160,9 @@ export default function Dashboard() {
             <motion.div key={i}
               initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.07, ease: [0.16, 1, 0.3, 1] }}
-              whileHover={{ y: -4, boxShadow: '0 24px 60px rgba(22,15,8,0.1)' }}
-              style={S.statCard(STAT_ACCENTS[i])}>
-              <AnimatedStat val={item.val} label={item.label} accent={STAT_ACCENTS[i]} />
+              whileHover={{ y: -3, boxShadow: '0 20px 48px rgba(22,15,8,0.1)' }}
+              style={S.statCard()}>
+              <AnimatedStat val={item.val} label={item.label} accent={item.accent} icon={item.icon} />
             </motion.div>
           ))}
         </div>
@@ -231,13 +244,13 @@ export default function Dashboard() {
         .db-layout {
           display: flex;
           min-height: calc(100vh - 100px);
-          margin: -48px -48px -40px -48px;
+          margin: -36px -40px -32px -40px;
           overflow: hidden;
           position: relative;
         }
         .db-main {
           flex: 1;
-          padding: 48px;
+          padding: 36px 40px;
           overflow-y: auto;
         }
         .db-right-pane {
