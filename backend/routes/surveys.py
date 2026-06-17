@@ -398,7 +398,7 @@ def auto_save_draft(
 
 
 @router.get("/", response_model=List[SurveyOut])
-@limiter.limit("20/minute")
+@limiter.limit("120/minute")
 def list_surveys(
     request: Request,
     q: str = None,

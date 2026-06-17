@@ -87,7 +87,7 @@ export default function PitchInvestorReadinessPanel({ survey }) {
             <div style={{ width: 64, height: 64, borderRadius: 20, background: 'rgba(255,69,0,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: 28, color: 'var(--coral)' }}>✦</div>
             <h2 style={{ fontFamily: "'Playfair Display', serif", fontWeight: 900, fontSize: 28, color: 'var(--espresso)', margin: '0 0 10px' }}>Pitch & Investor Readiness Studio</h2>
             <p style={{ fontFamily: "'Fraunces', serif", fontWeight: 300, fontSize: 15, color: 'rgba(22,15,8,0.5)', lineHeight: 1.6, maxWidth: 480, margin: '0 auto' }}>
-              Initialize your venture capital roadmap. The AI engine parses your completed survey validation answers to produce structured, data-grounded narratives and projections.
+              Initialize your venture capital roadmap. The Pulse engine parses your completed survey validation answers to produce structured, data-grounded narratives and projections.
             </p>
           </div>
 

@@ -52,12 +52,27 @@ def _require_manager(current_user: UserProfile):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
 
+def _require_team_account(current_user: UserProfile):
+    """Team management is unavailable on personal accounts."""
+    tenant = current_user.tenant
+    if tenant is not None and getattr(tenant, "account_type", "organization") == "personal":
+        raise HTTPException(
+            status_code=403,
+            detail="Team management is not available on personal accounts",
+        )
+
+
 @router.get("/", response_model=list[UserProfileOut])
 def list_users(
     current_user: UserProfile = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Return all users in the caller's tenant (TeamManagement.jsx)."""
+    """Return all users in the caller's tenant (TeamManagement.jsx).
+
+    Note: not gated for personal accounts — this list also backs survey
+    collaboration/sharing, and for a personal account it simply returns the
+    single owner. Only the mutating team-management actions are blocked.
+    """
     users = (
         db.query(UserProfile)
         .filter((UserProfile.id == current_user.id) | (UserProfile.invited_by == current_user.id))
@@ -101,6 +116,7 @@ def invite_user(
     - Already invited → resend email
     - Already active → block
     """
+    _require_team_account(current_user)
     _require_manager(current_user)
 
     # 🔍 Check if user already exists
@@ -204,6 +220,7 @@ def bulk_invite(
     current_user: UserProfile = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    _require_team_account(current_user)
     _require_manager(current_user)
 
     results = []
@@ -308,6 +325,7 @@ def update_role(
     db: Session = Depends(get_db),
 ):
     """Update a user's role (TeamManagement.jsx)."""
+    _require_team_account(current_user)
     _require_manager(current_user)
 
     user = (
@@ -339,6 +357,7 @@ def update_status(
     db: Session = Depends(get_db),
 ):
     """Activate or deactivate a user (TeamManagement.jsx)."""
+    _require_team_account(current_user)
     _require_manager(current_user)
 
     user = (
@@ -368,6 +387,7 @@ def delete_user(
     Hard-delete a user.  Only super_admin can delete.
     Replaces the Netlify delete-user function.
     """
+    _require_team_account(current_user)
     if current_user.role != RoleEnum.super_admin:
         raise HTTPException(status_code=403, detail="Only super_admin can delete users")
 

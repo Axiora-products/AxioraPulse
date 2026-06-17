@@ -18,11 +18,18 @@ const Logo = ({ dark }) => (
 
 // Validation helpers
 const validateFullName = (val) => {
-  if (!val || val.trim() === '') {
+  if (!val || val === '') {
     return 'Name is required';
   }
-  if (/\d/.test(val)) {
-    return 'Name must not contain digits';
+  const trimmed = val.trim();
+  if (!/^[a-zA-Z]+(\s[a-zA-Z]+)*$/.test(trimmed)) {
+    return 'Name must contain only alphabets';
+  }
+  if (trimmed.length < 3) {
+    return 'Name must be at least 3 characters';
+  }
+  if (trimmed.length > 100) {
+    return 'Name must be at most 100 characters';
   }
   return '';
 };
@@ -83,9 +90,13 @@ export default function Register() {
   const handleBlur = (k) => {
     let errorMsg = '';
     if (k === 'fullName') {
-      errorMsg = validateFullName(f.fullName);
+      const trimmed = f.fullName.trim();
+      sf(p => ({ ...p, fullName: trimmed }));
+      errorMsg = validateFullName(trimmed);
     } else if (k === 'email') {
-      errorMsg = validateEmail(f.email);
+      const trimmed = f.email.trim();
+      sf(p => ({ ...p, email: trimmed }));
+      errorMsg = validateEmail(trimmed);
     } else if (k === 'phoneNumber') {
       errorMsg = validatePhoneNumber(f.phoneNumber);
     }
@@ -128,9 +139,10 @@ export default function Register() {
   const go = async (e) => {
     e.preventDefault();
     const trimmedEmail = f.email.trim().toLowerCase();
-    sf(p => ({ ...p, email: trimmedEmail }));
+    const trimmedName = f.fullName.trim();
+    sf(p => ({ ...p, email: trimmedEmail, fullName: trimmedName }));
 
-    const nameErr = validateFullName(f.fullName);
+    const nameErr = validateFullName(trimmedName);
     const emailErr = validateEmail(trimmedEmail);
     const phoneErr = validatePhoneNumber(f.phoneNumber);
 
@@ -158,7 +170,7 @@ export default function Register() {
     if (f.accountType === 'organization' && !f.tenantName) return toast.error('Organisation is required');
     setBusy(true);
     try {
-      await cognitoSignUp(trimmedEmail, f.password, f.fullName);
+      await cognitoSignUp(trimmedEmail, f.password, trimmedName);
       setStep('verify');
       toast.success('Verification code sent to your email');
     } catch (err) {
@@ -172,7 +184,7 @@ export default function Register() {
           
           if (cleanupResp.data?.deleted) {
             console.log('User was unconfirmed and deleted. Retrying signup...');
-            await cognitoSignUp(trimmedEmail, f.password, f.fullName);
+            await cognitoSignUp(trimmedEmail, f.password, trimmedName);
             setStep('verify');
             toast.success('Verification code sent to your email');
             return;
@@ -244,6 +256,7 @@ export default function Register() {
       await initialize(true, {
         tenant_name: tenantName,
         tenant_slug: tenantSlug,
+        account_type: f.accountType,
       });
       const storeUser = useAuthStore.getState().user;
       if (!storeUser) {

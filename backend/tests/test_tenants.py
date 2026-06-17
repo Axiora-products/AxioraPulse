@@ -1,9 +1,40 @@
 from fastapi.testclient import TestClient
 from app.main import app
 from db.database import SessionLocal
-from db.models import UserProfile, RoleEnum
+from db.models import UserProfile, RoleEnum, Tenant
 
 client = TestClient(app)
+
+
+def test_personal_account_blocks_org_update(auth_headers):
+    # Personal accounts cannot update organisation settings (PATCH /tenants/me → 403),
+    # even as an admin (the role gate passes, the account-type gate blocks).
+    db = SessionLocal()
+    try:
+        user = db.query(UserProfile).filter(UserProfile.email == "dev@axiorapulse.com").first()
+        original_role = user.role
+        user.role = RoleEnum.admin
+        tenant = db.query(Tenant).filter(Tenant.id == user.tenant_id).first()
+        original_type = tenant.account_type
+        tenant.account_type = "personal"
+        db.commit()
+    finally:
+        db.close()
+
+    try:
+        resp = client.patch("/tenants/me", json={"name": "Should Fail"}, headers=auth_headers)
+        assert resp.status_code == 403
+        assert "personal" in resp.json()["detail"].lower()
+    finally:
+        db = SessionLocal()
+        try:
+            user = db.query(UserProfile).filter(UserProfile.email == "dev@axiorapulse.com").first()
+            user.role = original_role
+            tenant = db.query(Tenant).filter(Tenant.id == user.tenant_id).first()
+            tenant.account_type = original_type
+            db.commit()
+        finally:
+            db.close()
 
 
 def test_tenant_lifecycle(auth_headers):
