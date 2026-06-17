@@ -12,6 +12,7 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as cloudmap from 'aws-cdk-lib/aws-servicediscovery';
 import { NagSuppressions } from 'cdk-nag';
+import * as appscaling from 'aws-cdk-lib/aws-applicationautoscaling';
 
 export interface AxioraPulseStackProps extends cdk.StackProps {
   environment: 'dev' | 'qa' | 'prod' | 'development' | 'production';
@@ -47,6 +48,7 @@ export class AxioraPulseStack extends cdk.Stack {
     // 0. Infrastructure: VPC and Cluster
     const vpc = new ec2.Vpc(this, 'Vpc', {
       maxAzs: 2,
+      natGateways: isProd ? undefined : 1, // Minimize NAT Gateway costs in Dev/QA
     });
 
     if (isProd) {
@@ -265,13 +267,19 @@ export class AxioraPulseStack extends cdk.Stack {
     const backendService = new ecs.FargateService(this, 'BackendService', {
       cluster,
       taskDefinition: backendTaskDef,
-      desiredCount: isProd ? 2 : 1,
+      desiredCount: (isProd || shortEnv === 'qa') ? 2 : 1, // 2 tasks for HA in QA/Prod, 1 for Dev
       serviceName: `pulse-backend-${shortEnv}`,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       assignPublicIp: false,
       cloudMapOptions: {
         name: 'backend',
       },
+      capacityProviderStrategies: isProd ? undefined : [
+        {
+          capacityProvider: 'FARGATE_SPOT',
+          weight: 1,
+        }
+      ],
     });
 
     database.connections.allowFrom(backendService, ec2.Port.tcp(5432), 'Allow backend to access database');
@@ -297,10 +305,16 @@ export class AxioraPulseStack extends cdk.Stack {
     const frontendService = new ecs.FargateService(this, 'FrontendService', {
       cluster,
       taskDefinition: frontendTaskDef,
-      desiredCount: isProd ? 2 : 1,
+      desiredCount: (isProd || shortEnv === 'qa') ? 2 : 1, // 2 tasks for HA in QA/Prod, 1 for Dev
       serviceName: `pulse-frontend-${shortEnv}`,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       assignPublicIp: false,
+      capacityProviderStrategies: isProd ? undefined : [
+        {
+          capacityProvider: 'FARGATE_SPOT',
+          weight: 1,
+        }
+      ],
     });
 
     if (isProd) {
@@ -311,6 +325,31 @@ export class AxioraPulseStack extends cdk.Stack {
       const frontendScaling = frontendService.autoScaleTaskCount({ maxCapacity: 10, minCapacity: 2 });
       frontendScaling.scaleOnCpuUtilization('FrontendCpuScaling', { targetUtilizationPercent: 70 });
       frontendScaling.scaleOnMemoryUtilization('FrontendMemoryScaling', { targetUtilizationPercent: 70 });
+    } else if (shortEnv === 'qa') {
+      // Scheduled scaling to scale down to 0 at night/weekends for QA
+      const backendScaling = backendService.autoScaleTaskCount({ maxCapacity: 2, minCapacity: 0 });
+      backendScaling.scaleOnSchedule('ScaleDownQA', {
+        schedule: appscaling.Schedule.cron({ hour: '17', minute: '0', weekDay: 'MON-FRI' }), // 10:30 PM IST / 5 PM UTC
+        minCapacity: 0,
+        maxCapacity: 0,
+      });
+      backendScaling.scaleOnSchedule('ScaleUpQA', {
+        schedule: appscaling.Schedule.cron({ hour: '3', minute: '30', weekDay: 'MON-FRI' }), // 9:00 AM IST / 3:30 AM UTC
+        minCapacity: 2,
+        maxCapacity: 2,
+      });
+
+      const frontendScaling = frontendService.autoScaleTaskCount({ maxCapacity: 2, minCapacity: 0 });
+      frontendScaling.scaleOnSchedule('ScaleDownQA', {
+        schedule: appscaling.Schedule.cron({ hour: '17', minute: '0', weekDay: 'MON-FRI' }),
+        minCapacity: 0,
+        maxCapacity: 0,
+      });
+      frontendScaling.scaleOnSchedule('ScaleUpQA', {
+        schedule: appscaling.Schedule.cron({ hour: '3', minute: '30', weekDay: 'MON-FRI' }),
+        minCapacity: 2,
+        maxCapacity: 2,
+      });
     }
 
     // 4. Application Load Balancer
