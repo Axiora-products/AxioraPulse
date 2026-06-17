@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLoading } from "../context/LoadingContext";
+import useAuthStore from "../hooks/useAuth";
+import { SURVEY_TEMPLATES, toBuilderTemplate } from "../lib/surveyTemplates";
+import { setPendingTemplate } from "../lib/pendingTemplate";
+import { track, ANALYTICS_EVENTS } from "../lib/analytics";
 
 /* ─────────────────────────────────────────────────────────────────
    LANDING PAGE — Axiora Pulse
@@ -588,6 +592,125 @@ const CSS = `
   .lp-faq-inner { max-width: 100%; }
 }
 
+/* ─── SURVEY TEMPLATES ─── */
+#lp-templates { background: var(--cream); padding: 160px 72px; position: relative; overflow: hidden; }
+#lp-templates .lp-ghost { -webkit-text-stroke: 1px rgba(255,69,0,.04); font-size: clamp(120px,15vw,230px); top: -40px; right: -30px; z-index: 0; letter-spacing: -3px; }
+.lp-tpl-head { max-width: 1216px; margin: 0 auto 72px; display: flex; align-items: flex-end; justify-content: space-between; position: relative; z-index: 1; }
+.lp-tpl-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 24px; max-width: 1216px; margin: 0 auto; position: relative; z-index: 1; }
+.lp-tpl-card {
+  background: var(--warm-white); border-radius: 24px; padding: 32px 30px 28px;
+  position: relative; overflow: hidden; display: flex; flex-direction: column;
+  border: 1.5px solid transparent; cursor: default;
+  transition: transform .4s cubic-bezier(.34,1.56,.64,1), box-shadow .4s ease, border-color .3s ease;
+}
+.lp-tpl-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--blush); transition: background .3s ease; }
+.lp-tpl-card:hover { transform: translateY(-8px); border-color: rgba(255,69,0,.15); box-shadow: 0 24px 64px rgba(255,69,0,.12); }
+.lp-tpl-card:hover::before { background: linear-gradient(90deg,var(--coral),var(--saffron)); }
+.lp-tpl-card.accent-0::before { background: linear-gradient(90deg,var(--coral),var(--coral-bright)); }
+.lp-tpl-card.accent-1::before { background: linear-gradient(90deg,var(--saffron),var(--saffron-light)); }
+.lp-tpl-card.accent-2::before { background: linear-gradient(90deg,var(--sage),#2ecc71); }
+.lp-tpl-card.accent-3::before { background: linear-gradient(90deg,var(--cobalt),var(--electric)); }
+.lp-tpl-cat {
+  display: inline-flex; align-items: center; gap: 7px; align-self: flex-start;
+  font-family: 'Syne', sans-serif; font-size: 10px; font-weight: 700; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--terracotta); background: var(--blush);
+  padding: 6px 13px; border-radius: 100px; margin-bottom: 20px;
+}
+.lp-tpl-name { font-family: 'Playfair Display', serif; font-size: 24px; font-weight: 700; line-height: 1.15; letter-spacing: -.5px; color: var(--espresso); margin-bottom: 12px; }
+.lp-tpl-desc { font-family: 'Fraunces', serif; font-size: 14.5px; font-weight: 300; line-height: 1.6; color: var(--espresso); opacity: .58; margin-bottom: 22px; flex: 1; }
+.lp-tpl-meta { display: flex; gap: 20px; margin-bottom: 24px; padding-bottom: 22px; border-bottom: 1px solid rgba(22,15,8,.07); }
+.lp-tpl-meta-item { display: flex; flex-direction: column; gap: 4px; }
+.lp-tpl-meta-v { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 700; color: var(--espresso); line-height: 1; }
+.lp-tpl-meta-l { font-family: 'Syne', sans-serif; font-size: 9px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: rgba(22,15,8,.4); }
+.lp-tpl-actions { display: flex; gap: 10px; }
+.lp-tpl-btn-preview, .lp-tpl-btn-create {
+  flex: 1; padding: 13px 16px; border-radius: 100px; cursor: pointer;
+  font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; transition: all .3s cubic-bezier(.34,1.56,.64,1);
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+}
+.lp-tpl-btn-preview { background: rgba(22,15,8,.05); color: var(--espresso); border: 1.5px solid rgba(22,15,8,.1); }
+.lp-tpl-btn-preview:hover { background: var(--espresso); color: var(--cream); border-color: var(--espresso); transform: translateY(-2px); }
+.lp-tpl-btn-create { background: var(--coral); color: #fff; border: 1.5px solid var(--coral); box-shadow: 0 8px 24px rgba(255,69,0,.22); }
+.lp-tpl-btn-create:hover { background: var(--saffron); border-color: var(--saffron); color: var(--espresso); transform: translateY(-2px); }
+.lp-tpl-viewall-wrap { max-width: 1216px; margin: 56px auto 0; display: flex; justify-content: center; position: relative; z-index: 1; }
+.lp-tpl-viewall {
+  display: inline-flex; align-items: center; gap: 14px; cursor: pointer;
+  background: none; border: 1.5px solid rgba(22,15,8,.16); border-radius: 100px;
+  padding: 16px 36px; font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700;
+  letter-spacing: .08em; text-transform: uppercase; color: var(--espresso);
+  transition: all .3s cubic-bezier(.34,1.56,.64,1);
+}
+.lp-tpl-viewall:hover { border-color: var(--coral); color: var(--coral); transform: translateY(-2px); }
+.lp-tpl-viewall svg { transition: transform .3s ease; }
+.lp-tpl-viewall.open svg { transform: rotate(180deg); }
+
+/* ─── TEMPLATE PREVIEW MODAL ─── */
+.lp-pv-overlay {
+  position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center;
+  padding: 24px; background: rgba(22,15,8,.55); backdrop-filter: blur(6px);
+  animation: lpPvFade .25s ease forwards;
+}
+@keyframes lpPvFade { from { opacity: 0; } to { opacity: 1; } }
+.lp-pv-panel {
+  position: relative; background: var(--warm-white); border-radius: 26px; width: 100%; max-width: 720px;
+  max-height: 88vh; display: flex; flex-direction: column; overflow: hidden;
+  box-shadow: 0 40px 100px rgba(22,15,8,.35); animation: lpPvRise .35s cubic-bezier(.16,1,.3,1) forwards;
+}
+@keyframes lpPvRise { from { opacity: 0; transform: translateY(28px) scale(.97); } to { opacity: 1; transform: none; } }
+.lp-pv-head { padding: 36px 40px 26px; border-bottom: 1px solid rgba(22,15,8,.07); position: relative; flex-shrink: 0; }
+.lp-pv-head::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg,var(--coral),var(--saffron)); }
+.lp-pv-close {
+  position: absolute; top: 22px; right: 22px; width: 36px; height: 36px; border-radius: 50%;
+  border: none; background: rgba(22,15,8,.06); color: rgba(22,15,8,.5); font-size: 17px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; transition: all .2s; z-index: 2;
+}
+.lp-pv-close:hover { background: var(--coral); color: #fff; transform: rotate(90deg); }
+.lp-pv-cat { display: inline-flex; font-family: 'Syne', sans-serif; font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--terracotta); background: var(--blush); padding: 6px 13px; border-radius: 100px; margin-bottom: 16px; }
+.lp-pv-title { font-family: 'Playfair Display', serif; font-size: 30px; font-weight: 900; letter-spacing: -1px; color: var(--espresso); margin-bottom: 10px; line-height: 1.1; padding-right: 40px; }
+.lp-pv-desc { font-family: 'Fraunces', serif; font-size: 15.5px; font-weight: 300; line-height: 1.6; color: var(--espresso); opacity: .6; margin-bottom: 18px; }
+.lp-pv-meta { display: flex; gap: 10px; flex-wrap: wrap; }
+.lp-pv-chip { display: inline-flex; align-items: center; gap: 7px; background: rgba(22,15,8,.05); border-radius: 100px; padding: 7px 14px; font-family: 'Syne', sans-serif; font-size: 10px; font-weight: 700; letter-spacing: .06em; color: rgba(22,15,8,.6); }
+.lp-pv-body { padding: 28px 40px 36px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
+.lp-pv-q { border: 1.5px solid rgba(22,15,8,.08); border-radius: 16px; padding: 20px 22px; background: rgba(253,245,232,.5); position: relative; }
+.lp-pv-q-top { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.lp-pv-q-num { font-family: 'Syne', sans-serif; font-size: 9px; font-weight: 700; letter-spacing: .14em; color: rgba(22,15,8,.3); }
+.lp-pv-q-type { font-family: 'Syne', sans-serif; font-size: 9px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--coral); background: rgba(255,69,0,.08); padding: 4px 10px; border-radius: 100px; }
+.lp-pv-q-req { font-family: 'Syne', sans-serif; font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--terracotta); }
+.lp-pv-q-text { font-family: 'Fraunces', serif; font-size: 16px; font-weight: 400; color: var(--espresso); line-height: 1.5; margin-bottom: 6px; }
+.lp-pv-q-help { font-family: 'Fraunces', serif; font-size: 13px; font-weight: 300; color: var(--espresso); opacity: .5; margin-bottom: 12px; }
+.lp-pv-q-opts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.lp-pv-opt { background: #fff; border: 1.5px solid rgba(22,15,8,.1); border-radius: 100px; padding: 7px 14px; font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 600; color: var(--espresso); opacity: .8; }
+.lp-pv-field { margin-top: 8px; }
+.lp-pv-field-stub { background: #fff; border: 1.5px solid rgba(22,15,8,.1); border-radius: 12px; padding: 12px 16px; font-family: 'Fraunces', serif; font-size: 13px; font-weight: 300; color: rgba(22,15,8,.35); }
+.lp-pv-scale { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.lp-pv-scale-pip { width: 34px; height: 34px; border-radius: 9px; border: 1.5px solid rgba(22,15,8,.12); display: flex; align-items: center; justify-content: center; font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 700; color: rgba(22,15,8,.45); background: #fff; }
+.lp-pv-stars { font-size: 22px; letter-spacing: 4px; color: var(--saffron); margin-top: 8px; }
+.lp-pv-matrix { margin-top: 10px; overflow-x: auto; }
+.lp-pv-matrix table { border-collapse: collapse; font-family: 'Syne', sans-serif; }
+.lp-pv-matrix th, .lp-pv-matrix td { padding: 8px 12px; font-size: 11px; font-weight: 600; color: rgba(22,15,8,.6); border: 1px solid rgba(22,15,8,.08); white-space: nowrap; }
+.lp-pv-matrix th { background: rgba(22,15,8,.04); }
+.lp-pv-foot { padding: 20px 40px; border-top: 1px solid rgba(22,15,8,.07); display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-shrink: 0; background: var(--warm-white); }
+.lp-pv-foot-note { font-family: 'Fraunces', serif; font-size: 13px; font-weight: 300; color: var(--espresso); opacity: .5; }
+
+/* ─── TEMPLATES RESPONSIVE ─── */
+@media (max-width: 980px) {
+  .lp-tpl-grid { grid-template-columns: repeat(2,1fr); }
+}
+@media (max-width: 768px) {
+  #lp-templates { padding: 80px 20px; }
+  .lp-tpl-head { flex-direction: column; align-items: flex-start; gap: 16px; margin-bottom: 48px; }
+  .lp-tpl-grid { grid-template-columns: 1fr; gap: 16px; }
+  .lp-pv-overlay { padding: 0; }
+  .lp-pv-panel { max-width: 100%; max-height: 100vh; height: 100vh; border-radius: 0; }
+  .lp-pv-head { padding: 28px 22px 22px; }
+  .lp-pv-title { font-size: 24px; }
+  .lp-pv-body { padding: 22px; }
+  .lp-pv-foot { padding: 16px 22px; flex-direction: column; }
+  .lp-pv-foot .lp-tpl-btn-create { width: 100%; }
+  .lp-pv-foot-note { display: none; }
+}
+
 @media (max-width: 480px) {
   .lp-kpi-row { grid-template-columns: 1fr; }
   .lp-q-types-grid { grid-template-columns: 1fr; }
@@ -601,7 +724,64 @@ export default function Landing() {
   const onSignUp   = () => navigate('/register');
   const bodyRef = useRef(null);
   const { stopLoading } = useLoading();
+  const { user } = useAuthStore();
   useEffect(() => { stopLoading(); }, [stopLoading]);
+
+  // ── Survey templates state ──
+  const FEATURED_COUNT = 6;
+  const [showAllTemplates, setShowAllTemplates] = useState(false);
+  const [previewTemplate, setPreviewTemplate] = useState(null);
+  const visibleTemplates = showAllTemplates ? SURVEY_TEMPLATES : SURVEY_TEMPLATES.slice(0, FEATURED_COUNT);
+
+  const openPreview = (tpl) => {
+    track(ANALYTICS_EVENTS.TEMPLATE_PREVIEW_OPENED, { template: tpl.name, category: tpl.category });
+    setPreviewTemplate(tpl);
+  };
+  const closePreview = () => setPreviewTemplate(null);
+
+  const handleCreateSurvey = (tpl) => {
+    track(ANALYTICS_EVENTS.CREATE_SURVEY_CLICKED, { template: tpl.name, category: tpl.category });
+    setPendingTemplate(toBuilderTemplate(tpl), '/surveys/new');
+    if (user) {
+      navigate('/surveys/new');
+    } else {
+      track(ANALYTICS_EVENTS.AUTHENTICATION_REDIRECTED, { template: tpl.name });
+      navigate('/register');
+    }
+  };
+
+  // Fire "Template Viewed" once per card as it enters the viewport.
+  const seenTemplatesRef = useRef(new Set());
+  useEffect(() => {
+    const cards = document.querySelectorAll('.lp-tpl-card[data-tpl]');
+    if (!cards.length) return;
+    // The one-shot global scroll-reveal observer only saw the initially
+    // rendered cards. Cards revealed later via "View All" must be made
+    // visible here, or they'd stay at opacity:0.
+    if (showAllTemplates) cards.forEach(c => c.classList.add('vis'));
+    const obs = new IntersectionObserver(entries => {
+      entries.forEach(e => {
+        if (!e.isIntersecting) return;
+        const name = e.target.getAttribute('data-tpl');
+        if (seenTemplatesRef.current.has(name)) return;
+        seenTemplatesRef.current.add(name);
+        track(ANALYTICS_EVENTS.TEMPLATE_VIEWED, { template: name });
+        obs.unobserve(e.target);
+      });
+    }, { threshold: 0.4 });
+    cards.forEach(c => obs.observe(c));
+    return () => obs.disconnect();
+  }, [showAllTemplates]);
+
+  // Lock scroll + close-on-Escape while the preview modal is open.
+  useEffect(() => {
+    if (!previewTemplate) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKey = e => { if (e.key === 'Escape') closePreview(); };
+    document.addEventListener('keydown', onKey);
+    return () => { document.body.style.overflow = prev; document.removeEventListener('keydown', onKey); };
+  }, [previewTemplate]);
 
   // Inject CSS once
   useEffect(() => {
@@ -720,6 +900,56 @@ export default function Landing() {
 
   const TICKER = ["Unilever", "HDFC Bank", "Reliance Industries", "Asian Paints", "Titan Company", "Marico", "ITC Limited", "Bajaj Finserv", "Myntra", "Tata Consumer"];
 
+  const QTYPE_LABELS = {
+    short_text: "Short Text", long_text: "Long Text", single_choice: "Single Choice",
+    multiple_choice: "Multiple Choice", rating: "Star Rating", scale: "Scale", yes_no: "Yes / No",
+    dropdown: "Dropdown", number: "Number", email: "Email", date: "Date", ranking: "Ranking",
+    slider: "Slider", matrix: "Matrix", emoji_reaction: "Emoji Reaction", swipe_choice: "Swipe Choice",
+    visual_choice: "Visual Choice",
+  };
+
+  // Read-only preview of how a question's answer field looks.
+  const renderPreviewField = (q) => {
+    const t = q.question_type;
+    const opts = Array.isArray(q.options) ? q.options : [];
+    if (["single_choice", "multiple_choice", "dropdown", "ranking", "swipe_choice", "visual_choice"].includes(t)) {
+      return <div className="lp-pv-q-opts">{opts.map((o, j) => <span className="lp-pv-opt" key={j}>{o.label}</span>)}</div>;
+    }
+    if (t === "yes_no") {
+      return <div className="lp-pv-q-opts"><span className="lp-pv-opt">Yes</span><span className="lp-pv-opt">No</span></div>;
+    }
+    if (t === "rating") {
+      return <div className="lp-pv-stars">★★★★★</div>;
+    }
+    if (t === "scale") {
+      return <div className="lp-pv-scale">{Array.from({ length: 11 }, (_, n) => <span className="lp-pv-scale-pip" key={n}>{n}</span>)}</div>;
+    }
+    if (t === "slider") {
+      return <div className="lp-pv-field"><div className="lp-pv-field-stub">0 ————————●———————— 100</div></div>;
+    }
+    if (t === "emoji_reaction") {
+      return <div className="lp-pv-stars" style={{ letterSpacing: "8px" }}>😞 😐 🙂 😄 🤩</div>;
+    }
+    if (t === "matrix") {
+      const rows = q.options?.rows || [];
+      const cols = q.options?.columns || [];
+      return (
+        <div className="lp-pv-matrix">
+          <table>
+            <thead><tr><th></th>{cols.map((c, j) => <th key={j}>{c.label}</th>)}</tr></thead>
+            <tbody>{rows.map((r, ri) => <tr key={ri}><td>{r.label}</td>{cols.map((c, ci) => <td key={ci}>○</td>)}</tr>)}</tbody>
+          </table>
+        </div>
+      );
+    }
+    const stub = t === "date" ? "DD / MM / YYYY"
+      : t === "email" ? "name@company.com"
+      : t === "number" ? "0"
+      : t === "long_text" ? "Type your detailed answer here…"
+      : "Type your answer here…";
+    return <div className="lp-pv-field"><div className="lp-pv-field-stub">{stub}</div></div>;
+  };
+
   return (
     <div className="lp">
       {/* ── NAV ── */}
@@ -734,6 +964,7 @@ export default function Landing() {
         <ul className="lp-nav-links">
           <li><a href="#lp-how">Research</a></li>
           <li><a href="#lp-builder">Builder</a></li>
+          <li><a href="#lp-templates">Templates</a></li>
           <li><a href="#lp-analytics">Analytics</a></li>
           <li><a href="#lp-pricing">Pricing</a></li>
           <li><a href="#" onClick={e => { e.preventDefault(); onEnterApp(); }} style={{ opacity: .55 }}>Sign In</a></li>
@@ -940,7 +1171,61 @@ export default function Landing() {
         </div>
       </section>
 
-      <div style={{ height: 70, background: "linear-gradient(to bottom left,var(--espresso) 49.9%,var(--cream-deep) 50%)" }} />
+      {/* cut: builder (cream-deep) → templates (cream) */}
+      <div style={{ height: 70, background: "linear-gradient(to bottom right,var(--cream-deep) 49.9%,var(--cream) 50%)" }} />
+
+      {/* ── SURVEY TEMPLATES ── */}
+      <section id="lp-templates">
+        <div className="lp-ghost">Templates</div>
+        <div className="lp-tpl-head lp-sr">
+          <div>
+            <div className="lp-sec-tag">Explore Templates</div>
+            <h2 className="lp-sec-title">Start from a <em>proven</em> instrument</h2>
+          </div>
+          <p className="lp-sec-aside">Ten field-ready survey templates for industrial teams. Preview every question, then load one straight into the builder — no setup required.</p>
+        </div>
+
+        <div className="lp-tpl-grid">
+          {visibleTemplates.map((tpl, i) => (
+            <div className={`lp-tpl-card accent-${tpl.accentIndex} lp-sr lp-sr-d${(i % 3) + 1}`} key={tpl.id} data-tpl={tpl.name}>
+              <span className="lp-tpl-cat">{tpl.category}</span>
+              <h3 className="lp-tpl-name">{tpl.name}</h3>
+              <p className="lp-tpl-desc">{tpl.desc}</p>
+              <div className="lp-tpl-meta">
+                <div className="lp-tpl-meta-item">
+                  <span className="lp-tpl-meta-v">{tpl.questionCount}</span>
+                  <span className="lp-tpl-meta-l">Questions</span>
+                </div>
+                <div className="lp-tpl-meta-item">
+                  <span className="lp-tpl-meta-v">~{tpl.estMinutes}m</span>
+                  <span className="lp-tpl-meta-l">To complete</span>
+                </div>
+              </div>
+              <div className="lp-tpl-actions">
+                <button className="lp-tpl-btn-preview" onClick={() => openPreview(tpl)}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+                  Preview
+                </button>
+                <button className="lp-tpl-btn-create" onClick={() => handleCreateSurvey(tpl)}>
+                  Create Survey
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {SURVEY_TEMPLATES.length > FEATURED_COUNT && (
+          <div className="lp-tpl-viewall-wrap lp-sr">
+            <button className={`lp-tpl-viewall${showAllTemplates ? " open" : ""}`} onClick={() => setShowAllTemplates(v => !v)}>
+              {showAllTemplates ? "Show Fewer Templates" : `View All Templates (${SURVEY_TEMPLATES.length})`}
+              <svg width="12" height="8" viewBox="0 0 12 8" fill="none"><path d="M1 1.5L6 6.5L11 1.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            </button>
+          </div>
+        )}
+      </section>
+
+      {/* cut: templates (cream) → analytics (espresso) */}
+      <div style={{ height: 70, background: "linear-gradient(to bottom left,var(--espresso) 49.9%,var(--cream) 50%)" }} />
 
       {/* ── ANALYTICS ── */}
       <section id="lp-analytics">
@@ -1076,7 +1361,7 @@ export default function Landing() {
         <div className="lp-pricing-grid">
           {[
             { cls: "std", badge: "Starter", name: "Free", curr: "₹", amt: "0", per: "/ month", desc: "Ad hoc studies, concept testing, and quick pulse checks. Ideal for brand teams conducting research independently.", feats: ["3 active surveys", "100 responses / month", "Basic analytics", "5 question types"], btn: "Start Free Study" },
-            { cls: "pro", badge: "Most Used", name: "Pro", curr: "₹", amt: "2,499", per: "/ month", desc: "For insight teams running continuous trackers, usage & attitude studies, and brand equity waves.", feats: ["Unlimited surveys", "10,000 responses / month", "Full analytics + AI insights", "All 24+ question types", "Custom branding", "Team collaboration (5 seats)"], btn: "Start 14-Day Trial" },
+            { cls: "pro", badge: "Most Used", name: "Pro", curr: "₹", amt: "2,499", per: "/ month", desc: "For insight teams running continuous trackers, usage & attitude studies, and brand equity waves.", feats: ["Unlimited surveys", "10,000 responses / month", "Full analytics + Pulse insights", "All 24+ question types", "Custom branding", "Team collaboration (5 seats)"], btn: "Start 14-Day Trial" },
             { cls: "ent", badge: "Enterprise", name: "Custom", curr: "", amt: "Talk to us", per: "", desc: "For research agencies, FMCG conglomerates, and financial institutions running multi-country, longitudinal, or panel-based programmes.", feats: ["Unlimited everything", "On-premise deployment", "Dedicated research analyst", "99.9% SLA guarantee", "API + Webhooks"], btn: "Contact Sales" },
           ].map((p, i) => (
             <div className={`lp-pcard ${p.cls} lp-sr lp-sr-d${i + 1}`} key={p.cls}>
@@ -1154,6 +1439,45 @@ export default function Landing() {
           </div>
         </div>
       </footer>
+
+      {/* ── TEMPLATE PREVIEW MODAL ── */}
+      {previewTemplate && (
+        <div className="lp-pv-overlay" onClick={closePreview} role="dialog" aria-modal="true" aria-label={`${previewTemplate.name} preview`}>
+          <div className="lp-pv-panel" onClick={e => e.stopPropagation()}>
+            <div className="lp-pv-head">
+              <button className="lp-pv-close" onClick={closePreview} aria-label="Close preview">✕</button>
+              <span className="lp-pv-cat">{previewTemplate.category}</span>
+              <h3 className="lp-pv-title">{previewTemplate.name}</h3>
+              <p className="lp-pv-desc">{previewTemplate.desc}</p>
+              <div className="lp-pv-meta">
+                <span className="lp-pv-chip">{previewTemplate.questionCount} questions</span>
+                <span className="lp-pv-chip">~{previewTemplate.estMinutes} min to complete</span>
+                <span className="lp-pv-chip">Read-only preview</span>
+              </div>
+            </div>
+            <div className="lp-pv-body">
+              {previewTemplate.questions.map((q, i) => (
+                <div className="lp-pv-q" key={i}>
+                  <div className="lp-pv-q-top">
+                    <span className="lp-pv-q-num">Q{String(i + 1).padStart(2, "0")}</span>
+                    <span className="lp-pv-q-type">{QTYPE_LABELS[q.question_type] || q.question_type}</span>
+                    {q.is_required && <span className="lp-pv-q-req">Required</span>}
+                  </div>
+                  <div className="lp-pv-q-text">{q.question_text}</div>
+                  {q.description && <div className="lp-pv-q-help">{q.description}</div>}
+                  {renderPreviewField(q)}
+                </div>
+              ))}
+            </div>
+            <div className="lp-pv-foot">
+              <span className="lp-pv-foot-note">Browse every question before you build.</span>
+              <button className="lp-tpl-btn-create" onClick={() => handleCreateSurvey(previewTemplate)}>
+                Create Survey
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

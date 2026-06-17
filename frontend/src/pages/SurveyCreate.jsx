@@ -5,10 +5,12 @@ import API from '../api/axios';
 import SurveyPromptScreen, { SURVEY_MODES, getSurveyModeLabel } from '../components/SurveyPromptScreen';
 import AISurveySuggestions from '../components/AISurveySuggestions';
 import useAuthStore from '../hooks/useAuth';
-import { QUESTION_TYPES, SHORT_SURVEY_RULES, estimateSurveyMinutes, getFormatDiversityScore, getQuestionWordCount, isExpired } from '../lib/constants';
+import { QUESTION_TYPES, SHORT_SURVEY_RULES, SURVEY_TEXT_RULES, estimateSurveyMinutes, getFormatDiversityScore, getQuestionWordCount, isExpired, isValidSurveyTitle, isValidSurveyLongText, isValidQuestionText } from '../lib/constants';
 import { Reorder, useDragControls, motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { useLoading } from '../context/LoadingContext';
+import { consumePendingTemplate } from '../lib/pendingTemplate';
+import { track, ANALYTICS_EVENTS } from '../lib/analytics';
 
 const newQ = () => ({ _id: Math.random().toString(36).slice(2), question_text: '', question_type: 'short_text', options: [], is_required: false, description: '' });
 const hasO = t => ['single_choice', 'multiple_choice', 'dropdown', 'ranking', 'emoji_reaction', 'swipe_choice', 'visual_choice'].includes(t);
@@ -19,6 +21,7 @@ const fi = e => { e.target.style.borderColor = 'var(--coral)'; e.target.style.bo
 const fo = e => { e.target.style.borderColor = 'rgba(22,15,8,0.1)'; e.target.style.boxShadow = 'none'; };
 const INP = { width: '100%', boxSizing: 'border-box', padding: '13px 17px', background: 'var(--warm-white)', border: '1.5px solid rgba(22,15,8,0.1)', borderRadius: 14, fontFamily: "'Fraunces', serif", fontSize: 16, color: 'var(--espresso)', outline: 'none', transition: 'border-color 0.2s, box-shadow 0.2s', resize: 'vertical' };
 const LBL = { fontFamily: "'Syne', sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.38)', display: 'block', marginBottom: 10 };
+const ERR = { fontFamily: "'Fraunces', serif", fontSize: 12, fontWeight: 400, color: 'var(--terracotta)', marginTop: 8, lineHeight: 1.4, display: 'flex', alignItems: 'center', gap: 6 };
 
 const GRAIN = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E")`;
 
@@ -59,9 +62,16 @@ function QCardCreate({ q, i, tc, qs, sQ, delQ, moveQ, addOpt, sOpt, delOpt }) {
               <span style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: tc, background: `${tc}12`, padding: '4px 10px', borderRadius: 999 }}>
                 {currentType?.label || 'Question'}
               </span>
-              {q.is_required && <span style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--terracotta)', background: 'rgba(214,59,31,0.08)', padding: '4px 10px', borderRadius: 999 }}>Required</span>}
             </div>
             <div className="q-actions">
+              <label style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer', userSelect: 'none' }}>
+                <span style={{ fontFamily: "'Syne',sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: q.is_required ? 'var(--terracotta)' : 'rgba(22,15,8,0.32)', whiteSpace: 'nowrap', transition: 'color 0.2s' }}>Required</span>
+                <div onClick={() => sQ(q._id, 'is_required', !q.is_required)}
+                  style={{ width: 36, height: 20, borderRadius: 999, background: q.is_required ? tc : 'rgba(22,15,8,0.12)', position: 'relative', transition: 'background 0.25s', cursor: 'pointer', flexShrink: 0 }}>
+                  <div style={{ position: 'absolute', width: 14, height: 14, borderRadius: '50%', background: '#fff', top: 3, left: q.is_required ? 19 : 3, transition: 'left 0.25s', boxShadow: '0 1px 4px rgba(22,15,8,0.2)' }} />
+                </div>
+              </label>
+              <span style={{ width: 1, height: 16, background: 'rgba(22,15,8,0.1)', display: 'block', margin: '0 2px' }} />
               {[[-1, '\u2191'], [1, '\u2193']].map(([d, sym]) => (
                 <button key={d} onClick={() => moveQ(q._id, d)} disabled={(d === -1 && i === 0) || (d === 1 && i === qs.length - 1)} className="np-icon-btn"
                   style={{ width: 30, height: 30, borderRadius: 9, border: 'none', background: 'none', cursor: 'pointer', color: 'rgba(22,15,8,0.25)', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s', opacity: (d === -1 && i === 0) || (d === 1 && i === qs.length - 1) ? 0.18 : 1 }}
@@ -106,13 +116,6 @@ function QCardCreate({ q, i, tc, qs, sQ, delQ, moveQ, addOpt, sOpt, delOpt }) {
                 </div>
               )}
             </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', flexShrink: 0, userSelect: 'none' }}>
-              <div onClick={() => sQ(q._id, 'is_required', !q.is_required)}
-                style={{ width: 38, height: 22, borderRadius: 999, background: q.is_required ? tc : 'rgba(22,15,8,0.12)', position: 'relative', transition: 'background 0.25s', cursor: 'pointer' }}>
-                <div style={{ position: 'absolute', width: 16, height: 16, borderRadius: '50%', background: '#fff', top: 3, left: q.is_required ? 19 : 3, transition: 'left 0.25s', boxShadow: '0 1px 4px rgba(22,15,8,0.2)' }} />
-              </div>
-              <span style={{ fontFamily: "'Syne',sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.38)', whiteSpace: 'nowrap' }}>Required</span>
-            </label>
           </div>
 
           {hasO(q.question_type) && (
@@ -180,6 +183,9 @@ export default function SurveyCreate() {
   const [phase, setPhase] = useState('prompt'); // 'prompt' | 'builder'
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState('details');
+  // True when the builder was opened from a pre-built landing-page template —
+  // the AI "Pulse Survey Generator" is irrelevant in that flow, so we hide it.
+  const [fromTemplate, setFromTemplate] = useState(false);
   const [f, sf] = useState({
     title: '',
     description: '',
@@ -187,8 +193,8 @@ export default function SurveyCreate() {
     thank_you_message: 'Thank you for completing this survey!',
     expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
     theme_color: '#FF4500',
-    allow_anonymous: true,
-    require_email: false,
+    allow_anonymous: false,
+    require_email: true,
     show_progress_bar: true,
     ai_context: '',
     ai_mode: 'conversational',
@@ -262,6 +268,15 @@ export default function SurveyCreate() {
   }, [modeOpen]);
 
   const s = (k, v) => { sf(p => ({ ...p, [k]: v })); setDirty(true); };
+  // Anonymous responses and requiring an email are mutually exclusive — enabling
+  // one disables the other.
+  const toggleSetting = (k) => {
+    const next = !f[k];
+    if (next && k === 'require_email')        sf(p => ({ ...p, require_email: true, allow_anonymous: false }));
+    else if (next && k === 'allow_anonymous') sf(p => ({ ...p, allow_anonymous: true, require_email: false }));
+    else                                      sf(p => ({ ...p, [k]: next }));
+    setDirty(true);
+  };
   const sQ = (id, k, v) => { sQs(a => a.map(q => q._id === id ? { ...q, [k]: v } : q)); setDirty(true); };
   const addQ = () => { sQs(a => [...a, newQ()]); setDirty(true); };
   const delQ = id => { if (qs.length <= 1) return toast.error('Need at least 1 question'); sQs(a => a.filter(q => q._id !== id)); };
@@ -352,6 +367,8 @@ export default function SurveyCreate() {
     if (!f.title.trim()) return toast.error('Title is required');
     if (qs.some(q => !q.question_text.trim())) return toast.error('All questions need text');
     if (qs.some(q => hasO(q.question_type) && (!q.options || q.options.length < 2))) return toast.error('Choice questions need ≥2 options');
+    // Publishing enforces the required-title content rule surfaced in Survey Health.
+    if (status === 'active' && !isValidSurveyTitle(f.title)) return toast.error(`Title must be at least ${SURVEY_TEXT_RULES.titleMinChars} characters and include letters (not only numbers)`);
     if (status === 'active' && qs.length < 2) return toast.error('At least 2 questions are required to publish');
     if (status === 'active' && f.expires_at && isExpired(f.expires_at)) return toast.error('Expiry date cannot be in the past');
     if (!profile?.tenant_id) return toast.error('Session error — please sign in again');
@@ -399,19 +416,32 @@ export default function SurveyCreate() {
   const hasRealQuestions = realQuestions.length > 0;
   const conciseQuestionCount = realQuestions.filter(q => getQuestionWordCount(q) <= SHORT_SURVEY_RULES.maxHighSignalWords).length;
   const hasAdaptiveFormats = getFormatDiversityScore(realQuestions) >= 3;
+  // ── Content validity (alphanumeric + min length) ───────────────────────────
+  const titleValid       = isValidSurveyTitle(f.title);
+  const descriptionValid = isValidSurveyLongText(f.description);
+  const welcomeValid     = isValidSurveyLongText(f.welcome_message);
+  const questionsCountOk  = qs.length >= SHORT_SURVEY_RULES.defaultQuestionCount;
+  const questionsDetailed = realQuestions.length > 0 && realQuestions.every(q => isValidQuestionText(q.question_text));
+
+  // Inline field errors — only shown once the user has typed something invalid.
+  const titleError = f.title.trim() && !titleValid
+    ? `Use at least ${SURVEY_TEXT_RULES.titleMinChars} characters including letters (not only numbers).` : '';
+  const descriptionError = f.description.trim() && !descriptionValid
+    ? `Use at least ${SURVEY_TEXT_RULES.longTextMinChars} characters including letters (not only numbers).` : '';
+  const welcomeError = f.welcome_message.trim() && !welcomeValid
+    ? `Use at least ${SURVEY_TEXT_RULES.longTextMinChars} characters including letters (not only numbers).` : '';
+
   // Single source of truth: the same checks drive both the % and the checklist below.
-  const healthChecks = [
-    f.title.trim(),
-    f.description.trim(),
-    f.welcome_message.trim(),
-    qs.length > 0 && qs.length <= SHORT_SURVEY_RULES.defaultQuestionCount,
-    qs.length > 0 && reqCount <= SHORT_SURVEY_RULES.preferredRequiredQuestionLimit,
-    hasAdaptiveFormats,
-    estimatedMinutes <= SHORT_SURVEY_RULES.targetCompletionMinutes,
-    qs.length > 0 && conciseQuestionCount === qs.length,
-    f.expires_at
+  const healthItems = [
+    { ok: titleValid,        label: 'Title' },
+    { ok: descriptionValid,  label: 'Description' },
+    { ok: welcomeValid,      label: 'Welcome message' },
+    { ok: questionsCountOk,  label: `${SHORT_SURVEY_RULES.defaultQuestionCount}+ questions` },
+    { ok: questionsDetailed, label: 'Detailed questions' },
+    { ok: hasAdaptiveFormats, label: 'Adaptive formats' },
+    { ok: !!f.expires_at,    label: 'Set expiry date' },
   ];
-  const health = Math.round((healthChecks.filter(([done]) => done).length / healthChecks.length) * 100);
+  const health = Math.round((healthItems.filter(i => i.ok).length / healthItems.length) * 100);
   const healthColor = health >= 70 ? 'var(--sage)' : health >= 40 ? 'var(--saffron)' : 'var(--terracotta)';
   const TABS = [{ id: 'details', n: '01', label: 'Details' }, { id: 'questions', n: '02', label: 'Questions', count: qs.length }, { id: 'settings', n: '03', label: 'Settings' }];
 
@@ -458,6 +488,21 @@ export default function SurveyCreate() {
     }
   }, [resumeDraftId]);
 
+  // ── Pending landing-page template ──
+  // A logged-out visitor who clicked "Create Survey" on a landing-page
+  // template is sent through auth and back here. Pick the template up,
+  // load it straight into the builder, and skip the prompt screen.
+  useEffect(() => {
+    if (resumeDraftId) return;            // draft resume takes precedence
+    const pending = consumePendingTemplate();
+    if (!pending || !pending.qs) return;
+    loadTemplate(pending);
+    setFromTemplate(true);
+    setPhase('builder');
+    track(ANALYTICS_EVENTS.TEMPLATE_SUCCESSFULLY_USED, { template: pending.name });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ── Prompt Phase ──
 
   if (phase === 'prompt') {
@@ -491,6 +536,13 @@ export default function SurveyCreate() {
         .sc-tab-btn { position:relative; }
         .sc-tab-btn::after { content:''; position:absolute; bottom:-1px; left:0; right:0; height:2px; border-radius:1px; background:var(--coral); transform:scaleX(0); transition:transform 0.3s cubic-bezier(0.16,1,0.3,1); transform-origin:left; }
         .sc-tab-btn.active::after { transform:scaleX(1); }
+        .sc-sidebar { scrollbar-width: thin; scrollbar-color: rgba(22,15,8,0.18) transparent; }
+        .sc-sidebar::-webkit-scrollbar { width: 6px; }
+        .sc-sidebar::-webkit-scrollbar-track { background: transparent; }
+        .sc-sidebar::-webkit-scrollbar-thumb { background: rgba(22,15,8,0.12); border-radius: 10px; }
+        .sc-sidebar:hover::-webkit-scrollbar-thumb { background: rgba(22,15,8,0.22); }
+        .q-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+        .question-footer { display: flex; align-items: center; gap: 12px; }
         @media (max-width: 1040px) { .sc-grid { grid-template-columns: 1fr !important; } .sc-sidebar { display:none !important; } }
 @media (max-width: 768px) {
 
@@ -994,8 +1046,9 @@ export default function SurveyCreate() {
         className="sc-grid"
         style={{
           display: 'grid',
-          gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)',
-          gap: 22
+          gridTemplateColumns: 'minmax(0,1fr) 360px',
+          gap: 28,
+          alignItems: 'start'
         }}
       >
 
@@ -1020,11 +1073,11 @@ export default function SurveyCreate() {
           {/* ── DETAILS TAB ── */}
           {tab === 'details' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
-              {/* AI Context Box */}
-              <div style={{ background: 'rgba(255,69,0,0.03)', padding: 24, borderRadius: 20, border: `1.5px solid ${tc}30` }}>
+              {/* AI Context Box — hidden when a template was pre-loaded */}
+              <div style={{ display: fromTemplate ? 'none' : 'block', background: 'rgba(255,69,0,0.03)', padding: 24, borderRadius: 20, border: `1.5px solid ${tc}30` }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
                   <span style={{ fontSize: 16 }}>✨</span>
-                  <h3 style={{ margin: 0, fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 18, color: 'var(--espresso)' }}>AI Survey Generator</h3>
+                  <h3 style={{ margin: 0, fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 18, color: 'var(--espresso)' }}>Pulse Survey Generator</h3>
                 </div>
                 <label style={LBL}>Describe your survey</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
@@ -1125,16 +1178,24 @@ export default function SurveyCreate() {
                   )}
                 </div>
               </div>
-              )}
 
               <div>
                 <label style={LBL}>Survey Title *</label>
-                <input value={f.title} onChange={e => s('title', e.target.value)} placeholder="e.g. Q3 Customer Satisfaction Study"
-                  style={{ ...INP, fontSize: 20, fontWeight: 500, padding: '18px 22px', letterSpacing: '-0.4px', borderRadius: 18, background: 'var(--warm-white)' }} onFocus={fi} onBlur={fo} />
+                <input value={f.title} onChange={e => s('title', e.target.value)} placeholder="e.g. Q3 Customer Satisfaction Study for Retail Outlets"
+                  style={{ ...INP, fontSize: 20, fontWeight: 500, padding: '18px 22px', letterSpacing: '-0.4px', borderRadius: 18, background: 'var(--warm-white)', borderColor: titleError ? 'var(--terracotta)' : 'rgba(22,15,8,0.1)' }} onFocus={fi} onBlur={fo} />
+                {titleError && <div style={ERR}>⚠ {titleError}</div>}
               </div>
               <div className="sc-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 22 }}>
-                <div><label style={LBL}>Description</label><textarea value={f.description} onChange={e => s('description', e.target.value)} placeholder="What's this research about?" rows={4} style={{ ...INP, borderRadius: 16 }} onFocus={fi} onBlur={fo} /></div>
-                <div><label style={LBL}>Welcome Message</label><textarea value={f.welcome_message} onChange={e => s('welcome_message', e.target.value)} placeholder="Shown on the landing screen before Q1" rows={4} style={{ ...INP, borderRadius: 16 }} onFocus={fi} onBlur={fo} /></div>
+                <div>
+                  <label style={LBL}>Description</label>
+                  <textarea value={f.description} onChange={e => s('description', e.target.value)} placeholder="What's this research about?" rows={4} style={{ ...INP, borderRadius: 16, borderColor: descriptionError ? 'var(--terracotta)' : 'rgba(22,15,8,0.1)' }} onFocus={fi} onBlur={fo} />
+                  {descriptionError && <div style={ERR}>⚠ {descriptionError}</div>}
+                </div>
+                <div>
+                  <label style={LBL}>Welcome Message</label>
+                  <textarea value={f.welcome_message} onChange={e => s('welcome_message', e.target.value)} placeholder="Shown on the landing screen before Q1" rows={4} style={{ ...INP, borderRadius: 16, borderColor: welcomeError ? 'var(--terracotta)' : 'rgba(22,15,8,0.1)' }} onFocus={fi} onBlur={fo} />
+                  {welcomeError && <div style={ERR}>⚠ {welcomeError}</div>}
+                </div>
               </div>
               <div><label style={LBL}>Thank You Message</label><textarea value={f.thank_you_message} onChange={e => s('thank_you_message', e.target.value)} placeholder="Shown after submission" rows={2} style={{ ...INP, borderRadius: 16 }} onFocus={fi} onBlur={fo} /></div>
               <div className="sc-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 22 }}>
@@ -1201,7 +1262,7 @@ export default function SurveyCreate() {
               ].map(x => (
                 <div key={x.k}
                   style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '22px 26px', background: 'var(--warm-white)', borderRadius: 22, border: '1.5px solid rgba(22,15,8,0.07)', cursor: 'pointer', transition: 'all 0.25s', position: 'relative', overflow: 'hidden' }}
-                  onClick={() => s(x.k, !f[x.k])}
+                  onClick={() => toggleSetting(x.k)}
                   onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(22,15,8,0.14)'; e.currentTarget.style.background = '#fff'; e.currentTarget.style.boxShadow = '0 6px 28px rgba(22,15,8,0.06)'; }}
                   onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(22,15,8,0.07)'; e.currentTarget.style.background = 'var(--warm-white)'; e.currentTarget.style.boxShadow = 'none'; }}>
                   <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: f[x.k] ? `linear-gradient(180deg,${tc},${tc}50)` : 'transparent', transition: 'background 0.3s' }} />
@@ -1221,8 +1282,8 @@ export default function SurveyCreate() {
           )}
         </div>{/* end left */}
 
-        {/* RIGHT — Sticky Sidebar */}
-        <div className="sc-sidebar" style={{ position: 'sticky', top: 88, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {/* RIGHT — Sticky Sidebar (scrolls independently of the main form) */}
+        <div className="sc-sidebar" style={{ position: 'sticky', top: 24, alignSelf: 'start', maxHeight: 'calc(100vh - 48px)', overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 16, paddingRight: 4 }}>
 
           {/* Dark Preview Card */}
           <div style={{ background: 'var(--espresso)', borderRadius: 24, overflow: 'hidden', boxShadow: '0 16px 56px rgba(22,15,8,0.25)', position: 'relative' }}>
@@ -1269,21 +1330,12 @@ export default function SurveyCreate() {
                   style={{ transition: 'stroke-dashoffset 0.8s cubic-bezier(0.16,1,0.3,1),stroke 0.4s' }} />
               </svg>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
-                {[
-                  [f.title.trim(), 'Add a title'],
-                  [f.description.trim(), 'Add a description'],
-                  [f.welcome_message.trim(), 'Welcome message'],
-                  [qs.length > 0 && qs.length <= SHORT_SURVEY_RULES.defaultQuestionCount, `${SHORT_SURVEY_RULES.defaultQuestionCount}-question target`],
-                  [estimatedMinutes <= SHORT_SURVEY_RULES.targetCompletionMinutes, `${SHORT_SURVEY_RULES.targetCompletionMinutes} min target`],
-                  [conciseQuestionCount === qs.length, 'Concise wording'],
-                  [hasAdaptiveFormats, 'Adaptive formats'],
-                  [f.expires_at, 'Set expiry date'],
-                ].map(([done, tip]) => (
-                  <div key={tip} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                    <div style={{ width: 14, height: 14, borderRadius: '50%', flexShrink: 0, background: done ? 'var(--sage)' : 'rgba(22,15,8,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.25s' }}>
-                      {done && <svg width="7" height="7" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 6l3 3 5-5" /></svg>}
+                {healthItems.map(({ ok, label }) => (
+                  <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <div style={{ width: 14, height: 14, borderRadius: '50%', flexShrink: 0, background: ok ? 'var(--sage)' : 'rgba(22,15,8,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.25s' }}>
+                      {ok && <svg width="7" height="7" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 6l3 3 5-5" /></svg>}
                     </div>
-                    <span style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 12, color: done ? 'rgba(22,15,8,0.32)' : 'rgba(22,15,8,0.5)', textDecoration: done ? 'line-through' : 'none', transition: 'all 0.25s' }}>{tip}</span>
+                    <span style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 12, color: ok ? 'rgba(22,15,8,0.32)' : 'rgba(22,15,8,0.5)', textDecoration: ok ? 'line-through' : 'none', transition: 'all 0.25s' }}>{label}</span>
                   </div>
                 ))}
               </div>

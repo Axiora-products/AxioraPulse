@@ -376,7 +376,7 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
       <div className="cp-greeting">
         <div className="cp-greeting-tag">Research Studio</div>
         <h1>What would you like<br />to <em>research</em>?</h1>
-        <p>Describe your survey and AI will craft the perfect questions for you.</p>
+        <p>Describe your survey and Pulse will craft the perfect questions for you.</p>
       </div>
 
       {/* Prompt Box */}

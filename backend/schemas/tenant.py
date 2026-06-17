@@ -10,6 +10,7 @@ class TenantOut(BaseModel):
     name: str
     slug: str
     plan: Optional[str] = "free"
+    account_type: Optional[str] = "organization"
     primary_color: Optional[str] = "#FF4500"
     approved_domains: Optional[List[str]] = []
     created_at: Optional[datetime] = None

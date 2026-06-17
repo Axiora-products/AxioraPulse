@@ -9,6 +9,7 @@ class ResponseCreate(BaseModel):
     survey_id: UUID
     session_token: Optional[str] = None
     respondent_email: Optional[str] = None
+    source: Optional[str] = None
     language: str = "en"
     age_range: Optional[str] = None
     gender: Optional[str] = None
@@ -50,6 +51,7 @@ class ResponseOut(BaseModel):
     survey_id: UUID
     session_token: Optional[str] = None
     respondent_email: Optional[str] = None
+    source: Optional[str] = None
     language: str = "en"
     status: str
     started_at: Optional[datetime] = None

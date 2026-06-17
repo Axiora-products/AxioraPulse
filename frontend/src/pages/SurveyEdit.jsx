@@ -54,7 +54,8 @@ function getLocalSurveyScores(title = '', description = '') {
 const STATUS_COLORS = { draft: { bg: 'rgba(22,15,8,0.07)', text: 'rgba(22,15,8,0.45)', dot: 'rgba(22,15,8,0.3)' }, active: { bg: 'rgba(30,122,74,0.1)', text: 'var(--sage)', dot: 'var(--sage)' }, paused: { bg: 'rgba(255,184,0,0.12)', text: '#A07000', dot: 'var(--saffron)' }, closed: { bg: 'rgba(214,59,31,0.08)', text: 'var(--terracotta)', dot: 'var(--terracotta)' } };
 
 export default function SurveyEdit() {
-  const { id } = useParams(); const { profile } = useAuthStore(); const nav = useNavigate();
+  const { id } = useParams(); const { profile, tenant } = useAuthStore(); const nav = useNavigate();
+  const isPersonal = tenant?.account_type === 'personal';
   const { stopLoading } = useLoading();
   const [busy, setBusy] = useState(false);
   const [sv, setSv] = useState(null);
@@ -94,7 +95,7 @@ export default function SurveyEdit() {
 
   const generatePDF = () => {
     if (!aiIntel) {
-      toast.error('Please visit the Guidance tab first to generate AI intelligence before downloading.');
+      toast.error('Please visit the Guidance tab first to generate Pulse intelligence before downloading.');
       return;
     }
     const html = `<!DOCTYPE html>
@@ -119,13 +120,13 @@ export default function SurveyEdit() {
 </head>
 <body>
   <h1>${sv.title}</h1>
-  <div class="subtitle">Investor Readiness & AI Market Intelligence Memo</div>
+  <div class="subtitle">Investor Readiness & Pulse Market Intelligence Memo</div>
 
   <div class="section">
     <h2>Executive Summary</h2>
     <div class="meta-grid">
       <div class="meta-item"><strong>Survey Idea</strong>${sv.description || 'Not specified'}</div>
-      <div class="meta-item"><strong>AI Industry Classification</strong>${aiIntel.category}</div>
+      <div class="meta-item"><strong>Pulse Industry Classification</strong>${aiIntel.category}</div>
       <div class="meta-item"><strong>Idea Viability Score</strong>${aiIntel.viabilityScore} / 100</div>
     </div>
   </div>
@@ -226,12 +227,20 @@ export default function SurveyEdit() {
 
   async function load() {
     try {
-      const [{ data: s }, { data: q }, { data: sh }, { data: u }] = await Promise.all([
+      // Only the survey itself is essential — questions/shares/users degrade
+      // gracefully so an auxiliary fetch (e.g. a forbidden or rate-limited call)
+      // never blocks opening the survey.
+      const [svRes, qRes, shRes, uRes] = await Promise.allSettled([
         API.get(`/surveys/${id}`),
         API.get(`/surveys/${id}/questions`),
         API.get(`/surveys/${id}/shares`),
         API.get('/users/'),
       ]);
+      if (svRes.status !== 'fulfilled') throw svRes.reason;
+      const s = svRes.value.data;
+      const q = qRes.status === 'fulfilled' ? qRes.value.data : [];
+      const sh = shRes.status === 'fulfilled' ? shRes.value.data : [];
+      const u = uRes.status === 'fulfilled' ? uRes.value.data : [];
       setSv({ ...s, expires_at: s.expires_at ? new Date(s.expires_at).toISOString().slice(0, 16) : '' });
       setIsEditing(s.status === 'draft');
       if (s.ai_intelligence) {
@@ -1036,7 +1045,8 @@ export default function SurveyEdit() {
                 </div>
               ))}
 
-              {/* ── INTERNAL TEAM SHARING ── */}
+              {/* ── INTERNAL TEAM SHARING (hidden for personal accounts) ── */}
+              {!isPersonal && (
               <div style={{ marginTop: 24, padding: '24px 26px', background: 'var(--warm-white)', borderRadius: 22, border: '1.5px solid rgba(22,15,8,0.07)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
                   <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(22,15,8,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--espresso)' }}>
@@ -1100,6 +1110,7 @@ export default function SurveyEdit() {
                   )}
                 </div>
               </div>
+              )}
             </div>
           )}
 
@@ -1152,7 +1163,7 @@ export default function SurveyEdit() {
                     <div style={{ width: 48, height: 48, borderRadius: 14, background: 'var(--saffron)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--espresso)', fontSize: 20 }}>💡</div>
                     <div>
                       <div style={{ fontFamily: "'Playfair Display',serif", fontWeight: 700, fontSize: 18, color: 'var(--espresso)', marginBottom: 4 }}>
-                        {aiIntel ? `Intelligence Classification: ${aiIntel.category}` : 'AI Market Intelligence'}
+                        {aiIntel ? `Intelligence Classification: ${aiIntel.category}` : 'Pulse Market Intelligence'}
                       </div>
                       <div style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 13, color: 'rgba(22,15,8,0.6)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                         <span>Target Market: <strong>{locationDistrict ? `${locationDistrict}, ` : ''}{locationState ? `${locationState}, ` : ''}{locationCountry || 'Global'}</strong></span>
@@ -1204,7 +1215,7 @@ export default function SurveyEdit() {
                       <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(22,15,8,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--espresso)' }}>📊</div>
                       <div>
                         <div style={{ fontFamily: "'Playfair Display',serif", fontWeight: 700, fontSize: 17, color: 'var(--espresso)' }}>Competitor Landscape</div>
-                        <div style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 12, color: 'rgba(22,15,8,0.4)' }}>AI-analyzed competitors relevant to your survey concept</div>
+                        <div style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 12, color: 'rgba(22,15,8,0.4)' }}>Pulse-analyzed competitors relevant to your survey concept</div>
                       </div>
                     </div>
                     <div style={{ overflowX: 'auto' }}>
@@ -1230,7 +1241,7 @@ export default function SurveyEdit() {
                     <div style={{ background: 'var(--warm-white)', borderRadius: 22, border: '1.5px solid rgba(22,15,8,0.07)', padding: 26 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
                         <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(22,15,8,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--espresso)' }}>👤</div>
-                        <div><div style={{ fontFamily: "'Playfair Display',serif", fontWeight: 700, fontSize: 17, color: 'var(--espresso)' }}>Target Customer Segment</div><div style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 12, color: 'rgba(22,15,8,0.4)' }}>AI-generated Ideal Customer Persona</div></div>
+                        <div><div style={{ fontFamily: "'Playfair Display',serif", fontWeight: 700, fontSize: 17, color: 'var(--espresso)' }}>Target Customer Segment</div><div style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 12, color: 'rgba(22,15,8,0.4)' }}>Pulse-generated Ideal Customer Persona</div></div>
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                         {[['Persona Name', aiIntel.persona.name, true], ['Demographics', aiIntel.persona.demographics], ['Psychographics', aiIntel.persona.psychographics], ['Key Pain Points', aiIntel.persona.painPoints], ['Buying Behavior', aiIntel.persona.buyingBehavior]].map(([label, val, bold]) => (
@@ -1249,7 +1260,7 @@ export default function SurveyEdit() {
                         </div>
                       </div>
                       <div style={{ background: 'var(--cream-deep)', padding: '18px 22px', borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <div><div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.4)', marginBottom: 2 }}>Idea Viability Index</div><div style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 12, color: 'rgba(22,15,8,0.5)' }}>AI-evaluated opportunity score</div></div>
+                        <div><div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.4)', marginBottom: 2 }}>Idea Viability Index</div><div style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 12, color: 'rgba(22,15,8,0.5)' }}>Pulse-evaluated opportunity score</div></div>
                         <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}><span style={{ fontFamily: "'Playfair Display',serif", fontWeight: 900, fontSize: 38, color: tc }}>{aiIntel.viabilityScore}</span><span style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 11, color: tc }}>/100</span></div>
                       </div>
                     </div>
@@ -1314,7 +1325,7 @@ export default function SurveyEdit() {
                       </div>
                     </div>
                   </div>
-                  <span style={{ fontFamily: "'Syne',sans-serif", fontSize: 9, fontWeight: 700, background: `${tc}15`, color: tc, padding: '6px 14px', borderRadius: 999, letterSpacing: '0.1em', textTransform: 'uppercase' }}>AI Powered</span>
+                  <span style={{ fontFamily: "'Syne',sans-serif", fontSize: 9, fontWeight: 700, background: `${tc}15`, color: tc, padding: '6px 14px', borderRadius: 999, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Pulse Powered</span>
                 </div>
 
                 {aiIntelLoading && !aiIntel && (

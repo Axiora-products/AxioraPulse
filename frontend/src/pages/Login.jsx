@@ -6,6 +6,7 @@ import { useLoading } from '../context/LoadingContext';
 import useAuthStore from "../hooks/useAuth";
 import { cognitoSignIn, cognitoForgotPassword, cognitoConfirmPassword, cognitoResendCode } from '../lib/cognito';
 import { sendLoginOTP, verifyLoginOTP } from '../lib/otp';
+import { consumePostAuthRedirect } from '../lib/pendingTemplate';
 
 const Logo = ({ dark }) => (
   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 0, lineHeight: 1 }}>
@@ -211,7 +212,7 @@ export default function Login() {
       const storeUser = useAuthStore.getState().user;
       if (!storeUser) throw new Error('Failed to sync session');
       toast.success('Welcome back!');
-      window.location.href = '/dashboard';
+      window.location.href = consumePostAuthRedirect();
     } catch (err) {
       toast.error(err.message || 'Verification failed');
     } finally { setOtpBusy(false); }
@@ -235,7 +236,7 @@ export default function Login() {
         throw new Error('Failed to synchronize user session with the backend. Please try again.');
       }
       toast.success('Welcome back!');
-      window.location.href = '/dashboard';
+      window.location.href = consumePostAuthRedirect();
     } catch (err) {
       if (err.code === 'UserNotConfirmedException') {
         toast.error('Email not verified. Redirecting to verification...');
