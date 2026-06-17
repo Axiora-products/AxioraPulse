@@ -29,35 +29,45 @@ export default function HelpTip({ text, position = 'top' }) {
   return (
     <span
       ref={ref}
-      style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', verticalAlign: 'middle' }}
+      style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', verticalAlign: 'middle', marginLeft: 6 }}
     >
       <button
         type="button"
         aria-label="Help"
         aria-expanded={visible}
-        onMouseEnter={e => { setVisible(true); e.currentTarget.style.color = 'var(--coral)'; }}
-        onMouseLeave={e => { setVisible(false); e.currentTarget.style.color = 'rgba(22,15,8,0.3)'; }}
-        onFocus={e => { setVisible(true); e.currentTarget.style.color = 'var(--coral)'; }}
-        onBlur={e => { setVisible(false); e.currentTarget.style.color = 'rgba(22,15,8,0.3)'; }}
+        onMouseEnter={() => setVisible(true)}
+        onMouseLeave={() => setVisible(false)}
+        onFocus={() => setVisible(true)}
+        onBlur={() => setVisible(false)}
         style={{
-          background: 'none',
+          background: 'var(--coral)',
           border: 'none',
-          padding: '0 2px',
+          padding: 0,
           cursor: 'pointer',
-          color: 'rgba(22,15,8,0.3)',
-          fontSize: 13,
-          lineHeight: 1,
+          color: '#fff',
+          width: 14,
+          height: 14,
+          borderRadius: '50%',
+          boxShadow: visible ? '0 0 12px rgba(255, 69, 0, 0.85)' : '0 0 8px rgba(255, 69, 0, 0.55)',
           display: 'inline-flex',
           alignItems: 'center',
-          transition: 'color 0.2s',
+          justifyContent: 'center',
+          transition: 'transform 0.15s ease, box-shadow 0.15s ease',
           outline: 'none',
+          position: 'relative',
+          textTransform: 'none',
+          letterSpacing: 'normal',
+          transform: visible ? 'scale(1.1)' : 'scale(1)',
         }}
       >
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-          <circle cx="7" cy="7" r="6.5" stroke="currentColor" strokeWidth="1.2"/>
-          <text x="7" y="10.5" textAnchor="middle" fill="currentColor"
-            style={{ fontSize: 8, fontFamily: 'Georgia, serif', fontWeight: 700 }}>i</text>
-        </svg>
+        <span style={{ fontSize: 9, fontFamily: "'Syne', sans-serif", fontWeight: 800, lineHeight: 1, position: 'relative', zIndex: 2, top: '-0.5px' }}>i</span>
+        {visible && (
+          <>
+            <div className="sonar-ring" style={{ width: '100%', height: '100%', pointerEvents: 'none' }} />
+            <div className="sonar-ring" style={{ width: '100%', height: '100%', pointerEvents: 'none', animationDelay: '0.9s' }} />
+            <div className="sonar-ring" style={{ width: '100%', height: '100%', pointerEvents: 'none', animationDelay: '1.8s' }} />
+          </>
+        )}
       </button>
 
       <AnimatePresence>
@@ -75,7 +85,7 @@ export default function HelpTip({ text, position = 'top' }) {
               width: 240,
               background: 'var(--espresso)',
               color: 'var(--cream)',
-              fontFamily: 'Fraunces, serif',
+              fontFamily: "'Fraunces', serif",
               fontWeight: 300,
               fontSize: 13,
               lineHeight: 1.55,
@@ -84,6 +94,8 @@ export default function HelpTip({ text, position = 'top' }) {
               boxShadow: '0 8px 32px rgba(22,15,8,0.25)',
               pointerEvents: 'none',
               whiteSpace: 'normal',
+              textTransform: 'none',
+              letterSpacing: 'normal',
             }}
           >
             {text}
