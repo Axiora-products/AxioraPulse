@@ -457,6 +457,14 @@ useEffect(() => {
   const timer = useRef(null);
   const rId = useRef(null);
   const insertPending = useRef(null);   // guards against concurrent ensureR() calls
+  // Capture the acquisition source (?src=whatsapp / ?utm_source=…) once at mount,
+  // so it survives even if the URL is rewritten during the response flow.
+  const sourceRef = useRef(
+    (() => {
+      const p = new URLSearchParams(window.location.search);
+      return p.get('src') || p.get('source') || p.get('utm_source') || '';
+    })()
+  );
 
   const tracker = useResponseTracking(rId);
   useExitDetection(rId, tracker.onAbandon, done);
@@ -555,6 +563,7 @@ useEffect(() => {
         survey_id: sv.id,
         session_token: token.current,
         respondent_email: email || null,
+        source: sourceRef.current || null,
         language: currentLang || 'en',
         status: 'in_progress',
       });

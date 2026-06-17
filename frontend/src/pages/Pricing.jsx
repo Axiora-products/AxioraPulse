@@ -31,7 +31,7 @@ const PLANS = [
     features: [
       'Unlimited surveys',
       '10,000 responses / month',
-      'Full analytics + AI insights',
+      'Full analytics + Pulse insights',
       'All 24+ question types',
       'Custom branding',
       'Team collaboration (5 seats)',

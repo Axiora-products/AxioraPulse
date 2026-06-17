@@ -34,14 +34,28 @@ const validateFullName = (val) => {
   return '';
 };
 
-const validateEmail = (val) => {
+const validateEmail = (val, accountType) => {
   const trimmed = val.trim().toLowerCase();
   if (!trimmed) {
     return 'Email is required';
   }
-  const regex = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/;
+  if (trimmed.length > 254) {
+    return 'Email is too long';
+  }
+  const [localPart] = trimmed.split('@');
+  if (localPart && localPart.length > 64) {
+    return 'Email username is too long';
+  }
+  const regex = /^[a-zA-Z0-9._%+-]+@[^\s@.]{1,63}(\.[^\s@.]{1,63})*\.[a-zA-Z]{2,24}$/;
   if (!regex.test(trimmed)) {
     return 'That doesn’t look like a real email… try again with something like name@example.com';
+  }
+  if (accountType === 'personal') {
+    const allowedDomains = ['gmail.com', 'yahoo.com', 'outlook.com'];
+    const domain = trimmed.split('@')[1];
+    if (!allowedDomains.includes(domain)) {
+      return 'Personal accounts must use Gmail, Yahoo, or Outlook email';
+    }
   }
   return '';
 };
@@ -59,6 +73,16 @@ const validatePhoneNumber = (val) => {
   if (parsed.length !== 10) {
     return 'Phone number must have exactly 10 digits';
   }
+  return '';
+};
+
+const validateOrgName = (val) => {
+  const trimmed = val.trim();
+  if (!trimmed) return 'Organisation name is required';
+  if (!/^[a-zA-Z0-9 &\-'.,!/]+$/.test(trimmed)) return 'Organisation name contains invalid characters';
+  if (!/[a-zA-Z]/.test(trimmed)) return 'Organisation name must contain at least one letter';
+  if (trimmed.length < 2) return 'Organisation name must be at least 2 characters';
+  if (trimmed.length > 100) return 'Organisation name must be at most 100 characters';
   return '';
 };
 
@@ -83,7 +107,8 @@ export default function Register() {
   const [errors, setErrors] = useState({
     fullName: '',
     email: '',
-    phoneNumber: ''
+    phoneNumber: '',
+    tenantName: ''
   });
   const [focusedField, setFocusedField] = useState('');
 
@@ -96,10 +121,15 @@ export default function Register() {
     } else if (k === 'email') {
       const trimmed = f.email.trim();
       sf(p => ({ ...p, email: trimmed }));
-      errorMsg = validateEmail(trimmed);
+      errorMsg = validateEmail(trimmed, f.accountType);
     } else if (k === 'phoneNumber') {
       errorMsg = validatePhoneNumber(f.phoneNumber);
-    }
+    } else if (k === 'tenantName') {
+      const trimmed = f.tenantName.trim();
+      sf(p => ({ ...p, tenantName: trimmed }));
+      errorMsg = validateOrgName(trimmed);
+    } 
+
     setErrors(p => ({ ...p, [k]: errorMsg }));
   };
 
@@ -143,13 +173,18 @@ export default function Register() {
     sf(p => ({ ...p, email: trimmedEmail, fullName: trimmedName }));
 
     const nameErr = validateFullName(trimmedName);
-    const emailErr = validateEmail(trimmedEmail);
+    const emailErr = validateEmail(trimmedEmail, f.accountType);
     const phoneErr = validatePhoneNumber(f.phoneNumber);
+
+    const trimmedOrgName = f.tenantName.trim();
+    const orgErr = f.accountType === 'organization' ? validateOrgName(trimmedOrgName) : '';
+    if (f.accountType === 'organization') sf(p => ({ ...p, tenantName: trimmedOrgName }));
 
     setErrors({
       fullName: nameErr,
       email: emailErr,
-      phoneNumber: phoneErr
+      phoneNumber: phoneErr,
+      tenantName: orgErr
     });
 
     if (nameErr) {
@@ -164,10 +199,13 @@ export default function Register() {
       toast.error(phoneErr);
       return;
     }
+    if (orgErr) {
+      toast.error(orgErr);
+      return;
+    }
 
     if (!f.password) return toast.error('Password is required');
     if (f.password.length < 8) return toast.error('Password needs 8+ characters');
-    if (f.accountType === 'organization' && !f.tenantName) return toast.error('Organisation is required');
     setBusy(true);
     try {
       await cognitoSignUp(trimmedEmail, f.password, trimmedName);
@@ -256,6 +294,7 @@ export default function Register() {
       await initialize(true, {
         tenant_name: tenantName,
         tenant_slug: tenantSlug,
+        account_type: f.accountType,
       });
       const storeUser = useAuthStore.getState().user;
       if (!storeUser) {
@@ -455,30 +494,28 @@ export default function Register() {
             </div>
 
             {f.accountType === 'organization' && (
-              <div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <label style={labelStyle}>Organisation</label>
-                <input type="text" value={f.tenantName} onChange={e => s('tenantName', e.target.value)} placeholder="Acme Research"
-                  style={inputStyle}
-                  onFocus={e => e.target.style.borderBottomColor = 'var(--coral)'}
-                  onBlur={e => e.target.style.borderBottomColor = 'rgba(22,15,8,0.12)'}
+                <input
+                  type="text"
+                  value={f.tenantName}
+                  onChange={e => s('tenantName', e.target.value)}
+                  placeholder="Acme Research"
+                  style={{
+                    ...inputStyle,
+                    borderBottom: `2px solid ${errors.tenantName ? 'var(--terracotta)' : focusedField === 'tenantName' ? 'var(--coral)' : 'rgba(22,15,8,0.12)'}`
+                  }}
+                  onFocus={() => setFocusedField('tenantName')}
+                  onBlur={() => { setFocusedField(''); handleBlur('tenantName'); }}
                 />
+                {errors.tenantName && (
+                  <span style={{ color: 'var(--terracotta)', fontSize: 11, fontFamily: 'Fraunces, serif', marginTop: 4 }}>
+                    {errors.tenantName}
+                  </span>
+                )}
               </div>
             )}
 
-            {f.accountType === 'organization' && (
-              <div>
-                <label style={labelStyle}>Workspace URL</label>
-                <div style={{ display: 'flex', alignItems: 'baseline', borderBottom: '2px solid rgba(22,15,8,0.12)', transition: 'border-color 0.2s' }}
-                  onFocusCapture={e => e.currentTarget.style.borderBottomColor = 'var(--coral)'}
-                  onBlurCapture={e => e.currentTarget.style.borderBottomColor = 'rgba(22,15,8,0.12)'}>
-                  <input value={f.tenantSlug} onChange={e => s('tenantSlug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-                    placeholder="acme"
-                    style={{ ...inputStyle, flex: 1, border: 'none', borderBottom: 'none', fontFamily: 'Fraunces, serif' }}
-                  />
-                  <span style={{ fontFamily: 'Syne, sans-serif', fontSize: 11, color: 'rgba(22,15,8,0.3)', paddingBottom: 12, whiteSpace: 'nowrap' }}>.Axiora.io</span>
-                </div>
-              </div>
-            )}
 
             <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }}
               type="submit" disabled={busy}

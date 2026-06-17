@@ -132,7 +132,7 @@ export default function NotificationFeed({ placement = 'bottom' }) {
 
           color: open
             ? '#FF4500'
-            : 'rgba(253,245,232,0.72)',
+            : '#f3eae1',
 
           backdropFilter: 'blur(12px)',
 

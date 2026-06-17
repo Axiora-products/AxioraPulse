@@ -2,7 +2,7 @@
 // SurveyAnalytics.jsx  —  World-class analytics dashboard · Axiora Pulse
 // Tabs: Overview · Drop-off · Questions · Text Insights · Pulse Insights
 // ─────────────────────────────────────────────────────────────────────────────
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
@@ -35,8 +35,8 @@ const COLS = [
 
 const S = {
   tag:       { fontFamily:'Syne,sans-serif', fontSize:10, fontWeight:700, letterSpacing:'0.2em', textTransform:'uppercase', color:'var(--coral)', marginBottom:10 },
-  h1:        { fontFamily:'Playfair Display,serif', fontWeight:900, fontSize:'clamp(26px,3.5vw,42px)', letterSpacing:'-2px', color:'var(--espresso)', margin:0, lineHeight:1.05 },
-  card:      { background:'var(--warm-white)', borderRadius:20, border:'1px solid rgba(22,15,8,0.07)', padding:'24px 28px 22px' },
+  h1:        { fontFamily:'Playfair Display,serif', fontWeight:900, fontSize:'clamp(24px,2.8vw,36px)', letterSpacing:'-1.5px', color:'var(--espresso)', margin:0, lineHeight:1.05 },
+  card:      { background:'var(--warm-white)', borderRadius:16, border:'1px solid rgba(22,15,8,0.07)', padding:'18px 22px 16px' },
   secLabel:  { fontFamily:'Syne,sans-serif', fontSize:11, fontWeight:700, letterSpacing:'0.2em', textTransform:'uppercase', color:'rgba(22,15,8,0.3)', marginBottom:18 },
   qNum:      { fontFamily:'Syne,sans-serif', fontSize:11, fontWeight:700, letterSpacing:'0.14em', textTransform:'uppercase', color:'rgba(22,15,8,0.3)' },
   qText:     { fontFamily:'Playfair Display,serif', fontWeight:700, fontSize:18, color:'var(--espresso)', lineHeight:1.3, letterSpacing:'-0.3px', marginBottom:4 },
@@ -116,14 +116,12 @@ function extractKeywords(items) {
 function StatCard({ label, value, accent='#FF4500', sub, subColor, icon }) {
   return (
     <motion.div whileHover={{ y:-3, boxShadow:'0 20px 48px rgba(22,15,8,0.1)' }}
-      style={{ ...S.card, padding:'18px 18px 16px', display:'flex', flexDirection:'column', minWidth:0 }}>
-      <div style={{ display:'flex', alignItems:'center', gap:11, marginBottom:13 }}>
-        {icon && (
-          <div style={{ width:36, height:36, borderRadius:10, background:`${accent}1A`, color:accent, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>{icon}</div>
-        )}
-        <div style={{ ...S.statLbl, fontSize:10, letterSpacing:'0.1em', marginTop:0 }}>{label}</div>
-      </div>
-      <div style={{ ...S.statNum, fontSize:'clamp(24px,2.3vw,34px)', letterSpacing:'-2px', whiteSpace:'nowrap' }}>{value}</div>
+      style={{ ...S.card, height:'100%', boxSizing:'border-box', padding:'18px 18px 16px', display:'flex', flexDirection:'column', minWidth:0 }}>
+      {icon && (
+        <div style={{ width:36, height:36, borderRadius:10, background:`${accent}1A`, color:accent, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginBottom:12 }}>{icon}</div>
+      )}
+      <div style={{ ...S.statLbl, fontSize:10, letterSpacing:'0.08em', marginTop:0, marginBottom:10, lineHeight:1.3, overflowWrap:'break-word' }}>{label}</div>
+      <div style={{ ...S.statNum, marginTop:'auto', fontSize:'clamp(24px,2.3vw,34px)', letterSpacing:'-2px', whiteSpace:'nowrap', maxWidth:'100%', overflow:'hidden', textOverflow:'ellipsis' }}>{value}</div>
       {sub && <div style={{ fontFamily:'Syne,sans-serif', fontSize:10, fontWeight:700, letterSpacing:'0.04em', color:subColor||'rgba(22,15,8,0.45)', marginTop:6 }}>{sub}</div>}
     </motion.div>
   );
@@ -276,11 +274,12 @@ function EmptyState({ message='No data yet.' }) {
 // ── Tab bar ───────────────────────────────────────────────────────────────────
 const TABS = [
   { id:'Overview',      label:'Overview'      },
+  { id:'Sources',       label:'Sources'      },
   { id:'Dropoff',       label:'Drop-off'      },
   { id:'Questions',     label:'Questions'     },
   { id:'TextInsights',  label:'Text Insights' },
   { id:'Feedback',      label:'Feedback'      },
-  { id:'AI',            label:'Pulse Insights', icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> },
+  { id:'AI',            label:'Pulse Insights', icon:<span style={{ display:'inline-flex', position:'relative', width:8, height:8 }}><span style={{ position:'absolute', inset:0, borderRadius:'50%', background:'var(--coral)' }} /><span style={{ position:'absolute', inset:-3, borderRadius:'50%', border:'1px solid var(--coral)', opacity:0.35 }} /></span> },
 ];
 
 function TabBar({ active, onChange }) {
@@ -305,9 +304,78 @@ function TabBar({ active, onChange }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// TAB: SOURCES — respondent source / acquisition-channel tracking
+// ─────────────────────────────────────────────────────────────────────────────
+function SourcesTab({ analytics }) {
+  const { sourceBreakdown, total } = analytics;
+
+  if (!total || sourceBreakdown.length === 0) {
+    return (
+      <div style={{ ...S.card }}>
+        <div style={S.secLabel}>Response Sources</div>
+        <p style={{ ...S.body, color:'rgba(22,15,8,0.4)', margin:0 }}>
+          No responses yet. Share your survey from the Share dialog — each channel (WhatsApp,
+          LinkedIn, Email, QR Code, Direct Link, …) tags its link, so responses are attributed
+          to their source here automatically.
+        </p>
+      </div>
+    );
+  }
+
+  const top = sourceBreakdown[0];
+  const bestCompletion = sourceBreakdown.slice().sort((a, b) => b.completionRate - a.completionRate)[0];
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
+      {/* Summary tiles */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(170px,1fr))', gap:14 }}>
+        <div style={{ ...S.card }}>
+          <div style={{ fontFamily:'Playfair Display,serif', fontWeight:900, fontSize:34, color:'var(--espresso)' }}>{sourceBreakdown.length}</div>
+          <div style={S.statLbl}>Channels used</div>
+        </div>
+        <div style={{ ...S.card }}>
+          <div style={{ fontFamily:'Playfair Display,serif', fontWeight:900, fontSize:28, color:'var(--coral)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{top.label}</div>
+          <div style={S.statLbl}>Top source · {top.total} ({top.share}%)</div>
+        </div>
+        <div style={{ ...S.card }}>
+          <div style={{ fontFamily:'Playfair Display,serif', fontWeight:900, fontSize:34, color:'#1E7A4A' }}>{bestCompletion.completionRate}%</div>
+          <div style={S.statLbl}>Best completion · {bestCompletion.label}</div>
+        </div>
+      </div>
+
+      {/* Per-source breakdown */}
+      <div style={{ ...S.card }}>
+        <div style={S.secLabel}>Responses by Source</div>
+        <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+          {sourceBreakdown.map((s, i) => {
+            const c = COLS[i % COLS.length];
+            return (
+              <div key={s.source}>
+                <div style={{ display:'flex', alignItems:'baseline', justifyContent:'space-between', marginBottom:6, flexWrap:'wrap', gap:8 }}>
+                  <span style={{ display:'inline-flex', alignItems:'center', gap:8, fontFamily:'Syne,sans-serif', fontSize:12, fontWeight:700, color:'var(--espresso)' }}>
+                    <span style={{ width:10, height:10, borderRadius:3, background:c }} />
+                    {s.label}
+                  </span>
+                  <span style={{ fontFamily:'Syne,sans-serif', fontSize:11, fontWeight:700, letterSpacing:'0.06em', color:'rgba(22,15,8,0.45)' }}>
+                    {s.total} {s.total === 1 ? 'response' : 'responses'} · {s.share}% of total · {s.completionRate}% completed
+                  </span>
+                </div>
+                <div style={{ height:8, borderRadius:999, background:'rgba(22,15,8,0.06)', overflow:'hidden' }}>
+                  <div style={{ width:`${Math.max(s.share, 2)}%`, height:'100%', background:c, borderRadius:999, transition:'width 0.4s' }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // TAB 1: OVERVIEW
 // ─────────────────────────────────────────────────────────────────────────────
-function OverviewTab({ analytics, trendDays, setTrendDays }) {
+function OverviewTab({ analytics, trendDays, setTrendDays, survey }) {
   const { total, completedCount, abandonedCount, completionRate, abandonRate, avgTimeMin, nps, responseTrend, deviceBreakdown, locationStats, milestones } = analytics;
   const inProgress = Math.max(0, total - completedCount - abandonedCount);
   const pctOf = (n) => total ? Math.round((n / total) * 100) : 0;
@@ -333,6 +401,29 @@ function OverviewTab({ analytics, trendDays, setTrendDays }) {
       { label:'Started',   data:responseTrend.map(d=>d.started),   borderColor:'#0047FF', backgroundColor:'rgba(0,71,255,0.04)', fill:true, tension:0.45, pointBackgroundColor:'#0047FF', pointRadius:3, pointHoverRadius:5, borderWidth:1.5 },
     ],
   };
+
+  // ── Response Velocity ───────────────────────────────────────────────
+  // Daily pace from the trend window (responseTrend.started = responses/day).
+  // The last point is today, the one before is yesterday.
+  const dailyStarted   = responseTrend.map(d => d.started);
+  const todayCount     = dailyStarted.length ? dailyStarted[dailyStarted.length - 1] : 0;
+  const yesterdayCount = dailyStarted.length > 1 ? dailyStarted[dailyStarted.length - 2] : 0;
+  const velocityDelta  = yesterdayCount > 0
+    ? Math.round(((todayCount - yesterdayCount) / yesterdayCount) * 100)
+    : (todayCount > 0 ? 100 : 0);
+  const avgPerDay = dailyStarted.length
+    ? dailyStarted.reduce((a, b) => a + b, 0) / dailyStarted.length
+    : 0;
+  // Project to the survey's expiry at the current average daily pace.
+  const MS_DAY = 86400000;
+  let daysLeft = null;
+  if (survey?.expires_at) {
+    const exp = new Date(survey.expires_at);
+    if (!isNaN(exp)) daysLeft = Math.max(0, Math.ceil((exp - Date.now()) / MS_DAY));
+  }
+  const projectedTotal = daysLeft != null
+    ? total + Math.round(avgPerDay * daysLeft)
+    : total + Math.round(avgPerDay * 30); // no expiry → 30-day horizon
 
   const devEntries = Object.entries(deviceBreakdown).filter(([,v])=>v>0);
   const npsColors = { Excellent:'var(--sage)', Good:'var(--cobalt)', 'Needs work':'#9A6D00', Critical:'var(--terracotta)' };
@@ -452,49 +543,102 @@ function OverviewTab({ analytics, trendDays, setTrendDays }) {
         );
       })()}
 
-      {/* Response trend — floating day-range pill, zero layout impact */}
-      {hasTrend ? (
-        <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} transition={{ delay:0.25 }}
-          style={{ ...S.card, position:'relative' }}>
-          {/* Floating segmented control — overlays card, takes no vertical space */}
-          <div style={{ position:'absolute', top:20, right:22, display:'flex', background:'var(--cream-deep)', borderRadius:999, padding:3, gap:2, zIndex:2 }}>
-            {[7, 14, 30, 90].map(d => (
-              <button key={d} onClick={() => setTrendDays(d)} style={{
-                fontFamily:'Syne,sans-serif', fontSize:9, fontWeight:700,
-                letterSpacing:'0.1em', textTransform:'uppercase',
-                padding:'5px 11px', borderRadius:999, border:'none',
-                background: trendDays===d ? 'var(--espresso)' : 'transparent',
-                color: trendDays===d ? 'var(--cream)' : 'rgba(22,15,8,0.38)',
-                cursor:'pointer', transition:'all 0.15s',
-              }}>{d}D</button>
-            ))}
+      {/* Response trend + velocity — two cards sharing the row */}
+      <div className="np-trend-row" style={{ display:'grid', gridTemplateColumns:'1.7fr 1fr', gap:20, alignItems:'stretch' }}>
+        {/* Response trend — floating day-range pill, zero layout impact */}
+        {hasTrend ? (
+          <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} transition={{ delay:0.25 }}
+            style={{ ...S.card, position:'relative', height:'100%', boxSizing:'border-box' }}>
+            {/* Floating segmented control — overlays card, takes no vertical space */}
+            <div style={{ position:'absolute', top:20, right:22, display:'flex', background:'var(--cream-deep)', borderRadius:999, padding:3, gap:2, zIndex:2 }}>
+              {[7, 14, 30, 90].map(d => (
+                <button key={d} onClick={() => setTrendDays(d)} style={{
+                  fontFamily:'Syne,sans-serif', fontSize:9, fontWeight:700,
+                  letterSpacing:'0.1em', textTransform:'uppercase',
+                  padding:'5px 11px', borderRadius:999, border:'none',
+                  background: trendDays===d ? 'var(--espresso)' : 'transparent',
+                  color: trendDays===d ? 'var(--cream)' : 'rgba(22,15,8,0.38)',
+                  cursor:'pointer', transition:'all 0.15s',
+                }}>{d}D</button>
+              ))}
+            </div>
+            <div style={S.secLabel}>{trendLabel}</div>
+            <div className="np-chart-wrap" style={{ height:210 }}><Line options={lineOpts} data={trendData} /></div>
+          </motion.div>
+        ) : (
+          <div style={{ ...S.card, position:'relative', height:'100%', boxSizing:'border-box' }}>
+            {/* Still show segment control even when no data — allows switching */}
+            <div style={{ position:'absolute', top:20, right:22, display:'flex', background:'var(--cream-deep)', borderRadius:999, padding:3, gap:2, zIndex:2 }}>
+              {[7, 14, 30, 90].map(d => (
+                <button key={d} onClick={() => setTrendDays(d)} style={{
+                  fontFamily:'Syne,sans-serif', fontSize:9, fontWeight:700,
+                  letterSpacing:'0.1em', textTransform:'uppercase',
+                  padding:'5px 11px', borderRadius:999, border:'none',
+                  background: trendDays===d ? 'var(--espresso)' : 'transparent',
+                  color: trendDays===d ? 'var(--cream)' : 'rgba(22,15,8,0.38)',
+                  cursor:'pointer', transition:'all 0.15s',
+                }}>{d}D</button>
+              ))}
+            </div>
+            <div style={S.secLabel}>{trendLabel}</div>
+            <div style={{ textAlign:'center', padding:'24px 0' }}>
+              <p style={{ ...S.body, color:'rgba(22,15,8,0.40)', margin:0 }}>
+                {trendClamped ? 'No responses since this survey launched.' : `No responses in the last ${trendDays} days.`}
+              </p>
+            </div>
           </div>
-          <div style={S.secLabel}>{trendLabel}</div>
-          <div className="np-chart-wrap" style={{ height:210 }}><Line options={lineOpts} data={trendData} /></div>
+        )}
+
+        {/* Response velocity — pace of incoming responses */}
+        <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} transition={{ delay:0.3 }}
+          style={{ ...S.card, height:'100%', boxSizing:'border-box', display:'flex', flexDirection:'column' }}>
+          <div style={S.secLabel}>Response Velocity</div>
+          <div style={{ fontFamily:'Fraunces,serif', fontWeight:300, fontSize:12, color:'rgba(22,15,8,0.45)', marginTop:-6, marginBottom:18 }}>
+            How fast responses are coming in
+          </div>
+
+          {/* Today's responses + delta vs yesterday */}
+          <div style={{ display:'flex', alignItems:'baseline', gap:10, flexWrap:'wrap' }}>
+            <span style={{ fontFamily:'Playfair Display,serif', fontWeight:900, fontSize:44, letterSpacing:'-1.5px', lineHeight:1, color:'var(--espresso)' }}>
+              {todayCount}
+            </span>
+            {(() => {
+              const up = velocityDelta >= 0;
+              const c  = velocityDelta === 0 ? 'rgba(22,15,8,0.4)' : up ? '#1E7A4A' : '#D63B1F';
+              return (
+                <span style={{ display:'inline-flex', alignItems:'center', gap:3, fontFamily:'Syne,sans-serif', fontSize:12, fontWeight:700, color:c }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                    style={{ transform: up ? 'none' : 'rotate(180deg)' }}>
+                    <line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>
+                  </svg>
+                  {velocityDelta > 0 ? '+' : ''}{velocityDelta}%
+                </span>
+              );
+            })()}
+          </div>
+          <div style={{ fontFamily:'Syne,sans-serif', fontSize:10, fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', color:'rgba(22,15,8,0.4)', marginTop:6 }}>
+            responses today · vs yesterday
+          </div>
+
+          {/* Secondary stats */}
+          <div style={{ marginTop:'auto', paddingTop:18, display:'flex', flexDirection:'column', gap:12 }}>
+            <div style={{ display:'flex', alignItems:'baseline', justifyContent:'space-between', gap:8 }}>
+              <span style={{ fontFamily:'Fraunces,serif', fontWeight:300, fontSize:13, color:'rgba(22,15,8,0.55)' }}>Avg. per day</span>
+              <span style={{ fontFamily:'Playfair Display,serif', fontWeight:900, fontSize:18, letterSpacing:'-0.5px', color:'var(--espresso)' }}>
+                {avgPerDay.toFixed(1)}
+              </span>
+            </div>
+            <div style={{ display:'flex', alignItems:'baseline', justifyContent:'space-between', gap:8 }}>
+              <span style={{ fontFamily:'Fraunces,serif', fontWeight:300, fontSize:13, color:'rgba(22,15,8,0.55)' }}>
+                Projected total{daysLeft != null ? ` (in ${daysLeft}d)` : ''}
+              </span>
+              <span style={{ fontFamily:'Playfair Display,serif', fontWeight:900, fontSize:18, letterSpacing:'-0.5px', color:'var(--coral)' }}>
+                {projectedTotal.toLocaleString()}
+              </span>
+            </div>
+          </div>
         </motion.div>
-      ) : (
-        <div style={{ ...S.card, position:'relative' }}>
-          {/* Still show segment control even when no data — allows switching */}
-          <div style={{ position:'absolute', top:20, right:22, display:'flex', background:'var(--cream-deep)', borderRadius:999, padding:3, gap:2, zIndex:2 }}>
-            {[7, 14, 30, 90].map(d => (
-              <button key={d} onClick={() => setTrendDays(d)} style={{
-                fontFamily:'Syne,sans-serif', fontSize:9, fontWeight:700,
-                letterSpacing:'0.1em', textTransform:'uppercase',
-                padding:'5px 11px', borderRadius:999, border:'none',
-                background: trendDays===d ? 'var(--espresso)' : 'transparent',
-                color: trendDays===d ? 'var(--cream)' : 'rgba(22,15,8,0.38)',
-                cursor:'pointer', transition:'all 0.15s',
-              }}>{d}D</button>
-            ))}
-          </div>
-          <div style={S.secLabel}>{trendLabel}</div>
-          <div style={{ textAlign:'center', padding:'24px 0' }}>
-            <p style={{ ...S.body, color:'rgba(22,15,8,0.40)', margin:0 }}>
-              {trendClamped ? 'No responses since this survey launched.' : `No responses in the last ${trendDays} days.`}
-            </p>
-          </div>
-        </div>
-      )}
+      </div>
 
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(320px, 1fr))', gap:20 }} className="np-grid-responsive">
         {/* Device breakdown */}
@@ -1102,6 +1246,17 @@ export default function SurveyAnalytics() {
   const [feedback, setFeedback] = useState([]);
   const [trendDays, setTrendDays] = useState(14);
   const [dlOpen, setDlOpen] = useState(false);   // Download dropdown
+  const dlRef = useRef(null);
+
+  // Close the Download dropdown on outside click / Escape
+  useEffect(() => {
+    if (!dlOpen) return;
+    const onClick = (e) => { if (dlRef.current && !dlRef.current.contains(e.target)) setDlOpen(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setDlOpen(false); };
+    document.addEventListener('mousedown', onClick);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onClick); document.removeEventListener('keydown', onKey); };
+  }, [dlOpen]);
 
   useEffect(() => { if (profile?.id) load(); else stopLoading(); }, [id, profile?.id]);
 
@@ -1323,6 +1478,15 @@ export default function SurveyAnalytics() {
   }
 }
 
+const smallBtn = {
+  ...S.exportBtn,
+  padding: '7px 12px',
+  fontSize: 9,
+  letterSpacing: '0.08em',
+  gap: 4,
+  minHeight: 30,
+  whiteSpace: 'nowrap',
+};
 
   if (!sv) return (
     <div style={{ textAlign:'center', padding:'80px 0', fontFamily:'Fraunces,serif', color:'rgba(22,15,8,0.3)' }}>Survey not found</div>
@@ -1347,51 +1511,54 @@ export default function SurveyAnalytics() {
             {sv.expires_at && ` · Expires ${formatDateTime(sv.expires_at)}`}
           </div>
         </div>
-        <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
+        <div style={{ display:'flex', gap:4, flexWrap:'wrap', alignItems:'center', marginLeft: -550, paddingRight: 8 }}>
           <div style={{ width: 1, height: 24, background: 'rgba(22,15,8,0.1)', margin: '0 4px' }} />
-          <button onClick={() => { navigator.clipboard.writeText(window.location.href); import('react-hot-toast').then(m => m.default.success('Analytics link copied!')); }} style={{ ...S.exportBtn, display: 'flex', alignItems: 'center', gap: 5 }}
+          <button onClick={() => { navigator.clipboard.writeText(window.location.href); import('react-hot-toast').then(m => m.default.success('Analytics link copied!')); }}   style={{ ...smallBtn, display: 'flex', alignItems: 'center' }}
             onMouseEnter={e=>{ e.currentTarget.style.borderColor='var(--coral)'; e.currentTarget.style.color='var(--coral)'; }}
             onMouseLeave={e=>{ e.currentTarget.style.borderColor='rgba(22,15,8,0.12)'; e.currentTarget.style.color='rgba(22,15,8,0.55)'; }}>
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
             Share
           </button>
-          {/* Download dropdown — CSV · XLSX · PDF under one menu */}
-          <div style={{ position: 'relative' }}>
-            <button onClick={() => setDlOpen(o => !o)} style={{ ...S.exportBtn, display: 'flex', alignItems: 'center', gap: 6, borderColor: dlOpen ? 'var(--coral)' : 'rgba(22,15,8,0.12)', color: dlOpen ? 'var(--coral)' : 'rgba(22,15,8,0.55)' }}
-              onMouseEnter={e=>{ e.currentTarget.style.borderColor='var(--coral)'; e.currentTarget.style.color='var(--coral)'; }}
-              onMouseLeave={e=>{ if (!dlOpen) { e.currentTarget.style.borderColor='rgba(22,15,8,0.12)'; e.currentTarget.style.color='rgba(22,15,8,0.55)'; } }}>
+          <div ref={dlRef} style={{ position: 'relative' }}>
+            <button onClick={() => setDlOpen(o => !o)} style={{ ...smallBtn, display: 'flex', alignItems: 'center' }}
+              aria-haspopup="true" aria-expanded={dlOpen}
+              onMouseEnter={e=>{ e.currentTarget.style.borderColor='var(--espresso)'; e.currentTarget.style.color='var(--espresso)'; }}
+              onMouseLeave={e=>{ e.currentTarget.style.borderColor='rgba(22,15,8,0.12)'; e.currentTarget.style.color='rgba(22,15,8,0.55)'; }}>
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               Download
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: dlOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}><polyline points="6 9 12 15 18 9"/></svg>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transition: 'transform 0.15s', transform: dlOpen ? 'rotate(180deg)' : 'none' }}><polyline points="6 9 12 15 18 9"/></svg>
             </button>
 
             {dlOpen && (
-              <>
-                {/* click-away backdrop */}
-                <div onClick={() => setDlOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
-                <motion.div
-                  initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.16, ease: [0.16,1,0.3,1] }}
-                  style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, zIndex: 41, background: 'var(--warm-white)', border: '1px solid rgba(22,15,8,0.1)', borderRadius: 14, padding: 6, minWidth: 184, boxShadow: '0 16px 40px rgba(22,15,8,0.14)' }}>
-                  {[
-                    { label: 'CSV',  desc: 'Raw response data',  fn: csv,       color: 'var(--espresso)' },
-                    { label: 'XLSX', desc: 'Full Excel workbook', fn: excel,     color: 'var(--sage)'     },
-                    { label: 'PDF',  desc: 'Formatted report',    fn: exportPDF, color: 'var(--coral)'    },
-                  ].map(opt => (
-                    <button key={opt.label} onClick={() => { setDlOpen(false); opt.fn(); }}
-                      style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', padding: '9px 11px', border: 'none', background: 'transparent', borderRadius: 9, cursor: 'pointer', textAlign: 'left' }}
-                      onMouseEnter={e=>e.currentTarget.style.background='var(--cream)'}
-                      onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                      <span style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(22,15,8,0.04)', color: opt.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                      </span>
-                      <span style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                        <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--espresso)' }}>{opt.label}</span>
-                        <span style={{ fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 11, color: 'rgba(22,15,8,0.5)' }}>{opt.desc}</span>
-                      </span>
-                    </button>
-                  ))}
-                </motion.div>
-              </>
+              <div style={{
+                position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 50,
+                minWidth: 140, padding: 4, background: '#fff',
+                border: '1px solid rgba(22,15,8,0.12)', borderRadius: 10,
+                boxShadow: '0 8px 24px rgba(22,15,8,0.12)',
+                display: 'flex', flexDirection: 'column',
+              }}>
+                {[
+                  { label: 'CSV',  onClick: csv },
+                  { label: 'XLSX', onClick: excel },
+                  { label: 'PDF',  onClick: exportPDF },
+                ].map(opt => (
+                  <button key={opt.label}
+                    onClick={() => { setDlOpen(false); opt.onClick(); }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      width: '100%', padding: '8px 10px',
+                      background: 'transparent', border: 'none', borderRadius: 7,
+                      cursor: 'pointer', textAlign: 'left',
+                      fontFamily: 'Syne,sans-serif', fontSize: 11, fontWeight: 700,
+                      letterSpacing: '0.04em', color: 'rgba(22,15,8,0.7)',
+                    }}
+                    onMouseEnter={e=>{ e.currentTarget.style.background='rgba(22,15,8,0.05)'; e.currentTarget.style.color='var(--espresso)'; }}
+                    onMouseLeave={e=>{ e.currentTarget.style.background='transparent'; e.currentTarget.style.color='rgba(22,15,8,0.7)'; }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
             )}
           </div>
         </div>
@@ -1406,7 +1573,8 @@ export default function SurveyAnalytics() {
           initial={{ opacity:0, y:8 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-6 }}
           transition={{ duration:0.2, ease:[0.16,1,0.3,1] }}>
 
-          {tab === 'Overview'     && <OverviewTab     analytics={analytics} trendDays={trendDays} setTrendDays={setTrendDays} />}
+          {tab === 'Overview'     && <OverviewTab     analytics={analytics} trendDays={trendDays} setTrendDays={setTrendDays} survey={sv} />}
+          {tab === 'Sources'      && <SourcesTab      analytics={analytics} />}
           {tab === 'Dropoff'      && <DropoffTab      analytics={analytics} />}
           {tab === 'Questions'    && <QuestionsTab    analytics={analytics} />}
           {tab === 'TextInsights' && <TextInsightsTab analytics={analytics} />}

@@ -182,9 +182,13 @@ function ContactFileUploader({ type, fileData, setFileData, isParsing, setIsPars
 }
 
 
-export default function ShareModal({ survey, isOpen, onClose }) {
+export default function ShareModal({ survey, isOpen, onClose, onSlugChange }) {
   const [tab, setTab] = useState('link');
   const [copied, setCopied] = useState(false);
+  const [currentSlug, setCurrentSlug] = useState(survey?.slug || '');
+  const [slugDraft, setSlugDraft] = useState(survey?.slug || '');
+  const [slugStatus, setSlugStatus] = useState('idle'); // idle | checking | available | taken | invalid
+  const [savingSlug, setSavingSlug] = useState(false);
   const [embedSize, setEmbed] = useState(1);     // index into EMBED_SIZES
   const [emailTo, setEmailTo] = useState('');
   const [sending, setSending] = useState(false);
@@ -208,8 +212,11 @@ export default function ShareModal({ survey, isOpen, onClose }) {
   const inputRef = useRef(null);
 
   const appOrigin = import.meta.env.VITE_FRONTEND_URL || window.location.origin;
-  const surveyUrl = `${appOrigin}/s/${survey?.slug}`;
-  const embedUrl = `${appOrigin}/embed/${survey?.slug}`;
+  const surveyUrl = `${appOrigin}/s/${currentSlug}`;
+  const embedUrl = `${appOrigin}/embed/${currentSlug}`;
+  // Tag the public link with its acquisition channel so responses are attributable
+  // per source (whatsapp, linkedin, email, qr, …). The plain link stays clean → 'direct'.
+  const withSource = (src) => `${surveyUrl}?src=${src}`;
   const sel = EMBED_SIZES[embedSize];
   const embedCode = `<iframe\n  src="${embedUrl}"\n  width="${sel.w}"\n  height="${sel.h}"\n  frameborder="0"\n  style="border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,0.12)"\n  allow="clipboard-write"\n></iframe>`;
   const shareText = `Check this survey: ${survey?.title}`;
@@ -256,11 +263,65 @@ export default function ShareModal({ survey, isOpen, onClose }) {
       setInstagramView(null);
       setTwitterView(null);
     } else {
-      const msg = `Hello! We would love to get your feedback on our survey: "${survey?.title || 'User Feedback'}"\n\nPlease tap this link to participate: ${surveyUrl}`;
-      setWhatsAppMessage(msg);
-      setTelegramMessage(msg);
+      const intro = `Hello! We would love to get your feedback on our survey: "${survey?.title || 'User Feedback'}"\n\nPlease tap this link to participate:`;
+      setWhatsAppMessage(`${intro} ${withSource('whatsapp')}`);
+      setTelegramMessage(`${intro} ${withSource('telegram')}`);
     }
   }, [isOpen, survey, surveyUrl]);
+
+  // ── Custom clean link (vanity slug) ─────────────────────────────────────────
+  const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+  // Keep the editable slug in sync with the survey whenever it (re)opens
+  useEffect(() => {
+    setCurrentSlug(survey?.slug || '');
+    setSlugDraft(survey?.slug || '');
+    setSlugStatus('idle');
+  }, [survey?.slug, isOpen]);
+
+  // Debounced availability check as the user types a custom link
+  useEffect(() => {
+    const v = slugDraft.trim().toLowerCase();
+    if (v === currentSlug) { setSlugStatus('idle'); return; }
+    if (!v || v.length > 50 || !SLUG_RE.test(v)) { setSlugStatus('invalid'); return; }
+    setSlugStatus('checking');
+    const t = setTimeout(async () => {
+      try {
+        const { data } = await API.get('/utils/slug/check', { params: { slug: v } });
+        setSlugStatus(data.available ? 'available' : 'taken');
+      } catch {
+        setSlugStatus('idle');
+      }
+    }, 350);
+    return () => clearTimeout(t);
+  }, [slugDraft, currentSlug]);
+
+  async function saveSlug() {
+    const v = slugDraft.trim().toLowerCase();
+    if (v === currentSlug) return;
+    if (!v || v.length > 50 || !SLUG_RE.test(v)) {
+      return toast.error('Use lowercase letters, numbers and hyphens only');
+    }
+    if (!survey?.id) return toast.error('This survey link cannot be customized here');
+    setSavingSlug(true);
+    try {
+      const { data } = await API.patch(`/surveys/${survey.id}`, { slug: v });
+      const saved = data?.slug || v;
+      setCurrentSlug(saved);
+      setSlugDraft(saved);
+      setSlugStatus('idle');
+      onSlugChange?.(saved);
+      if (saved !== v) {
+        toast.success(`Link saved as "${saved}" — your choice was taken`);
+      } else {
+        toast.success('Custom link saved!');
+      }
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Failed to update link');
+    } finally {
+      setSavingSlug(false);
+    }
+  }
 
   function copyLink() {
     navigator.clipboard.writeText(surveyUrl);
@@ -301,14 +362,14 @@ export default function ShareModal({ survey, isOpen, onClose }) {
       if (emails.length === 1) {
         await API.post("/users/share-survey", {
           email: emails[0],
-          survey_link: surveyUrl,
+          survey_link: withSource('email'),
           survey_title: survey?.title
         });
       } else {
         // Bulk email
         await API.post("/users/bulk-share-survey", {
           emails,
-          survey_link: surveyUrl,
+          survey_link: withSource('email'),
           survey_title: survey?.title
         });
       }
@@ -391,7 +452,7 @@ export default function ShareModal({ survey, isOpen, onClose }) {
     try {
       const res = await API.post("/users/bulk-share-whatsapp", {
         numbers: numbersList,
-        survey_link: surveyUrl,
+        survey_link: withSource('whatsapp'),
         survey_title: survey?.title,
         message: whatsAppMessage
       });
@@ -433,7 +494,7 @@ export default function ShareModal({ survey, isOpen, onClose }) {
     try {
       const res = await API.post("/users/bulk-share-telegram", {
         recipients: recipientsList,
-        survey_link: surveyUrl,
+        survey_link: withSource('telegram'),
         survey_title: survey?.title,
         message: telegramMessage
       });
@@ -559,8 +620,51 @@ export default function ShareModal({ survey, isOpen, onClose }) {
                       {copied ? '✓ Copied' : 'Copy'}
                     </motion.button>
                   </div>
+
+                  {/* Customize the link as a clean, user-defined slug */}
+                  {survey?.id && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '14px 16px', background: 'var(--cream)', border: '1px solid rgba(22,15,8,0.06)', borderRadius: 12 }}>
+                      <label style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.4)' }}>
+                        Customize link
+                      </label>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <div style={{ ...fieldStyle, flex: 1, display: 'flex', alignItems: 'center', padding: '0 0 0 12px', overflow: 'hidden', background: 'var(--warm-white)' }}>
+                          <span style={{ fontFamily: 'monospace', fontSize: 12, color: 'rgba(22,15,8,0.35)', whiteSpace: 'nowrap' }}>/s/</span>
+                          <input
+                            value={slugDraft}
+                            onChange={e => setSlugDraft(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                            onKeyDown={e => { if (e.key === 'Enter' && slugStatus === 'available') saveSlug(); }}
+                            placeholder="my-clean-link"
+                            maxLength={50}
+                            style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent', fontFamily: 'monospace', fontSize: 12, color: 'var(--espresso)', padding: '12px 12px 12px 2px' }}
+                          />
+                        </div>
+                        <motion.button whileTap={{ scale: 0.96 }} onClick={saveSlug}
+                          disabled={savingSlug || slugStatus !== 'available'}
+                          style={{ ...btnPrimary(savingSlug || slugStatus !== 'available'), minWidth: 80 }}>
+                          {savingSlug ? '…' : 'Save'}
+                        </motion.button>
+                      </div>
+                      {/* Availability / validation status */}
+                      <div style={{ minHeight: 14, fontFamily: 'Syne,sans-serif', fontSize: 10, fontWeight: 700, letterSpacing: '0.04em' }}>
+                        {slugDraft.trim() !== currentSlug && slugStatus === 'invalid' && (
+                          <span style={{ color: 'var(--terracotta)' }}>Use lowercase letters, numbers and hyphens only</span>
+                        )}
+                        {slugDraft.trim() !== currentSlug && slugStatus === 'checking' && (
+                          <span style={{ color: 'rgba(22,15,8,0.4)' }}>Checking availability…</span>
+                        )}
+                        {slugDraft.trim() !== currentSlug && slugStatus === 'available' && (
+                          <span style={{ color: 'var(--sage)' }}>✓ Available</span>
+                        )}
+                        {slugDraft.trim() !== currentSlug && slugStatus === 'taken' && (
+                          <span style={{ color: 'var(--terracotta)' }}>✕ Already taken — try another</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   <p style={{ fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 13, color: 'rgba(22,15,8,0.4)', margin: 0, lineHeight: 1.6 }}>
-                    Share this link directly. Respondents don't need an account to take the survey.
+                    Give your survey a clean, memorable link, then share it anywhere. Respondents don't need an account to take the survey.
                   </p>
                 </div>
               )}
@@ -569,7 +673,7 @@ export default function ShareModal({ survey, isOpen, onClose }) {
               {tab === 'qr' && (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
                   <div style={{ padding: 16, background: '#FDF5E8', borderRadius: 16, border: '1px solid rgba(22,15,8,0.08)' }}>
-                    <QRCode url={surveyUrl} size={180} />
+                    <QRCode url={withSource('qr')} size={180} />
                   </div>
                   <p style={{ fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 13, color: 'rgba(22,15,8,0.45)', textAlign: 'center', margin: 0, lineHeight: 1.6 }}>
                     Print or display this QR code to collect in-person responses.
@@ -580,7 +684,7 @@ export default function ShareModal({ survey, isOpen, onClose }) {
                       if (!img) return;
                       const a = document.createElement('a');
                       a.href = img.src;
-                      a.download = `${survey?.slug}-qr.png`;
+                      a.download = `${currentSlug}-qr.png`;
                       a.click();
                     }}
                     style={{ ...btnPrimary(false), padding: '11px 32px' }}
@@ -707,7 +811,7 @@ export default function ShareModal({ survey, isOpen, onClose }) {
 
                         {/* Telegram — t.me/share opens contact picker inside Telegram */}
                         <button
-                          onClick={() => openShare(`https://t.me/share/url?url=${encodedUrl}&text=${encodedText}`)}
+                          onClick={() => openShare(`https://t.me/share/url?url=${encodeURIComponent(withSource('telegram'))}&text=${encodedText}`)}
                           className="axiora-social-btn"
                         >
                           <TelegramIcon /> Telegram
@@ -724,7 +828,7 @@ export default function ShareModal({ survey, isOpen, onClose }) {
                         {/* Instagram — copies link, opens new DM page */}
                         <button
                           onClick={() => {
-                            navigator.clipboard.writeText(surveyUrl);
+                            navigator.clipboard.writeText(withSource('instagram'));
                             window.open('https://www.instagram.com/direct/new/', '_blank');
                             toast.success('Link copied! Paste it in the Instagram message');
                           }}
@@ -736,7 +840,7 @@ export default function ShareModal({ survey, isOpen, onClose }) {
                         {/* Facebook Messenger — opens Messenger new conversation */}
                         <button
                           onClick={() => {
-                            navigator.clipboard.writeText(surveyUrl);
+                            navigator.clipboard.writeText(withSource('messenger'));
                             window.open('https://www.messenger.com/new', '_blank');
                             toast.success('Link copied! Paste it in the Messenger chat');
                           }}
@@ -750,7 +854,7 @@ export default function ShareModal({ survey, isOpen, onClose }) {
 
                         {/* LinkedIn — opens message compose */}
                         <button
-                          onClick={() => openShare(`https://www.linkedin.com/messaging/compose/?body=${encodeURIComponent(`${shareText}\n${surveyUrl}`)}`)}
+                          onClick={() => openShare(`https://www.linkedin.com/messaging/compose/?body=${encodeURIComponent(`${shareText}\n${withSource('linkedin')}`)}`)}
                           className="axiora-social-btn"
                         >
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
@@ -784,7 +888,7 @@ export default function ShareModal({ survey, isOpen, onClose }) {
 
                       {/* Post on Timeline */}
                       <button
-                        onClick={() => openShare(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodedUrl}`)}
+                        onClick={() => openShare(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(withSource('twitter'))}`)}
                         style={{
                           background: 'var(--cream)', border: '1.5px solid rgba(22,15,8,0.08)', borderRadius: 14,
                           padding: '16px 18px', cursor: 'pointer', textAlign: 'left',
@@ -809,7 +913,7 @@ export default function ShareModal({ survey, isOpen, onClose }) {
 
                       {/* Send as Direct Message */}
                       <button
-                        onClick={() => openShare(`https://twitter.com/messages/compose?text=${encodedUrl}`)}
+                        onClick={() => openShare(`https://twitter.com/messages/compose?text=${encodeURIComponent(withSource('twitter'))}`)}
                         style={{
                           background: 'var(--cream)', border: '1.5px solid rgba(22,15,8,0.08)', borderRadius: 14,
                           padding: '16px 18px', cursor: 'pointer', textAlign: 'left',
@@ -1028,14 +1132,14 @@ export default function ShareModal({ survey, isOpen, onClose }) {
           survey={survey}
           isOpen={isOpen && isBulkEmailOpen}
           onClose={() => setIsBulkEmailOpen(false)}
-          surveyUrl={surveyUrl}
+          surveyUrl={withSource('email')}
         />
 
         <BulkWhatsAppModal
           survey={survey}
           isOpen={isOpen && isBulkWhatsAppOpen}
           onClose={() => setIsBulkWhatsAppOpen(false)}
-          surveyUrl={surveyUrl}
+          surveyUrl={withSource('whatsapp')}
         />
       </AnimatePresence>
       <style>

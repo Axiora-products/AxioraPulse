@@ -238,6 +238,7 @@ def sync(
     # Auto-derive tenant name from email domain if not provided (handles local dev with fresh DB)
     derived_tenant_name = body.tenant_name or email.split("@")[1].split(".")[0].title() if email else "My Organisation"
     derived_tenant_slug = body.tenant_slug or _slugify(derived_tenant_name)
+    account_type = "personal" if (body.account_type or "").strip().lower() == "personal" else "organization"
 
     # Check if a tenant with this slug already exists — reuse it instead of crashing
     tenant = db.query(Tenant).filter(Tenant.slug == derived_tenant_slug).first()
@@ -247,6 +248,7 @@ def sync(
                 id=uuid.uuid4(),
                 name=derived_tenant_name,
                 slug=derived_tenant_slug,
+                account_type=account_type,
             )
             db.add(tenant)
             db.flush()
