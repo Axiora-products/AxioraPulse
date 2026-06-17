@@ -1156,6 +1156,9 @@ body {
   .np-overview-mid {
     grid-template-columns: 1fr !important;
   }
+  .np-trend-row {
+    grid-template-columns: 1fr !important;
+  }
 }
 
 @media (max-width: 720px) {
@@ -1700,9 +1703,9 @@ body {
 
 .ws-content-main {
   flex: 1;
-  max-width: 1320px;
+  max-width: 1440px;
   margin: 0 auto;
-  padding: 48px 48px 40px;
+  padding: 36px 40px 32px;
   width: 100%;
   box-sizing: border-box;
 }

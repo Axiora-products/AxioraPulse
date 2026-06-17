@@ -397,6 +397,7 @@ export default function SurveyCreate() {
   // placeholder questions must not mark targets as achieved.
   const realQuestions = qs.filter(q => getQuestionWordCount(q) > 0);
   const hasRealQuestions = realQuestions.length > 0;
+  const estimatedMinutes = estimateSurveyMinutes(realQuestions);
   const conciseQuestionCount = realQuestions.filter(q => getQuestionWordCount(q) <= SHORT_SURVEY_RULES.maxHighSignalWords).length;
   const hasAdaptiveFormats = getFormatDiversityScore(realQuestions) >= 3;
   // Single source of truth: the same checks drive both the % and the checklist below.
@@ -411,7 +412,7 @@ export default function SurveyCreate() {
     qs.length > 0 && conciseQuestionCount === qs.length,
     f.expires_at
   ];
-  const health = Math.round((healthChecks.filter(([done]) => done).length / healthChecks.length) * 100);
+  const health = Math.round((healthChecks.filter(Boolean).length / healthChecks.length) * 100);
   const healthColor = health >= 70 ? 'var(--sage)' : health >= 40 ? 'var(--saffron)' : 'var(--terracotta)';
   const TABS = [{ id: 'details', n: '01', label: 'Details' }, { id: 'questions', n: '02', label: 'Questions', count: qs.length }, { id: 'settings', n: '03', label: 'Settings' }];
 
