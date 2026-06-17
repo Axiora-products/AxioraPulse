@@ -31,10 +31,15 @@ def dashboard_stats(
     """
     tid = current_user.tenant_id
 
-    total_surveys = db.query(func.count(Survey.id)).filter(
-        Survey.tenant_id == tid,
-        Survey.created_by == current_user.id,
-    ).scalar() or 0
+    total_surveys = (
+        db.query(func.count(Survey.id))
+        .filter(
+            Survey.tenant_id == tid,
+            Survey.created_by == current_user.id,
+        )
+        .scalar()
+        or 0
+    )
 
     active_surveys = (
         db.query(func.count(Survey.id))
@@ -73,14 +78,10 @@ def dashboard_stats(
 
     completion_rate = round((completed_responses / total_responses) * 100, 1) if total_responses > 0 else 0.0
 
-    
     team_members = (
         db.query(func.count(UserProfile.id))
         .filter(
-            (
-                (UserProfile.id == current_user.id)
-                | (UserProfile.invited_by == current_user.id)
-            ),
+            ((UserProfile.id == current_user.id) | (UserProfile.invited_by == current_user.id)),
             UserProfile.account_status == "active",
         )
         .scalar()
