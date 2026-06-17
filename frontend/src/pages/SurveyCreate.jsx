@@ -1126,7 +1126,6 @@ export default function SurveyCreate() {
                   )}
                 </div>
               </div>
-              )}
 
               <div>
                 <label style={LBL}>Survey Title *</label>

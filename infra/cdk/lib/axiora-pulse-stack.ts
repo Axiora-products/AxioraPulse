@@ -316,7 +316,7 @@ export class AxioraPulseStack extends cdk.Stack {
       const distribution = new cloudfront.Distribution(this, 'FrontendDistribution', {
         defaultBehavior: {
           origin: new origins.S3Origin(frontendBucket),
-          viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.ALLOW_ALL,
           cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
         },
         defaultRootObject: 'index.html',
