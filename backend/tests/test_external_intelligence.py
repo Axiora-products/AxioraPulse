@@ -152,9 +152,7 @@ def test_pitch_deck_with_file_id_no_text():
 
 
 def test_pitch_deck_with_extracted_text():
-    ext = ExternalDataRequest(
-        pitch_deck=PitchDeckInput(file_id="file1", slide_count=10, deck_version="v2.1")
-    )
+    ext = ExternalDataRequest(pitch_deck=PitchDeckInput(file_id="file1", slide_count=10, deck_version="v2.1"))
     result = build_pitch_deck_analysis(ext, {"file1": DECK_TEXT})
     assert result.score > 0
     assert result.evidence_count > 0
@@ -198,9 +196,7 @@ def test_term_sheet_full():
 
 
 def test_term_sheet_high_dilution():
-    ext = ExternalDataRequest(
-        term_sheet=TermSheetInput(equity_offered=35.0, term_sheet_stage="Draft")
-    )
+    ext = ExternalDataRequest(term_sheet=TermSheetInput(equity_offered=35.0, term_sheet_stage="Draft"))
     result = build_term_sheet_analysis(ext, {})
     assert result.score >= 0
     assert any("dilution" in flag.lower() for flag in result.raw_metrics["red_flags"])
@@ -250,9 +246,7 @@ def test_financial_model_aggressive_growth():
 
 
 def test_financial_model_no_assumptions():
-    ext = ExternalDataRequest(
-        financial_model=FinancialModelInput(assumptions_documented=False, projection_years=5)
-    )
+    ext = ExternalDataRequest(financial_model=FinancialModelInput(assumptions_documented=False, projection_years=5))
     result = build_financial_model_review(ext, {})
     assert result.score >= 0
     assert any("assumption" in issue.lower() for issue in result.raw_metrics["issues"])
@@ -347,9 +341,7 @@ def test_one_pager_empty():
 
 
 def test_one_pager_with_text():
-    ext = ExternalDataRequest(
-        one_pager=OnePagerInput(file_id="op1", target_audience="Angel Investors")
-    )
+    ext = ExternalDataRequest(one_pager=OnePagerInput(file_id="op1", target_audience="Angel Investors"))
     one_pager_text = " ".join(["word"] * 300)
     result = build_one_pager_review(ext, {"op1": one_pager_text})
     assert result.score > 0
@@ -397,9 +389,7 @@ def test_reference_letters_full():
 
 
 def test_reference_letters_no_files():
-    ext = ExternalDataRequest(
-        reference_letters=ReferenceLettersInput(reference_count=2, reference_types=["Mentor"])
-    )
+    ext = ExternalDataRequest(reference_letters=ReferenceLettersInput(reference_count=2, reference_types=["Mentor"]))
     result = build_reference_letter_quality(ext, {})
     assert result.score > 0
 
@@ -441,9 +431,7 @@ def test_legal_status_with_risks():
 
 
 def test_legal_status_partial():
-    ext = ExternalDataRequest(
-        legal_status=LegalStatusInput(nda_template_ready=True, compliance_status="Pending GST")
-    )
+    ext = ExternalDataRequest(legal_status=LegalStatusInput(nda_template_ready=True, compliance_status="Pending GST"))
     result = build_legal_status_check(ext, {})
     assert result.score >= 0
 
@@ -471,9 +459,7 @@ def test_media_kit_full():
 
 
 def test_media_kit_no_press():
-    ext = ExternalDataRequest(
-        media_kit=MediaKitInput(press_mentions=1, social_followers={"LinkedIn": 500})
-    )
+    ext = ExternalDataRequest(media_kit=MediaKitInput(press_mentions=1, social_followers={"LinkedIn": 500}))
     result = build_media_kit_review(ext, {})
     assert result.score >= 0
 
@@ -506,9 +492,7 @@ def test_investor_pipeline_full():
 
 
 def test_investor_pipeline_no_contacts():
-    ext = ExternalDataRequest(
-        investor_pipeline=InvestorPipelineInput(total_targeted=20, meetings_held=5)
-    )
+    ext = ExternalDataRequest(investor_pipeline=InvestorPipelineInput(total_targeted=20, meetings_held=5))
     result = build_investor_pipeline_tracker(ext, {})
     assert result.score > 0
 
@@ -633,9 +617,7 @@ def test_portfolio_fit_with_meeting_prep():
 
 
 def test_portfolio_fit_with_vc_targeting():
-    ext = ExternalDataRequest(
-        vc_targeting=VCTargetingInput(target_vcs=["Sequoia", "Accel"])
-    )
+    ext = ExternalDataRequest(vc_targeting=VCTargetingInput(target_vcs=["Sequoia", "Accel"]))
     result = build_portfolio_fit_analysis(ext, {})
     assert result.score > 0
 
@@ -667,9 +649,7 @@ def test_objection_library_with_custom():
 
 def test_objection_library_from_feedback():
     ext = ExternalDataRequest(
-        pitch_feedback=PitchFeedbackInput(
-            common_objections=["High CAC", "Crowded market", "No moat"]
-        )
+        pitch_feedback=PitchFeedbackInput(common_objections=["High CAC", "Crowded market", "No moat"])
     )
     result = build_objection_response_library(ext, {})
     assert result.score > 0
@@ -747,9 +727,7 @@ def test_valuation_full():
 
 
 def test_valuation_no_arr():
-    ext = ExternalDataRequest(
-        valuation=ValuationInput(valuation_method="Comparable", target_pre_money="₹1,00,00,000")
-    )
+    ext = ExternalDataRequest(valuation=ValuationInput(valuation_method="Comparable", target_pre_money="₹1,00,00,000"))
     result = build_valuation_analysis(ext, {})
     assert result.score >= 0
 
@@ -779,9 +757,7 @@ def test_cap_table_healthy():
 
 
 def test_cap_table_low_founder_equity():
-    ext = ExternalDataRequest(
-        cap_table=CapTableInput(founders_equity=40.0, existing_investor_equity=55.0)
-    )
+    ext = ExternalDataRequest(cap_table=CapTableInput(founders_equity=40.0, existing_investor_equity=55.0))
     result = build_cap_table_analysis(ext, {})
     # Low founder equity should trigger an issue
     assert len(result.raw_metrics["issues"]) > 0
@@ -820,9 +796,7 @@ def test_safe_note_full():
 
 
 def test_safe_note_high_discount():
-    ext = ExternalDataRequest(
-        safe_note=SAFENoteInput(instrument_type="Convertible Note", discount_rate=30.0)
-    )
+    ext = ExternalDataRequest(safe_note=SAFENoteInput(instrument_type="Convertible Note", discount_rate=30.0))
     result = build_safe_note_analysis(ext, {})
     assert result.score >= 0
 
@@ -853,9 +827,7 @@ def test_revenue_metrics_full():
 
 
 def test_revenue_metrics_high_churn():
-    ext = ExternalDataRequest(
-        revenue_metrics=RevenueMetricsInput(mrr="₹1,00,000", churn_rate=15.0)
-    )
+    ext = ExternalDataRequest(revenue_metrics=RevenueMetricsInput(mrr="₹1,00,000", churn_rate=15.0))
     result = build_revenue_metrics_dashboard(ext, {})
     assert result.score >= 0
     assert any("churn" in lim.lower() for lim in result.limitations)
@@ -1028,9 +1000,7 @@ def test_ip_tracker_full():
 
 
 def test_ip_tracker_no_patents():
-    ext = ExternalDataRequest(
-        ip_tracker=IPTrackerInput(trademarks_registered=1, trade_secrets_documented=False)
-    )
+    ext = ExternalDataRequest(ip_tracker=IPTrackerInput(trademarks_registered=1, trade_secrets_documented=False))
     result = build_ip_tracker(ext, {})
     assert result.score >= 0
 
@@ -1137,9 +1107,7 @@ def test_exit_strategy_full():
             preferred_exit="Strategic Acquisition",
             target_exit_timeline="5-7 years",
             potential_acquirers=["Zoho", "Freshworks", "SAP"],
-            comparable_exits=[
-                {"company": "Capillary Tech", "exit_value": "$200M", "year": "2023"}
-            ],
+            comparable_exits=[{"company": "Capillary Tech", "exit_value": "$200M", "year": "2023"}],
             target_exit_valuation="₹100 Cr",
         )
     )
@@ -1149,9 +1117,7 @@ def test_exit_strategy_full():
 
 
 def test_exit_strategy_ipo():
-    ext = ExternalDataRequest(
-        exit_strategy=ExitStrategyInput(preferred_exit="IPO", target_exit_timeline="7-10 years")
-    )
+    ext = ExternalDataRequest(exit_strategy=ExitStrategyInput(preferred_exit="IPO", target_exit_timeline="7-10 years"))
     result = build_exit_strategy_analysis(ext, {})
     assert result.score >= 0
 
@@ -1185,9 +1151,7 @@ def test_extract_external_intelligence_partial_data():
 
 
 def test_extract_external_intelligence_prompt_section():
-    ext = ExternalDataRequest(
-        burn_runway=BurnRunwayInput(monthly_burn_rate="₹2,00,000", cash_in_bank="₹24,00,000")
-    )
+    ext = ExternalDataRequest(burn_runway=BurnRunwayInput(monthly_burn_rate="₹2,00,000", cash_in_bank="₹24,00,000"))
     result = extract_external_intelligence(ext, {})
     assert "EXTERNAL DATA INTELLIGENCE" in result["prompt_section"]
 
@@ -1198,33 +1162,155 @@ def test_extract_external_intelligence_full_payload():
     ext = ExternalDataRequest(
         pitch_deck=PitchDeckInput(file_id="d1", slide_count=12, deck_version="v2"),
         term_sheet=TermSheetInput(investment_amount="₹75,00,000", equity_offered=20.0, term_sheet_stage="Final"),
-        financial_model=FinancialModelInput(projection_years=3, year1_revenue="₹24,00,000", year3_revenue="₹2,40,00,000", assumptions_documented=True),
-        due_diligence=DueDiligenceInput(incorporation_docs=True, cap_table_current=True, audited_financials=True, ip_assignments=True, customer_contracts=True, employment_agreements=True, board_resolutions=True, bank_statements_6m=True, tax_returns=True, regulatory_filings=True, founder_backgrounds=True, reference_checks_done=True),
-        data_room=DataRoomInput(data_room_link="https://notion.so/dr", total_documents=30, sections_complete=["Legal", "Financials"], last_updated="June 2025"),
+        financial_model=FinancialModelInput(
+            projection_years=3, year1_revenue="₹24,00,000", year3_revenue="₹2,40,00,000", assumptions_documented=True
+        ),
+        due_diligence=DueDiligenceInput(
+            incorporation_docs=True,
+            cap_table_current=True,
+            audited_financials=True,
+            ip_assignments=True,
+            customer_contracts=True,
+            employment_agreements=True,
+            board_resolutions=True,
+            bank_statements_6m=True,
+            tax_returns=True,
+            regulatory_filings=True,
+            founder_backgrounds=True,
+            reference_checks_done=True,
+        ),
+        data_room=DataRoomInput(
+            data_room_link="https://notion.so/dr",
+            total_documents=30,
+            sections_complete=["Legal", "Financials"],
+            last_updated="June 2025",
+        ),
         one_pager=OnePagerInput(file_id="op1", target_audience="Angels"),
         reference_letters=ReferenceLettersInput(file_ids=["r1"], reference_count=3, reference_types=["Customer"]),
-        legal_status=LegalStatusInput(nda_template_ready=True, ip_ownership_clear=True, no_pending_litigation=True, compliance_status="Compliant", trademarks_filed=True, patents_filed=2),
+        legal_status=LegalStatusInput(
+            nda_template_ready=True,
+            ip_ownership_clear=True,
+            no_pending_litigation=True,
+            compliance_status="Compliant",
+            trademarks_filed=True,
+            patents_filed=2,
+        ),
         media_kit=MediaKitInput(press_mentions=5, press_outlets=["YourStory"], social_followers={"LinkedIn": 2000}),
-        investor_pipeline=InvestorPipelineInput(contacts=contacts, total_targeted=30, meetings_held=8, term_sheets_received=1, soft_commits=1),
-        meeting_prep=InvestorMeetingPrepInput(next_meeting_investor="Jane", next_meeting_firm="Sequoia", investor_focus_areas=["SaaS"], investor_portfolio=["Freshworks"]),
-        investor_matching=InvestorMatchingInput(preferred_investor_type="VC", board_seat_acceptable=False, looking_for_smart_money=True),
-        vc_targeting=VCTargetingInput(target_vcs=["Sequoia", "Accel"], warm_intros_available=2, cold_outreach_done=10, accelerator_backed=True, accelerator_name="Y Combinator"),
-        pitch_feedback=PitchFeedbackInput(pitches_completed=8, common_objections=["Crowded market"], positive_signals=["Strong team"]),
-        objection_library=ObjectionLibraryInput(custom_objections=[{"objection": "Too expensive", "response": "ROI is 5x"}]),
-        burn_runway=BurnRunwayInput(monthly_burn_rate="₹3,00,000", cash_in_bank="₹36,00,000", monthly_revenue="₹50,000", revenue_growth_mom=20.0),
-        valuation=ValuationInput(valuation_method="Revenue Multiple", target_pre_money="₹3,00,00,000", arr="₹6,00,000", revenue_multiple_used=5.0, comparable_startups=["Freshworks"]),
-        cap_table=CapTableInput(founders_equity=65.0, employee_esop_pool=10.0, existing_investor_equity=20.0, new_round_dilution=15.0, total_shareholders=5),
-        safe_note=SAFENoteInput(instrument_type="SAFE", valuation_cap="₹4,00,00,000", discount_rate=20.0, has_mfn_clause=True, pro_rata_rights=True),
-        revenue_metrics=RevenueMetricsInput(mrr="₹50,000", arr="₹6,00,000", churn_rate=3.5, net_revenue_retention=108.0, paying_customers=10, free_users=100, customer_lifetime_months=18.0),
-        unit_economics_detail=UnitEconomicsDetailInput(cac_by_channel={"Organic": "₹800"}, ltv="₹18,000", payback_period_months=6.0, gross_margin=72.0, net_margin=-15.0),
-        fundraising_timeline=FundraisingTimelineInput(target_close_date="Sep 2025", amount_committed_so_far="₹10,00,000", key_milestones_for_close=["100 customers"], parallel_grant_applications=["Startup India"]),
-        competitive_matrix=CompetitiveMatrixInput(competitors=[{"name": "Comp A"}], primary_differentiator="AI-first", switching_cost_high=True, network_effects=True, defensible_moats=["Proprietary data", "Contracts"]),
-        regulatory=RegulatoryInput(licenses_required=["DPIIT"], licenses_obtained=["DPIIT"], gdpr_compliant=True, data_residency_compliant=True),
-        ip_tracker=IPTrackerInput(patents_filed=2, patents_granted=1, trademarks_registered=2, trade_secrets_documented=True, open_source_components_audited=True),
-        partnerships=PartnershipInput(strategic_partners=[{"name": "AWS", "type": "Cloud", "status": "Active"}], distribution_partners=["DP1"], channel_partners=3, mou_signed=2),
-        accelerator_grant=AcceleratorGrantInput(applied_to=["YC"], accepted_by=["YC"], grant_funding_received="₹10,00,000", dpiit_recognized=True, iim_iit_incubated=False),
-        board_advisors=BoardAdvisorInput(board_members=[{"name": "Alice", "background": "Ex-Google", "equity_pct": "0.5"}], advisors=[{"name": "Bob", "expertise": "Sales", "equity_pct": "0.25"}], total_board_size=2, independent_directors=0, advisor_network_reach="2 seasoned advisors"),
-        exit_strategy=ExitStrategyInput(preferred_exit="Strategic Acquisition", target_exit_timeline="5-7 years", potential_acquirers=["Zoho", "SAP"], comparable_exits=[{"company": "TaxMantra", "exit_value": "$50M", "year": "2022"}], target_exit_valuation="₹50 Cr"),
+        investor_pipeline=InvestorPipelineInput(
+            contacts=contacts, total_targeted=30, meetings_held=8, term_sheets_received=1, soft_commits=1
+        ),
+        meeting_prep=InvestorMeetingPrepInput(
+            next_meeting_investor="Jane",
+            next_meeting_firm="Sequoia",
+            investor_focus_areas=["SaaS"],
+            investor_portfolio=["Freshworks"],
+        ),
+        investor_matching=InvestorMatchingInput(
+            preferred_investor_type="VC", board_seat_acceptable=False, looking_for_smart_money=True
+        ),
+        vc_targeting=VCTargetingInput(
+            target_vcs=["Sequoia", "Accel"],
+            warm_intros_available=2,
+            cold_outreach_done=10,
+            accelerator_backed=True,
+            accelerator_name="Y Combinator",
+        ),
+        pitch_feedback=PitchFeedbackInput(
+            pitches_completed=8, common_objections=["Crowded market"], positive_signals=["Strong team"]
+        ),
+        objection_library=ObjectionLibraryInput(
+            custom_objections=[{"objection": "Too expensive", "response": "ROI is 5x"}]
+        ),
+        burn_runway=BurnRunwayInput(
+            monthly_burn_rate="₹3,00,000", cash_in_bank="₹36,00,000", monthly_revenue="₹50,000", revenue_growth_mom=20.0
+        ),
+        valuation=ValuationInput(
+            valuation_method="Revenue Multiple",
+            target_pre_money="₹3,00,00,000",
+            arr="₹6,00,000",
+            revenue_multiple_used=5.0,
+            comparable_startups=["Freshworks"],
+        ),
+        cap_table=CapTableInput(
+            founders_equity=65.0,
+            employee_esop_pool=10.0,
+            existing_investor_equity=20.0,
+            new_round_dilution=15.0,
+            total_shareholders=5,
+        ),
+        safe_note=SAFENoteInput(
+            instrument_type="SAFE",
+            valuation_cap="₹4,00,00,000",
+            discount_rate=20.0,
+            has_mfn_clause=True,
+            pro_rata_rights=True,
+        ),
+        revenue_metrics=RevenueMetricsInput(
+            mrr="₹50,000",
+            arr="₹6,00,000",
+            churn_rate=3.5,
+            net_revenue_retention=108.0,
+            paying_customers=10,
+            free_users=100,
+            customer_lifetime_months=18.0,
+        ),
+        unit_economics_detail=UnitEconomicsDetailInput(
+            cac_by_channel={"Organic": "₹800"},
+            ltv="₹18,000",
+            payback_period_months=6.0,
+            gross_margin=72.0,
+            net_margin=-15.0,
+        ),
+        fundraising_timeline=FundraisingTimelineInput(
+            target_close_date="Sep 2025",
+            amount_committed_so_far="₹10,00,000",
+            key_milestones_for_close=["100 customers"],
+            parallel_grant_applications=["Startup India"],
+        ),
+        competitive_matrix=CompetitiveMatrixInput(
+            competitors=[{"name": "Comp A"}],
+            primary_differentiator="AI-first",
+            switching_cost_high=True,
+            network_effects=True,
+            defensible_moats=["Proprietary data", "Contracts"],
+        ),
+        regulatory=RegulatoryInput(
+            licenses_required=["DPIIT"], licenses_obtained=["DPIIT"], gdpr_compliant=True, data_residency_compliant=True
+        ),
+        ip_tracker=IPTrackerInput(
+            patents_filed=2,
+            patents_granted=1,
+            trademarks_registered=2,
+            trade_secrets_documented=True,
+            open_source_components_audited=True,
+        ),
+        partnerships=PartnershipInput(
+            strategic_partners=[{"name": "AWS", "type": "Cloud", "status": "Active"}],
+            distribution_partners=["DP1"],
+            channel_partners=3,
+            mou_signed=2,
+        ),
+        accelerator_grant=AcceleratorGrantInput(
+            applied_to=["YC"],
+            accepted_by=["YC"],
+            grant_funding_received="₹10,00,000",
+            dpiit_recognized=True,
+            iim_iit_incubated=False,
+        ),
+        board_advisors=BoardAdvisorInput(
+            board_members=[{"name": "Alice", "background": "Ex-Google", "equity_pct": "0.5"}],
+            advisors=[{"name": "Bob", "expertise": "Sales", "equity_pct": "0.25"}],
+            total_board_size=2,
+            independent_directors=0,
+            advisor_network_reach="2 seasoned advisors",
+        ),
+        exit_strategy=ExitStrategyInput(
+            preferred_exit="Strategic Acquisition",
+            target_exit_timeline="5-7 years",
+            potential_acquirers=["Zoho", "SAP"],
+            comparable_exits=[{"company": "TaxMantra", "exit_value": "$50M", "year": "2022"}],
+            target_exit_valuation="₹50 Cr",
+        ),
     )
     file_texts = {
         "d1": DECK_TEXT,
