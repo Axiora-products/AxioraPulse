@@ -342,6 +342,37 @@ export class AxioraPulseStack extends cdk.Stack {
         value: frontendUrl,
         description: 'Frontend CloudFront distribution URL',
       });
+
+      // CDK-Nag Suppressions for Frontend Bucket and Distribution
+      NagSuppressions.addResourceSuppressions(frontendBucket, [
+        {
+          id: 'AwsSolutions-S1',
+          reason: 'QA/Dev S3 bucket does not require server access logging to optimize costs.'
+        }
+      ]);
+
+      NagSuppressions.addResourceSuppressions(distribution, [
+        {
+          id: 'AwsSolutions-CFR1',
+          reason: 'QA/Dev CloudFront distribution does not require geo restrictions.'
+        },
+        {
+          id: 'AwsSolutions-CFR2',
+          reason: 'QA/Dev CloudFront distribution does not require WAF integration to minimize costs.'
+        },
+        {
+          id: 'AwsSolutions-CFR3',
+          reason: 'QA/Dev CloudFront distribution does not require access logging to minimize costs.'
+        },
+        {
+          id: 'AwsSolutions-CFR4',
+          reason: 'QA/Dev CloudFront distribution uses default CloudFront certificate for simplicity.'
+        },
+        {
+          id: 'AwsSolutions-CFR7',
+          reason: 'OAI/S3Origin standard configuration is sufficient; OAC is not strictly required for QA/Dev.'
+        }
+      ]);
     }
 
     if (isProd) {
