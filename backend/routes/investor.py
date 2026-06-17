@@ -9,7 +9,6 @@ from schemas.investor import (
     InvestorReadinessReportResponse,
     InvestorReadinessInitRequest,
     SurveyIntelligence,
-    ExternalIntelligence,
     CapabilityIntelligence,
     EvidenceStatement,
 )
@@ -72,10 +71,14 @@ async def generate_investor_readiness_report(
     HTTP 503 is returned if the AI provider is unavailable — no fake fallback data.
     """
     # ── 1. Verify survey ownership ────────────────────────────────────────────
-    survey = db.query(Survey).filter(
-        Survey.id == survey_id,
-        Survey.tenant_id == current_user.tenant_id,
-    ).first()
+    survey = (
+        db.query(Survey)
+        .filter(
+            Survey.id == survey_id,
+            Survey.tenant_id == current_user.tenant_id,
+        )
+        .first()
+    )
 
     if not survey:
         raise HTTPException(status_code=404, detail="Survey not found")
@@ -101,9 +104,13 @@ async def generate_investor_readiness_report(
         )
 
     # ── 3. Enforce minimum response threshold ─────────────────────────────────
-    total_responses = db.query(SurveyResponse).filter(
-        SurveyResponse.survey_id == survey_id,
-    ).count()
+    total_responses = (
+        db.query(SurveyResponse)
+        .filter(
+            SurveyResponse.survey_id == survey_id,
+        )
+        .count()
+    )
 
     if total_responses < 50:
         raise HTTPException(
@@ -116,29 +123,14 @@ async def generate_investor_readiness_report(
 
     # ── 4. Fetch questions, responses, and answers ────────────────────────────
     questions = (
-        db.query(SurveyQuestion)
-        .filter(SurveyQuestion.survey_id == survey_id)
-        .order_by(SurveyQuestion.sort_order)
-        .all()
+        db.query(SurveyQuestion).filter(SurveyQuestion.survey_id == survey_id).order_by(SurveyQuestion.sort_order).all()
     )
 
-    responses_all = (
-        db.query(SurveyResponse)
-        .filter(SurveyResponse.survey_id == survey_id)
-        .all()
-    )
+    responses_all = db.query(SurveyResponse).filter(SurveyResponse.survey_id == survey_id).all()
 
-    completed_responses = sum(
-        1 for r in responses_all
-        if r.status and r.status.value == "completed"
-    )
+    completed_responses = sum(1 for r in responses_all if r.status and r.status.value == "completed")
 
-    answers = (
-        db.query(SurveyAnswer)
-        .join(SurveyResponse)
-        .filter(SurveyResponse.survey_id == survey_id)
-        .all()
-    )
+    answers = db.query(SurveyAnswer).join(SurveyResponse).filter(SurveyResponse.survey_id == survey_id).all()
 
     # ── 5. Build founder context & run survey intelligence (19 capability engines) ──
     cur = _get_currency_config(body.target_country)
@@ -175,6 +167,7 @@ async def generate_investor_readiness_report(
     # Collect all file_id references from the external data payload
     file_ids_needed: set = set()
     _ext = ext_data.model_dump()
+
     def _collect_ids(obj):
         if isinstance(obj, dict):
             for k, v in obj.items():
@@ -187,12 +180,14 @@ async def generate_investor_readiness_report(
         elif isinstance(obj, list):
             for item in obj:
                 _collect_ids(item)
+
     _collect_ids(_ext)
 
     # Fetch extracted_text for each referenced file ID
     file_texts: dict = {}
     if file_ids_needed:
         import uuid as _uuid
+
         valid_uuids = []
         for fid in file_ids_needed:
             try:
@@ -225,10 +220,7 @@ async def generate_investor_readiness_report(
                 confidence=cap["confidence"],
                 evidence_count=cap["evidence_count"],
                 data_coverage=cap["data_coverage"],
-                evidence_statements=[
-                    EvidenceStatement(**ev)
-                    for ev in cap["evidence_statements"]
-                ],
+                evidence_statements=[EvidenceStatement(**ev) for ev in cap["evidence_statements"]],
                 raw_metrics=cap["raw_metrics"],
                 limitations=cap["limitations"],
             )
@@ -246,10 +238,7 @@ async def generate_investor_readiness_report(
     )
 
     # ── 8. Build question summary for AI context ──────────────────────────────
-    q_summary = "\n".join(
-        f"  - Q{i + 1} ({q.question_type}): {q.question_text}"
-        for i, q in enumerate(questions[:25])
-    )
+    q_summary = "\n".join(f"  - Q{i + 1} ({q.question_type}): {q.question_text}" for i, q in enumerate(questions[:25]))
 
     # ── 8b. Pre-compute locked scoring dimension values ──────────────────
     # These are derived from computed capability scores — AI cannot override them.
@@ -263,41 +252,46 @@ async def generate_investor_readiness_report(
         return caps.get(name, {}).get("limitations", [])
 
     def _cap_status(score: int) -> str:
-        if score >= 70: return "Strong"
-        if score >= 50: return "Medium"
+        if score >= 70:
+            return "Strong"
+        if score >= 50:
+            return "Medium"
         return "High Risk"
 
     # Financial readiness: average of willingness_to_pay + unit_economics
     _fin_score = int((_cap_score("willingness_to_pay") + _cap_score("unit_economics")) / 2)
-    _fin_lims  = _cap_lims("willingness_to_pay") + _cap_lims("unit_economics")
+    _fin_lims = _cap_lims("willingness_to_pay") + _cap_lims("unit_economics")
 
     # Product readiness: problem_solution
     _prod_score = _cap_score("problem_solution")
-    _prod_lims  = _cap_lims("problem_solution")
+    _prod_lims = _cap_lims("problem_solution")
 
     # Market readiness: market_opportunity
     _mkt_score = _cap_score("market_opportunity")
-    _mkt_lims  = _cap_lims("market_opportunity")
+    _mkt_lims = _cap_lims("market_opportunity")
 
     # Team readiness: investor_readiness_analysis (has team_size info) or 0
     _team_score = _cap_score("investor_readiness_analysis")
-    _team_lims  = _cap_lims("investor_readiness_analysis") or ["No team assessment questions in survey"]
+    _team_lims = _cap_lims("investor_readiness_analysis") or ["No team assessment questions in survey"]
 
     # Operational maturity: traction_evidence
     _ops_score = _cap_score("traction_evidence")
-    _ops_lims  = _cap_lims("traction_evidence")
+    _ops_lims = _cap_lims("traction_evidence")
 
-    _overall_score     = intelligence["overall_score"]
-    _confidence_score  = min(100, intelligence["total_evidence"] * 4 + 20)
-    _growth_potential  = "High" if _overall_score >= 70 else ("Moderate" if _overall_score >= 50 else "Low")
-    _attract_level     = (
-        "Excellent" if _overall_score >= 80 else
-        "Strong" if _overall_score >= 65 else
-        "Emerging" if _overall_score >= 50 else "Early Stage"
+    _overall_score = intelligence["overall_score"]
+    _confidence_score = min(100, intelligence["total_evidence"] * 4 + 20)
+    _growth_potential = "High" if _overall_score >= 70 else ("Moderate" if _overall_score >= 50 else "Low")
+    _attract_level = (
+        "Excellent"
+        if _overall_score >= 80
+        else "Strong"
+        if _overall_score >= 65
+        else "Emerging"
+        if _overall_score >= 50
+        else "Early Stage"
     )
-    _pitch_rating      = (
-        "Highly Prepared" if _overall_score >= 75 else
-        "Refinements Needed" if _overall_score >= 55 else "Early Stage"
+    _pitch_rating = (
+        "Highly Prepared" if _overall_score >= 75 else "Refinements Needed" if _overall_score >= 55 else "Early Stage"
     )
 
     # ── 9. Compose AI prompt with evidence-grounded intelligence ──────────────
@@ -383,7 +377,7 @@ Where data is insufficient, use the string "Insufficient survey data" for that f
       "phase": "Phase 1: Validation & Launch",
       "milestone": "Grounded in the evidence gaps identified",
       "timeline": "Month 1 - 3",
-      "funding_required": "Based on monetization model in {cur['code']}",
+      "funding_required": "Based on monetization model in {cur["code"]}",
       "focus_area": "Product & Engineering"
     }}
   ],
@@ -446,13 +440,13 @@ Where data is insufficient, use the string "Insufficient survey data" for that f
   "target_investors": [
     {{
       "investor_type": "Based on traction_evidence and overall_score stage",
-      "average_check": "In {cur['code']} based on geography",
+      "average_check": "In {cur["code"]} based on geography",
       "key_criteria": ["Derived from highest-scoring capabilities"],
       "target_fit": "Explain fit based on evidence"
     }}
   ],
   "funding_ask": {{
-    "amount": "In {cur['code']} — justify with evidence or mark as 'Insufficient data'",
+    "amount": "In {cur["code"]} — justify with evidence or mark as 'Insufficient data'",
     "timeline_runway": "12-18 months",
     "breakdown": [
       {{ "allocation": "Product & Engineering", "percentage": "50%" }},
@@ -529,19 +523,17 @@ Where data is insufficient, use the string "Insufficient survey data" for that f
             "insights": existing_scoring.get("operational_maturity", {}).get("insights", "Insufficient data"),
             "gaps": _ops_lims[:3] or ["Insufficient traction data"],
         },
-        "key_risks": existing_scoring.get("key_risks", [
-            {"risk": "Insufficient survey data for risk assessment", "mitigation": "Add risk-signal questions"}
-        ]),
+        "key_risks": existing_scoring.get(
+            "key_risks",
+            [{"risk": "Insufficient survey data for risk assessment", "mitigation": "Add risk-signal questions"}],
+        ),
     }
 
     report_data["survey_intelligence"] = {
         "overall_score": survey_intelligence_obj.overall_score,
         "overall_confidence": survey_intelligence_obj.overall_confidence,
         "total_evidence": survey_intelligence_obj.total_evidence,
-        "capabilities": {
-            name: cap.model_dump()
-            for name, cap in survey_intelligence_obj.capabilities.items()
-        },
+        "capabilities": {name: cap.model_dump() for name, cap in survey_intelligence_obj.capabilities.items()},
     }
 
     # Inject external intelligence (32 capabilities) — always computed, never from AI
@@ -553,9 +545,7 @@ Where data is insufficient, use the string "Insufficient survey data" for that f
             confidence=cap_dict["confidence"],
             evidence_count=cap_dict["evidence_count"],
             data_coverage=cap_dict["data_coverage"],
-            evidence_statements=[
-                EvidenceStatement(**ev) for ev in cap_dict["evidence_statements"]
-            ],
+            evidence_statements=[EvidenceStatement(**ev) for ev in cap_dict["evidence_statements"]],
             raw_metrics=cap_dict["raw_metrics"],
             limitations=cap_dict["limitations"],
         )

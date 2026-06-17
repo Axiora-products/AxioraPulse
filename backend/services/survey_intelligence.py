@@ -31,31 +31,96 @@ from db.models import SurveyQuestion, SurveyResponse, SurveyAnswer
 
 # ── Positive / Negative Classification Constants ─────────────────────────────
 
-_POSITIVE_TEXT_VALUES = frozenset([
-    "yes", "true", "agree", "strongly agree", "very high", "high",
-    "positive", "interested", "definitely", "very likely", "likely",
-    "very satisfied", "satisfied", "excellent", "great", "good",
-    "love it", "amazing", "fantastic", "absolutely", "of course",
-])
+_POSITIVE_TEXT_VALUES = frozenset(
+    [
+        "yes",
+        "true",
+        "agree",
+        "strongly agree",
+        "very high",
+        "high",
+        "positive",
+        "interested",
+        "definitely",
+        "very likely",
+        "likely",
+        "very satisfied",
+        "satisfied",
+        "excellent",
+        "great",
+        "good",
+        "love it",
+        "amazing",
+        "fantastic",
+        "absolutely",
+        "of course",
+    ]
+)
 
-_NEGATIVE_TEXT_VALUES = frozenset([
-    "no", "false", "disagree", "strongly disagree", "very low", "low",
-    "negative", "not interested", "unlikely", "very unlikely", "never",
-    "dissatisfied", "very dissatisfied", "poor", "terrible", "bad",
-    "hate", "awful", "not at all", "definitely not",
-])
+_NEGATIVE_TEXT_VALUES = frozenset(
+    [
+        "no",
+        "false",
+        "disagree",
+        "strongly disagree",
+        "very low",
+        "low",
+        "negative",
+        "not interested",
+        "unlikely",
+        "very unlikely",
+        "never",
+        "dissatisfied",
+        "very dissatisfied",
+        "poor",
+        "terrible",
+        "bad",
+        "hate",
+        "awful",
+        "not at all",
+        "definitely not",
+    ]
+)
 
-_POSITIVE_KEYWORDS = frozenset([
-    "love", "great", "excellent", "definitely", "highly", "amazing",
-    "fantastic", "wonderful", "perfect", "impressed", "helpful",
-    "useful", "recommend", "satisfied", "happy",
-])
+_POSITIVE_KEYWORDS = frozenset(
+    [
+        "love",
+        "great",
+        "excellent",
+        "definitely",
+        "highly",
+        "amazing",
+        "fantastic",
+        "wonderful",
+        "perfect",
+        "impressed",
+        "helpful",
+        "useful",
+        "recommend",
+        "satisfied",
+        "happy",
+    ]
+)
 
-_NEGATIVE_KEYWORDS = frozenset([
-    "hate", "terrible", "awful", "worst", "useless", "unhelpful",
-    "frustrated", "annoyed", "disappointed", "confused", "waste",
-    "poor", "bad", "horrible", "difficult",
-])
+_NEGATIVE_KEYWORDS = frozenset(
+    [
+        "hate",
+        "terrible",
+        "awful",
+        "worst",
+        "useless",
+        "unhelpful",
+        "frustrated",
+        "annoyed",
+        "disappointed",
+        "confused",
+        "waste",
+        "poor",
+        "bad",
+        "horrible",
+        "difficult",
+    ]
+)
 
 
 # ── Data Classes ──────────────────────────────────────────────────────────────
@@ -64,6 +129,7 @@ _NEGATIVE_KEYWORDS = frozenset([
 @dataclass
 class AnswerAnalysis:
     """Analysis result for a single answer value."""
+
     sentiment: str  # "positive", "negative", "neutral"
     numeric_value: Optional[float] = None
 
@@ -71,6 +137,7 @@ class AnswerAnalysis:
 @dataclass
 class QuestionAnalysis:
     """Aggregated analysis of all responses to a single question."""
+
     question_id: str
     question_text: str
     question_type: str
@@ -100,6 +167,7 @@ class QuestionAnalysis:
 @dataclass
 class EvidenceStatement:
     """A traceable evidence statement derived from survey data."""
+
     category: str
     statement: str
     data_point: str
@@ -110,6 +178,7 @@ class EvidenceStatement:
 @dataclass
 class CapabilityResult:
     """Output from a single capability engine."""
+
     capability_name: str
     score: int  # 0-100
     confidence: str  # "high", "medium", "low"
@@ -123,6 +192,7 @@ class CapabilityResult:
 @dataclass
 class FounderContext:
     """Structured container for all founder-provided context fields."""
+
     startup_context: str = ""
     pricing_model: str = ""
     target_country: str = ""
@@ -149,13 +219,20 @@ class FounderContext:
     @property
     def filled_optional_count(self) -> int:
         count = 0
-        if self.funding_stage: count += 1
-        if self.funding_target: count += 1
-        if self.team_size: count += 1
-        if self.monthly_revenue: count += 1
-        if self.industry_vertical: count += 1
-        if self.founded_year: count += 1
-        if self.founder_count: count += 1
+        if self.funding_stage:
+            count += 1
+        if self.funding_target:
+            count += 1
+        if self.team_size:
+            count += 1
+        if self.monthly_revenue:
+            count += 1
+        if self.industry_vertical:
+            count += 1
+        if self.founded_year:
+            count += 1
+        if self.founder_count:
+            count += 1
         return count
 
 
@@ -167,9 +244,9 @@ def _parse_price_from_text(text: str) -> Optional[float]:
     """
     if not text:
         return None
-    cleaned = re.sub(r'[₹$€£A-Z]', '', text, flags=re.IGNORECASE)
-    cleaned = cleaned.replace(',', '')
-    matches = re.findall(r'\d+\.?\d*', cleaned)
+    cleaned = re.sub(r"[₹$€£A-Z]", "", text, flags=re.IGNORECASE)
+    cleaned = cleaned.replace(",", "")
+    matches = re.findall(r"\d+\.?\d*", cleaned)
     if matches:
         return float(matches[0])
     return None
@@ -354,9 +431,13 @@ _COMPILED_SIGNAL_RULES = sorted(
 
 # All known signal categories (used for fallback logic)
 _ALL_SIGNAL_CATEGORIES = {
-    "problem_validation", "market_demand", "product_market_fit",
-    "willingness_to_pay", "competitive_positioning",
-    "customer_segmentation", "risk_signal",
+    "problem_validation",
+    "market_demand",
+    "product_market_fit",
+    "willingness_to_pay",
+    "competitive_positioning",
+    "customer_segmentation",
+    "risk_signal",
 }
 
 # Question types that are almost always about market intent when nothing else matches
@@ -387,11 +468,7 @@ def classify_question(question: SurveyQuestion) -> List[str]:
     If no category matches, returns ["general"].
     """
     text_lower = question.question_text.lower()
-    q_type = (
-        question.question_type.value
-        if hasattr(question.question_type, "value")
-        else str(question.question_type)
-    )
+    q_type = question.question_type.value if hasattr(question.question_type, "value") else str(question.question_type)
 
     matched: List[str] = []
     seen: set = set()
@@ -492,7 +569,9 @@ def analyze_responses(
     results: Dict[str, QuestionAnalysis] = {}
 
     for q_id, question in q_lookup.items():
-        q_type = question.question_type.value if hasattr(question.question_type, "value") else str(question.question_type)
+        q_type = (
+            question.question_type.value if hasattr(question.question_type, "value") else str(question.question_type)
+        )
         categories = classify_question(question)
         qa = QuestionAnalysis(
             question_id=q_id,
@@ -546,9 +625,7 @@ def analyze_responses(
 # ── Capability Engines ────────────────────────────────────────────────────────
 
 
-def _get_category_questions(
-    analysis: Dict[str, QuestionAnalysis], category: str
-) -> List[QuestionAnalysis]:
+def _get_category_questions(analysis: Dict[str, QuestionAnalysis], category: str) -> List[QuestionAnalysis]:
     """Get all QuestionAnalysis objects for a given signal category."""
     return [qa for qa in analysis.values() if category in qa.categories]
 
@@ -582,8 +659,10 @@ def build_problem_solution(analysis: Dict[str, QuestionAnalysis]) -> CapabilityR
             data_coverage=0.0,
             evidence_statements=[],
             raw_metrics={"tagged_questions": 0, "total_answers": 0},
-            limitations=["No survey questions were identified as problem/pain-point validation questions. "
-                         "Consider adding questions about customer challenges, frustrations, or pain points."],
+            limitations=[
+                "No survey questions were identified as problem/pain-point validation questions. "
+                "Consider adding questions about customer challenges, frustrations, or pain points."
+            ],
         )
 
     total_answers = sum(q.total_answers for q in questions)
@@ -596,22 +675,26 @@ def build_problem_solution(analysis: Dict[str, QuestionAnalysis]) -> CapabilityR
         if q.total_answers == 0:
             continue
 
-        evidence.append(EvidenceStatement(
-            category="problem_validation",
-            statement=f"{q.positive_ratio:.0f}% of {q.total_answers} respondents validated this pain point",
-            data_point=f"{q.positive_ratio:.0f}%",
-            source_question=q.question_text,
-            sample_size=q.total_answers,
-        ))
+        evidence.append(
+            EvidenceStatement(
+                category="problem_validation",
+                statement=f"{q.positive_ratio:.0f}% of {q.total_answers} respondents validated this pain point",
+                data_point=f"{q.positive_ratio:.0f}%",
+                source_question=q.question_text,
+                sample_size=q.total_answers,
+            )
+        )
 
         if q.average_rating > 0:
-            evidence.append(EvidenceStatement(
-                category="problem_validation",
-                statement=f"Average severity rating: {q.average_rating}/5 across {q.ratings_count} responses",
-                data_point=f"{q.average_rating}/5",
-                source_question=q.question_text,
-                sample_size=q.ratings_count,
-            ))
+            evidence.append(
+                EvidenceStatement(
+                    category="problem_validation",
+                    statement=f"Average severity rating: {q.average_rating}/5 across {q.ratings_count} responses",
+                    data_point=f"{q.average_rating}/5",
+                    source_question=q.question_text,
+                    sample_size=q.ratings_count,
+                )
+            )
 
     # Score: weighted average of positive ratios
     avg_ratings = [q.average_rating for q in questions if q.average_rating > 0]
@@ -623,8 +706,10 @@ def build_problem_solution(analysis: Dict[str, QuestionAnalysis]) -> CapabilityR
     score = max(0, min(100, score))
 
     if total_answers < 30:
-        limitations.append(f"Only {total_answers} answers analyzed for problem validation — "
-                          f"statistical significance improves with more responses.")
+        limitations.append(
+            f"Only {total_answers} answers analyzed for problem validation — "
+            f"statistical significance improves with more responses."
+        )
 
     return CapabilityResult(
         capability_name="problem_solution",
@@ -669,8 +754,10 @@ def build_market_opportunity(
             data_coverage=0.0,
             evidence_statements=[],
             raw_metrics={"tagged_questions": 0},
-            limitations=["No survey questions were identified as market demand questions. "
-                         "Consider adding questions about adoption intent, interest level, or willingness to try."],
+            limitations=[
+                "No survey questions were identified as market demand questions. "
+                "Consider adding questions about adoption intent, interest level, or willingness to try."
+            ],
         )
 
     total_answers = sum(q.total_answers for q in questions)
@@ -680,13 +767,15 @@ def build_market_opportunity(
     for q in questions:
         if q.total_answers == 0:
             continue
-        evidence.append(EvidenceStatement(
-            category="market_demand",
-            statement=f"{q.positive_ratio:.0f}% of {q.total_answers} respondents expressed interest or adoption intent",
-            data_point=f"{q.positive_ratio:.0f}%",
-            source_question=q.question_text,
-            sample_size=q.total_answers,
-        ))
+        evidence.append(
+            EvidenceStatement(
+                category="market_demand",
+                statement=f"{q.positive_ratio:.0f}% of {q.total_answers} respondents expressed interest or adoption intent",
+                data_point=f"{q.positive_ratio:.0f}%",
+                source_question=q.question_text,
+                sample_size=q.total_answers,
+            )
+        )
 
     # Demographic spread from responses
     demographic_data: Dict[str, Any] = {}
@@ -696,13 +785,15 @@ def build_market_opportunity(
 
     if cities:
         demographic_data["cities"] = dict(cities.most_common(5))
-        evidence.append(EvidenceStatement(
-            category="customer_segmentation",
-            statement=f"Respondents from {len(cities)} distinct cities; top: {', '.join(c for c, _ in cities.most_common(3))}",
-            data_point=f"{len(cities)} cities",
-            source_question="Respondent demographics (city)",
-            sample_size=sum(cities.values()),
-        ))
+        evidence.append(
+            EvidenceStatement(
+                category="customer_segmentation",
+                statement=f"Respondents from {len(cities)} distinct cities; top: {', '.join(c for c, _ in cities.most_common(3))}",
+                data_point=f"{len(cities)} cities",
+                source_question="Respondent demographics (city)",
+                sample_size=sum(cities.values()),
+            )
+        )
 
     if occupations:
         demographic_data["occupations"] = dict(occupations.most_common(5))
@@ -712,20 +803,24 @@ def build_market_opportunity(
     # Segmentation from questions
     for q in seg_questions:
         if q.top_answers:
-            evidence.append(EvidenceStatement(
-                category="customer_segmentation",
-                statement=f"Segmentation data: top answers — {', '.join(f'{k} ({v})' for k, v in list(q.top_answers.items())[:3])}",
-                data_point=f"{len(q.top_answers)} segments",
-                source_question=q.question_text,
-                sample_size=q.total_answers,
-            ))
+            evidence.append(
+                EvidenceStatement(
+                    category="customer_segmentation",
+                    statement=f"Segmentation data: top answers — {', '.join(f'{k} ({v})' for k, v in list(q.top_answers.items())[:3])}",
+                    data_point=f"{len(q.top_answers)} segments",
+                    source_question=q.question_text,
+                    sample_size=q.total_answers,
+                )
+            )
 
     score = int(adoption_ratio)
     score = max(0, min(100, score))
 
     if not demographic_data and not seg_questions:
-        limitations.append("No demographic data available from respondents. "
-                          "Respondent city, age range, and occupation fields are empty.")
+        limitations.append(
+            "No demographic data available from respondents. "
+            "Respondent city, age range, and occupation fields are empty."
+        )
 
     return CapabilityResult(
         capability_name="market_opportunity",
@@ -775,52 +870,58 @@ def build_traction_evidence(
     all_ratings_count = sum(q.ratings_count for q in all_questions)
     overall_avg_rating = round(all_ratings_sum / all_ratings_count, 1) if all_ratings_count > 0 else 0
 
-    evidence.append(EvidenceStatement(
-        category="traction",
-        statement=f"Survey collected {total_responses} total responses with {completion_rate:.0f}% completion rate",
-        data_point=f"{total_responses} responses",
-        source_question="Survey response metadata",
-        sample_size=total_responses,
-    ))
+    evidence.append(
+        EvidenceStatement(
+            category="traction",
+            statement=f"Survey collected {total_responses} total responses with {completion_rate:.0f}% completion rate",
+            data_point=f"{total_responses} responses",
+            source_question="Survey response metadata",
+            sample_size=total_responses,
+        )
+    )
 
-    evidence.append(EvidenceStatement(
-        category="traction",
-        statement=f"Overall positive validation ratio: {overall_positive_ratio:.0f}% across {total_answers} analyzed answers",
-        data_point=f"{overall_positive_ratio:.0f}%",
-        source_question="All survey questions (aggregated)",
-        sample_size=total_answers,
-    ))
+    evidence.append(
+        EvidenceStatement(
+            category="traction",
+            statement=f"Overall positive validation ratio: {overall_positive_ratio:.0f}% across {total_answers} analyzed answers",
+            data_point=f"{overall_positive_ratio:.0f}%",
+            source_question="All survey questions (aggregated)",
+            sample_size=total_answers,
+        )
+    )
 
     if overall_avg_rating > 0:
-        evidence.append(EvidenceStatement(
-            category="traction",
-            statement=f"Average rating across all rated questions: {overall_avg_rating}/5 from {all_ratings_count} ratings",
-            data_point=f"{overall_avg_rating}/5",
-            source_question="All rating/scale questions (aggregated)",
-            sample_size=all_ratings_count,
-        ))
+        evidence.append(
+            EvidenceStatement(
+                category="traction",
+                statement=f"Average rating across all rated questions: {overall_avg_rating}/5 from {all_ratings_count} ratings",
+                data_point=f"{overall_avg_rating}/5",
+                source_question="All rating/scale questions (aggregated)",
+                sample_size=all_ratings_count,
+            )
+        )
 
-    evidence.append(EvidenceStatement(
-        category="traction",
-        statement=f"Engagement depth: {engagement_depth:.0%} — respondents answered {avg_answers_per_response:.1f} of {len(all_questions)} questions on average",
-        data_point=f"{engagement_depth:.0%}",
-        source_question="Response completion analysis",
-        sample_size=total_responses,
-    ))
+    evidence.append(
+        EvidenceStatement(
+            category="traction",
+            statement=f"Engagement depth: {engagement_depth:.0%} — respondents answered {avg_answers_per_response:.1f} of {len(all_questions)} questions on average",
+            data_point=f"{engagement_depth:.0%}",
+            source_question="Response completion analysis",
+            sample_size=total_responses,
+        )
+    )
 
     # Score: weighted combination of volume, positive ratio, engagement
     volume_score = min(100, total_responses * 2)  # 50 responses = 100
     score = int(
-        overall_positive_ratio * 0.40
-        + volume_score * 0.30
-        + completion_rate * 0.15
-        + engagement_depth * 100 * 0.15
+        overall_positive_ratio * 0.40 + volume_score * 0.30 + completion_rate * 0.15 + engagement_depth * 100 * 0.15
     )
     score = max(0, min(100, score))
 
     if total_responses < 100:
-        limitations.append(f"Only {total_responses} responses collected. "
-                          f"Larger sample sizes (100+) increase statistical confidence.")
+        limitations.append(
+            f"Only {total_responses} responses collected. Larger sample sizes (100+) increase statistical confidence."
+        )
 
     return CapabilityResult(
         capability_name="traction_evidence",
@@ -865,8 +966,10 @@ def build_competitive_advantage(analysis: Dict[str, QuestionAnalysis]) -> Capabi
             data_coverage=0.0,
             evidence_statements=[],
             raw_metrics={"tagged_questions": 0},
-            limitations=["No survey questions about competitors or alternatives were identified. "
-                         "Consider adding questions about current solutions, competitor usage, or switching intent."],
+            limitations=[
+                "No survey questions about competitors or alternatives were identified. "
+                "Consider adding questions about current solutions, competitor usage, or switching intent."
+            ],
         )
 
     total_answers = sum(q.total_answers for q in questions)
@@ -879,31 +982,37 @@ def build_competitive_advantage(analysis: Dict[str, QuestionAnalysis]) -> Capabi
 
         # For competitive questions, "negative" about alternatives = positive for us
         if q.top_answers:
-            evidence.append(EvidenceStatement(
-                category="competitive_positioning",
-                statement=f"Top responses: {', '.join(f'{k} ({v})' for k, v in list(q.top_answers.items())[:3])}",
-                data_point=f"{len(q.top_answers)} alternatives identified",
-                source_question=q.question_text,
-                sample_size=q.total_answers,
-            ))
+            evidence.append(
+                EvidenceStatement(
+                    category="competitive_positioning",
+                    statement=f"Top responses: {', '.join(f'{k} ({v})' for k, v in list(q.top_answers.items())[:3])}",
+                    data_point=f"{len(q.top_answers)} alternatives identified",
+                    source_question=q.question_text,
+                    sample_size=q.total_answers,
+                )
+            )
 
         if q.text_snippets:
             for snippet in q.text_snippets[:2]:
-                evidence.append(EvidenceStatement(
-                    category="competitive_positioning",
-                    statement=f"Respondent quote: \"{snippet[:150]}\"",
-                    data_point="qualitative",
-                    source_question=q.question_text,
-                    sample_size=1,
-                ))
+                evidence.append(
+                    EvidenceStatement(
+                        category="competitive_positioning",
+                        statement=f'Respondent quote: "{snippet[:150]}"',
+                        data_point="qualitative",
+                        source_question=q.question_text,
+                        sample_size=1,
+                    )
+                )
 
-        evidence.append(EvidenceStatement(
-            category="competitive_positioning",
-            statement=f"{q.negative_ratio:.0f}% of {q.total_answers} respondents expressed dissatisfaction with current alternatives",
-            data_point=f"{q.negative_ratio:.0f}%",
-            source_question=q.question_text,
-            sample_size=q.total_answers,
-        ))
+        evidence.append(
+            EvidenceStatement(
+                category="competitive_positioning",
+                statement=f"{q.negative_ratio:.0f}% of {q.total_answers} respondents expressed dissatisfaction with current alternatives",
+                data_point=f"{q.negative_ratio:.0f}%",
+                source_question=q.question_text,
+                sample_size=q.total_answers,
+            )
+        )
 
     # Score: higher dissatisfaction with alternatives = higher competitive opportunity
     # Also factor in the variety of alternatives mentioned (more = bigger market)
@@ -926,7 +1035,9 @@ def build_competitive_advantage(analysis: Dict[str, QuestionAnalysis]) -> Capabi
             "total_answers": total_answers,
             "dissatisfaction_ratio": round(dissatisfaction_ratio, 1),
             "alternatives_identified": len(all_alternatives),
-            "top_alternatives": dict(Counter({k: v for q in questions for k, v in q.top_answers.items()}).most_common(5)),
+            "top_alternatives": dict(
+                Counter({k: v for q in questions for k, v in q.top_answers.items()}).most_common(5)
+            ),
         },
         limitations=limitations,
     )
@@ -960,44 +1071,52 @@ def build_objection_intelligence(analysis: Dict[str, QuestionAnalysis]) -> Capab
                 "sample_size": q.total_answers,
             }
             objection_themes.append(theme)
-            evidence.append(EvidenceStatement(
-                category="risk_signal",
-                statement=f"{q.negative_ratio:.0f}% negative response rate — potential investor concern area",
-                data_point=f"{q.negative_ratio:.0f}% negative",
-                source_question=q.question_text,
-                sample_size=q.total_answers,
-            ))
+            evidence.append(
+                EvidenceStatement(
+                    category="risk_signal",
+                    statement=f"{q.negative_ratio:.0f}% negative response rate — potential investor concern area",
+                    data_point=f"{q.negative_ratio:.0f}% negative",
+                    source_question=q.question_text,
+                    sample_size=q.total_answers,
+                )
+            )
 
     # Evidence from risk-specific questions
     for q in risk_questions:
         if q.total_answers > 0 and q.text_snippets:
             for snippet in q.text_snippets[:2]:
-                evidence.append(EvidenceStatement(
-                    category="risk_signal",
-                    statement=f"Concern expressed: \"{snippet[:150]}\"",
-                    data_point="qualitative",
-                    source_question=q.question_text,
-                    sample_size=1,
-                ))
+                evidence.append(
+                    EvidenceStatement(
+                        category="risk_signal",
+                        statement=f'Concern expressed: "{snippet[:150]}"',
+                        data_point="qualitative",
+                        source_question=q.question_text,
+                        sample_size=1,
+                    )
+                )
 
     # Low-rated questions
     low_rated_questions = [q for q in all_questions if q.average_rating > 0 and q.average_rating < 3.0]
     for q in low_rated_questions:
-        evidence.append(EvidenceStatement(
-            category="risk_signal",
-            statement=f"Low average rating of {q.average_rating}/5 — indicates weak area",
-            data_point=f"{q.average_rating}/5",
-            source_question=q.question_text,
-            sample_size=q.ratings_count,
-        ))
+        evidence.append(
+            EvidenceStatement(
+                category="risk_signal",
+                statement=f"Low average rating of {q.average_rating}/5 — indicates weak area",
+                data_point=f"{q.average_rating}/5",
+                source_question=q.question_text,
+                sample_size=q.ratings_count,
+            )
+        )
 
-    evidence.append(EvidenceStatement(
-        category="risk_signal",
-        statement=f"Overall negative response ratio: {overall_negative_ratio:.0f}% across {total_answers} answers",
-        data_point=f"{overall_negative_ratio:.0f}%",
-        source_question="All survey questions (aggregated)",
-        sample_size=total_answers,
-    ))
+    evidence.append(
+        EvidenceStatement(
+            category="risk_signal",
+            statement=f"Overall negative response ratio: {overall_negative_ratio:.0f}% across {total_answers} answers",
+            data_point=f"{overall_negative_ratio:.0f}%",
+            source_question="All survey questions (aggregated)",
+            sample_size=total_answers,
+        )
+    )
 
     # Risk score: higher negative ratio = higher risk (inverted for readiness)
     risk_score = int(overall_negative_ratio)
@@ -1005,11 +1124,15 @@ def build_objection_intelligence(analysis: Dict[str, QuestionAnalysis]) -> Capab
     readiness_score = max(0, min(100, 100 - risk_score))
 
     if not risk_questions:
-        limitations.append("No survey questions specifically about concerns or barriers were identified. "
-                          "Risk assessment is based on negative responses across all questions.")
+        limitations.append(
+            "No survey questions specifically about concerns or barriers were identified. "
+            "Risk assessment is based on negative responses across all questions."
+        )
 
     if not objection_themes:
-        limitations.append("No significant objection themes detected (all questions have <20% negative response rates).")
+        limitations.append(
+            "No significant objection themes detected (all questions have <20% negative response rates)."
+        )
 
     return CapabilityResult(
         capability_name="objection_intelligence",
@@ -1123,53 +1246,61 @@ def build_question_simulation(capabilities: List[CapabilityResult]) -> Capabilit
     # 1. Low-score capabilities → investors will probe these
     for cap in capabilities:
         if cap.score < 50 and cap.capability_name != "evidence_mapping":
-            predicted_questions.append({
-                "question": f"Your {cap.capability_name.replace('_', ' ')} score is {cap.score}/100. "
-                           f"What specific evidence do you have to address this gap?",
-                "category": cap.capability_name,
-                "evidence_answer": "; ".join(
-                    e.statement for e in cap.evidence_statements[:2]
-                ) if cap.evidence_statements else "Insufficient evidence — this is a gap to address.",
-                "severity": "high",
-            })
+            predicted_questions.append(
+                {
+                    "question": f"Your {cap.capability_name.replace('_', ' ')} score is {cap.score}/100. "
+                    f"What specific evidence do you have to address this gap?",
+                    "category": cap.capability_name,
+                    "evidence_answer": "; ".join(e.statement for e in cap.evidence_statements[:2])
+                    if cap.evidence_statements
+                    else "Insufficient evidence — this is a gap to address.",
+                    "severity": "high",
+                }
+            )
 
     # 2. Problem validation → "Is this a real problem?"
     ps = cap_map.get("problem_solution")
     if ps:
         metrics = ps.raw_metrics
         ratio = metrics.get("positive_ratio", 0)
-        predicted_questions.append({
-            "question": "How do you know customers actually have this problem?",
-            "category": "problem_validation",
-            "evidence_answer": f"Survey data shows {ratio}% positive validation across "
-                             f"{metrics.get('total_answers', 0)} responses to problem-related questions.",
-            "severity": "medium" if ratio >= 60 else "high",
-        })
+        predicted_questions.append(
+            {
+                "question": "How do you know customers actually have this problem?",
+                "category": "problem_validation",
+                "evidence_answer": f"Survey data shows {ratio}% positive validation across "
+                f"{metrics.get('total_answers', 0)} responses to problem-related questions.",
+                "severity": "medium" if ratio >= 60 else "high",
+            }
+        )
 
     # 3. Market demand → "Is there real demand?"
     mo = cap_map.get("market_opportunity")
     if mo:
         metrics = mo.raw_metrics
         ratio = metrics.get("adoption_intent_ratio", 0)
-        predicted_questions.append({
-            "question": "What evidence do you have of genuine market demand?",
-            "category": "market_demand",
-            "evidence_answer": f"Survey data shows {ratio}% adoption intent across "
-                             f"{metrics.get('total_answers', 0)} responses.",
-            "severity": "medium" if ratio >= 60 else "high",
-        })
+        predicted_questions.append(
+            {
+                "question": "What evidence do you have of genuine market demand?",
+                "category": "market_demand",
+                "evidence_answer": f"Survey data shows {ratio}% adoption intent across "
+                f"{metrics.get('total_answers', 0)} responses.",
+                "severity": "medium" if ratio >= 60 else "high",
+            }
+        )
 
     # 4. Competitive landscape → "Why won't incumbents crush you?"
     ca = cap_map.get("competitive_advantage")
     if ca:
         metrics = ca.raw_metrics
-        predicted_questions.append({
-            "question": "What is your competitive moat? Why can't existing players replicate your solution?",
-            "category": "competitive_positioning",
-            "evidence_answer": f"{metrics.get('dissatisfaction_ratio', 0)}% dissatisfaction with current alternatives. "
-                             f"{metrics.get('alternatives_identified', 0)} competitors identified in survey responses.",
-            "severity": "medium",
-        })
+        predicted_questions.append(
+            {
+                "question": "What is your competitive moat? Why can't existing players replicate your solution?",
+                "category": "competitive_positioning",
+                "evidence_answer": f"{metrics.get('dissatisfaction_ratio', 0)}% dissatisfaction with current alternatives. "
+                f"{metrics.get('alternatives_identified', 0)} competitors identified in survey responses.",
+                "severity": "medium",
+            }
+        )
 
     # 5. Objections → "What are the biggest risks?"
     oi = cap_map.get("objection_intelligence")
@@ -1178,46 +1309,54 @@ def build_question_simulation(capabilities: List[CapabilityResult]) -> Capabilit
         themes = metrics.get("objection_themes", [])
         if themes:
             top_theme = themes[0]
-            predicted_questions.append({
-                "question": f"Respondents flagged concerns about: '{top_theme.get('question', 'N/A')}'. "
-                           f"How will you address this?",
-                "category": "risk_signal",
-                "evidence_answer": f"{top_theme.get('negative_ratio', 0)}% negative response rate "
-                                 f"from {top_theme.get('sample_size', 0)} respondents.",
-                "severity": "high" if top_theme.get("negative_ratio", 0) > 40 else "medium",
-            })
+            predicted_questions.append(
+                {
+                    "question": f"Respondents flagged concerns about: '{top_theme.get('question', 'N/A')}'. "
+                    f"How will you address this?",
+                    "category": "risk_signal",
+                    "evidence_answer": f"{top_theme.get('negative_ratio', 0)}% negative response rate "
+                    f"from {top_theme.get('sample_size', 0)} respondents.",
+                    "severity": "high" if top_theme.get("negative_ratio", 0) > 40 else "medium",
+                }
+            )
 
     # 6. Traction → "Do you have enough validation?"
     te = cap_map.get("traction_evidence")
     if te:
         metrics = te.raw_metrics
-        predicted_questions.append({
-            "question": "How statistically significant is your survey validation?",
-            "category": "traction",
-            "evidence_answer": f"{metrics.get('total_responses', 0)} total responses, "
-                             f"{metrics.get('completion_rate', 0)}% completion rate, "
-                             f"{metrics.get('positive_validation_ratio', 0)}% positive validation.",
-            "severity": "low" if metrics.get("total_responses", 0) >= 100 else "medium",
-        })
+        predicted_questions.append(
+            {
+                "question": "How statistically significant is your survey validation?",
+                "category": "traction",
+                "evidence_answer": f"{metrics.get('total_responses', 0)} total responses, "
+                f"{metrics.get('completion_rate', 0)}% completion rate, "
+                f"{metrics.get('positive_validation_ratio', 0)}% positive validation.",
+                "severity": "low" if metrics.get("total_responses", 0) >= 100 else "medium",
+            }
+        )
 
     # 7. Data gaps
     for cap in capabilities:
         if cap.limitations:
             for limitation in cap.limitations:
-                predicted_questions.append({
-                    "question": f"[Data Gap] {limitation}",
-                    "category": cap.capability_name,
-                    "evidence_answer": "This is an identified data gap. Consider addressing this before investor meetings.",
-                    "severity": "medium",
-                })
+                predicted_questions.append(
+                    {
+                        "question": f"[Data Gap] {limitation}",
+                        "category": cap.capability_name,
+                        "evidence_answer": "This is an identified data gap. Consider addressing this before investor meetings.",
+                        "severity": "medium",
+                    }
+                )
 
-    evidence.append(EvidenceStatement(
-        category="question_simulation",
-        statement=f"Generated {len(predicted_questions)} predicted investor questions based on survey data patterns",
-        data_point=f"{len(predicted_questions)} questions",
-        source_question="Cross-capability gap analysis",
-        sample_size=len(capabilities),
-    ))
+    evidence.append(
+        EvidenceStatement(
+            category="question_simulation",
+            statement=f"Generated {len(predicted_questions)} predicted investor questions based on survey data patterns",
+            data_point=f"{len(predicted_questions)} questions",
+            source_question="Cross-capability gap analysis",
+            sample_size=len(capabilities),
+        )
+    )
 
     # Score: inversely related to number of high-severity questions
     high_severity = sum(1 for q in predicted_questions if q.get("severity") == "high")
@@ -1274,23 +1413,27 @@ def build_investor_readiness_analysis(
     cap_scores = {c.capability_name: c.score for c in survey_caps}
     avg_survey_score = int(sum(cap_scores.values()) / max(len(cap_scores), 1))
 
-    evidence.append(EvidenceStatement(
-        category="readiness_analysis",
-        statement=f"Average survey capability score: {avg_survey_score}/100 across {len(cap_scores)} capabilities",
-        data_point=f"{avg_survey_score}/100",
-        source_question="All survey capabilities (aggregated)",
-        sample_size=len(cap_scores),
-    ))
+    evidence.append(
+        EvidenceStatement(
+            category="readiness_analysis",
+            statement=f"Average survey capability score: {avg_survey_score}/100 across {len(cap_scores)} capabilities",
+            data_point=f"{avg_survey_score}/100",
+            source_question="All survey capabilities (aggregated)",
+            sample_size=len(cap_scores),
+        )
+    )
 
     # Founder context completeness
     context_score = min(100, founder.filled_optional_count * 14 + 30)  # 30 base (5 required) + 14 per optional
-    evidence.append(EvidenceStatement(
-        category="readiness_analysis",
-        statement=f"Founder context completeness: {founder.filled_optional_count}/7 optional fields provided",
-        data_point=f"{founder.filled_optional_count}/7",
-        source_question="Initialization form fields",
-        sample_size=1,
-    ))
+    evidence.append(
+        EvidenceStatement(
+            category="readiness_analysis",
+            statement=f"Founder context completeness: {founder.filled_optional_count}/7 optional fields provided",
+            data_point=f"{founder.filled_optional_count}/7",
+            source_question="Initialization form fields",
+            sample_size=1,
+        )
+    )
 
     # Funding gaps
     funding_gaps = []
@@ -1354,13 +1497,15 @@ def build_pitch_readiness_gate(
                 f"{criteria['label']}: Score {score}/100 (need ≥{criteria['min']}). "
                 f"Add more survey questions targeting this area."
             )
-        evidence.append(EvidenceStatement(
-            category="pitch_gate",
-            statement=f"{criteria['label']} gate: {'PASS' if passed else 'FAIL'} ({score}/{criteria['min']})",
-            data_point=f"{'PASS' if passed else 'FAIL'}",
-            source_question=f"{cap_name} capability score",
-            sample_size=1,
-        ))
+        evidence.append(
+            EvidenceStatement(
+                category="pitch_gate",
+                statement=f"{criteria['label']} gate: {'PASS' if passed else 'FAIL'} ({score}/{criteria['min']})",
+                data_point=f"{'PASS' if passed else 'FAIL'}",
+                source_question=f"{cap_name} capability score",
+                sample_size=1,
+            )
+        )
 
     # Context gate
     context_ready = founder.filled_optional_count >= 3
@@ -1401,13 +1546,15 @@ def build_narrative_intelligence(
 
     # Extract mission/vision keywords from startup_context
     context_words = len(founder.startup_context.split())
-    evidence.append(EvidenceStatement(
-        category="narrative",
-        statement=f"Founder context provided: {context_words} words describing startup mission and vision",
-        data_point=f"{context_words} words",
-        source_question="startup_context field",
-        sample_size=1,
-    ))
+    evidence.append(
+        EvidenceStatement(
+            category="narrative",
+            statement=f"Founder context provided: {context_words} words describing startup mission and vision",
+            data_point=f"{context_words} words",
+            source_question="startup_context field",
+            sample_size=1,
+        )
+    )
 
     # Problem evidence from survey
     problem_qs = _get_category_questions(analysis, "problem_validation")
@@ -1416,26 +1563,30 @@ def build_narrative_intelligence(
         total_ans = sum(q.total_answers for q in problem_qs)
         if total_ans > 0:
             ratio = total_pos / total_ans * 100
-            evidence.append(EvidenceStatement(
-                category="narrative",
-                statement=f"Problem validation backing: {ratio:.0f}% positive across {total_ans} responses",
-                data_point=f"{ratio:.0f}%",
-                source_question="Problem validation questions (aggregated)",
-                sample_size=total_ans,
-            ))
+            evidence.append(
+                EvidenceStatement(
+                    category="narrative",
+                    statement=f"Problem validation backing: {ratio:.0f}% positive across {total_ans} responses",
+                    data_point=f"{ratio:.0f}%",
+                    source_question="Problem validation questions (aggregated)",
+                    sample_size=total_ans,
+                )
+            )
 
     # Text snippets for narrative color
     all_snippets = []
     for qa in analysis.values():
         all_snippets.extend(qa.text_snippets[:2])
     if all_snippets:
-        evidence.append(EvidenceStatement(
-            category="narrative",
-            statement=f"Collected {len(all_snippets)} qualitative quotes from respondents for narrative support",
-            data_point=f"{len(all_snippets)} quotes",
-            source_question="Open-text survey responses",
-            sample_size=len(all_snippets),
-        ))
+        evidence.append(
+            EvidenceStatement(
+                category="narrative",
+                statement=f"Collected {len(all_snippets)} qualitative quotes from respondents for narrative support",
+                data_point=f"{len(all_snippets)} quotes",
+                source_question="Open-text survey responses",
+                sample_size=len(all_snippets),
+            )
+        )
 
     if context_words < 20:
         limitations.append("Startup context is very brief — provide a longer description for richer narratives.")
@@ -1474,33 +1625,39 @@ def build_executive_summary(
     all_positive = sum(q.positive_count for q in analysis.values())
     overall_ratio = (all_positive / all_answers * 100) if all_answers > 0 else 0
 
-    evidence.append(EvidenceStatement(
-        category="executive_summary",
-        statement=f"Venture overview: {founder.startup_context[:150]}",
-        data_point="founder_context",
-        source_question="startup_context field",
-        sample_size=1,
-    ))
-    evidence.append(EvidenceStatement(
-        category="executive_summary",
-        statement=f"Overall survey validation: {overall_ratio:.0f}% positive across {all_answers} data points",
-        data_point=f"{overall_ratio:.0f}%",
-        source_question="All survey questions",
-        sample_size=all_answers,
-    ))
+    evidence.append(
+        EvidenceStatement(
+            category="executive_summary",
+            statement=f"Venture overview: {founder.startup_context[:150]}",
+            data_point="founder_context",
+            source_question="startup_context field",
+            sample_size=1,
+        )
+    )
+    evidence.append(
+        EvidenceStatement(
+            category="executive_summary",
+            statement=f"Overall survey validation: {overall_ratio:.0f}% positive across {all_answers} data points",
+            data_point=f"{overall_ratio:.0f}%",
+            source_question="All survey questions",
+            sample_size=all_answers,
+        )
+    )
 
     # Key strengths (scores >= 65) and weaknesses (< 50)
     strengths = [n for n, s in cap_scores.items() if s >= 65]
     weaknesses = [n for n, s in cap_scores.items() if s < 50]
 
     if founder.industry_vertical:
-        evidence.append(EvidenceStatement(
-            category="executive_summary",
-            statement=f"Industry vertical: {founder.industry_vertical}",
-            data_point=founder.industry_vertical,
-            source_question="industry_vertical field",
-            sample_size=1,
-        ))
+        evidence.append(
+            EvidenceStatement(
+                category="executive_summary",
+                statement=f"Industry vertical: {founder.industry_vertical}",
+                data_point=founder.industry_vertical,
+                source_question="industry_vertical field",
+                sample_size=1,
+            )
+        )
 
     score = int(overall_ratio * 0.5 + min(100, len(strengths) * 20) * 0.3 + 20)
     score = max(0, min(100, score))
@@ -1544,21 +1701,25 @@ def build_tam_sam_som(
     segments_identified = len(cities) + len(occupations) + len(age_ranges)
 
     if cities:
-        evidence.append(EvidenceStatement(
-            category="tam_sam_som",
-            statement=f"Geographic reach: {len(cities)} cities represented in survey respondents",
-            data_point=f"{len(cities)} cities",
-            source_question="Respondent demographics",
-            sample_size=sum(cities.values()),
-        ))
+        evidence.append(
+            EvidenceStatement(
+                category="tam_sam_som",
+                statement=f"Geographic reach: {len(cities)} cities represented in survey respondents",
+                data_point=f"{len(cities)} cities",
+                source_question="Respondent demographics",
+                sample_size=sum(cities.values()),
+            )
+        )
     if occupations:
-        evidence.append(EvidenceStatement(
-            category="tam_sam_som",
-            statement=f"Occupational spread: {len(occupations)} distinct occupations — top: {', '.join(o for o, _ in occupations.most_common(3))}",
-            data_point=f"{len(occupations)} occupations",
-            source_question="Respondent demographics",
-            sample_size=sum(occupations.values()),
-        ))
+        evidence.append(
+            EvidenceStatement(
+                category="tam_sam_som",
+                statement=f"Occupational spread: {len(occupations)} distinct occupations — top: {', '.join(o for o, _ in occupations.most_common(3))}",
+                data_point=f"{len(occupations)} occupations",
+                source_question="Respondent demographics",
+                sample_size=sum(occupations.values()),
+            )
+        )
 
     # Adoption intent for SOM calculation
     if demand_qs:
@@ -1566,21 +1727,25 @@ def build_tam_sam_som(
         total_ans = sum(q.total_answers for q in demand_qs)
         if total_ans > 0:
             adoption_pct = total_pos / total_ans * 100
-            evidence.append(EvidenceStatement(
-                category="tam_sam_som",
-                statement=f"Adoption intent: {adoption_pct:.0f}% of surveyed respondents — basis for SOM estimation",
-                data_point=f"{adoption_pct:.0f}%",
-                source_question="Market demand questions",
-                sample_size=total_ans,
-            ))
+            evidence.append(
+                EvidenceStatement(
+                    category="tam_sam_som",
+                    statement=f"Adoption intent: {adoption_pct:.0f}% of surveyed respondents — basis for SOM estimation",
+                    data_point=f"{adoption_pct:.0f}%",
+                    source_question="Market demand questions",
+                    sample_size=total_ans,
+                )
+            )
 
-    evidence.append(EvidenceStatement(
-        category="tam_sam_som",
-        statement=f"Geography: {founder.target_country}, {founder.target_state}, {founder.target_district}",
-        data_point="geography",
-        source_question="Founder initialization fields",
-        sample_size=1,
-    ))
+    evidence.append(
+        EvidenceStatement(
+            category="tam_sam_som",
+            statement=f"Geography: {founder.target_country}, {founder.target_state}, {founder.target_district}",
+            data_point="geography",
+            source_question="Founder initialization fields",
+            sample_size=1,
+        )
+    )
 
     if not cities and not occupations:
         limitations.append("No demographic data from respondents — TAM/SAM cannot be segmented by audience profile.")
@@ -1621,41 +1786,49 @@ def build_business_model(
     wtp_qs = _get_category_questions(analysis, "willingness_to_pay")
     price = _parse_price_from_text(founder.pricing_model)
 
-    evidence.append(EvidenceStatement(
-        category="business_model",
-        statement=f"Pricing model: {founder.pricing_model}",
-        data_point=f"{founder.currency_symbol}{price:.0f}" if price else "unparseable",
-        source_question="pricing_model field",
-        sample_size=1,
-    ))
+    evidence.append(
+        EvidenceStatement(
+            category="business_model",
+            statement=f"Pricing model: {founder.pricing_model}",
+            data_point=f"{founder.currency_symbol}{price:.0f}" if price else "unparseable",
+            source_question="pricing_model field",
+            sample_size=1,
+        )
+    )
 
     if wtp_qs:
         total_pos = sum(q.positive_count for q in wtp_qs)
         total_ans = sum(q.total_answers for q in wtp_qs)
         if total_ans > 0:
             wtp_ratio = total_pos / total_ans * 100
-            evidence.append(EvidenceStatement(
-                category="business_model",
-                statement=f"{wtp_ratio:.0f}% of {total_ans} respondents showed positive willingness-to-pay signals",
-                data_point=f"{wtp_ratio:.0f}%",
-                source_question="Willingness-to-pay questions",
-                sample_size=total_ans,
-            ))
+            evidence.append(
+                EvidenceStatement(
+                    category="business_model",
+                    statement=f"{wtp_ratio:.0f}% of {total_ans} respondents showed positive willingness-to-pay signals",
+                    data_point=f"{wtp_ratio:.0f}%",
+                    source_question="Willingness-to-pay questions",
+                    sample_size=total_ans,
+                )
+            )
         # Price preference from answers
         for q in wtp_qs:
             if q.top_answers:
-                evidence.append(EvidenceStatement(
-                    category="business_model",
-                    statement=f"Price preferences: {', '.join(f'{k} ({v})' for k, v in list(q.top_answers.items())[:3])}",
-                    data_point="price_preferences",
-                    source_question=q.question_text,
-                    sample_size=q.total_answers,
-                ))
+                evidence.append(
+                    EvidenceStatement(
+                        category="business_model",
+                        statement=f"Price preferences: {', '.join(f'{k} ({v})' for k, v in list(q.top_answers.items())[:3])}",
+                        data_point="price_preferences",
+                        source_question=q.question_text,
+                        sample_size=q.total_answers,
+                    )
+                )
     else:
         limitations.append("No willingness-to-pay questions in survey — revenue assumptions cannot be validated.")
 
     if not price:
-        limitations.append("Could not extract numeric price from pricing model text — provide a clearer format (e.g. '₹2,999/month').")
+        limitations.append(
+            "Could not extract numeric price from pricing model text — provide a clearer format (e.g. '₹2,999/month')."
+        )
 
     score = min(100, (30 if price else 0) + len(wtp_qs) * 20 + 10)
     score = max(0, min(100, score))
@@ -1687,7 +1860,6 @@ def build_financial_projections(
     limitations: List[str] = []
 
     price = _parse_price_from_text(founder.pricing_model)
-    wtp_qs = _get_category_questions(analysis, "willingness_to_pay")
     demand_qs = _get_category_questions(analysis, "market_demand")
 
     # Adoption rate from demand questions
@@ -1699,41 +1871,49 @@ def build_financial_projections(
             adoption_rate = total_pos / total_ans
 
     if price:
-        evidence.append(EvidenceStatement(
-            category="financial_projections",
-            statement=f"Base price point: {founder.currency_symbol}{price:.0f}/unit from pricing model",
-            data_point=f"{founder.currency_symbol}{price:.0f}",
-            source_question="pricing_model field",
-            sample_size=1,
-        ))
+        evidence.append(
+            EvidenceStatement(
+                category="financial_projections",
+                statement=f"Base price point: {founder.currency_symbol}{price:.0f}/unit from pricing model",
+                data_point=f"{founder.currency_symbol}{price:.0f}",
+                source_question="pricing_model field",
+                sample_size=1,
+            )
+        )
     if adoption_rate > 0:
-        evidence.append(EvidenceStatement(
-            category="financial_projections",
-            statement=f"Survey-validated adoption rate: {adoption_rate*100:.0f}% — usable for revenue projections",
-            data_point=f"{adoption_rate*100:.0f}%",
-            source_question="Market demand questions",
-            sample_size=sum(q.total_answers for q in demand_qs),
-        ))
+        evidence.append(
+            EvidenceStatement(
+                category="financial_projections",
+                statement=f"Survey-validated adoption rate: {adoption_rate * 100:.0f}% — usable for revenue projections",
+                data_point=f"{adoption_rate * 100:.0f}%",
+                source_question="Market demand questions",
+                sample_size=sum(q.total_answers for q in demand_qs),
+            )
+        )
 
     if founder.monthly_revenue:
-        evidence.append(EvidenceStatement(
-            category="financial_projections",
-            statement=f"Current monthly revenue: {founder.monthly_revenue}",
-            data_point=founder.monthly_revenue,
-            source_question="monthly_revenue field",
-            sample_size=1,
-        ))
+        evidence.append(
+            EvidenceStatement(
+                category="financial_projections",
+                statement=f"Current monthly revenue: {founder.monthly_revenue}",
+                data_point=founder.monthly_revenue,
+                source_question="monthly_revenue field",
+                sample_size=1,
+            )
+        )
     else:
         limitations.append("No current revenue data provided — projections start from zero.")
 
     if founder.team_size:
-        evidence.append(EvidenceStatement(
-            category="financial_projections",
-            statement=f"Current team size: {founder.team_size} — basis for cost projections",
-            data_point=f"{founder.team_size}",
-            source_question="team_size field",
-            sample_size=1,
-        ))
+        evidence.append(
+            EvidenceStatement(
+                category="financial_projections",
+                statement=f"Current team size: {founder.team_size} — basis for cost projections",
+                data_point=f"{founder.team_size}",
+                source_question="team_size field",
+                sample_size=1,
+            )
+        )
     else:
         limitations.append("No team size provided — hiring cost projections will be generic.")
 
@@ -1780,34 +1960,40 @@ def build_unit_economics(
         total_ans = sum(q.total_answers for q in pmf_qs)
         if total_ans > 0:
             retention_signal = total_pos / total_ans
-            evidence.append(EvidenceStatement(
-                category="unit_economics",
-                statement=f"Retention proxy: {retention_signal*100:.0f}% satisfaction — indicator of customer retention",
-                data_point=f"{retention_signal*100:.0f}%",
-                source_question="Product-market fit questions",
-                sample_size=total_ans,
-            ))
+            evidence.append(
+                EvidenceStatement(
+                    category="unit_economics",
+                    statement=f"Retention proxy: {retention_signal * 100:.0f}% satisfaction — indicator of customer retention",
+                    data_point=f"{retention_signal * 100:.0f}%",
+                    source_question="Product-market fit questions",
+                    sample_size=total_ans,
+                )
+            )
 
     if price:
         # Monthly revenue per user
-        evidence.append(EvidenceStatement(
-            category="unit_economics",
-            statement=f"Revenue per user: {founder.currency_symbol}{price:.0f}/month from pricing model",
-            data_point=f"{founder.currency_symbol}{price:.0f}",
-            source_question="pricing_model field",
-            sample_size=1,
-        ))
+        evidence.append(
+            EvidenceStatement(
+                category="unit_economics",
+                statement=f"Revenue per user: {founder.currency_symbol}{price:.0f}/month from pricing model",
+                data_point=f"{founder.currency_symbol}{price:.0f}",
+                source_question="pricing_model field",
+                sample_size=1,
+            )
+        )
         # Estimated LTV (price * 12 months * retention)
         est_months = max(6, int(retention_signal * 24)) if retention_signal > 0 else 0
         if est_months > 0:
             est_ltv = price * est_months
-            evidence.append(EvidenceStatement(
-                category="unit_economics",
-                statement=f"Estimated LTV: {founder.currency_symbol}{est_ltv:.0f} (price × {est_months} months retention estimate)",
-                data_point=f"{founder.currency_symbol}{est_ltv:.0f}",
-                source_question="Derived from pricing + retention proxy",
-                sample_size=1,
-            ))
+            evidence.append(
+                EvidenceStatement(
+                    category="unit_economics",
+                    statement=f"Estimated LTV: {founder.currency_symbol}{est_ltv:.0f} (price × {est_months} months retention estimate)",
+                    data_point=f"{founder.currency_symbol}{est_ltv:.0f}",
+                    source_question="Derived from pricing + retention proxy",
+                    sample_size=1,
+                )
+            )
     else:
         limitations.append("Cannot compute unit economics without a parseable price point.")
 
@@ -1854,43 +2040,51 @@ def build_gtm_strategy(
 
     if cities:
         top_city = cities.most_common(1)[0]
-        evidence.append(EvidenceStatement(
-            category="gtm_strategy",
-            statement=f"Top geographic market: {top_city[0]} ({top_city[1]} respondents) — potential launch city",
-            data_point=top_city[0],
-            source_question="Respondent demographics",
-            sample_size=top_city[1],
-        ))
+        evidence.append(
+            EvidenceStatement(
+                category="gtm_strategy",
+                statement=f"Top geographic market: {top_city[0]} ({top_city[1]} respondents) — potential launch city",
+                data_point=top_city[0],
+                source_question="Respondent demographics",
+                sample_size=top_city[1],
+            )
+        )
     if occupations:
         top_occ = occupations.most_common(1)[0]
-        evidence.append(EvidenceStatement(
-            category="gtm_strategy",
-            statement=f"Primary audience segment: {top_occ[0]} ({top_occ[1]} respondents) — target for initial GTM",
-            data_point=top_occ[0],
-            source_question="Respondent demographics",
-            sample_size=top_occ[1],
-        ))
+        evidence.append(
+            EvidenceStatement(
+                category="gtm_strategy",
+                statement=f"Primary audience segment: {top_occ[0]} ({top_occ[1]} respondents) — target for initial GTM",
+                data_point=top_occ[0],
+                source_question="Respondent demographics",
+                sample_size=top_occ[1],
+            )
+        )
 
     # Adoption channel signals from demand questions
     if demand_qs:
         total_pos = sum(q.positive_count for q in demand_qs)
         total_ans = sum(q.total_answers for q in demand_qs)
         if total_ans > 0:
-            evidence.append(EvidenceStatement(
-                category="gtm_strategy",
-                statement=f"Demand signal: {total_pos}/{total_ans} respondents showed adoption intent — {total_pos/total_ans*100:.0f}% conversion potential",
-                data_point=f"{total_pos/total_ans*100:.0f}%",
-                source_question="Market demand questions",
-                sample_size=total_ans,
-            ))
+            evidence.append(
+                EvidenceStatement(
+                    category="gtm_strategy",
+                    statement=f"Demand signal: {total_pos}/{total_ans} respondents showed adoption intent — {total_pos / total_ans * 100:.0f}% conversion potential",
+                    data_point=f"{total_pos / total_ans * 100:.0f}%",
+                    source_question="Market demand questions",
+                    sample_size=total_ans,
+                )
+            )
 
-    evidence.append(EvidenceStatement(
-        category="gtm_strategy",
-        statement=f"Target geography: {founder.target_country}, {founder.target_state}, {founder.target_district}",
-        data_point="geography",
-        source_question="Initialization fields",
-        sample_size=1,
-    ))
+    evidence.append(
+        EvidenceStatement(
+            category="gtm_strategy",
+            statement=f"Target geography: {founder.target_country}, {founder.target_state}, {founder.target_district}",
+            data_point="geography",
+            source_question="Initialization fields",
+            sample_size=1,
+        )
+    )
 
     if not cities and not occupations:
         limitations.append("No demographic data from respondents — GTM audience targeting is limited.")
@@ -1935,22 +2129,26 @@ def build_roadmap_execution(
     for name, score in strong_areas:
         milestones.append(f"Capitalize on {name.replace('_', ' ')} strength ({score}/100)")
 
-    evidence.append(EvidenceStatement(
-        category="roadmap",
-        statement=f"Identified {len(weak_areas)} areas needing improvement and {len(strong_areas)} strengths to leverage",
-        data_point=f"{len(weak_areas)} gaps, {len(strong_areas)} strengths",
-        source_question="Capability score analysis",
-        sample_size=len(cap_scores),
-    ))
+    evidence.append(
+        EvidenceStatement(
+            category="roadmap",
+            statement=f"Identified {len(weak_areas)} areas needing improvement and {len(strong_areas)} strengths to leverage",
+            data_point=f"{len(weak_areas)} gaps, {len(strong_areas)} strengths",
+            source_question="Capability score analysis",
+            sample_size=len(cap_scores),
+        )
+    )
 
     if founder.has_team_info:
-        evidence.append(EvidenceStatement(
-            category="roadmap",
-            statement=f"Current team capacity: {founder.team_size} members — basis for execution timeline",
-            data_point=f"{founder.team_size}",
-            source_question="team_size field",
-            sample_size=1,
-        ))
+        evidence.append(
+            EvidenceStatement(
+                category="roadmap",
+                statement=f"Current team capacity: {founder.team_size} members — basis for execution timeline",
+                data_point=f"{founder.team_size}",
+                source_question="team_size field",
+                sample_size=1,
+            )
+        )
     else:
         limitations.append("No team size provided — execution timeline cannot account for team capacity.")
 
@@ -1985,46 +2183,56 @@ def build_funding_ask(
     # Growth evidence from traction
     traction_cap = next((c for c in survey_caps if c.capability_name == "traction_evidence"), None)
     if traction_cap:
-        evidence.append(EvidenceStatement(
-            category="funding_ask",
-            statement=f"Traction evidence score: {traction_cap.score}/100 — supports funding readiness",
-            data_point=f"{traction_cap.score}/100",
-            source_question="Traction evidence capability",
-            sample_size=1,
-        ))
+        evidence.append(
+            EvidenceStatement(
+                category="funding_ask",
+                statement=f"Traction evidence score: {traction_cap.score}/100 — supports funding readiness",
+                data_point=f"{traction_cap.score}/100",
+                source_question="Traction evidence capability",
+                sample_size=1,
+            )
+        )
 
     if founder.funding_target:
-        evidence.append(EvidenceStatement(
-            category="funding_ask",
-            statement=f"Funding target: {founder.funding_target}",
-            data_point=founder.funding_target,
-            source_question="funding_target field",
-            sample_size=1,
-        ))
+        evidence.append(
+            EvidenceStatement(
+                category="funding_ask",
+                statement=f"Funding target: {founder.funding_target}",
+                data_point=founder.funding_target,
+                source_question="funding_target field",
+                sample_size=1,
+            )
+        )
     else:
         limitations.append("No funding target provided — capital utilization breakdown will be generic.")
 
     if founder.funding_stage:
-        evidence.append(EvidenceStatement(
-            category="funding_ask",
-            statement=f"Funding stage: {founder.funding_stage}",
-            data_point=founder.funding_stage,
-            source_question="funding_stage field",
-            sample_size=1,
-        ))
+        evidence.append(
+            EvidenceStatement(
+                category="funding_ask",
+                statement=f"Funding stage: {founder.funding_stage}",
+                data_point=founder.funding_stage,
+                source_question="funding_stage field",
+                sample_size=1,
+            )
+        )
     else:
         limitations.append("No funding stage specified — investor targeting cannot be stage-matched.")
 
     if founder.team_size:
-        evidence.append(EvidenceStatement(
-            category="funding_ask",
-            statement=f"Current team: {founder.team_size} — informs hiring budget allocation",
-            data_point=f"{founder.team_size}",
-            source_question="team_size field",
-            sample_size=1,
-        ))
+        evidence.append(
+            EvidenceStatement(
+                category="funding_ask",
+                statement=f"Current team: {founder.team_size} — informs hiring budget allocation",
+                data_point=f"{founder.team_size}",
+                source_question="team_size field",
+                sample_size=1,
+            )
+        )
 
-    data_points = sum([bool(traction_cap), bool(founder.funding_target), bool(founder.funding_stage), bool(founder.team_size)])
+    data_points = sum(
+        [bool(traction_cap), bool(founder.funding_target), bool(founder.funding_stage), bool(founder.team_size)]
+    )
     score = min(100, data_points * 25)
 
     return CapabilityResult(
@@ -2067,40 +2275,48 @@ def build_investor_persona_targeting(
             inferred_stage = "Seed"
         else:
             inferred_stage = "Pre-Seed"
-        evidence.append(EvidenceStatement(
-            category="investor_targeting",
-            statement=f"Inferred funding stage: {inferred_stage} (based on traction score {traction_score}/100 and {total_responses} responses)",
-            data_point=inferred_stage,
-            source_question="Stage inference from traction metrics",
-            sample_size=total_responses,
-        ))
+        evidence.append(
+            EvidenceStatement(
+                category="investor_targeting",
+                statement=f"Inferred funding stage: {inferred_stage} (based on traction score {traction_score}/100 and {total_responses} responses)",
+                data_point=inferred_stage,
+                source_question="Stage inference from traction metrics",
+                sample_size=total_responses,
+            )
+        )
     else:
-        evidence.append(EvidenceStatement(
-            category="investor_targeting",
-            statement=f"Stated funding stage: {inferred_stage}",
-            data_point=inferred_stage,
-            source_question="funding_stage field",
-            sample_size=1,
-        ))
+        evidence.append(
+            EvidenceStatement(
+                category="investor_targeting",
+                statement=f"Stated funding stage: {inferred_stage}",
+                data_point=inferred_stage,
+                source_question="funding_stage field",
+                sample_size=1,
+            )
+        )
 
     # Industry
     industry = founder.industry_vertical or "General Tech"
-    evidence.append(EvidenceStatement(
-        category="investor_targeting",
-        statement=f"Industry vertical: {industry} — matches investors focused on this sector",
-        data_point=industry,
-        source_question="industry_vertical field or startup_context",
-        sample_size=1,
-    ))
+    evidence.append(
+        EvidenceStatement(
+            category="investor_targeting",
+            statement=f"Industry vertical: {industry} — matches investors focused on this sector",
+            data_point=industry,
+            source_question="industry_vertical field or startup_context",
+            sample_size=1,
+        )
+    )
 
     # Geography match
-    evidence.append(EvidenceStatement(
-        category="investor_targeting",
-        statement=f"Geography: {founder.target_country} — target investors active in this market",
-        data_point=founder.target_country,
-        source_question="target_country field",
-        sample_size=1,
-    ))
+    evidence.append(
+        EvidenceStatement(
+            category="investor_targeting",
+            statement=f"Geography: {founder.target_country} — target investors active in this market",
+            data_point=founder.target_country,
+            source_question="target_country field",
+            sample_size=1,
+        )
+    )
 
     if not founder.industry_vertical:
         limitations.append("No industry vertical specified — investor matching based on general tech category.")
@@ -2167,8 +2383,11 @@ def extract_survey_intelligence(
     objection_intel = build_objection_intelligence(analysis)
 
     core_capabilities = [
-        problem_solution, market_opportunity, traction_evidence,
-        competitive_advantage, objection_intel,
+        problem_solution,
+        market_opportunity,
+        traction_evidence,
+        competitive_advantage,
+        objection_intel,
     ]
     evidence_mapping = build_evidence_mapping(core_capabilities)
     question_simulation = build_question_simulation(core_capabilities)
@@ -2202,10 +2421,7 @@ def extract_survey_intelligence(
         "competitive_advantage": 0.15,
         "objection_intelligence": 0.20,
     }
-    weighted_score = sum(
-        cap.score * weights.get(cap.capability_name, 0)
-        for cap in core_capabilities
-    )
+    weighted_score = sum(cap.score * weights.get(cap.capability_name, 0) for cap in core_capabilities)
     overall_score = int(max(0, min(100, weighted_score)))
 
     total_evidence = sum(cap.evidence_count for cap in all_capabilities)
@@ -2224,7 +2440,9 @@ def extract_survey_intelligence(
     for i, cap in enumerate(all_capabilities, 1):
         cap_title = cap.capability_name.replace("_", " ").upper()
         prompt_lines.append(f"--- CAPABILITY {i}: {cap_title} ---")
-        prompt_lines.append(f"Score: {cap.score}/100 | Confidence: {cap.confidence.title()} | Evidence Count: {cap.evidence_count}")
+        prompt_lines.append(
+            f"Score: {cap.score}/100 | Confidence: {cap.confidence.title()} | Evidence Count: {cap.evidence_count}"
+        )
 
         if cap.evidence_statements:
             prompt_lines.append("Evidence:")
@@ -2238,7 +2456,7 @@ def extract_survey_intelligence(
 
         prompt_lines.append("")
 
-    prompt_lines.append(f"--- AGGREGATE READINESS ---")
+    prompt_lines.append("--- AGGREGATE READINESS ---")
     prompt_lines.append(f"Overall Investor Readiness Score: {overall_score}/100")
     prompt_lines.append(f"Overall Confidence: {overall_confidence.title()}")
     prompt_lines.append(f"Total Evidence Statements: {total_evidence}")
@@ -2250,7 +2468,7 @@ def extract_survey_intelligence(
     prompt_lines.append("")
     prompt_lines.append("== QUESTION → SIGNAL MAP (EXACT CLASSIFICATIONS FROM DATA) ==")
     prompt_lines.append("Use these classifications to cite specific survey evidence in your narrative.")
-    prompt_lines.append("Format: Q<n> [Type] \"Question text\" → signals")
+    prompt_lines.append('Format: Q<n> [Type] "Question text" → signals')
     prompt_lines.append("")
 
     sorted_qas = sorted(analysis.values(), key=lambda qa: qa.question_text)
@@ -2260,13 +2478,9 @@ def extract_survey_intelligence(
         answered = f"{qa.total_answers} responses"
         avg = f" | avg rating: {qa.average_rating}/5" if qa.average_rating > 0 else ""
         pos = f" | {qa.positive_ratio:.0f}% positive" if qa.total_answers > 0 else ""
-        prompt_lines.append(
-            f"  Q{i} [{q_type_label}] \"{qa.question_text[:100]}\" → {signals}"
-            f" ({answered}{pos}{avg})"
-        )
+        prompt_lines.append(f'  Q{i} [{q_type_label}] "{qa.question_text[:100]}" → {signals} ({answered}{pos}{avg})')
 
     prompt_section = "\n".join(prompt_lines)
-
 
     # Step 6: Build return dict
     def _cap_to_dict(cap: CapabilityResult) -> Dict[str, Any]:

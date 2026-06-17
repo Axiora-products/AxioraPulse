@@ -87,6 +87,7 @@ class PitchDeckQualityDetails(BaseModel):
 
 class EvidenceStatement(BaseModel):
     """A traceable evidence statement derived from actual survey response data."""
+
     category: str = Field(..., description="Signal category (e.g. problem_validation, market_demand)")
     statement: str = Field(..., description="Human-readable evidence statement")
     data_point: str = Field(..., description="The key data point (e.g. '78%', '4.2/5')")
@@ -96,6 +97,7 @@ class EvidenceStatement(BaseModel):
 
 class CapabilityIntelligence(BaseModel):
     """Per-capability intelligence result from the survey/external intelligence engines."""
+
     capability_name: str = Field(..., description="Capability identifier")
     score: int = Field(..., description="Evidence-based score 0-100")
     confidence: str = Field(..., description="Confidence level: high, medium, or low")
@@ -108,6 +110,7 @@ class CapabilityIntelligence(BaseModel):
 
 class SurveyIntelligence(BaseModel):
     """Structured output from all 19 capability engines (survey + founder context)."""
+
     capabilities: Dict[str, CapabilityIntelligence] = Field(
         default={}, description="Per-capability intelligence keyed by capability name"
     )
@@ -118,16 +121,13 @@ class SurveyIntelligence(BaseModel):
 
 class ExternalIntelligence(BaseModel):
     """Intelligence from the 32 external-data capability engines."""
-    capabilities: Dict[str, CapabilityIntelligence] = Field(
-        default={}, description="32 external capability results"
-    )
+
+    capabilities: Dict[str, CapabilityIntelligence] = Field(default={}, description="32 external capability results")
     capabilities_with_data: int = Field(default=0, description="Number of capabilities with actual data")
     total_capabilities: int = Field(default=32, description="Total external capabilities")
     avg_score: int = Field(default=0, description="Average score across capabilities with data")
     total_evidence: int = Field(default=0, description="Total evidence statements")
-    groups: Dict[str, List[str]] = Field(
-        default={}, description="Capability names grouped by category"
-    )
+    groups: Dict[str, List[str]] = Field(default={}, description="Capability names grouped by category")
 
 
 class InvestorReadinessReportResponse(BaseModel):
@@ -153,12 +153,11 @@ class InvestorReadinessReportResponse(BaseModel):
     target_investors: List[InvestorMatchDetails] = Field(default=[], description="Target matches")
     funding_ask: Dict[str, Any] = Field(..., description="Ask size and use of funds split")
     survey_intelligence: Optional[SurveyIntelligence] = Field(
-        default=None,
-        description="Evidence-based intelligence from 19 capability engines (survey + founder context)"
+        default=None, description="Evidence-based intelligence from 19 capability engines (survey + founder context)"
     )
     external_intelligence: Optional[ExternalIntelligence] = Field(
         default=None,
-        description="Intelligence from 32 external-data capabilities (documents, CRM, financials, strategy)"
+        description="Intelligence from 32 external-data capabilities (documents, CRM, financials, strategy)",
     )
 
 
@@ -181,6 +180,5 @@ class InvestorReadinessInitRequest(BaseModel):
 
     # Optional external data — enriches the 32 external-data capabilities
     external_data: Optional[ExternalDataRequest] = Field(
-        default=None,
-        description="Optional: documents, CRM data, financials, and strategic inputs"
+        default=None, description="Optional: documents, CRM data, financials, and strategic inputs"
     )

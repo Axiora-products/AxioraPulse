@@ -7,6 +7,7 @@ categories, then submits 57 realistic responses with diverse answer data.
 Run inside Docker:
   docker exec pulse-backend python seed_investor_survey.py
 """
+
 import random
 import uuid
 from datetime import datetime, timedelta
@@ -14,8 +15,12 @@ from datetime import datetime, timedelta
 # ── Bootstrap the app context ────────────────────────────────────────────────
 from db.database import SessionLocal
 from db.models import (
-    Survey, SurveyQuestion, SurveyResponse, SurveyAnswer,
-    UserProfile, Tenant,
+    Survey,
+    SurveyQuestion,
+    SurveyResponse,
+    SurveyAnswer,
+    UserProfile,
+    Tenant,
 )
 
 db = SessionLocal()
@@ -207,18 +212,34 @@ print(f"Created survey: '{survey.title}' with {len(question_objects)} questions"
 
 # Realistic answer pools
 CITIES = [
-    "Hyderabad", "Hyderabad", "Hyderabad", "Hyderabad",  # Heavy Hyderabad presence
-    "Bangalore", "Bangalore", "Bangalore",
-    "Mumbai", "Mumbai",
-    "Chennai", "Delhi", "Pune", "Kolkata",
-    "Ahmedabad", "Jaipur", "Indore",
+    "Hyderabad",
+    "Hyderabad",
+    "Hyderabad",
+    "Hyderabad",  # Heavy Hyderabad presence
+    "Bangalore",
+    "Bangalore",
+    "Bangalore",
+    "Mumbai",
+    "Mumbai",
+    "Chennai",
+    "Delhi",
+    "Pune",
+    "Kolkata",
+    "Ahmedabad",
+    "Jaipur",
+    "Indore",
 ]
 
 OCCUPATIONS = [
-    "Founder / CEO", "Founder / CEO", "Founder / CEO",
-    "Operations Manager", "Operations Manager",
-    "Product Manager", "Product Manager",
-    "Team Lead / Manager", "Team Lead / Manager",
+    "Founder / CEO",
+    "Founder / CEO",
+    "Founder / CEO",
+    "Operations Manager",
+    "Operations Manager",
+    "Product Manager",
+    "Product Manager",
+    "Team Lead / Manager",
+    "Team Lead / Manager",
     "Freelancer / Consultant",
     "Other",
 ]
@@ -309,29 +330,45 @@ for i in range(57):
         elif j == 6:  # Would recommend (yes/no)
             answer_value = random.choices(["yes", "yes", "yes", "yes", "no", "yes", "no", "yes", "yes", "yes"], k=1)[0]
         elif j == 7:  # Fair monthly price
-            answer_value = random.choices([
-                "Under ₹999/month",
-                "₹1,000 - ₹2,999/month", "₹1,000 - ₹2,999/month", "₹1,000 - ₹2,999/month",
-                "₹3,000 - ₹5,999/month", "₹3,000 - ₹5,999/month",
-                "₹6,000 - ₹9,999/month",
-                "₹10,000+/month",
-            ], k=1)[0]
+            answer_value = random.choices(
+                [
+                    "Under ₹999/month",
+                    "₹1,000 - ₹2,999/month",
+                    "₹1,000 - ₹2,999/month",
+                    "₹1,000 - ₹2,999/month",
+                    "₹3,000 - ₹5,999/month",
+                    "₹3,000 - ₹5,999/month",
+                    "₹6,000 - ₹9,999/month",
+                    "₹10,000+/month",
+                ],
+                k=1,
+            )[0]
         elif j == 8:  # Current spending
-            answer_value = random.choices([
-                "₹0 (no tools)", "₹0 (no tools)",
-                "₹500 - ₹2,000", "₹500 - ₹2,000", "₹500 - ₹2,000",
-                "₹2,000 - ₹5,000", "₹2,000 - ₹5,000",
-                "₹5,000 - ₹10,000",
-                "₹10,000+",
-            ], k=1)[0]
+            answer_value = random.choices(
+                [
+                    "₹0 (no tools)",
+                    "₹0 (no tools)",
+                    "₹500 - ₹2,000",
+                    "₹500 - ₹2,000",
+                    "₹500 - ₹2,000",
+                    "₹2,000 - ₹5,000",
+                    "₹2,000 - ₹5,000",
+                    "₹5,000 - ₹10,000",
+                    "₹10,000+",
+                ],
+                k=1,
+            )[0]
         elif j == 9:  # Current tools (multiple choice)
-            tools = random.sample([
-                "Manual spreadsheets",
-                "Trello / Asana / Monday.com",
-                "WhatsApp / Phone calls",
-                "Custom-built tools",
-                "No tools",
-            ], k=random.randint(1, 3))
+            tools = random.sample(
+                [
+                    "Manual spreadsheets",
+                    "Trello / Asana / Monday.com",
+                    "WhatsApp / Phone calls",
+                    "Custom-built tools",
+                    "No tools",
+                ],
+                k=random.randint(1, 3),
+            )
             answer_value = ", ".join(tools)
         elif j == 10:  # Satisfaction with alternatives (1-5, lower = opportunity)
             answer_value = str(random.choices([1, 2, 2, 3, 3, 2, 1, 2, 3, 4], k=1)[0])
@@ -361,4 +398,4 @@ for i in range(57):
 db.commit()
 print(f"\n✅ Done! Survey '{survey.title}' created with {len(question_objects)} questions and 57 responses.")
 print(f"   Survey ID: {str(survey_id)}")
-print(f"   You can now generate the Investor Readiness Report from the frontend.")
+print("   You can now generate the Investor Readiness Report from the frontend.")

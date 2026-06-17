@@ -10,6 +10,7 @@ Validates:
 4. survey_intelligence section present and evidence-based
 5. No fabricated/fallback data in scoring
 """
+
 from fastapi.testclient import TestClient
 from app.main import app
 
@@ -21,7 +22,6 @@ def _submit_realistic_responses(survey_id: str, question_ids: list[str], count: 
     Submit realistic, diverse responses with actual answer data
     covering all signal categories for the intelligence engine.
     """
-    import random
 
     # Answer pools mapped to question index (cycling through types)
     yes_no_answers = ["yes", "no", "yes", "yes", "yes", "no", "yes", "yes"]
@@ -86,21 +86,36 @@ def test_generate_investor_readiness_report(auth_headers):
         "description": "Validating demand for an AI-powered productivity tool",
         "questions": [
             # problem_validation signals
-            {"question_text": "Do you experience pain points with your current workflow tools?", "question_type": "yes_no"},
+            {
+                "question_text": "Do you experience pain points with your current workflow tools?",
+                "question_type": "yes_no",
+            },
             {"question_text": "How severe is this problem on a scale of 1-5?", "question_type": "rating"},
             {"question_text": "How frustrated are you with existing solutions?", "question_type": "scale"},
             # market_demand signals
-            {"question_text": "Would you be interested in trying a new AI-powered solution?", "question_type": "yes_no"},
+            {
+                "question_text": "Would you be interested in trying a new AI-powered solution?",
+                "question_type": "yes_no",
+            },
             {"question_text": "How likely are you to switch to a better tool?", "question_type": "scale"},
             # product_market_fit signals
             {"question_text": "How would you rate the value of such a solution?", "question_type": "rating"},
             # competitive_positioning signals
-            {"question_text": "Which alternatives do you currently use?", "question_type": "single_choice",
-             "options": [{"label": "Tool A", "value": "Tool A"}, {"label": "Tool B", "value": "Tool B"},
-                         {"label": "Tool C", "value": "Tool C"}, {"label": "None", "value": "None"}]},
+            {
+                "question_text": "Which alternatives do you currently use?",
+                "question_type": "single_choice",
+                "options": [
+                    {"label": "Tool A", "value": "Tool A"},
+                    {"label": "Tool B", "value": "Tool B"},
+                    {"label": "Tool C", "value": "Tool C"},
+                    {"label": "None", "value": "None"},
+                ],
+            },
             # risk_signal
-            {"question_text": "What concerns or barriers would prevent you from adopting a new tool?",
-             "question_type": "short_text"},
+            {
+                "question_text": "What concerns or barriers would prevent you from adopting a new tool?",
+                "question_type": "short_text",
+            },
             # willingness_to_pay
             {"question_text": "How much would you pay per month for this solution?", "question_type": "scale"},
             # general
@@ -211,26 +226,27 @@ def test_generate_investor_readiness_report(auth_headers):
         assert "score" in cap, f"score missing from capability {cap_name}"
         assert "confidence" in cap, f"confidence missing from capability {cap_name}"
         assert "evidence_statements" in cap, f"evidence_statements missing from {cap_name}"
-        assert cap["confidence"] in ("high", "medium", "low"), \
+        assert cap["confidence"] in ("high", "medium", "low"), (
             f"Invalid confidence level '{cap['confidence']}' in {cap_name}"
+        )
         assert 0 <= cap["score"] <= 100, f"Score out of range in {cap_name}: {cap['score']}"
 
     # ── Test 8: Traction evidence uses real counts ────────────────────────────
     traction_cap = intel["capabilities"]["traction_evidence"]
-    assert traction_cap["raw_metrics"]["total_responses"] >= 50, \
-        "traction_evidence must reflect actual response count"
+    assert traction_cap["raw_metrics"]["total_responses"] >= 50, "traction_evidence must reflect actual response count"
 
     # ── Test 9: Scoring reflects computed scores ──────────────────────────────
     scoring = data["scoring"]
-    assert scoring["overall_score"] == intel["overall_score"], \
+    assert scoring["overall_score"] == intel["overall_score"], (
         "scoring.overall_score must match survey_intelligence.overall_score"
+    )
 
     # ── Test 10: No fake default data in evidence ─────────────────────────────
     # Verify traction_evidence shows real numbers
     traction_ev = data["traction_evidence"]
     assert traction_ev["total_responses"] >= 50, "traction_evidence must show real response count"
 
-    print(f"\n✅ Investor Readiness Report generated successfully")
+    print("\n✅ Investor Readiness Report generated successfully")
     print(f"   Overall Score: {intel['overall_score']}/100")
     print(f"   Confidence: {intel['overall_confidence']}")
     print(f"   Total Evidence: {intel['total_evidence']} statements")
