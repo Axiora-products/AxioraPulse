@@ -339,7 +339,7 @@ export default function DashboardLayout() {
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 'auto', transform: activeOpen ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.2s ease' }}><polyline points="6 9 12 15 18 9" /></svg>
               </button>
               {activeOpen && activeSurveys.map(s => (
-                <NavLink key={s.id} to={`/surveys/${s.id}/edit`} className={`ws-sidebar-item${loc.pathname.includes(s.id) ? ' active' : ''}`} onClick={() => setMobileOpen(false)}>
+                <NavLink key={s.id} to={`/surveys/${s.id}/edit`} title={s.title} className={`ws-sidebar-item${loc.pathname.includes(s.id) ? ' active' : ''}`} onClick={() => setMobileOpen(false)}>
                   <div className="ws-sidebar-item-icon">📊</div>
                   <div className="ws-sidebar-item-text">
                     <span className="ws-sidebar-item-title">{s.title}</span>
@@ -369,7 +369,7 @@ export default function DashboardLayout() {
                 const isPromptDraft = !s.questions || s.questions.length === 0;
                 const linkTo = isPromptDraft ? `/surveys/new?draftId=${s.id}` : `/surveys/${s.id}/edit`;
                 return (
-                  <NavLink key={s.id} to={linkTo} className={`ws-sidebar-item${loc.pathname.includes(s.id) ? ' active' : ''}`} onClick={() => setMobileOpen(false)}>
+                  <NavLink key={s.id} to={linkTo} title={s.title} className={`ws-sidebar-item${loc.pathname.includes(s.id) ? ' active' : ''}`} onClick={() => setMobileOpen(false)}>
                     <div className="ws-sidebar-item-icon">{isPromptDraft ? '🖋️' : '📝'}</div>
                     <div className="ws-sidebar-item-text">
                       <span className="ws-sidebar-item-title">{s.title}</span>
@@ -394,7 +394,7 @@ export default function DashboardLayout() {
             <div className="ws-sidebar-section">
               <div className="ws-sidebar-section-label">Closed ({closedSurveys.length})</div>
               {closedSurveys.map(s => (
-                <NavLink key={s.id} to={`/surveys/${s.id}/analytics`} className={`ws-sidebar-item${loc.pathname.includes(s.id) ? ' active' : ''}`} onClick={() => setMobileOpen(false)}>
+                <NavLink key={s.id} to={`/surveys/${s.id}/analytics`} title={s.title} className={`ws-sidebar-item${loc.pathname.includes(s.id) ? ' active' : ''}`} onClick={() => setMobileOpen(false)}>
                   <div className="ws-sidebar-item-icon" style={{ opacity: 0.5 }}>📋</div>
                   <div className="ws-sidebar-item-text">
                     <span className="ws-sidebar-item-title" style={{ opacity: 0.7 }}>{s.title}</span>
@@ -560,6 +560,7 @@ export default function DashboardLayout() {
             .ws-layout.left-collapsed .ws-sidebar-item-text,
             .ws-layout.left-collapsed .ws-sidebar-section-label,
             .ws-layout.left-collapsed .ws-sidebar-item-meta,
+            .ws-layout.left-collapsed .ws-sidebar-item-actions,
             .ws-layout.left-collapsed .ws-sidebar-user-info,
             .ws-layout.left-collapsed .ws-empty-text,
             .ws-layout.left-collapsed .ws-sidebar-user button,
