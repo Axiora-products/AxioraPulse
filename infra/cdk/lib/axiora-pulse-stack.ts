@@ -12,6 +12,10 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as cloudmap from 'aws-cdk-lib/aws-servicediscovery';
 import { NagSuppressions } from 'cdk-nag';
+import * as appscaling from 'aws-cdk-lib/aws-applicationautoscaling';
+import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
+import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 
 export interface AxioraPulseStackProps extends cdk.StackProps {
   environment: 'dev' | 'qa' | 'prod' | 'development' | 'production';
@@ -47,6 +51,7 @@ export class AxioraPulseStack extends cdk.Stack {
     // 0. Infrastructure: VPC and Cluster
     const vpc = new ec2.Vpc(this, 'Vpc', {
       maxAzs: 2,
+      natGateways: isProd ? undefined : 1, // Minimize NAT Gateway costs in Dev/QA
     });
 
     if (isProd) {
@@ -265,52 +270,121 @@ export class AxioraPulseStack extends cdk.Stack {
     const backendService = new ecs.FargateService(this, 'BackendService', {
       cluster,
       taskDefinition: backendTaskDef,
-      desiredCount: isProd ? 2 : 1,
+      desiredCount: (isProd || shortEnv === 'qa') ? 2 : 1, // 2 tasks for HA in QA/Prod, 1 for Dev
       serviceName: `pulse-backend-${shortEnv}`,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       assignPublicIp: false,
       cloudMapOptions: {
         name: 'backend',
       },
+      capacityProviderStrategies: isProd ? undefined : [
+        {
+          capacityProvider: 'FARGATE_SPOT',
+          weight: 1,
+        }
+      ],
     });
 
     database.connections.allowFrom(backendService, ec2.Port.tcp(5432), 'Allow backend to access database');
 
-    // Frontend Fargate Service
-    const frontendTaskDef = new ecs.FargateTaskDefinition(this, 'FrontendTaskDef', {
-      memoryLimitMiB: 512,
-      cpu: 256,
-      executionRole: taskExecutionRole,
-      taskRole: taskRole,
-      family: `pulse-frontend-${shortEnv}`,
-    });
+    let frontendUrl: string = '';
+    let frontendService: ecs.FargateService | undefined = undefined;
 
-    frontendTaskDef.addContainer('FrontendContainer', {
-      image: ecs.ContainerImage.fromRegistry('public.ecr.aws/nginx/nginx:alpine'),
-      portMappings: [{ containerPort: 80 }],
-      logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'ecs', logGroup: new cdk.aws_logs.LogGroup(this, 'FrontendLogGroup', {
-        logGroupName: `/ecs/pulse-frontend-${shortEnv}`,
+    if (!isProd) {
+      // S3 Bucket for frontend static assets
+      const frontendBucket = new s3.Bucket(this, 'FrontendBucket', {
+        bucketName: `axiorapulse-${shortEnv}-frontend-bucket`,
         removalPolicy: cdk.RemovalPolicy.DESTROY,
-      }) }),
-    });
+        autoDeleteObjects: true,
+        blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+        encryption: s3.BucketEncryption.S3_MANAGED,
+        enforceSSL: true,
+      });
 
-    const frontendService = new ecs.FargateService(this, 'FrontendService', {
-      cluster,
-      taskDefinition: frontendTaskDef,
-      desiredCount: isProd ? 2 : 1,
-      serviceName: `pulse-frontend-${shortEnv}`,
-      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
-      assignPublicIp: false,
-    });
+      // CloudFront Distribution for frontend SPA
+      const distribution = new cloudfront.Distribution(this, 'FrontendDistribution', {
+        defaultBehavior: {
+          origin: new origins.S3Origin(frontendBucket),
+          viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+        },
+        defaultRootObject: 'index.html',
+        errorResponses: [
+          {
+            httpStatus: 404,
+            responseHttpStatus: 200,
+            responsePagePath: '/index.html',
+            ttl: cdk.Duration.seconds(0),
+          },
+          {
+            httpStatus: 403,
+            responseHttpStatus: 200,
+            responsePagePath: '/index.html',
+            ttl: cdk.Duration.seconds(0),
+          }
+        ],
+      });
+
+      frontendUrl = `https://${distribution.distributionDomainName}`;
+
+      new cdk.CfnOutput(this, 'FrontendCloudFrontDomain', {
+        value: frontendUrl,
+        description: 'Frontend CloudFront distribution URL',
+      });
+    }
+
+    if (isProd) {
+      // Frontend Fargate Service (Production only)
+      const frontendTaskDef = new ecs.FargateTaskDefinition(this, 'FrontendTaskDef', {
+        memoryLimitMiB: 512,
+        cpu: 256,
+        executionRole: taskExecutionRole,
+        taskRole: taskRole,
+        family: `pulse-frontend-${shortEnv}`,
+      });
+
+      frontendTaskDef.addContainer('FrontendContainer', {
+        image: ecs.ContainerImage.fromRegistry('public.ecr.aws/nginx/nginx:alpine'),
+        portMappings: [{ containerPort: 80 }],
+        logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'ecs', logGroup: new cdk.aws_logs.LogGroup(this, 'FrontendLogGroup', {
+          logGroupName: `/ecs/pulse-frontend-${shortEnv}`,
+          removalPolicy: cdk.RemovalPolicy.DESTROY,
+        }) }),
+      });
+
+      frontendService = new ecs.FargateService(this, 'FrontendService', {
+        cluster,
+        taskDefinition: frontendTaskDef,
+        desiredCount: 2,
+        serviceName: `pulse-frontend-${shortEnv}`,
+        vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+        assignPublicIp: false,
+      });
+    }
 
     if (isProd) {
       const backendScaling = backendService.autoScaleTaskCount({ maxCapacity: 10, minCapacity: 2 });
       backendScaling.scaleOnCpuUtilization('BackendCpuScaling', { targetUtilizationPercent: 70 });
       backendScaling.scaleOnMemoryUtilization('BackendMemoryScaling', { targetUtilizationPercent: 70 });
 
-      const frontendScaling = frontendService.autoScaleTaskCount({ maxCapacity: 10, minCapacity: 2 });
-      frontendScaling.scaleOnCpuUtilization('FrontendCpuScaling', { targetUtilizationPercent: 70 });
-      frontendScaling.scaleOnMemoryUtilization('FrontendMemoryScaling', { targetUtilizationPercent: 70 });
+      if (frontendService) {
+        const frontendScaling = frontendService.autoScaleTaskCount({ maxCapacity: 10, minCapacity: 2 });
+        frontendScaling.scaleOnCpuUtilization('FrontendCpuScaling', { targetUtilizationPercent: 70 });
+        frontendScaling.scaleOnMemoryUtilization('FrontendMemoryScaling', { targetUtilizationPercent: 70 });
+      }
+    } else if (shortEnv === 'qa') {
+      // Scheduled scaling to scale down to 0 at night/weekends for QA backend
+      const backendScaling = backendService.autoScaleTaskCount({ maxCapacity: 2, minCapacity: 0 });
+      backendScaling.scaleOnSchedule('ScaleDownQA', {
+        schedule: appscaling.Schedule.cron({ hour: '17', minute: '0', weekDay: 'MON-FRI' }), // 10:30 PM IST / 5 PM UTC
+        minCapacity: 0,
+        maxCapacity: 0,
+      });
+      backendScaling.scaleOnSchedule('ScaleUpQA', {
+        schedule: appscaling.Schedule.cron({ hour: '3', minute: '30', weekDay: 'MON-FRI' }), // 9:00 AM IST / 3:30 AM UTC
+        minCapacity: 2,
+        maxCapacity: 2,
+      });
     }
 
     // 4. Application Load Balancer
@@ -320,19 +394,21 @@ export class AxioraPulseStack extends cdk.Stack {
       loadBalancerName: `axiorapulse-${shortEnv}-alb`,
     });
 
-    const frontendListener = alb.addListener('FrontendListener', {
-      port: 80,
-      protocol: elbv2.ApplicationProtocol.HTTP,
-      open: true,
-    });
+    if (frontendService) {
+      const frontendListener = alb.addListener('FrontendListener', {
+        port: 80,
+        protocol: elbv2.ApplicationProtocol.HTTP,
+        open: true,
+      });
 
-    frontendListener.addTargets('FrontendTarget', {
-      port: 80,
-      targets: [frontendService],
-      healthCheck: {
-        path: '/',
-      }
-    });
+      frontendListener.addTargets('FrontendTarget', {
+        port: 80,
+        targets: [frontendService],
+        healthCheck: {
+          path: '/',
+        }
+      });
+    }
 
     const backendListener = alb.addListener('BackendListener', {
       port: 8000,
@@ -348,10 +424,10 @@ export class AxioraPulseStack extends cdk.Stack {
       }
     });
 
-
-
-    // Allow frontend to communicate with backend internally
-    backendService.connections.allowFrom(frontendService, ec2.Port.tcp(8000), 'Allow internal frontend to backend traffic');
+    if (frontendService) {
+      // Allow frontend to communicate with backend internally
+      backendService.connections.allowFrom(frontendService, ec2.Port.tcp(8000), 'Allow internal frontend to backend traffic');
+    }
 
     // 5. SSM Parameters
     const userPoolIdParam = new ssm.StringParameter(this, 'UserPoolIdParam', {
@@ -369,9 +445,13 @@ export class AxioraPulseStack extends cdk.Stack {
       stringValue: cluster.clusterName,
     });
 
+    if (isProd) {
+      frontendUrl = `http://${alb.loadBalancerDnsName}`;
+    }
+
     const frontendUrlParam = new ssm.StringParameter(this, 'FrontendUrlParam', {
       parameterName: `/axiorapulse/${shortEnv}/FRONTEND_URL`,
-      stringValue: `http://${alb.loadBalancerDnsName}`,
+      stringValue: frontendUrl,
     });
 
     backendService.node.addDependency(dbHostParam);
@@ -383,10 +463,12 @@ export class AxioraPulseStack extends cdk.Stack {
     backendService.node.addDependency(ecsClusterNameParam);
     backendService.node.addDependency(frontendUrlParam);
 
-    frontendService.node.addDependency(userPoolIdParam);
-    frontendService.node.addDependency(userPoolClientIdParam);
-    frontendService.node.addDependency(ecsClusterNameParam);
-    frontendService.node.addDependency(frontendUrlParam);
+    if (frontendService) {
+      frontendService.node.addDependency(userPoolIdParam);
+      frontendService.node.addDependency(userPoolClientIdParam);
+      frontendService.node.addDependency(ecsClusterNameParam);
+      frontendService.node.addDependency(frontendUrlParam);
+    }
 
     // CDK-Nag Suppressions
     NagSuppressions.addResourceSuppressions(alb, [
@@ -469,7 +551,9 @@ export class AxioraPulseStack extends cdk.Stack {
 
     // Outputs
     new cdk.CfnOutput(this, 'BackendServiceName', { value: backendService.serviceName });
-    new cdk.CfnOutput(this, 'FrontendServiceName', { value: frontendService.serviceName });
+    if (frontendService) {
+      new cdk.CfnOutput(this, 'FrontendServiceName', { value: frontendService.serviceName });
+    }
     new cdk.CfnOutput(this, 'EcsClusterName', { value: cluster.clusterName });
     new cdk.CfnOutput(this, 'LoadBalancerDNS', { value: alb.loadBalancerDnsName });
   }

@@ -25,6 +25,7 @@ export default function DashboardLayout() {
   const [surveys, setSurveys] = useState([]);
   const [files, setFiles] = useState([]);
   const [sidebarLoading, setSidebarLoading] = useState(true);
+  const [showSurveys, setShowSurveys] = useState(true);
   const [activeOpen, setActiveOpen] = useState(true);
   const [draftsOpen, setDraftsOpen] = useState(true);
 
@@ -308,9 +309,30 @@ export default function DashboardLayout() {
               </div>
             </NavLink>
           </div>
+          <div
+            className="ws-sidebar-section"
+            onClick={() => setShowSurveys(!showSurveys)}
+            style={{
+              cursor: "pointer",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginTop: "12px",
+            }}
+          >
+            <div className="ws-sidebar-section-label">
+              My Surveys ({surveys.length})
+            </div>
+            
+            <span style={{ fontSize: "12px" }}>
+              {showSurveys ? "▾" : "▸"}
+            </span>
+          </div>
 
-          {/* Active Surveys */}
-          {activeSurveys.length > 0 && (
+          {showSurveys && (
+            <>
+            {/* Active Surveys */}
+            {activeSurveys.length > 0 && (
             <div className="ws-sidebar-section">
               <button type="button" className="ws-sidebar-section-label ws-sidebar-section-toggle" onClick={() => setActiveOpen(o => !o)} aria-expanded={activeOpen}>
                 <span>Active ({activeSurveys.length})</span>
@@ -393,9 +415,9 @@ export default function DashboardLayout() {
             </div>
           )}
 
-        </div>
-        {/* ── End scrollable body ── */}
-
+          </>
+        )}
+        </div> 
         {/* User Section at bottom */}
         <div className="ws-sidebar-user" ref={userRef}>
           <div className="ws-sidebar-avatar" onClick={() => setUserMenu(v => !v)}>
