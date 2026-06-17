@@ -1,7 +1,9 @@
 // frontend/src/pitch-investor-readiness/index.jsx
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
+import { Country, State, City } from 'country-state-city';
+import HelpTip from '../components/HelpTip';
 import { getInvestorReadinessReport } from './services/api';
 import { generateInvestorPDF } from './pdf/generator';
 import { exportReportToCSV } from './csv/exporter';
@@ -18,6 +20,7 @@ import {
   ScorecardSection
 } from './report-builder/sections';
 
+
 const INP = { width: '100%', boxSizing: 'border-box', padding: '13px 17px', background: 'var(--warm-white)', border: '1.5px solid rgba(22,15,8,0.1)', borderRadius: 14, fontFamily: "'Fraunces', serif", fontSize: 15, color: 'var(--espresso)', outline: 'none', transition: 'border-color 0.2s, box-shadow 0.2s', resize: 'vertical' };
 const LBL = { fontFamily: "'Syne', sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.38)', display: 'block', marginBottom: 8 };
 
@@ -32,6 +35,28 @@ export default function PitchInvestorReadinessPanel({ survey }) {
   const [targetCountry, setTargetCountry] = useState('');
   const [targetState, setTargetState] = useState('');
   const [targetDistrict, setTargetDistrict] = useState('');
+
+  // Derived geographical lists for cascading dropdowns
+  const countriesList = useMemo(() => Country.getAllCountries(), []);
+  const selectedCountryObj = useMemo(() => {
+    return countriesList.find(c => c.name === targetCountry);
+  }, [countriesList, targetCountry]);
+  const countryCode = selectedCountryObj?.isoCode;
+
+  const statesList = useMemo(() => {
+    return countryCode ? State.getStatesOfCountry(countryCode) : [];
+  }, [countryCode]);
+  const selectedStateObj = useMemo(() => {
+    return statesList.find(s => s.name === targetState);
+  }, [statesList, targetState]);
+  const stateCode = selectedStateObj?.isoCode;
+
+  const uniqueCities = useMemo(() => {
+    if (!countryCode || !stateCode) return [];
+    const rawCities = City.getCitiesOfState(countryCode, stateCode);
+    return Array.from(new Set(rawCities.map(c => c.name))).sort();
+  }, [countryCode, stateCode]);
+
 
   // Optional advanced context
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -177,7 +202,10 @@ export default function PitchInvestorReadinessPanel({ survey }) {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 540, margin: '0 auto 36px' }}>
             <div>
-              <label style={LBL}>Startup Context & Mission (Junction/Idea)</label>
+              <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                Startup Idea / Mission
+                <HelpTip text="A brief description of your business, what problem you are solving, and your mission." />
+              </label>
               <textarea
                 placeholder="e.g. We are building a high-fidelity collaboration workspace resolving team communication latency for hybrid engineering companies..."
                 rows={3}
@@ -189,7 +217,10 @@ export default function PitchInvestorReadinessPanel({ survey }) {
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }} className="se-2col">
               <div>
-                <label style={LBL}>Monetization / Pricing Model</label>
+                <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  How you make money
+                  <HelpTip text="Describe your pricing model (e.g. $19/user monthly SaaS subscription, one-time fee, or transaction charges)." />
+                </label>
                 <input
                   type="text"
                   placeholder="e.g. $19/user monthly SaaS"
@@ -199,37 +230,85 @@ export default function PitchInvestorReadinessPanel({ survey }) {
                 />
               </div>
               <div>
-                <label style={LBL}>Target Country (Leave blank for Global)</label>
-                <input
-                  type="text"
-                  placeholder="e.g. United States, India"
+                <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  Target Country
+                  <HelpTip text="The country where your primary customers are. Leave blank if you target a global market." />
+                </label>
+                <select
                   value={targetCountry}
-                  onChange={e => setTargetCountry(e.target.value)}
+                  onChange={e => {
+                    setTargetCountry(e.target.value);
+                    setTargetState('');
+                    setTargetDistrict('');
+                  }}
                   style={INP}
-                />
+                >
+                  <option value="">Global / Other</option>
+                  {countriesList.map(c => (
+                    <option key={c.isoCode} value={c.name}>{c.name}</option>
+                  ))}
+                </select>
               </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }} className="se-2col">
               <div>
-                <label style={LBL}>Target State (Leave blank for National)</label>
-                <input
-                  type="text"
-                  placeholder="e.g. California, Telangana"
-                  value={targetState}
-                  onChange={e => setTargetState(e.target.value)}
-                  style={INP}
-                />
+                <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  Target State
+                  <HelpTip text="The state or region you target. Leave blank if you operate across the entire country." />
+                </label>
+                {targetCountry && statesList.length > 0 ? (
+                  <select
+                    value={targetState}
+                    onChange={e => {
+                      setTargetState(e.target.value);
+                      setTargetDistrict('');
+                    }}
+                    style={INP}
+                  >
+                    <option value="">Select State (or leave blank for National)</option>
+                    {statesList.map(s => (
+                      <option key={s.isoCode} value={s.name}>{s.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    placeholder="e.g. California, Telangana"
+                    value={targetState}
+                    onChange={e => {
+                      setTargetState(e.target.value);
+                      setTargetDistrict('');
+                    }}
+                    style={INP}
+                  />
+                )}
               </div>
               <div>
-                <label style={LBL}>Target City/District (Leave blank for State-level)</label>
-                <input
-                  type="text"
-                  placeholder="e.g. San Francisco, Hyderabad"
-                  value={targetDistrict}
-                  onChange={e => setTargetDistrict(e.target.value)}
-                  style={INP}
-                />
+                <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  Target City or District
+                  <HelpTip text="The specific city or local district you target. Leave blank if your target is state-wide." />
+                </label>
+                {targetCountry && targetState && uniqueCities.length > 0 ? (
+                  <select
+                    value={targetDistrict}
+                    onChange={e => setTargetDistrict(e.target.value)}
+                    style={INP}
+                  >
+                    <option value="">Select City/District (or leave blank for State-wide)</option>
+                    {uniqueCities.map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    placeholder="e.g. San Francisco, Hyderabad"
+                    value={targetDistrict}
+                    onChange={e => setTargetDistrict(e.target.value)}
+                    style={INP}
+                  />
+                )}
               </div>
             </div>
 
@@ -249,7 +328,10 @@ export default function PitchInvestorReadinessPanel({ survey }) {
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }} className="se-2col">
                     <div>
-                      <label style={LBL}>Funding Stage</label>
+                      <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        Funding Stage
+                        <HelpTip text="Select your current stage of investment (e.g. Bootstrapped/Self-funded, Seed, Series A)." />
+                      </label>
                       <select value={fundingStage} onChange={e => setFundingStage(e.target.value)} style={INP}>
                         <option value="">Select stage...</option>
                         <option value="Pre-Seed">Pre-Seed</option>
@@ -261,33 +343,51 @@ export default function PitchInvestorReadinessPanel({ survey }) {
                       </select>
                     </div>
                     <div>
-                      <label style={LBL}>Funding Target</label>
+                      <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        Funding Target
+                        <HelpTip text="The target amount of investment you are seeking to raise from investors (e.g. ₹75,00,000 or $500,000)." />
+                      </label>
                       <input type="text" placeholder="e.g. ₹75,00,000 or $500,000" value={fundingTarget} onChange={e => setFundingTarget(e.target.value)} style={INP} />
                     </div>
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }} className="se-2col">
                     <div>
-                      <label style={LBL}>Team Size</label>
+                      <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        Team Size
+                        <HelpTip text="The total number of founders and employees currently working in your startup." />
+                      </label>
                       <input type="number" placeholder="e.g. 5" min="1" value={teamSize} onChange={e => setTeamSize(e.target.value)} style={INP} />
                     </div>
                     <div>
-                      <label style={LBL}>Monthly Revenue (MRR)</label>
+                      <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        Monthly Sales / Revenue
+                        <HelpTip text="Your monthly recurring sales or revenue. Enter 0 if you are not making sales yet." />
+                      </label>
                       <input type="text" placeholder="e.g. ₹50,000 or $0 (pre-revenue)" value={monthlyRevenue} onChange={e => setMonthlyRevenue(e.target.value)} style={INP} />
                     </div>
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 18 }} className="se-2col">
                     <div>
-                      <label style={LBL}>Industry Vertical</label>
+                      <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        Industry / Category
+                        <HelpTip text="The main industry segment your startup belongs to (e.g. EdTech, FinTech, E-commerce)." />
+                      </label>
                       <input type="text" placeholder="e.g. EdTech, FinTech" value={industryVertical} onChange={e => setIndustryVertical(e.target.value)} style={INP} />
                     </div>
                     <div>
-                      <label style={LBL}>Founded Year</label>
+                      <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        Year Started
+                        <HelpTip text="The year you registered or officially started working on your startup idea." />
+                      </label>
                       <input type="number" placeholder="e.g. 2024" min="2000" max="2030" value={foundedYear} onChange={e => setFoundedYear(e.target.value)} style={INP} />
                     </div>
                     <div>
-                      <label style={LBL}>Co-Founders</label>
+                      <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        Number of Founders
+                        <HelpTip text="The total number of founders leading the company together." />
+                      </label>
                       <input type="number" placeholder="e.g. 2" min="1" max="10" value={founderCount} onChange={e => setFounderCount(e.target.value)} style={INP} />
                     </div>
                   </div>
@@ -321,26 +421,81 @@ export default function PitchInvestorReadinessPanel({ survey }) {
                   {drTab === 'documents' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
                       <div style={{ background: 'rgba(22,15,8,0.025)', borderRadius: 14, padding: 18 }}>
-                        <div style={{ ...LBL, marginBottom: 14, color: 'rgba(22,15,8,0.5)' }}>📄 Pitch Deck</div>
+                        <div style={{ ...LBL, marginBottom: 14, color: 'rgba(22,15,8,0.5)' }}>📄 Presentation Pitch Deck</div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                          <div><label style={LBL}>Slide Count</label><input type="number" placeholder="e.g. 12" style={INP} value={extDoc.pitch_deck.slide_count} onChange={e => setExtDoc(d => ({ ...d, pitch_deck: { ...d.pitch_deck, slide_count: e.target.value } }))} /></div>
-                          <div><label style={LBL}>Deck Version</label><input type="text" placeholder="e.g. v1.2" style={INP} value={extDoc.pitch_deck.deck_version} onChange={e => setExtDoc(d => ({ ...d, pitch_deck: { ...d.pitch_deck, deck_version: e.target.value } }))} /></div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Slide Count
+                              <HelpTip text="The total number of slides in your pitch presentation." />
+                            </label>
+                            <input type="number" placeholder="e.g. 12" style={INP} value={extDoc.pitch_deck.slide_count} onChange={e => setExtDoc(d => ({ ...d, pitch_deck: { ...d.pitch_deck, slide_count: e.target.value } }))} />
+                          </div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Deck Version
+                              <HelpTip text="The version identifier of this deck (e.g. v1.0, June 2026)." />
+                            </label>
+                            <input type="text" placeholder="e.g. v1.2" style={INP} value={extDoc.pitch_deck.deck_version} onChange={e => setExtDoc(d => ({ ...d, pitch_deck: { ...d.pitch_deck, deck_version: e.target.value } }))} />
+                          </div>
                         </div>
                       </div>
                       <div style={{ background: 'rgba(22,15,8,0.025)', borderRadius: 14, padding: 18 }}>
-                        <div style={{ ...LBL, marginBottom: 14, color: 'rgba(22,15,8,0.5)' }}>📝 Term Sheet</div>
+                        <div style={{ ...LBL, marginBottom: 14, color: 'rgba(22,15,8,0.5)' }}>📝 Investment Agreement (Term Sheet)</div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                          <div><label style={LBL}>Investment Amount</label><input type="text" placeholder="e.g. ₹75,00,000" style={INP} value={extDoc.term_sheet.investment_amount} onChange={e => setExtDoc(d => ({ ...d, term_sheet: { ...d.term_sheet, investment_amount: e.target.value } }))} /></div>
-                          <div><label style={LBL}>Pre-Money Valuation</label><input type="text" placeholder="e.g. ₹3,00,00,000" style={INP} value={extDoc.term_sheet.pre_money_valuation} onChange={e => setExtDoc(d => ({ ...d, term_sheet: { ...d.term_sheet, pre_money_valuation: e.target.value } }))} /></div>
-                          <div><label style={LBL}>Equity Offered (%)</label><input type="number" placeholder="e.g. 12.5" step="0.1" style={INP} value={extDoc.term_sheet.equity_offered} onChange={e => setExtDoc(d => ({ ...d, term_sheet: { ...d.term_sheet, equity_offered: e.target.value } }))} /></div>
-                          <div><label style={LBL}>Stage</label><select style={INP} value={extDoc.term_sheet.term_sheet_stage} onChange={e => setExtDoc(d => ({ ...d, term_sheet: { ...d.term_sheet, term_sheet_stage: e.target.value } }))} ><option value="">Select...</option>{['LOI', 'Draft', 'Final', 'Signed'].map(s => <option key={s}>{s}</option>)}</select></div>
-                          <div style={{ gridColumn: 'span 2' }}><label style={LBL}>Lead Investor</label><input type="text" placeholder="e.g. Sequoia Capital India" style={INP} value={extDoc.term_sheet.lead_investor} onChange={e => setExtDoc(d => ({ ...d, term_sheet: { ...d.term_sheet, lead_investor: e.target.value } }))} /></div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Investment Amount
+                              <HelpTip text="The amount of funding specified in this proposal." />
+                            </label>
+                            <input type="text" placeholder="e.g. ₹75,00,000" style={INP} value={extDoc.term_sheet.investment_amount} onChange={e => setExtDoc(d => ({ ...d, term_sheet: { ...d.term_sheet, investment_amount: e.target.value } }))} />
+                          </div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Valuation before Funding (Pre-Money)
+                              <HelpTip text="The agreed value of the company before the new investment is added." />
+                            </label>
+                            <input type="text" placeholder="e.g. ₹3,00,00,000" style={INP} value={extDoc.term_sheet.pre_money_valuation} onChange={e => setExtDoc(d => ({ ...d, term_sheet: { ...d.term_sheet, pre_money_valuation: e.target.value } }))} />
+                          </div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Equity Offered (%)
+                              <HelpTip text="The percentage of company ownership offered to investors." />
+                            </label>
+                            <input type="number" placeholder="e.g. 12.5" step="0.1" style={INP} value={extDoc.term_sheet.equity_offered} onChange={e => setExtDoc(d => ({ ...d, term_sheet: { ...d.term_sheet, equity_offered: e.target.value } }))} />
+                          </div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Agreement Stage
+                              <HelpTip text="The current status of this term sheet (e.g. Draft, LOI/Letter of Intent, Signed)." />
+                            </label>
+                            <select style={INP} value={extDoc.term_sheet.term_sheet_stage} onChange={e => setExtDoc(d => ({ ...d, term_sheet: { ...d.term_sheet, term_sheet_stage: e.target.value } }))} ><option value="">Select...</option>{['LOI', 'Draft', 'Final', 'Signed'].map(s => <option key={s}>{s}</option>)}</select>
+                          </div>
+                          <div style={{ gridColumn: 'span 2' }}>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Lead Investor
+                              <HelpTip text="The main investor or venture fund leading this funding round." />
+                            </label>
+                            <input type="text" placeholder="e.g. Sequoia Capital India" style={INP} value={extDoc.term_sheet.lead_investor} onChange={e => setExtDoc(d => ({ ...d, term_sheet: { ...d.term_sheet, lead_investor: e.target.value } }))} />
+                          </div>
                         </div>
                       </div>
                       <div style={{ background: 'rgba(22,15,8,0.025)', borderRadius: 14, padding: 18 }}>
-                        <div style={{ ...LBL, marginBottom: 14, color: 'rgba(22,15,8,0.5)' }}>✅ Due Diligence Checklist</div>
+                        <div style={{ ...LBL, marginBottom: 14, color: 'rgba(22,15,8,0.5)' }}>✅ Verification Documents (Due Diligence)</div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                          {[['incorporation_docs', 'Incorporation Docs'], ['cap_table_current', 'Current Cap Table'], ['audited_financials', 'Audited Financials'], ['ip_assignments', 'IP Assignments'], ['customer_contracts', 'Customer Contracts'], ['employment_agreements', 'Employment Agreements'], ['board_resolutions', 'Board Resolutions'], ['bank_statements_6m', '6-Month Bank Statements'], ['tax_returns', 'Tax Returns'], ['regulatory_filings', 'Regulatory Filings'], ['founder_backgrounds', 'Founder Backgrounds'], ['reference_checks_done', 'Reference Checks Done']].map(([key, label]) => (
+                          {[
+                            ['incorporation_docs', 'Company Registration Docs'],
+                            ['cap_table_current', 'Ownership Structure (Cap Table)'],
+                            ['audited_financials', 'Audited Financial Records'],
+                            ['ip_assignments', 'IP Assignment Agreements'],
+                            ['customer_contracts', 'Signed Client Agreements'],
+                            ['employment_agreements', 'Staff Contracts'],
+                            ['board_resolutions', 'Official Board Decisions'],
+                            ['bank_statements_6m', '6-Month Bank Records'],
+                            ['tax_returns', 'Tax Filing History'],
+                            ['regulatory_filings', 'Official Industry Filings'],
+                            ['founder_backgrounds', 'Founder Background Checks'],
+                            ['reference_checks_done', 'Reference Checks Completed']
+                          ].map(([key, label]) => (
                             <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: "'Fraunces', serif", fontSize: 13, color: 'var(--espresso)', cursor: 'pointer' }}>
                               <input type="checkbox" checked={!!extDoc.due_diligence[key]} onChange={e => setExtDoc(d => ({ ...d, due_diligence: { ...d.due_diligence, [key]: e.target.checked } }))} style={{ accentColor: 'var(--coral)', width: 15, height: 15 }} />
                               {label}
@@ -349,21 +504,61 @@ export default function PitchInvestorReadinessPanel({ survey }) {
                         </div>
                       </div>
                       <div style={{ background: 'rgba(22,15,8,0.025)', borderRadius: 14, padding: 18 }}>
-                        <div style={{ ...LBL, marginBottom: 14, color: 'rgba(22,15,8,0.5)' }}>🗂 Data Room & Legal</div>
+                        <div style={{ ...LBL, marginBottom: 14, color: 'rgba(22,15,8,0.5)' }}>🗂 Secure Document Folder (Data Room) & Legal</div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                           <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
-                            <div><label style={LBL}>Data Room URL</label><input type="text" placeholder="https://notion.so/..." style={INP} value={extDoc.data_room.data_room_link} onChange={e => setExtDoc(d => ({ ...d, data_room: { ...d.data_room, data_room_link: e.target.value } }))} /></div>
-                            <div><label style={LBL}>Total Docs</label><input type="number" placeholder="e.g. 24" style={INP} value={extDoc.data_room.total_documents} onChange={e => setExtDoc(d => ({ ...d, data_room: { ...d.data_room, total_documents: e.target.value } }))} /></div>
+                            <div>
+                              <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                Data Room Link
+                                <HelpTip text="Link to your secure online document folder (e.g. Notion, Google Drive)." />
+                              </label>
+                              <input type="text" placeholder="https://notion.so/..." style={INP} value={extDoc.data_room.data_room_link} onChange={e => setExtDoc(d => ({ ...d, data_room: { ...d.data_room, data_room_link: e.target.value } }))} />
+                            </div>
+                            <div>
+                              <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                Total Documents
+                                <HelpTip text="The total number of files in your data room folder." />
+                              </label>
+                              <input type="number" placeholder="e.g. 24" style={INP} value={extDoc.data_room.total_documents} onChange={e => setExtDoc(d => ({ ...d, data_room: { ...d.data_room, total_documents: e.target.value } }))} />
+                            </div>
                           </div>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-                            {[['nda_template_ready', 'NDA Ready'], ['ip_ownership_clear', 'IP Clear'], ['no_pending_litigation', 'No Litigation']].map(([key, label]) => (
-                              <div key={key}><label style={LBL}>{label}</label><select style={INP} value={extDoc.legal_status[key] === null ? '' : String(extDoc.legal_status[key])} onChange={e => setExtDoc(d => ({ ...d, legal_status: { ...d.legal_status, [key]: e.target.value === '' ? null : e.target.value === 'true' } }))}><option value="">N/A</option><option value="true">Yes</option><option value="false">No</option></select></div>
+                            {[
+                              ['nda_template_ready', 'NDA Template Ready', 'Do you have a non-disclosure agreement template ready for sharing confidential information?'],
+                              ['ip_ownership_clear', 'IP Ownership Clear', 'Is the ownership of all code, designs, and trade secrets clearly assigned to your company?'],
+                              ['no_pending_litigation', 'No Pending Lawsuits', 'Are you free of any active or pending lawsuits/legal disputes?']
+                            ].map(([key, label, desc]) => (
+                              <div key={key}>
+                                <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  {label}
+                                  <HelpTip text={desc} />
+                                </label>
+                                <select style={INP} value={extDoc.legal_status[key] === null ? '' : String(extDoc.legal_status[key])} onChange={e => setExtDoc(d => ({ ...d, legal_status: { ...d.legal_status, [key]: e.target.value === '' ? null : e.target.value === 'true' } }))}><option value="">N/A</option><option value="true">Yes</option><option value="false">No</option></select>
+                              </div>
                             ))}
                           </div>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-                            <div><label style={LBL}>Compliance Status</label><input type="text" placeholder="e.g. Compliant" style={INP} value={extDoc.legal_status.compliance_status} onChange={e => setExtDoc(d => ({ ...d, legal_status: { ...d.legal_status, compliance_status: e.target.value } }))} /></div>
-                            <div><label style={LBL}>Patents Filed</label><input type="number" placeholder="e.g. 2" style={INP} value={extDoc.legal_status.patents_filed} onChange={e => setExtDoc(d => ({ ...d, legal_status: { ...d.legal_status, patents_filed: e.target.value } }))} /></div>
-                            <div><label style={LBL}>Press Mentions</label><input type="number" placeholder="e.g. 5" style={INP} value={extDoc.media_kit.press_mentions} onChange={e => setExtDoc(d => ({ ...d, media_kit: { ...d.media_kit, press_mentions: e.target.value } }))} /></div>
+                            <div>
+                              <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                Compliance Status
+                                <HelpTip text="Your regulatory compliance status in target regions." />
+                              </label>
+                              <input type="text" placeholder="e.g. Compliant" style={INP} value={extDoc.legal_status.compliance_status} onChange={e => setExtDoc(d => ({ ...d, legal_status: { ...d.legal_status, compliance_status: e.target.value } }))} />
+                            </div>
+                            <div>
+                              <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                Patents Filed
+                                <HelpTip text="The number of patent applications you have officially submitted." />
+                              </label>
+                              <input type="number" placeholder="e.g. 2" style={INP} value={extDoc.legal_status.patents_filed} onChange={e => setExtDoc(d => ({ ...d, legal_status: { ...d.legal_status, patents_filed: e.target.value } }))} />
+                            </div>
+                            <div>
+                              <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                Press Mentions
+                                <HelpTip text="The number of news/media articles mentioning your startup." />
+                              </label>
+                              <input type="number" placeholder="e.g. 5" style={INP} value={extDoc.media_kit.press_mentions} onChange={e => setExtDoc(d => ({ ...d, media_kit: { ...d.media_kit, press_mentions: e.target.value } }))} />
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -374,36 +569,120 @@ export default function PitchInvestorReadinessPanel({ survey }) {
                   {drTab === 'crm' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
                       <div style={{ background: 'rgba(22,15,8,0.025)', borderRadius: 14, padding: 18 }}>
-                        <div style={{ ...LBL, marginBottom: 14, color: 'rgba(22,15,8,0.5)' }}>📊 Investor Pipeline</div>
+                        <div style={{ ...LBL, marginBottom: 14, color: 'rgba(22,15,8,0.5)' }}>📊 Investor CRM & Pipeline</div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                          <div><label style={LBL}>Total Investors Targeted</label><input type="number" placeholder="e.g. 50" style={INP} value={extCRM.investor_pipeline.total_targeted} onChange={e => setExtCRM(d => ({ ...d, investor_pipeline: { ...d.investor_pipeline, total_targeted: e.target.value } }))} /></div>
-                          <div><label style={LBL}>Meetings Held</label><input type="number" placeholder="e.g. 12" style={INP} value={extCRM.investor_pipeline.meetings_held} onChange={e => setExtCRM(d => ({ ...d, investor_pipeline: { ...d.investor_pipeline, meetings_held: e.target.value } }))} /></div>
-                          <div><label style={LBL}>Term Sheets Received</label><input type="number" placeholder="e.g. 2" style={INP} value={extCRM.investor_pipeline.term_sheets_received} onChange={e => setExtCRM(d => ({ ...d, investor_pipeline: { ...d.investor_pipeline, term_sheets_received: e.target.value } }))} /></div>
-                          <div><label style={LBL}>Soft Commits</label><input type="number" placeholder="e.g. 3" style={INP} value={extCRM.investor_pipeline.soft_commits} onChange={e => setExtCRM(d => ({ ...d, investor_pipeline: { ...d.investor_pipeline, soft_commits: e.target.value } }))} /></div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Investors Contacted
+                              <HelpTip text="The total number of investors or firms you have reached out to." />
+                            </label>
+                            <input type="number" placeholder="e.g. 50" style={INP} value={extCRM.investor_pipeline.total_targeted} onChange={e => setExtCRM(d => ({ ...d, investor_pipeline: { ...d.investor_pipeline, total_targeted: e.target.value } }))} />
+                          </div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Meetings Held
+                              <HelpTip text="The number of pitch presentations/meetings you have conducted." />
+                            </label>
+                            <input type="number" placeholder="e.g. 12" style={INP} value={extCRM.investor_pipeline.meetings_held} onChange={e => setExtCRM(d => ({ ...d, investor_pipeline: { ...d.investor_pipeline, meetings_held: e.target.value } }))} />
+                          </div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Offers Received
+                              <HelpTip text="The number of formal investment proposals (term sheets) you have received." />
+                            </label>
+                            <input type="number" placeholder="e.g. 2" style={INP} value={extCRM.investor_pipeline.term_sheets_received} onChange={e => setExtCRM(d => ({ ...d, investor_pipeline: { ...d.investor_pipeline, term_sheets_received: e.target.value } }))} />
+                          </div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Verbal Promises
+                              <HelpTip text="The number of investors who have verbally agreed to invest in this round." />
+                            </label>
+                            <input type="number" placeholder="e.g. 3" style={INP} value={extCRM.investor_pipeline.soft_commits} onChange={e => setExtCRM(d => ({ ...d, investor_pipeline: { ...d.investor_pipeline, soft_commits: e.target.value } }))} />
+                          </div>
                         </div>
                       </div>
                       <div style={{ background: 'rgba(22,15,8,0.025)', borderRadius: 14, padding: 18 }}>
-                        <div style={{ ...LBL, marginBottom: 14, color: 'rgba(22,15,8,0.5)' }}>🎯 VC Targeting & Matching</div>
+                        <div style={{ ...LBL, marginBottom: 14, color: 'rgba(22,15,8,0.5)' }}>🎯 Investor Targeting & Matching</div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                          <div><label style={LBL}>Target VC Firms (one per line)</label><textarea rows={3} placeholder="Sequoia India&#10;Accel&#10;Blume Ventures" style={INP} value={extCRM.vc_targeting.target_vcs_raw} onChange={e => setExtCRM(d => ({ ...d, vc_targeting: { ...d.vc_targeting, target_vcs_raw: e.target.value } }))} /></div>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-                            <div><label style={LBL}>Warm Intros</label><input type="number" placeholder="e.g. 3" style={INP} value={extCRM.vc_targeting.warm_intros_available} onChange={e => setExtCRM(d => ({ ...d, vc_targeting: { ...d.vc_targeting, warm_intros_available: e.target.value } }))} /></div>
-                            <div><label style={LBL}>Cold Outreach</label><input type="number" placeholder="e.g. 20" style={INP} value={extCRM.vc_targeting.cold_outreach_done} onChange={e => setExtCRM(d => ({ ...d, vc_targeting: { ...d.vc_targeting, cold_outreach_done: e.target.value } }))} /></div>
-                            <div><label style={LBL}>Accelerator Backed</label><select style={INP} value={extCRM.vc_targeting.accelerator_backed === null ? '' : String(extCRM.vc_targeting.accelerator_backed)} onChange={e => setExtCRM(d => ({ ...d, vc_targeting: { ...d.vc_targeting, accelerator_backed: e.target.value === '' ? null : e.target.value === 'true' } }))}><option value="">N/A</option><option value="true">Yes</option><option value="false">No</option></select></div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Target Investors / Firms (one per line)
+                              <HelpTip text="List the venture capital firms you are targeting (one per line)." />
+                            </label>
+                            <textarea rows={3} placeholder="Sequoia India&#10;Accel&#10;Blume Ventures" style={INP} value={extCRM.vc_targeting.target_vcs_raw} onChange={e => setExtCRM(d => ({ ...d, vc_targeting: { ...d.vc_targeting, target_vcs_raw: e.target.value } }))} />
                           </div>
-                          <div><label style={LBL}>Preferred Investor Type</label><select style={INP} value={extCRM.investor_matching.preferred_investor_type} onChange={e => setExtCRM(d => ({ ...d, investor_matching: { ...d.investor_matching, preferred_investor_type: e.target.value } }))} ><option value="">Any</option>{['Angel', 'VC', 'Family Office', 'Strategic', 'Corporate'].map(t => <option key={t}>{t}</option>)}</select></div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                            <div>
+                              <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                Warm Introductions
+                                <HelpTip text="The number of targeted investors you can reach via shared connections." />
+                              </label>
+                              <input type="number" placeholder="e.g. 3" style={INP} value={extCRM.vc_targeting.warm_intros_available} onChange={e => setExtCRM(d => ({ ...d, vc_targeting: { ...d.vc_targeting, warm_intros_available: e.target.value } }))} />
+                            </div>
+                            <div>
+                              <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                Cold Messages Sent
+                                <HelpTip text="The number of direct emails/messages sent without prior introduction." />
+                              </label>
+                              <input type="number" placeholder="e.g. 20" style={INP} value={extCRM.vc_targeting.cold_outreach_done} onChange={e => setExtCRM(d => ({ ...d, vc_targeting: { ...d.vc_targeting, cold_outreach_done: e.target.value } }))} />
+                            </div>
+                            <div>
+                              <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                Accelerator Supported?
+                                <HelpTip text="Is your startup backed by a recognized startup incubator or accelerator?" />
+                              </label>
+                              <select style={INP} value={extCRM.vc_targeting.accelerator_backed === null ? '' : String(extCRM.vc_targeting.accelerator_backed)} onChange={e => setExtCRM(d => ({ ...d, vc_targeting: { ...d.vc_targeting, accelerator_backed: e.target.value === '' ? null : e.target.value === 'true' } }))}><option value="">N/A</option><option value="true">Yes</option><option value="false">No</option></select>
+                            </div>
+                          </div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Preferred Investor Type
+                              <HelpTip text="Select the type of investor you prefer to work with (e.g. Angel, VC, Family Office)." />
+                            </label>
+                            <select style={INP} value={extCRM.investor_matching.preferred_investor_type} onChange={e => setExtCRM(d => ({ ...d, investor_matching: { ...d.investor_matching, preferred_investor_type: e.target.value } }))} ><option value="">Any</option>{['Angel', 'VC', 'Family Office', 'Strategic', 'Corporate'].map(t => <option key={t}>{t}</option>)}</select>
+                          </div>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                            <div><label style={LBL}>Min Check Size</label><input type="text" placeholder="e.g. ₹25,00,000" style={INP} value={extCRM.investor_matching.check_size_min} onChange={e => setExtCRM(d => ({ ...d, investor_matching: { ...d.investor_matching, check_size_min: e.target.value } }))} /></div>
-                            <div><label style={LBL}>Max Check Size</label><input type="text" placeholder="e.g. ₹2,00,00,000" style={INP} value={extCRM.investor_matching.check_size_max} onChange={e => setExtCRM(d => ({ ...d, investor_matching: { ...d.investor_matching, check_size_max: e.target.value } }))} /></div>
+                            <div>
+                              <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                Min Investment Size
+                                <HelpTip text="The minimum check size you accept from a single investor." />
+                              </label>
+                              <input type="text" placeholder="e.g. ₹25,00,000" style={INP} value={extCRM.investor_matching.check_size_min} onChange={e => setExtCRM(d => ({ ...d, investor_matching: { ...d.investor_matching, check_size_min: e.target.value } }))} />
+                            </div>
+                            <div>
+                              <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                Max Investment Size
+                                <HelpTip text="The maximum check size you accept from a single investor." />
+                              </label>
+                              <input type="text" placeholder="e.g. ₹2,00,00,000" style={INP} value={extCRM.investor_matching.check_size_max} onChange={e => setExtCRM(d => ({ ...d, investor_matching: { ...d.investor_matching, check_size_max: e.target.value } }))} />
+                            </div>
                           </div>
                         </div>
                       </div>
                       <div style={{ background: 'rgba(22,15,8,0.025)', borderRadius: 14, padding: 18 }}>
                         <div style={{ ...LBL, marginBottom: 14, color: 'rgba(22,15,8,0.5)' }}>💬 Pitch Feedback</div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                          <div><label style={LBL}>Pitches Completed</label><input type="number" placeholder="e.g. 8" style={INP} value={extCRM.pitch_feedback.pitches_completed} onChange={e => setExtCRM(d => ({ ...d, pitch_feedback: { ...d.pitch_feedback, pitches_completed: e.target.value } }))} /></div>
-                          <div><label style={LBL}>Common Objections (one per line)</label><textarea rows={3} placeholder="Market too small&#10;No moat&#10;Early stage" style={INP} value={extCRM.pitch_feedback.common_objections_raw} onChange={e => setExtCRM(d => ({ ...d, pitch_feedback: { ...d.pitch_feedback, common_objections_raw: e.target.value } }))} /></div>
-                          <div><label style={LBL}>Positive Signals (one per line)</label><textarea rows={2} placeholder="Strong team&#10;Good traction" style={INP} value={extCRM.pitch_feedback.positive_signals_raw} onChange={e => setExtCRM(d => ({ ...d, pitch_feedback: { ...d.pitch_feedback, positive_signals_raw: e.target.value } }))} /></div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Pitches Completed
+                              <HelpTip text="The total number of presentations you have made to investor groups." />
+                            </label>
+                            <input type="number" placeholder="e.g. 8" style={INP} value={extCRM.pitch_feedback.pitches_completed} onChange={e => setExtCRM(d => ({ ...d, pitch_feedback: { ...d.pitch_feedback, pitches_completed: e.target.value } }))} />
+                          </div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Common Objections (one per line)
+                              <HelpTip text="List the main doubts or concerns investors raise during meetings (one per line)." />
+                            </label>
+                            <textarea rows={3} placeholder="Market too small&#10;No moat&#10;Early stage" style={INP} value={extCRM.pitch_feedback.common_objections_raw} onChange={e => setExtCRM(d => ({ ...d, pitch_feedback: { ...d.pitch_feedback, common_objections_raw: e.target.value } }))} />
+                          </div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Positive Signals (one per line)
+                              <HelpTip text="List the key aspects investors react to most positively (one per line)." />
+                            </label>
+                            <textarea rows={2} placeholder="Strong team&#10;Good traction" style={INP} value={extCRM.pitch_feedback.positive_signals_raw} onChange={e => setExtCRM(d => ({ ...d, pitch_feedback: { ...d.pitch_feedback, positive_signals_raw: e.target.value } }))} />
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -413,32 +692,116 @@ export default function PitchInvestorReadinessPanel({ survey }) {
                   {drTab === 'financials' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
                       <div style={{ background: 'rgba(22,15,8,0.025)', borderRadius: 14, padding: 18 }}>
-                        <div style={{ ...LBL, marginBottom: 14, color: 'rgba(22,15,8,0.5)' }}>🔥 Burn Rate & Runway</div>
+                        <div style={{ ...LBL, marginBottom: 14, color: 'rgba(22,15,8,0.5)' }}>🔥 Expenses & Cash Runway</div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-                          <div><label style={LBL}>Monthly Burn Rate</label><input type="text" placeholder="e.g. ₹3,50,000" style={INP} value={extFin.burn_runway.monthly_burn_rate} onChange={e => setExtFin(d => ({ ...d, burn_runway: { ...d.burn_runway, monthly_burn_rate: e.target.value } }))} /></div>
-                          <div><label style={LBL}>Cash in Bank</label><input type="text" placeholder="e.g. ₹18,00,000" style={INP} value={extFin.burn_runway.cash_in_bank} onChange={e => setExtFin(d => ({ ...d, burn_runway: { ...d.burn_runway, cash_in_bank: e.target.value } }))} /></div>
-                          <div><label style={LBL}>MoM Revenue Growth (%)</label><input type="number" placeholder="e.g. 15" style={INP} value={extFin.burn_runway.revenue_growth_mom} onChange={e => setExtFin(d => ({ ...d, burn_runway: { ...d.burn_runway, revenue_growth_mom: e.target.value } }))} /></div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Monthly Expenses (Burn Rate)
+                              <HelpTip text="The net amount of money your startup spends each month to operate (expenses minus revenue)." />
+                            </label>
+                            <input type="text" placeholder="e.g. ₹3,50,000" style={INP} value={extFin.burn_runway.monthly_burn_rate} onChange={e => setExtFin(d => ({ ...d, burn_runway: { ...d.burn_runway, monthly_burn_rate: e.target.value } }))} />
+                          </div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Current Cash in Bank
+                              <HelpTip text="The total cash balance currently available in your company's bank accounts." />
+                            </label>
+                            <input type="text" placeholder="e.g. ₹18,00,000" style={INP} value={extFin.burn_runway.cash_in_bank} onChange={e => setExtFin(d => ({ ...d, burn_runway: { ...d.burn_runway, cash_in_bank: e.target.value } }))} />
+                          </div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Monthly Growth Rate (%)
+                              <HelpTip text="How much your sales grow month-over-month as a percentage." />
+                            </label>
+                            <input type="number" placeholder="e.g. 15" style={INP} value={extFin.burn_runway.revenue_growth_mom} onChange={e => setExtFin(d => ({ ...d, burn_runway: { ...d.burn_runway, revenue_growth_mom: e.target.value } }))} />
+                          </div>
                         </div>
                       </div>
                       <div style={{ background: 'rgba(22,15,8,0.025)', borderRadius: 14, padding: 18 }}>
-                        <div style={{ ...LBL, marginBottom: 14, color: 'rgba(22,15,8,0.5)' }}>📈 Revenue Metrics</div>
+                        <div style={{ ...LBL, marginBottom: 14, color: 'rgba(22,15,8,0.5)' }}>📈 Sales & Customer Metrics</div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                          <div><label style={LBL}>MRR</label><input type="text" placeholder="e.g. ₹50,000" style={INP} value={extFin.revenue_metrics.mrr} onChange={e => setExtFin(d => ({ ...d, revenue_metrics: { ...d.revenue_metrics, mrr: e.target.value } }))} /></div>
-                          <div><label style={LBL}>ARR</label><input type="text" placeholder="e.g. ₹6,00,000" style={INP} value={extFin.revenue_metrics.arr} onChange={e => setExtFin(d => ({ ...d, revenue_metrics: { ...d.revenue_metrics, arr: e.target.value } }))} /></div>
-                          <div><label style={LBL}>Churn Rate (%/month)</label><input type="number" placeholder="e.g. 3.5" step="0.1" style={INP} value={extFin.revenue_metrics.churn_rate} onChange={e => setExtFin(d => ({ ...d, revenue_metrics: { ...d.revenue_metrics, churn_rate: e.target.value } }))} /></div>
-                          <div><label style={LBL}>NRR (%)</label><input type="number" placeholder="e.g. 108" style={INP} value={extFin.revenue_metrics.net_revenue_retention} onChange={e => setExtFin(d => ({ ...d, revenue_metrics: { ...d.revenue_metrics, net_revenue_retention: e.target.value } }))} /></div>
-                          <div style={{ gridColumn: 'span 2' }}><label style={LBL}>Paying Customers</label><input type="number" placeholder="e.g. 24" style={INP} value={extFin.revenue_metrics.paying_customers} onChange={e => setExtFin(d => ({ ...d, revenue_metrics: { ...d.revenue_metrics, paying_customers: e.target.value } }))} /></div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              MRR (Monthly Sales)
+                              <HelpTip text="Monthly Recurring Revenue (MRR) represents your predictable monthly subscription sales." />
+                            </label>
+                            <input type="text" placeholder="e.g. ₹50,000" style={INP} value={extFin.revenue_metrics.mrr} onChange={e => setExtFin(d => ({ ...d, revenue_metrics: { ...d.revenue_metrics, mrr: e.target.value } }))} />
+                          </div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              ARR (Yearly Sales)
+                              <HelpTip text="Annual Recurring Revenue (ARR) represents your predictable yearly subscription sales." />
+                            </label>
+                            <input type="text" placeholder="e.g. ₹6,00,000" style={INP} value={extFin.revenue_metrics.arr} onChange={e => setExtFin(d => ({ ...d, revenue_metrics: { ...d.revenue_metrics, arr: e.target.value } }))} />
+                          </div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Customer Cancellation Rate (%)
+                              <HelpTip text="The percentage of customers who cancel their subscriptions each month." />
+                            </label>
+                            <input type="number" placeholder="e.g. 3.5" step="0.1" style={INP} value={extFin.revenue_metrics.churn_rate} onChange={e => setExtFin(d => ({ ...d, revenue_metrics: { ...d.revenue_metrics, churn_rate: e.target.value } }))} />
+                          </div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              NRR (%)
+                              <HelpTip text="Net Revenue Retention Rate: revenue from existing customers, including upgrades/downgrades." />
+                            </label>
+                            <input type="number" placeholder="e.g. 108" style={INP} value={extFin.revenue_metrics.net_revenue_retention} onChange={e => setExtFin(d => ({ ...d, revenue_metrics: { ...d.revenue_metrics, net_revenue_retention: e.target.value } }))} />
+                          </div>
+                          <div style={{ gridColumn: 'span 2' }}>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Paying Customers
+                              <HelpTip text="The count of active customers who currently pay you for your service." />
+                            </label>
+                            <input type="number" placeholder="e.g. 24" style={INP} value={extFin.revenue_metrics.paying_customers} onChange={e => setExtFin(d => ({ ...d, revenue_metrics: { ...d.revenue_metrics, paying_customers: e.target.value } }))} />
+                          </div>
                         </div>
                       </div>
                       <div style={{ background: 'rgba(22,15,8,0.025)', borderRadius: 14, padding: 18 }}>
                         <div style={{ ...LBL, marginBottom: 14, color: 'rgba(22,15,8,0.5)' }}>⚖️ Cap Table & Valuation</div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                          <div><label style={LBL}>Founder Equity (%)</label><input type="number" placeholder="e.g. 75" style={INP} value={extFin.cap_table.founders_equity} onChange={e => setExtFin(d => ({ ...d, cap_table: { ...d.cap_table, founders_equity: e.target.value } }))} /></div>
-                          <div><label style={LBL}>ESOP Pool (%)</label><input type="number" placeholder="e.g. 10" style={INP} value={extFin.cap_table.employee_esop_pool} onChange={e => setExtFin(d => ({ ...d, cap_table: { ...d.cap_table, employee_esop_pool: e.target.value } }))} /></div>
-                          <div><label style={LBL}>Pre-Money Valuation</label><input type="text" placeholder="e.g. ₹3,00,00,000" style={INP} value={extFin.valuation.target_pre_money} onChange={e => setExtFin(d => ({ ...d, valuation: { ...d.valuation, target_pre_money: e.target.value } }))} /></div>
-                          <div><label style={LBL}>Valuation Method</label><select style={INP} value={extFin.valuation.valuation_method} onChange={e => setExtFin(d => ({ ...d, valuation: { ...d.valuation, valuation_method: e.target.value } }))} ><option value="">Select...</option>{['Revenue Multiple', 'Comparable', 'DCF', 'Berkus'].map(m => <option key={m}>{m}</option>)}</select></div>
-                          <div><label style={LBL}>LTV</label><input type="text" placeholder="e.g. ₹18,000" style={INP} value={extFin.unit_economics_detail.ltv} onChange={e => setExtFin(d => ({ ...d, unit_economics_detail: { ...d.unit_economics_detail, ltv: e.target.value } }))} /></div>
-                          <div><label style={LBL}>Gross Margin (%)</label><input type="number" placeholder="e.g. 72" style={INP} value={extFin.unit_economics_detail.gross_margin} onChange={e => setExtFin(d => ({ ...d, unit_economics_detail: { ...d.unit_economics_detail, gross_margin: e.target.value } }))} /></div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Founder Ownership (%)
+                              <HelpTip text="The total percentage of company ownership held by the founders." />
+                            </label>
+                            <input type="number" placeholder="e.g. 75" style={INP} value={extFin.cap_table.founders_equity} onChange={e => setExtFin(d => ({ ...d, cap_table: { ...d.cap_table, founders_equity: e.target.value } }))} />
+                          </div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Employee Option Pool (%)
+                              <HelpTip text="The percentage of company ownership reserved for employee option pools." />
+                            </label>
+                            <input type="number" placeholder="e.g. 10" style={INP} value={extFin.cap_table.employee_esop_pool} onChange={e => setExtFin(d => ({ ...d, cap_table: { ...d.cap_table, employee_esop_pool: e.target.value } }))} />
+                          </div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Valuation before Funding
+                              <HelpTip text="The current agreed value of your company before receiving any new investment." />
+                            </label>
+                            <input type="text" placeholder="e.g. ₹3,00,00,000" style={INP} value={extFin.valuation.target_pre_money} onChange={e => setExtFin(d => ({ ...d, valuation: { ...d.valuation, target_pre_money: e.target.value } }))} />
+                          </div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Valuation Method
+                              <HelpTip text="The financial method used to estimate the value of your company." />
+                            </label>
+                            <select style={INP} value={extFin.valuation.valuation_method} onChange={e => setExtFin(d => ({ ...d, valuation: { ...d.valuation, valuation_method: e.target.value } }))} ><option value="">Select...</option>{['Revenue Multiple', 'Comparable', 'DCF', 'Berkus'].map(m => <option key={m}>{m}</option>)}</select>
+                          </div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Customer Lifetime Value (LTV)
+                              <HelpTip text="The total revenue or profit you expect to earn from a single customer over time." />
+                            </label>
+                            <input type="text" placeholder="e.g. ₹18,000" style={INP} value={extFin.unit_economics_detail.ltv} onChange={e => setExtFin(d => ({ ...d, unit_economics_detail: { ...d.unit_economics_detail, ltv: e.target.value } }))} />
+                          </div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Profit Margin before Expenses (%)
+                              <HelpTip text="Your profit margin before subtracting general operational expenses." />
+                            </label>
+                            <input type="number" placeholder="e.g. 72" style={INP} value={extFin.unit_economics_detail.gross_margin} onChange={e => setExtFin(d => ({ ...d, unit_economics_detail: { ...d.unit_economics_detail, gross_margin: e.target.value } }))} />
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -450,35 +813,137 @@ export default function PitchInvestorReadinessPanel({ survey }) {
                       <div style={{ background: 'rgba(22,15,8,0.025)', borderRadius: 14, padding: 18 }}>
                         <div style={{ ...LBL, marginBottom: 14, color: 'rgba(22,15,8,0.5)' }}>🛡 Competitive Moat</div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                          <div><label style={LBL}>Primary Differentiator</label><input type="text" placeholder="e.g. Proprietary AI engine trained on Indian SMB workflows" style={INP} value={extStrat.competitive_matrix.primary_differentiator} onChange={e => setExtStrat(d => ({ ...d, competitive_matrix: { ...d.competitive_matrix, primary_differentiator: e.target.value } }))} /></div>
-                          <div><label style={LBL}>Defensible Moats (one per line)</label><textarea rows={2} placeholder="Proprietary data&#10;Network effects&#10;Brand trust" style={INP} value={extStrat.competitive_matrix.defensible_moats_raw} onChange={e => setExtStrat(d => ({ ...d, competitive_matrix: { ...d.competitive_matrix, defensible_moats_raw: e.target.value } }))} /></div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Your Main Unique Advantage
+                              <HelpTip text="What makes your product or service uniquely better than direct competitors." />
+                            </label>
+                            <input type="text" placeholder="e.g. Proprietary AI engine trained on Indian SMB workflows" style={INP} value={extStrat.competitive_matrix.primary_differentiator} onChange={e => setExtStrat(d => ({ ...d, competitive_matrix: { ...d.competitive_matrix, primary_differentiator: e.target.value } }))} />
+                          </div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Defensible Moats (one per line)
+                              <HelpTip text="Long-term barriers that prevent competitors from copying you." />
+                            </label>
+                            <textarea rows={2} placeholder="Proprietary data&#10;Network effects&#10;Brand trust" style={INP} value={extStrat.competitive_matrix.defensible_moats_raw} onChange={e => setExtStrat(d => ({ ...d, competitive_matrix: { ...d.competitive_matrix, defensible_moats_raw: e.target.value } }))} />
+                          </div>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                            <div><label style={LBL}>Network Effects</label><select style={INP} value={extStrat.competitive_matrix.network_effects === null ? '' : String(extStrat.competitive_matrix.network_effects)} onChange={e => setExtStrat(d => ({ ...d, competitive_matrix: { ...d.competitive_matrix, network_effects: e.target.value === '' ? null : e.target.value === 'true' } }))}><option value="">N/A</option><option value="true">Yes</option><option value="false">No</option></select></div>
-                            <div><label style={LBL}>High Switching Cost</label><select style={INP} value={extStrat.competitive_matrix.switching_cost_high === null ? '' : String(extStrat.competitive_matrix.switching_cost_high)} onChange={e => setExtStrat(d => ({ ...d, competitive_matrix: { ...d.competitive_matrix, switching_cost_high: e.target.value === '' ? null : e.target.value === 'true' } }))}><option value="">N/A</option><option value="true">Yes</option><option value="false">No</option></select></div>
+                            <div>
+                              <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                Network Effects
+                                <HelpTip text="Does your product become more valuable as more people use it?" />
+                              </label>
+                              <select style={INP} value={extStrat.competitive_matrix.network_effects === null ? '' : String(extStrat.competitive_matrix.network_effects)} onChange={e => setExtStrat(d => ({ ...d, competitive_matrix: { ...d.competitive_matrix, network_effects: e.target.value === '' ? null : e.target.value === 'true' } }))}><option value="">N/A</option><option value="true">Yes</option><option value="false">No</option></select>
+                            </div>
+                            <div>
+                              <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                High Switching Cost
+                                <HelpTip text="Is it difficult or expensive for a customer to switch to a competitor?" />
+                              </label>
+                              <select style={INP} value={extStrat.competitive_matrix.switching_cost_high === null ? '' : String(extStrat.competitive_matrix.switching_cost_high)} onChange={e => setExtStrat(d => ({ ...d, competitive_matrix: { ...d.competitive_matrix, switching_cost_high: e.target.value === '' ? null : e.target.value === 'true' } }))}><option value="">N/A</option><option value="true">Yes</option><option value="false">No</option></select>
+                            </div>
                           </div>
                         </div>
                       </div>
                       <div style={{ background: 'rgba(22,15,8,0.025)', borderRadius: 14, padding: 18 }}>
                         <div style={{ ...LBL, marginBottom: 14, color: 'rgba(22,15,8,0.5)' }}>🚀 Accelerator, Grants & Exit</div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                          <div><label style={LBL}>DPIIT Recognized</label><select style={INP} value={extStrat.accelerator_grant.dpiit_recognized === null ? '' : String(extStrat.accelerator_grant.dpiit_recognized)} onChange={e => setExtStrat(d => ({ ...d, accelerator_grant: { ...d.accelerator_grant, dpiit_recognized: e.target.value === '' ? null : e.target.value === 'true' } }))}><option value="">N/A</option><option value="true">Yes ✓</option><option value="false">No</option></select></div>
-                          <div><label style={LBL}>IIM/IIT Incubated</label><select style={INP} value={extStrat.accelerator_grant.iim_iit_incubated === null ? '' : String(extStrat.accelerator_grant.iim_iit_incubated)} onChange={e => setExtStrat(d => ({ ...d, accelerator_grant: { ...d.accelerator_grant, iim_iit_incubated: e.target.value === '' ? null : e.target.value === 'true' } }))}><option value="">N/A</option><option value="true">Yes ✓</option><option value="false">No</option></select></div>
-                          <div><label style={LBL}>Accelerator Programs (one per line)</label><textarea rows={2} placeholder="Y Combinator&#10;T-Hub&#10;IIM-A CIIE" style={INP} value={extStrat.accelerator_grant.accepted_by_raw} onChange={e => setExtStrat(d => ({ ...d, accelerator_grant: { ...d.accelerator_grant, accepted_by_raw: e.target.value } }))} /></div>
-                          <div><label style={LBL}>Grant Funding Received</label><input type="text" placeholder="e.g. ₹10,00,000" style={INP} value={extStrat.accelerator_grant.grant_funding_received} onChange={e => setExtStrat(d => ({ ...d, accelerator_grant: { ...d.accelerator_grant, grant_funding_received: e.target.value } }))} /></div>
-                          <div><label style={LBL}>Preferred Exit Route</label><select style={INP} value={extStrat.exit_strategy.preferred_exit} onChange={e => setExtStrat(d => ({ ...d, exit_strategy: { ...d.exit_strategy, preferred_exit: e.target.value } }))} ><option value="">Select...</option>{['IPO', 'Strategic Acquisition', 'PE Buyout', 'Secondary Sale'].map(m => <option key={m}>{m}</option>)}</select></div>
-                          <div><label style={LBL}>Exit Timeline</label><input type="text" placeholder="e.g. 5-7 years" style={INP} value={extStrat.exit_strategy.target_exit_timeline} onChange={e => setExtStrat(d => ({ ...d, exit_strategy: { ...d.exit_strategy, target_exit_timeline: e.target.value } }))} /></div>
-                          <div style={{ gridColumn: 'span 2' }}><label style={LBL}>Potential Acquirers (one per line)</label><textarea rows={2} placeholder="Zoho&#10;Freshworks&#10;SAP" style={INP} value={extStrat.exit_strategy.potential_acquirers_raw} onChange={e => setExtStrat(d => ({ ...d, exit_strategy: { ...d.exit_strategy, potential_acquirers_raw: e.target.value } }))} /></div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Govt Recognized (DPIIT)?
+                              <HelpTip text="Whether your startup is officially recognized by India's DPIIT department." />
+                            </label>
+                            <select style={INP} value={extStrat.accelerator_grant.dpiit_recognized === null ? '' : String(extStrat.accelerator_grant.dpiit_recognized)} onChange={e => setExtStrat(d => ({ ...d, accelerator_grant: { ...d.accelerator_grant, dpiit_recognized: e.target.value === '' ? null : e.target.value === 'true' } }))}><option value="">N/A</option><option value="true">Yes ✓</option><option value="false">No</option></select>
+                          </div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Incubated at IIM/IIT?
+                              <HelpTip text="Whether your startup is incubated or supported by an IIM or IIT." />
+                            </label>
+                            <select style={INP} value={extStrat.accelerator_grant.iim_iit_incubated === null ? '' : String(extStrat.accelerator_grant.iim_iit_incubated)} onChange={e => setExtStrat(d => ({ ...d, accelerator_grant: { ...d.accelerator_grant, iim_iit_incubated: e.target.value === '' ? null : e.target.value === 'true' } }))}><option value="">N/A</option><option value="true">Yes ✓</option><option value="false">No</option></select>
+                          </div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Accelerator Programs
+                              <HelpTip text="List any startup accelerators or incubator programs you have participated in (one per line)." />
+                            </label>
+                            <textarea rows={2} placeholder="Y Combinator&#10;T-Hub&#10;IIM-A CIIE" style={INP} value={extStrat.accelerator_grant.accepted_by_raw} onChange={e => setExtStrat(d => ({ ...d, accelerator_grant: { ...d.accelerator_grant, accepted_by_raw: e.target.value } }))} />
+                          </div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Grants Received
+                              <HelpTip text="Non-repayable financial funds awarded to your startup by organizations/governments." />
+                            </label>
+                            <input type="text" placeholder="e.g. ₹10,00,000" style={INP} value={extStrat.accelerator_grant.grant_funding_received} onChange={e => setExtStrat(d => ({ ...d, accelerator_grant: { ...d.accelerator_grant, grant_funding_received: e.target.value } }))} />
+                          </div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Preferred Exit Route
+                              <HelpTip text="Your preferred way for founders/investors to sell the company in the future (e.g. IPO, Acquisition)." />
+                            </label>
+                            <select style={INP} value={extStrat.exit_strategy.preferred_exit} onChange={e => setExtStrat(d => ({ ...d, exit_strategy: { ...d.exit_strategy, preferred_exit: e.target.value } }))} ><option value="">Select...</option>{['IPO', 'Strategic Acquisition', 'PE Buyout', 'Secondary Sale'].map(m => <option key={m}>{m}</option>)}</select>
+                          </div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Target Exit Timeline
+                              <HelpTip text="When you expect the founders or investors to sell the company (usually in years)." />
+                            </label>
+                            <input type="text" placeholder="e.g. 5-7 years" style={INP} value={extStrat.exit_strategy.target_exit_timeline} onChange={e => setExtStrat(d => ({ ...d, exit_strategy: { ...d.exit_strategy, target_exit_timeline: e.target.value } }))} />
+                          </div>
+                          <div style={{ gridColumn: 'span 2' }}>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Potential Acquirers (one per line)
+                              <HelpTip text="List companies that might purchase your startup in the future (one per line)." />
+                            </label>
+                            <textarea rows={2} placeholder="Zoho&#10;Freshworks&#10;SAP" style={INP} value={extStrat.exit_strategy.potential_acquirers_raw} onChange={e => setExtStrat(d => ({ ...d, exit_strategy: { ...d.exit_strategy, potential_acquirers_raw: e.target.value } }))} />
+                          </div>
                         </div>
                       </div>
                       <div style={{ background: 'rgba(22,15,8,0.025)', borderRadius: 14, padding: 18 }}>
                         <div style={{ ...LBL, marginBottom: 14, color: 'rgba(22,15,8,0.5)' }}>⚖️ Regulatory & IP</div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-                          <div><label style={LBL}>GDPR/Data Compliant</label><select style={INP} value={extStrat.regulatory.gdpr_compliant === null ? '' : String(extStrat.regulatory.gdpr_compliant)} onChange={e => setExtStrat(d => ({ ...d, regulatory: { ...d.regulatory, gdpr_compliant: e.target.value === '' ? null : e.target.value === 'true' } }))}><option value="">N/A</option><option value="true">Yes ✓</option><option value="false">No</option></select></div>
-                          <div><label style={LBL}>Data Residency (India)</label><select style={INP} value={extStrat.regulatory.data_residency_compliant === null ? '' : String(extStrat.regulatory.data_residency_compliant)} onChange={e => setExtStrat(d => ({ ...d, regulatory: { ...d.regulatory, data_residency_compliant: e.target.value === '' ? null : e.target.value === 'true' } }))}><option value="">N/A</option><option value="true">Yes ✓</option><option value="false">No</option></select></div>
-                          <div><label style={LBL}>Compliance Status</label><input type="text" placeholder="e.g. Compliant" style={INP} value={extStrat.regulatory.compliance_status} onChange={e => setExtStrat(d => ({ ...d, regulatory: { ...d.regulatory, compliance_status: e.target.value } }))} /></div>
-                          <div><label style={LBL}>Patents Filed</label><input type="number" placeholder="e.g. 2" style={INP} value={extStrat.ip_tracker.patents_filed} onChange={e => setExtStrat(d => ({ ...d, ip_tracker: { ...d.ip_tracker, patents_filed: e.target.value } }))} /></div>
-                          <div><label style={LBL}>Patents Granted</label><input type="number" placeholder="e.g. 1" style={INP} value={extStrat.ip_tracker.patents_granted} onChange={e => setExtStrat(d => ({ ...d, ip_tracker: { ...d.ip_tracker, patents_granted: e.target.value } }))} /></div>
-                          <div><label style={LBL}>Trademarks Registered</label><input type="number" placeholder="e.g. 1" style={INP} value={extStrat.ip_tracker.trademarks_registered} onChange={e => setExtStrat(d => ({ ...d, ip_tracker: { ...d.ip_tracker, trademarks_registered: e.target.value } }))} /></div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Data Privacy Compliant (GDPR)?
+                              <HelpTip text="Whether your software complies with general data protection regulations (like GDPR)." />
+                            </label>
+                            <select style={INP} value={extStrat.regulatory.gdpr_compliant === null ? '' : String(extStrat.regulatory.gdpr_compliant)} onChange={e => setExtStrat(d => ({ ...d, regulatory: { ...d.regulatory, gdpr_compliant: e.target.value === '' ? null : e.target.value === 'true' } }))}><option value="">N/A</option><option value="true">Yes ✓</option><option value="false">No</option></select>
+                          </div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Data Stored in India?
+                              <HelpTip text="Whether you host your application databases and user data locally within India." />
+                            </label>
+                            <select style={INP} value={extStrat.regulatory.data_residency_compliant === null ? '' : String(extStrat.regulatory.data_residency_compliant)} onChange={e => setExtStrat(d => ({ ...d, regulatory: { ...d.regulatory, data_residency_compliant: e.target.value === '' ? null : e.target.value === 'true' } }))}><option value="">N/A</option><option value="true">Yes ✓</option><option value="false">No</option></select>
+                          </div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Compliance Status
+                              <HelpTip text="Your regulatory compliance status in target regions." />
+                            </label>
+                            <input type="text" placeholder="e.g. Compliant" style={INP} value={extStrat.regulatory.compliance_status} onChange={e => setExtStrat(d => ({ ...d, regulatory: { ...d.regulatory, compliance_status: e.target.value } }))} />
+                          </div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Patents Filed
+                              <HelpTip text="Number of patent applications submitted." />
+                            </label>
+                            <input type="number" placeholder="e.g. 2" style={INP} value={extStrat.ip_tracker.patents_filed} onChange={e => setExtStrat(d => ({ ...d, ip_tracker: { ...d.ip_tracker, patents_filed: e.target.value } }))} />
+                          </div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Patents Granted
+                              <HelpTip text="Number of patents officially granted to protect your inventions." />
+                            </label>
+                            <input type="number" placeholder="e.g. 1" style={INP} value={extStrat.ip_tracker.patents_granted} onChange={e => setExtStrat(d => ({ ...d, ip_tracker: { ...d.ip_tracker, patents_granted: e.target.value } }))} />
+                          </div>
+                          <div>
+                            <label style={{ ...LBL, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              Trademarks Registered
+                              <HelpTip text="Number of trademarks registered to protect your brand name/logo." />
+                            </label>
+                            <input type="number" placeholder="e.g. 1" style={INP} value={extStrat.ip_tracker.trademarks_registered} onChange={e => setExtStrat(d => ({ ...d, ip_tracker: { ...d.ip_tracker, trademarks_registered: e.target.value } }))} />
+                          </div>
                         </div>
                       </div>
                     </div>
