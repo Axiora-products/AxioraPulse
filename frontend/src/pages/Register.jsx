@@ -6,6 +6,7 @@ import { useLoading } from '../context/LoadingContext';
 import useAuthStore from "../hooks/useAuth";
 import { cognitoSignUp, cognitoConfirmSignUp, cognitoSignIn, cognitoResendCode } from '../lib/cognito';
 import API from '../api/axios';
+import { consumePostAuthRedirect } from '../lib/pendingTemplate';
 const Logo = ({ dark }) => (
   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 0, lineHeight: 1 }}>
     <span style={{ fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: dark ? 'rgba(253,245,232,0.35)' : 'rgba(22,15,8,0.35)', marginRight: 8, position: 'relative', top: -2 }}>Axiora</span>
@@ -311,7 +312,7 @@ export default function Register() {
       }
 
       toast.success('Welcome to Axiora Pulse!');
-      nav('/dashboard');
+      nav(consumePostAuthRedirect());
     } catch (err) {
       if (err.code === 'CodeMismatchException') {
         toast.error('Incorrect code — please try again');
