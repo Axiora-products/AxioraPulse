@@ -1457,7 +1457,11 @@ def _deterministic_social_content(title: str, description: str, questions: list)
     """Fallback: build sensible share content without the AI."""
     clean_title = title.strip()
     tagline = f"Share your thoughts on: {clean_title}"[:99]
-    desc = description.strip() if description else f"A survey about {clean_title}. Your opinion matters — take a few minutes to respond!"
+    desc = (
+        description.strip()
+        if description
+        else f"A survey about {clean_title}. Your opinion matters — take a few minutes to respond!"
+    )
 
     base_tags = [
         f"#{clean_title.replace(' ', '')}Survey",
@@ -1492,10 +1496,7 @@ def _deterministic_social_content(title: str, description: str, questions: list)
             f"Hi! 👋 We'd love your feedback.\n\n*{clean_title}*\n\n{desc}\n\n"
             f"It's quick and easy — please share your thoughts:\n{link_placeholder}"
         ),
-        telegram=(
-            f"📊 *{clean_title}*\n\n{desc}\n\n"
-            f"Help us by sharing your perspective:\n{link_placeholder}"
-        ),
+        telegram=(f"📊 *{clean_title}*\n\n{desc}\n\nHelp us by sharing your perspective:\n{link_placeholder}"),
         facebook=(
             f"📣 {clean_title}\n\n{desc}\n\n"
             f"Your feedback genuinely makes a difference. Please take 2 minutes to fill out this survey:\n"
@@ -1546,13 +1547,9 @@ async def generate_social_share_content(
     title = survey.title or ""
     description = survey.description or ""
     questions_data = [
-        {"question_text": q.question_text, "type": q.question_type.value}
-        for q in (survey.questions or [])[:20]
+        {"question_text": q.question_text, "type": q.question_type.value} for q in (survey.questions or [])[:20]
     ]
-    q_summary = "\n".join(
-        f"  - Q{i + 1} ({q['type']}): {q['question_text']}"
-        for i, q in enumerate(questions_data)
-    )
+    q_summary = "\n".join(f"  - Q{i + 1} ({q['type']}): {q['question_text']}" for i, q in enumerate(questions_data))
 
     prompt = f"""You are an expert social media copywriter. Generate a professional social share content kit for the following survey.
 
@@ -1617,10 +1614,7 @@ Rules:
 
 
 @router.post("/download-image")
-async def download_image(
-    image: str = Form(...),
-    filename: str = Form("share-card.png")
-):
+async def download_image(image: str = Form(...), filename: str = Form("share-card.png")):
     """
     Serve a base64-encoded image as a file attachment download.
     This bypasses iframe sandbox restrictions on client-side downloads.
@@ -1673,4 +1667,3 @@ async def download_qr(url: str, filename: str):
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to fetch QR code: {str(e)}")
-

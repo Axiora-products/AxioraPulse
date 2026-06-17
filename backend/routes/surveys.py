@@ -475,13 +475,11 @@ def get_survey_og(slug: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Survey not found")
 
     frontend_url = (
-        os.environ.get("FRONTEND_URL")
-        or os.environ.get("VITE_FRONTEND_URL")
-        or "https://app.axiorapulse.com"
+        os.environ.get("FRONTEND_URL") or os.environ.get("VITE_FRONTEND_URL") or "https://app.axiorapulse.com"
     ).rstrip("/")
 
     safe_slug = quote(slug, safe="")
-    survey_url   = f"{frontend_url}/s/{safe_slug}"
+    survey_url = f"{frontend_url}/s/{safe_slug}"
     og_image_url = f"{frontend_url}/og-share-card.png"
 
     title = escape(survey.title or "Survey", quote=True)
