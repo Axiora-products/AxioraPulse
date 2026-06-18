@@ -443,7 +443,7 @@ export class AxioraPulseStack extends cdk.Stack {
       // Scheduled scaling to scale down to 0 at night/weekends for QA backend
       const backendScaling = backendService.autoScaleTaskCount({ maxCapacity: 2, minCapacity: 0 });
       backendScaling.scaleOnSchedule('ScaleDownQA', {
-        schedule: appscaling.Schedule.cron({ hour: '17', minute: '0', weekDay: 'MON-FRI' }), // 10:30 PM IST / 5 PM UTC
+        schedule: appscaling.Schedule.cron({ hour: '14', minute: '30', weekDay: 'MON-FRI' }), // 8:00 PM IST / 2:30 PM UTC
         minCapacity: 0,
         maxCapacity: 0,
       });
