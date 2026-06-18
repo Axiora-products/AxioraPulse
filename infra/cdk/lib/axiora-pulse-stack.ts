@@ -290,7 +290,14 @@ export class AxioraPulseStack extends cdk.Stack {
     let frontendUrl: string = '';
     let frontendService: ecs.FargateService | undefined = undefined;
 
-    if (!isProd) {
+    // 4. Application Load Balancer
+    const alb = new elbv2.ApplicationLoadBalancer(this, 'Alb', {
+      vpc,
+      internetFacing: true,
+      loadBalancerName: `axiorapulse-${shortEnv}-alb`,
+    });
+
+    if (shortEnv === 'dev') {
       // S3 Bucket for frontend static assets
       const frontendBucket = new s3.Bucket(this, 'FrontendBucket', {
         bucketName: `axiorapulse-${shortEnv}-frontend-bucket`,
@@ -307,6 +314,21 @@ export class AxioraPulseStack extends cdk.Stack {
           origin: new origins.S3Origin(frontendBucket),
           viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+        },
+        additionalBehaviors: {
+          '/api/*': {
+            origin: new origins.HttpOrigin(alb.loadBalancerDnsName, {
+              protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY,
+              httpPort: 8000,
+              customHeaders: {
+                'X-Forwarded-Prefix': '/api',
+              }
+            }),
+            viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+            allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
+            cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
+            originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
+          }
         },
         defaultRootObject: 'index.html',
         errorResponses: [
@@ -333,8 +355,8 @@ export class AxioraPulseStack extends cdk.Stack {
       });
     }
 
-    if (isProd) {
-      // Frontend Fargate Service (Production only)
+    if (isProd || shortEnv === 'qa') {
+      // Frontend Fargate Service (Production and QA)
       const frontendTaskDef = new ecs.FargateTaskDefinition(this, 'FrontendTaskDef', {
         memoryLimitMiB: 512,
         cpu: 256,
@@ -350,6 +372,9 @@ export class AxioraPulseStack extends cdk.Stack {
           logGroupName: `/ecs/pulse-frontend-${shortEnv}`,
           removalPolicy: cdk.RemovalPolicy.DESTROY,
         }) }),
+        environment: {
+          'BACKEND_INTERNAL_URL': `backend.${shortEnv}.local:8000`,
+        }
       });
 
       frontendService = new ecs.FargateService(this, 'FrontendService', {
@@ -387,12 +412,6 @@ export class AxioraPulseStack extends cdk.Stack {
       });
     }
 
-    // 4. Application Load Balancer
-    const alb = new elbv2.ApplicationLoadBalancer(this, 'Alb', {
-      vpc,
-      internetFacing: true,
-      loadBalancerName: `axiorapulse-${shortEnv}-alb`,
-    });
 
     if (frontendService) {
       const frontendListener = alb.addListener('FrontendListener', {
@@ -445,7 +464,7 @@ export class AxioraPulseStack extends cdk.Stack {
       stringValue: cluster.clusterName,
     });
 
-    if (isProd) {
+    if (isProd || shortEnv === 'qa') {
       frontendUrl = `http://${alb.loadBalancerDnsName}`;
     }
 

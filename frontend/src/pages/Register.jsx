@@ -274,7 +274,17 @@ export default function Register() {
     if (!verifyCode) return toast.error('Enter the verification code');
     setBusy(true);
     try {
-      await cognitoConfirmSignUp(f.email, verifyCode);
+      try {
+        await cognitoConfirmSignUp(f.email, verifyCode);
+      } catch (err) {
+        const isAlreadyConfirmed = err.message && (
+          err.message.includes('Current status is CONFIRMED') ||
+          err.message.includes('User cannot be confirmed')
+        );
+        if (!isAlreadyConfirmed) {
+          throw err;
+        }
+      }
       
       // If we don't have password (e.g. redirected from Login), redirect back to Login
       if (!f.password) {
