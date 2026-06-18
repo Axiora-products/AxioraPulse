@@ -374,3 +374,88 @@ def test_transcribe_audio_no_file(auth_headers):
     )
     assert response.status_code == 400
     assert "No audio file uploaded" in response.json()["detail"]
+
+
+def test_transcribe_with_whisper_duration_checks(monkeypatch):
+    import routes.uploads
+
+    # Test <= 0 duration
+    monkeypatch.setattr(routes.uploads, "_get_audio_duration", lambda path: 0.0)
+    try:
+        routes.uploads._transcribe_with_whisper("dummy_path")
+        assert False, "Expected ValueError"
+    except ValueError as e:
+        assert "no playable content" in str(e)
+
+    # Test > MAX_AUDIO_DURATION_SECONDS (600) duration
+    monkeypatch.setattr(routes.uploads, "_get_audio_duration", lambda path: 1200.0)
+    try:
+        routes.uploads._transcribe_with_whisper("dummy_path")
+        assert False, "Expected ValueError"
+    except ValueError as e:
+        assert "too long" in str(e)
+
+
+def test_transcribe_with_whisper_openai_success(monkeypatch, tmp_path):
+    import routes.uploads
+    import openai
+
+    # Set up keys and duration
+    monkeypatch.setattr(routes.uploads, "OPENAI_KEY", "real-openai-key")
+    monkeypatch.setattr(routes.uploads, "_get_audio_duration", lambda path: 5.0)
+
+    class MockOpenAIClient:
+        def __init__(self, api_key=None):
+            self.audio = self.MockAudio()
+
+        class MockAudio:
+            def __init__(self):
+                self.transcriptions = self.MockTranscriptions()
+
+            class MockTranscriptions:
+                def create(self, **kwargs):
+                    class MockResponse:
+                        text = " Mocked text from OpenAI API "
+
+                    return MockResponse()
+
+    monkeypatch.setattr(openai, "OpenAI", MockOpenAIClient)
+
+    # Create dummy file to open
+    dummy_file = tmp_path / "audio.mp3"
+    dummy_file.write_bytes(b"dummy")
+
+    res = routes.uploads._transcribe_with_whisper(str(dummy_file))
+    assert res["text"] == "Mocked text from OpenAI API"
+    assert res["language"] == "en"
+
+
+def test_transcribe_with_whisper_openai_fallback(monkeypatch, tmp_path):
+    import routes.uploads
+    import openai
+
+    # Set up keys and duration
+    monkeypatch.setattr(routes.uploads, "OPENAI_KEY", "real-openai-key")
+    monkeypatch.setattr(routes.uploads, "_get_audio_duration", lambda path: 5.0)
+
+    class MockOpenAIClientError:
+        def __init__(self, api_key=None):
+            self.audio = self.MockAudio()
+
+        class MockAudio:
+            def __init__(self):
+                self.transcriptions = self.MockTranscriptions()
+
+            class MockTranscriptions:
+                def create(self, **kwargs):
+                    raise Exception("OpenAI API Failure")
+
+    monkeypatch.setattr(openai, "OpenAI", MockOpenAIClientError)
+
+    # Create dummy file to open
+    dummy_file = tmp_path / "audio.mp3"
+    dummy_file.write_bytes(b"dummy")
+
+    res = routes.uploads._transcribe_with_whisper(str(dummy_file))
+    assert res["text"] == "This is a mocked audio transcription from Whisper."
+    assert res["language"] == "en"
