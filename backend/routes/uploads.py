@@ -276,14 +276,10 @@ def _transcribe_via_api(audio_path: str) -> dict:
     Transcribe audio using OpenAI's Whisper API.
     """
     client = openai.OpenAI(api_key=OPENAI_KEY)
-    
+
     with open(audio_path, "rb") as audio_file:
-        response = client.audio.transcriptions.create(
-            model="whisper-1",
-            file=audio_file,
-            response_format="json"
-        )
-    
+        response = client.audio.transcriptions.create(model="whisper-1", file=audio_file, response_format="json")
+
     return {
         "text": response.text.strip(),
         "language": "en",  # OpenAI API handles detection, but we return en as default for consistency
