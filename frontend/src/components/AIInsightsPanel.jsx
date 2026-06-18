@@ -682,23 +682,23 @@ export default function AIInsightsPanel({ survey, analytics, questionAnalytics }
     return `${slug || 'survey'}-ai-insights`;
   }
 
-  async function exportPDF() {
-    if (exporting) return;
-    setExporting('pdf');
-    const id = toast.loading('Building PDF report…');
-    try {
-      const { jsPDF } = await import('jspdf');
-      const doc = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
-      buildInsightsReport(doc, result, survey);
-      doc.save(`${exportFileBase()}.pdf`);
-      toast.success('PDF report downloaded', { id });
-    } catch (e) {
-      console.error('PDF export:', e);
-      toast.error('Could not export PDF', { id });
-    } finally {
-      setExporting(false);
-    }
-  }
+  // async function exportPDF() {
+  //   if (exporting) return;
+  //   setExporting('pdf');
+  //   const id = toast.loading('Building PDF report…');
+  //   try {
+  //     const { jsPDF } = await import('jspdf');
+  //     const doc = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
+  //     buildInsightsReport(doc, result, survey);
+  //     doc.save(`${exportFileBase()}.pdf`);
+  //     toast.success('PDF report downloaded', { id });
+  //   } catch (e) {
+  //     console.error('PDF export:', e);
+  //     toast.error('Could not export PDF', { id });
+  //   } finally {
+  //     setExporting(false);
+  //   }
+  // }
 
   // ─── Checking for an existing analysis (initial mount) ────────────────────
   if (state === 'checking') return (
