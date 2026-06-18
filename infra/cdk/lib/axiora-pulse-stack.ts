@@ -377,6 +377,13 @@ export class AxioraPulseStack extends cdk.Stack {
         }
       });
 
+      NagSuppressions.addResourceSuppressions(frontendTaskDef, [
+        {
+          id: 'AwsSolutions-ECS2',
+          reason: 'Frontend environment variables only contain non-sensitive configuration values.'
+        }
+      ]);
+
       frontendService = new ecs.FargateService(this, 'FrontendService', {
         cluster,
         taskDefinition: frontendTaskDef,
