@@ -191,8 +191,12 @@ export class AxioraPulseStack extends cdk.Stack {
       {
         id: 'AwsSolutions-COG2',
         reason: 'QA/Dev Cognito user pool does not require MFA to simplify developer access.'
+      },
+      {
+        id: 'AwsSolutions-IAM5',
+        reason: 'Cognito SMS role requires wildcard permission to publish SMS notifications to any phone number via SNS.'
       }
-    ]);
+    ], true);
 
     const userPoolClient = userPool.addClient('UserPoolClient', {
       userPoolClientName: 'AxioraPulseClient-' + envName,
@@ -290,7 +294,14 @@ export class AxioraPulseStack extends cdk.Stack {
     let frontendUrl: string = '';
     let frontendService: ecs.FargateService | undefined = undefined;
 
-    if (!isProd) {
+    // 4. Application Load Balancer
+    const alb = new elbv2.ApplicationLoadBalancer(this, 'Alb', {
+      vpc,
+      internetFacing: true,
+      loadBalancerName: `axiorapulse-${shortEnv}-alb`,
+    });
+
+    if (shortEnv === 'dev') {
       // S3 Bucket for frontend static assets
       const frontendBucket = new s3.Bucket(this, 'FrontendBucket', {
         bucketName: `axiorapulse-${shortEnv}-frontend-bucket`,
@@ -305,8 +316,23 @@ export class AxioraPulseStack extends cdk.Stack {
       const distribution = new cloudfront.Distribution(this, 'FrontendDistribution', {
         defaultBehavior: {
           origin: new origins.S3Origin(frontendBucket),
-          viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.ALLOW_ALL,
           cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+        },
+        additionalBehaviors: {
+          '/api/*': {
+            origin: new origins.HttpOrigin(alb.loadBalancerDnsName, {
+              protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY,
+              httpPort: 8000,
+              customHeaders: {
+                'X-Forwarded-Prefix': '/api',
+              }
+            }),
+            viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+            allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
+            cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
+            originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
+          }
         },
         defaultRootObject: 'index.html',
         errorResponses: [
@@ -331,10 +357,41 @@ export class AxioraPulseStack extends cdk.Stack {
         value: frontendUrl,
         description: 'Frontend CloudFront distribution URL',
       });
+
+      // CDK-Nag Suppressions for Frontend Bucket and Distribution
+      NagSuppressions.addResourceSuppressions(frontendBucket, [
+        {
+          id: 'AwsSolutions-S1',
+          reason: 'QA/Dev S3 bucket does not require server access logging to optimize costs.'
+        }
+      ]);
+
+      NagSuppressions.addResourceSuppressions(distribution, [
+        {
+          id: 'AwsSolutions-CFR1',
+          reason: 'QA/Dev CloudFront distribution does not require geo restrictions.'
+        },
+        {
+          id: 'AwsSolutions-CFR2',
+          reason: 'QA/Dev CloudFront distribution does not require WAF integration to minimize costs.'
+        },
+        {
+          id: 'AwsSolutions-CFR3',
+          reason: 'QA/Dev CloudFront distribution does not require access logging to minimize costs.'
+        },
+        {
+          id: 'AwsSolutions-CFR4',
+          reason: 'QA/Dev CloudFront distribution uses default CloudFront certificate for simplicity.'
+        },
+        {
+          id: 'AwsSolutions-CFR7',
+          reason: 'OAI/S3Origin standard configuration is sufficient; OAC is not strictly required for QA/Dev.'
+        }
+      ]);
     }
 
-    if (isProd) {
-      // Frontend Fargate Service (Production only)
+    if (isProd || shortEnv === 'qa') {
+      // Frontend Fargate Service (Production and QA)
       const frontendTaskDef = new ecs.FargateTaskDefinition(this, 'FrontendTaskDef', {
         memoryLimitMiB: 512,
         cpu: 256,
@@ -350,7 +407,17 @@ export class AxioraPulseStack extends cdk.Stack {
           logGroupName: `/ecs/pulse-frontend-${shortEnv}`,
           removalPolicy: cdk.RemovalPolicy.DESTROY,
         }) }),
+        environment: {
+          'BACKEND_INTERNAL_URL': `backend.${shortEnv}.local:8000`,
+        }
       });
+
+      NagSuppressions.addResourceSuppressions(frontendTaskDef, [
+        {
+          id: 'AwsSolutions-ECS2',
+          reason: 'Frontend environment variables only contain non-sensitive configuration values.'
+        }
+      ]);
 
       frontendService = new ecs.FargateService(this, 'FrontendService', {
         cluster,
@@ -376,7 +443,7 @@ export class AxioraPulseStack extends cdk.Stack {
       // Scheduled scaling to scale down to 0 at night/weekends for QA backend
       const backendScaling = backendService.autoScaleTaskCount({ maxCapacity: 2, minCapacity: 0 });
       backendScaling.scaleOnSchedule('ScaleDownQA', {
-        schedule: appscaling.Schedule.cron({ hour: '17', minute: '0', weekDay: 'MON-FRI' }), // 10:30 PM IST / 5 PM UTC
+        schedule: appscaling.Schedule.cron({ hour: '14', minute: '30', weekDay: 'MON-FRI' }), // 8:00 PM IST / 2:30 PM UTC
         minCapacity: 0,
         maxCapacity: 0,
       });
@@ -385,14 +452,23 @@ export class AxioraPulseStack extends cdk.Stack {
         minCapacity: 2,
         maxCapacity: 2,
       });
+
+      if (frontendService) {
+        // Scheduled scaling to scale down to 0 at night/weekends for QA frontend
+        const frontendScaling = frontendService.autoScaleTaskCount({ maxCapacity: 2, minCapacity: 0 });
+        frontendScaling.scaleOnSchedule('FrontendScaleDownQA', {
+          schedule: appscaling.Schedule.cron({ hour: '14', minute: '30', weekDay: 'MON-FRI' }), // 8:00 PM IST / 2:30 PM UTC
+          minCapacity: 0,
+          maxCapacity: 0,
+        });
+        frontendScaling.scaleOnSchedule('FrontendScaleUpQA', {
+          schedule: appscaling.Schedule.cron({ hour: '3', minute: '30', weekDay: 'MON-FRI' }), // 9:00 AM IST / 3:30 AM UTC
+          minCapacity: 2,
+          maxCapacity: 2,
+        });
+      }
     }
 
-    // 4. Application Load Balancer
-    const alb = new elbv2.ApplicationLoadBalancer(this, 'Alb', {
-      vpc,
-      internetFacing: true,
-      loadBalancerName: `axiorapulse-${shortEnv}-alb`,
-    });
 
     if (frontendService) {
       const frontendListener = alb.addListener('FrontendListener', {
@@ -445,7 +521,7 @@ export class AxioraPulseStack extends cdk.Stack {
       stringValue: cluster.clusterName,
     });
 
-    if (isProd) {
+    if (isProd || shortEnv === 'qa') {
       frontendUrl = `http://${alb.loadBalancerDnsName}`;
     }
 
