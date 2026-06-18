@@ -133,8 +133,8 @@ def _build_founder_section(fi: CAFounderInputs) -> str:
         lines.append(f"  SAM = {_fmt_inr(sam)}  ← SOM ÷ 7% capture rate (Hyderabad-level market)")
         lines.append(f"  TAM = {_fmt_inr(tam)}  ← SAM ÷ 10% penetration (total category market)")
         lines.append(f"  Market Growth Rate = {growth_rate}% per year")
-        lines.append(f"  These are FIXED. market_opportunity.tam/sam/som and market_growth_rate must use these exact figures.")
-        lines.append(f"  Source for all: FOUNDER_INPUT. Confidence: HIGH.")
+        lines.append("  These are FIXED. market_opportunity.tam/sam/som and market_growth_rate must use these exact figures.")
+        lines.append("  Source for all: FOUNDER_INPUT. Confidence: HIGH.")
         lines.append(f"  Basis: 'Founder stated ₹{_fmt_inr(monthly)}/month target; market sizes and growth rate mathematically derived from standard SAM/TAM penetration ratios.'")
 
     if price and monthly:
