@@ -27,7 +27,8 @@ server {
     # Proxy API calls to the backend — strips /api prefix before forwarding
     location /api/ {
         # Using a variable forces NGINX to re-resolve the IP, preventing startup crashes if backend is down
-        set $backend "http://${BACKEND_INTERNAL_URL}/";
+        set $backend "http://${BACKEND_INTERNAL_URL}";
+        rewrite ^/api/(.*)$ /$1 break;
         proxy_pass $backend;
         proxy_http_version 1.1;
         proxy_set_header Host $proxy_host;
