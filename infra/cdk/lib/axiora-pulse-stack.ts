@@ -191,8 +191,12 @@ export class AxioraPulseStack extends cdk.Stack {
       {
         id: 'AwsSolutions-COG2',
         reason: 'QA/Dev Cognito user pool does not require MFA to simplify developer access.'
+      },
+      {
+        id: 'AwsSolutions-IAM5',
+        reason: 'Cognito SMS role requires wildcard permission to publish SMS notifications to any phone number via SNS.'
       }
-    ]);
+    ], true);
 
     const userPoolClient = userPool.addClient('UserPoolClient', {
       userPoolClientName: 'AxioraPulseClient-' + envName,
