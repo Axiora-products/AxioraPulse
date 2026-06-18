@@ -152,7 +152,6 @@ questions_data = [
             {"label": "IoT / OT Security", "value": "IoT Security"},
         ],
     },
-
     # ════════════════════════════════════════════════════════════════════════
     # SECTION 2: TECHNOLOGY & PRODUCT (Q6–Q12)
     # ════════════════════════════════════════════════════════════════════════
@@ -224,7 +223,6 @@ questions_data = [
         "question_type": "yes_no",
         "is_required": True,
     },
-
     # ════════════════════════════════════════════════════════════════════════
     # SECTION 3: FUNDING & FINANCE (Q13–Q17)
     # ════════════════════════════════════════════════════════════════════════
@@ -276,7 +274,6 @@ questions_data = [
         "question_type": "slider",
         "is_required": True,
     },
-
     # ════════════════════════════════════════════════════════════════════════
     # SECTION 4: CHALLENGES & GROWTH (Q18–Q22)
     # ════════════════════════════════════════════════════════════════════════
@@ -337,7 +334,6 @@ questions_data = [
             {"label": "Strategic Partnerships", "value": "Partnerships"},
         ],
     },
-
     # ════════════════════════════════════════════════════════════════════════
     # SECTION 5: MARKET & COMPETITION (Q23–Q26)
     # ════════════════════════════════════════════════════════════════════════
@@ -384,7 +380,6 @@ questions_data = [
             {"label": "Very Negatively – major obstacle", "value": "Very Negative"},
         ],
     },
-
     # ════════════════════════════════════════════════════════════════════════
     # SECTION 6: FUTURE OUTLOOK (Q27–Q30)
     # ════════════════════════════════════════════════════════════════════════
@@ -439,40 +434,120 @@ print(f"Created survey: '{survey.title}' with {len(question_objects)} questions"
 # ── Founder-like data pools ──────────────────────────────────────────────────
 
 FOUNDER_NAMES = [
-    "Arjun Mehta", "Priya Sharma", "Rahul Kapoor", "Sneha Reddy", "Vikram Singh",
-    "Ananya Iyer", "Karthik Nair", "Pooja Gupta", "Rohan Das", "Meera Patel",
-    "Aditya Joshi", "Divya Krishnan", "Nikhil Rao", "Swati Choudhary", "Amit Verma",
-    "Kavya Sundaram", "Siddharth Bhat", "Neha Agarwal", "Rajesh Menon", "Lakshmi Pillai",
-    "Harish Kumar", "Tanvi Deshmukh", "Aman Malik", "Ishita Banerjee", "Varun Tiwari",
-    "Ritika Sinha", "Deepak Rajan", "Shruti Mishra", "Ashwin Naik", "Preeti Saxena",
-    "Manish Pandey", "Anushka Jain", "Gaurav Chopra", "Ritu Devi", "Suresh Babu",
-    "Megha Kulkarni", "Tarun Bhardwaj", "Sanya Kaul", "Pranav Hegde", "Bhavna Sethi",
-    "Ajay Mohan", "Nidhi Rastogi", "Abhishek Thapar", "Simran Kohli", "Vivek Menon",
-    "Pallavi Garg", "Sachin Chauhan", "Aparna Nambiar", "Kunal Datta", "Jyoti Kumari",
-    "Ramesh Venkat", "Faizan Ahmed", "Sonam Wangchuk", "Rakhi Goswami", "Dev Narayan",
+    "Arjun Mehta",
+    "Priya Sharma",
+    "Rahul Kapoor",
+    "Sneha Reddy",
+    "Vikram Singh",
+    "Ananya Iyer",
+    "Karthik Nair",
+    "Pooja Gupta",
+    "Rohan Das",
+    "Meera Patel",
+    "Aditya Joshi",
+    "Divya Krishnan",
+    "Nikhil Rao",
+    "Swati Choudhary",
+    "Amit Verma",
+    "Kavya Sundaram",
+    "Siddharth Bhat",
+    "Neha Agarwal",
+    "Rajesh Menon",
+    "Lakshmi Pillai",
+    "Harish Kumar",
+    "Tanvi Deshmukh",
+    "Aman Malik",
+    "Ishita Banerjee",
+    "Varun Tiwari",
+    "Ritika Sinha",
+    "Deepak Rajan",
+    "Shruti Mishra",
+    "Ashwin Naik",
+    "Preeti Saxena",
+    "Manish Pandey",
+    "Anushka Jain",
+    "Gaurav Chopra",
+    "Ritu Devi",
+    "Suresh Babu",
+    "Megha Kulkarni",
+    "Tarun Bhardwaj",
+    "Sanya Kaul",
+    "Pranav Hegde",
+    "Bhavna Sethi",
+    "Ajay Mohan",
+    "Nidhi Rastogi",
+    "Abhishek Thapar",
+    "Simran Kohli",
+    "Vivek Menon",
+    "Pallavi Garg",
+    "Sachin Chauhan",
+    "Aparna Nambiar",
+    "Kunal Datta",
+    "Jyoti Kumari",
+    "Ramesh Venkat",
+    "Faizan Ahmed",
+    "Sonam Wangchuk",
+    "Rakhi Goswami",
+    "Dev Narayan",
 ]
 
 CITIES = [
-    "Bangalore", "Bangalore", "Bangalore", "Bangalore",
-    "Hyderabad", "Hyderabad", "Hyderabad",
-    "Mumbai", "Mumbai", "Mumbai",
-    "Delhi NCR", "Delhi NCR",
-    "Pune", "Pune",
-    "Chennai", "Chennai",
-    "Kochi", "Kolkata", "Ahmedabad", "Jaipur",
-    "San Francisco", "Tel Aviv", "London", "Singapore",
+    "Bangalore",
+    "Bangalore",
+    "Bangalore",
+    "Bangalore",
+    "Hyderabad",
+    "Hyderabad",
+    "Hyderabad",
+    "Mumbai",
+    "Mumbai",
+    "Mumbai",
+    "Delhi NCR",
+    "Delhi NCR",
+    "Pune",
+    "Pune",
+    "Chennai",
+    "Chennai",
+    "Kochi",
+    "Kolkata",
+    "Ahmedabad",
+    "Jaipur",
+    "San Francisco",
+    "Tel Aviv",
+    "London",
+    "Singapore",
 ]
 
 # Q1: Startup Stage — weighted toward Seed and Series A
 STAGE_POOL = [
-    "Idea / Pre-seed", "Idea / Pre-seed", "Idea / Pre-seed",
-    "Seed Stage", "Seed Stage", "Seed Stage", "Seed Stage", "Seed Stage",
-    "Seed Stage", "Seed Stage", "Seed Stage", "Seed Stage",
-    "Series A", "Series A", "Series A", "Series A", "Series A",
-    "Series A", "Series A",
-    "Series B", "Series B", "Series B", "Series B",
-    "Series C+", "Series C+",
-    "Growth / Scale-up", "Growth / Scale-up", "Growth / Scale-up",
+    "Idea / Pre-seed",
+    "Idea / Pre-seed",
+    "Idea / Pre-seed",
+    "Seed Stage",
+    "Seed Stage",
+    "Seed Stage",
+    "Seed Stage",
+    "Seed Stage",
+    "Seed Stage",
+    "Seed Stage",
+    "Seed Stage",
+    "Seed Stage",
+    "Series A",
+    "Series A",
+    "Series A",
+    "Series A",
+    "Series A",
+    "Series A",
+    "Series A",
+    "Series B",
+    "Series B",
+    "Series B",
+    "Series B",
+    "Series C+",
+    "Series C+",
+    "Growth / Scale-up",
+    "Growth / Scale-up",
+    "Growth / Scale-up",
 ]
 
 # Q2: Employee Count
@@ -497,22 +572,50 @@ REVENUE_MAP = {
 
 # Q4: Founded year
 FOUNDED_POOL = [
-    "Before 2018", "Before 2018", "Before 2018",
-    "2018–2020", "2018–2020", "2018–2020", "2018–2020",
-    "2021–2022", "2021–2022", "2021–2022", "2021–2022", "2021–2022",
-    "2023–2024", "2023–2024", "2023–2024", "2023–2024", "2023–2024", "2023–2024",
-    "2025–2026", "2025–2026", "2025–2026",
+    "Before 2018",
+    "Before 2018",
+    "Before 2018",
+    "2018–2020",
+    "2018–2020",
+    "2018–2020",
+    "2018–2020",
+    "2021–2022",
+    "2021–2022",
+    "2021–2022",
+    "2021–2022",
+    "2021–2022",
+    "2023–2024",
+    "2023–2024",
+    "2023–2024",
+    "2023–2024",
+    "2023–2024",
+    "2023–2024",
+    "2025–2026",
+    "2025–2026",
+    "2025–2026",
 ]
 
 # Q5: Cybersecurity domain
 DOMAIN_POOL = [
-    "Cloud Security", "Cloud Security", "Cloud Security", "Cloud Security",
-    "Threat Detection", "Threat Detection", "Threat Detection",
-    "IAM", "IAM", "IAM",
-    "AppSec", "AppSec", "AppSec",
-    "Data Privacy", "Data Privacy",
-    "Endpoint Security", "Endpoint Security",
-    "Network Security", "Network Security",
+    "Cloud Security",
+    "Cloud Security",
+    "Cloud Security",
+    "Cloud Security",
+    "Threat Detection",
+    "Threat Detection",
+    "Threat Detection",
+    "IAM",
+    "IAM",
+    "IAM",
+    "AppSec",
+    "AppSec",
+    "AppSec",
+    "Data Privacy",
+    "Data Privacy",
+    "Endpoint Security",
+    "Endpoint Security",
+    "Network Security",
+    "Network Security",
     "IoT Security",
 ]
 
@@ -574,22 +677,40 @@ BURN_MAP = {
 
 # Q18: Biggest challenge
 CHALLENGE_POOL = [
-    "Talent Acquisition", "Talent Acquisition", "Talent Acquisition", "Talent Acquisition",
-    "Sales Cycles", "Sales Cycles", "Sales Cycles",
-    "Customer Trust", "Customer Trust",
-    "PMF Validation", "PMF Validation",
-    "Scaling", "Scaling",
-    "Compliance", "Compliance",
+    "Talent Acquisition",
+    "Talent Acquisition",
+    "Talent Acquisition",
+    "Talent Acquisition",
+    "Sales Cycles",
+    "Sales Cycles",
+    "Sales Cycles",
+    "Customer Trust",
+    "Customer Trust",
+    "PMF Validation",
+    "PMF Validation",
+    "Scaling",
+    "Scaling",
+    "Compliance",
+    "Compliance",
     "Competition",
 ]
 
 # Q20: Customer acquisition strategy
 ACQ_STRATEGY_POOL = [
-    "Content Marketing", "Content Marketing", "Content Marketing",
-    "Direct Sales", "Direct Sales", "Direct Sales", "Direct Sales",
-    "Channel Partners", "Channel Partners",
-    "PLG", "PLG", "PLG",
-    "Community", "Community",
+    "Content Marketing",
+    "Content Marketing",
+    "Content Marketing",
+    "Direct Sales",
+    "Direct Sales",
+    "Direct Sales",
+    "Direct Sales",
+    "Channel Partners",
+    "Channel Partners",
+    "PLG",
+    "PLG",
+    "PLG",
+    "Community",
+    "Community",
     "Events",
 ]
 
@@ -605,11 +726,21 @@ GROWTH_MAP = {
 
 # Q24: Number of competitors
 COMPETITOR_POOL = [
-    "0–2", "0–2",
-    "3–5", "3–5", "3–5", "3–5", "3–5",
-    "6–10", "6–10", "6–10", "6–10",
-    "11–20", "11–20",
-    "20+", "20+",
+    "0–2",
+    "0–2",
+    "3–5",
+    "3–5",
+    "3–5",
+    "3–5",
+    "3–5",
+    "6–10",
+    "6–10",
+    "6–10",
+    "6–10",
+    "11–20",
+    "11–20",
+    "20+",
+    "20+",
 ]
 
 # Q25: Compliance standards (multi-select)
@@ -617,10 +748,19 @@ COMPLIANCE_STD = ["SOC 2", "ISO 27001", "GDPR", "HIPAA", "PCI DSS", "FedRAMP", "
 
 # Q26: Regulation impact
 REG_IMPACT_POOL = [
-    "Very Positive", "Very Positive", "Very Positive", "Very Positive",
-    "Somewhat Positive", "Somewhat Positive", "Somewhat Positive", "Somewhat Positive",
-    "Neutral", "Neutral", "Neutral",
-    "Somewhat Negative", "Somewhat Negative",
+    "Very Positive",
+    "Very Positive",
+    "Very Positive",
+    "Very Positive",
+    "Somewhat Positive",
+    "Somewhat Positive",
+    "Somewhat Positive",
+    "Somewhat Positive",
+    "Neutral",
+    "Neutral",
+    "Neutral",
+    "Somewhat Negative",
+    "Somewhat Negative",
     "Very Negative",
 ]
 
@@ -695,17 +835,31 @@ FOUNDER_ADVICE = [
 
 # Occupation pools (these are founders filling the survey)
 OCCUPATION_POOL = [
-    "Founder / CEO", "Founder / CEO", "Founder / CEO", "Founder / CEO",
-    "Co-Founder / CTO", "Co-Founder / CTO", "Co-Founder / CTO",
-    "Founder / CISO", "Founder / CISO",
+    "Founder / CEO",
+    "Founder / CEO",
+    "Founder / CEO",
+    "Founder / CEO",
+    "Co-Founder / CTO",
+    "Co-Founder / CTO",
+    "Co-Founder / CTO",
+    "Founder / CISO",
+    "Founder / CISO",
     "Co-Founder / CPO",
     "Founding Engineer",
 ]
 
 AGE_RANGES = [
-    "25-34", "25-34", "25-34", "25-34", "25-34",
-    "35-44", "35-44", "35-44", "35-44",
-    "45-54", "45-54",
+    "25-34",
+    "25-34",
+    "25-34",
+    "25-34",
+    "25-34",
+    "35-44",
+    "35-44",
+    "35-44",
+    "35-44",
+    "45-54",
+    "45-54",
     "18-24",
 ]
 
@@ -745,7 +899,7 @@ for i in range(55):
         answer_value = ""
         answer_json = None
 
-        if j == 0:    # Q1: Startup stage
+        if j == 0:  # Q1: Startup stage
             answer_value = stage
         elif j == 1:  # Q2: Employee count
             answer_value = employees
@@ -766,10 +920,7 @@ for i in range(55):
             answer_value = ", ".join(selected)
             answer_json = selected
         elif j == 8:  # Q9: AI/ML usage (yes_no)
-            answer_value = random.choices(
-                ["yes", "yes", "yes", "yes", "yes", "yes", "yes", "no", "no", "no"],
-                k=1
-            )[0]
+            answer_value = random.choices(["yes", "yes", "yes", "yes", "yes", "yes", "yes", "no", "no", "no"], k=1)[0]
         elif j == 9:  # Q10: Product maturity (rating 1–5)
             maturity_map = {
                 "Idea / Pre-seed": [1, 1, 2, 2],
@@ -833,7 +984,7 @@ for i in range(55):
             random.shuffle(priorities)
             ranked = {p: idx + 1 for idx, p in enumerate(priorities)}
             answer_json = ranked
-            answer_value = ", ".join([f"{idx+1}. {p}" for idx, p in enumerate(priorities)])
+            answer_value = ", ".join([f"{idx + 1}. {p}" for idx, p in enumerate(priorities)])
         elif j == 22:  # Q23: Market saturation (rating 1–5)
             sat_map = {
                 "Cloud Security": [3, 4, 4, 5],

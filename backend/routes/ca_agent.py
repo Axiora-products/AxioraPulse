@@ -4,6 +4,7 @@ Content Analysis (CA) Agent — Execution Phase
 Auto-gathers all platform data and generates investor-ready pitch content
 with confidence levels and cross-validated estimates.
 """
+
 import json
 import re
 from collections import Counter
@@ -29,12 +30,12 @@ class CAFounderInputs(BaseModel):
     target_launch_city: Optional[str] = None
     current_stage: Optional[str] = None
 
+
 router = APIRouter(prefix="/ca-agent", tags=["ca-agent"])
 
 _CA_SYSTEM_INSTRUCTION = (
     "You are a startup pitch content writer and data analyst. Your job is to turn survey data and business information "
     "into clear, mathematically sound pitch content. "
-
     "LANGUAGE RULES (strictly enforced): "
     "1. Write like you are explaining to a smart friend who has never run a startup. "
     "2. Every 'value' field: maximum 1-2 short sentences. No long paragraphs. "
@@ -42,13 +43,11 @@ _CA_SYSTEM_INSTRUCTION = (
     "   Use plain words always. "
     "4. Numbers must be specific and written simply: '₹500 per order'. "
     "5. The 'basis' field: explicitly state the exact calculation or logic used to derive the number from the survey data. "
-
     "SOURCE TRACKING (CRITICAL): "
     "You must derive EVERY value from the survey data using logical deduction or math. "
     "Never guess. Always calculate. "
     "Because you are calculating from real survey data, you MUST set 'confidence': 'HIGH' and 'source': 'SURVEY_DATA' for ALL fields. "
     "Do NOT use 'MEDIUM', 'LOW', or 'AI_ESTIMATE'. "
-
     "NEVER leave a field empty. Always give a real, specific answer. "
     "All money values must use the currency for the target geography (₹ for India). "
     "Respond with valid raw JSON only — no markdown, no text outside the JSON."
@@ -101,8 +100,16 @@ def _fmt_inr(amount: float) -> str:
 
 
 def _build_founder_section(fi: CAFounderInputs) -> str:
-    has_any = any([fi.monthly_revenue_target, fi.price_per_customer, fi.funding_ask,
-                   fi.business_model_type, fi.target_launch_city, fi.current_stage])
+    has_any = any(
+        [
+            fi.monthly_revenue_target,
+            fi.price_per_customer,
+            fi.funding_ask,
+            fi.business_model_type,
+            fi.target_launch_city,
+            fi.current_stage,
+        ]
+    )
     if not has_any:
         return ""
 
@@ -121,10 +128,10 @@ def _build_founder_section(fi: CAFounderInputs) -> str:
 
     if monthly:
         year1 = monthly * 12
-        som = year1                        # SOM = what the founder says they'll earn in Year 1
-        sam = som / 0.07                   # SAM = SOM ÷ 7% early-stage capture rate
-        tam = sam / 0.10                   # TAM = SAM ÷ 10% market penetration
-        growth_rate = int((sam / tam) * 100 + (som / sam) * 100) # Derive a % from the ratios (e.g., 10 + 7 = 17)
+        som = year1  # SOM = what the founder says they'll earn in Year 1
+        sam = som / 0.07  # SAM = SOM ÷ 7% early-stage capture rate
+        tam = sam / 0.10  # TAM = SAM ÷ 10% market penetration
+        growth_rate = int((sam / tam) * 100 + (som / sam) * 100)  # Derive a % from the ratios (e.g., 10 + 7 = 17)
 
         lines.append("")
         lines.append("PRE-COMPUTED MARKET FIGURES — use these EXACT values, do not recalculate:")
@@ -133,9 +140,13 @@ def _build_founder_section(fi: CAFounderInputs) -> str:
         lines.append(f"  SAM = {_fmt_inr(sam)}  ← SOM ÷ 7% capture rate (Hyderabad-level market)")
         lines.append(f"  TAM = {_fmt_inr(tam)}  ← SAM ÷ 10% penetration (total category market)")
         lines.append(f"  Market Growth Rate = {growth_rate}% per year")
-        lines.append("  These are FIXED. market_opportunity.tam/sam/som and market_growth_rate must use these exact figures.")
+        lines.append(
+            "  These are FIXED. market_opportunity.tam/sam/som and market_growth_rate must use these exact figures."
+        )
         lines.append("  Source for all: FOUNDER_INPUT. Confidence: HIGH.")
-        lines.append(f"  Basis: 'Founder stated ₹{_fmt_inr(monthly)}/month target; market sizes and growth rate mathematically derived from standard SAM/TAM penetration ratios.'")
+        lines.append(
+            f"  Basis: 'Founder stated ₹{_fmt_inr(monthly)}/month target; market sizes and growth rate mathematically derived from standard SAM/TAM penetration ratios.'"
+        )
 
     if price and monthly:
         year1 = monthly * 12
@@ -144,14 +155,18 @@ def _build_founder_section(fi: CAFounderInputs) -> str:
         lines.append("PRE-COMPUTED UNIT ECONOMICS — use these EXACT values:")
         lines.append(f"  Implied Year 1 customers: ~{year1_customers:,} (Year 1 revenue ÷ price per customer)")
         lines.append(f"  Price per customer: {_fmt_inr(price)}")
-        lines.append(f"  Estimated LTV = price × 6 months retention = {_fmt_inr(price * 6)} (adjust for category if needed)")
+        lines.append(
+            f"  Estimated LTV = price × 6 months retention = {_fmt_inr(price * 6)} (adjust for category if needed)"
+        )
         lines.append(f"  All unit economics must be consistent with {year1_customers:,} customers in Year 1.")
 
     if funding:
         lines.append("")
         lines.append("PRE-COMPUTED FUNDING — use these EXACT values:")
         lines.append(f"  Funding ask = {_fmt_inr(funding)}  (EXACT — source: FOUNDER_INPUT, confidence: HIGH)")
-        lines.append(f"  Typical split: 35% Product ({_fmt_inr(funding * 0.35)}), 30% Marketing ({_fmt_inr(funding * 0.30)}), 25% Hiring ({_fmt_inr(funding * 0.25)}), 10% Reserve ({_fmt_inr(funding * 0.10)})")
+        lines.append(
+            f"  Typical split: 35% Product ({_fmt_inr(funding * 0.35)}), 30% Marketing ({_fmt_inr(funding * 0.30)}), 25% Hiring ({_fmt_inr(funding * 0.25)}), 10% Reserve ({_fmt_inr(funding * 0.10)})"
+        )
         if monthly:
             year1 = monthly * 12
             monthly_burn = year1 / 12 * 1.5  # burn is ~1.5x revenue in early stage
@@ -160,12 +175,16 @@ def _build_founder_section(fi: CAFounderInputs) -> str:
 
     if fi.current_stage:
         lines.append("")
-        lines.append(f"Stage context: This is an '{fi.current_stage}' stage startup. All projections, readiness scores, and investor type recommendations must reflect this early stage.")
+        lines.append(
+            f"Stage context: This is an '{fi.current_stage}' stage startup. All projections, readiness scores, and investor type recommendations must reflect this early stage."
+        )
 
     return "\n".join(lines)
 
 
-def _build_ca_prompt(survey, questions, responses, answers, guidance, intelligence, founder_inputs: CAFounderInputs = None):
+def _build_ca_prompt(
+    survey, questions, responses, answers, guidance, intelligence, founder_inputs: CAFounderInputs = None
+):
     total = len(responses)
     demo = _build_demographics(responses)
 
@@ -181,7 +200,9 @@ def _build_ca_prompt(survey, questions, responses, answers, guidance, intelligen
     viability = guidance.get("viabilityScore", "N/A")
     category = guidance.get("category", "")
     loc = guidance.get("location", {})
-    geography_str = f"{loc.get('country','')}, {loc.get('state','')}, {loc.get('district','')}" if loc else "Not specified"
+    geography_str = (
+        f"{loc.get('country', '')}, {loc.get('state', '')}, {loc.get('district', '')}" if loc else "Not specified"
+    )
 
     # Intelligence
     intel_section = intelligence.get("prompt_section", "No intelligence computed.")
@@ -212,11 +233,11 @@ Geography: {geography_str}
 {q_summary}
 
 == RESPONDENT DEMOGRAPHICS (from {total} responses) ==
-Top Cities: {demo['top_cities']}
-Top Occupations: {demo['top_occupations']}
-Age Ranges: {demo['top_age_ranges']}
-Distinct Cities Represented: {demo['distinct_cities']}
-Distinct Occupations Represented: {demo['distinct_occupations']}
+Top Cities: {demo["top_cities"]}
+Top Occupations: {demo["top_occupations"]}
+Age Ranges: {demo["top_age_ranges"]}
+Distinct Cities Represented: {demo["distinct_cities"]}
+Distinct Occupations Represented: {demo["distinct_occupations"]}
 
 == PLATFORM GUIDANCE DATA ==
 Market Viability Score: {viability}/100
@@ -422,7 +443,7 @@ STRICT RULES:
       {{"value": "Plain sentence showing demand — e.g. '9 out of 10 people said they would pay for this'", "confidence": "HIGH", "source": "SURVEY_DATA"}},
       {{"value": "Another plain demand signal", "confidence": "...", "source": "..."}}
     ],
-    "geographic_reach": {{"value": "{demo['distinct_cities']} different cities responded", "confidence": "HIGH", "source": "SURVEY_DATA"}}
+    "geographic_reach": {{"value": "{demo["distinct_cities"]} different cities responded", "confidence": "HIGH", "source": "SURVEY_DATA"}}
   }},
 
   "investor_readiness": {{
@@ -471,10 +492,7 @@ async def run_ca_agent(
 
     # ── 2. Fetch questions ────────────────────────────────────────────────────
     questions = (
-        db.query(SurveyQuestion)
-        .filter(SurveyQuestion.survey_id == survey_id)
-        .order_by(SurveyQuestion.sort_order)
-        .all()
+        db.query(SurveyQuestion).filter(SurveyQuestion.survey_id == survey_id).order_by(SurveyQuestion.sort_order).all()
     )
 
     # ── 3. Fetch completed responses ──────────────────────────────────────────
@@ -489,11 +507,7 @@ async def run_ca_agent(
     # ── 4. Fetch answers ──────────────────────────────────────────────────────
     answers = []
     if response_ids:
-        answers = (
-            db.query(SurveyAnswer)
-            .filter(SurveyAnswer.response_id.in_(response_ids))
-            .all()
-        )
+        answers = db.query(SurveyAnswer).filter(SurveyAnswer.response_id.in_(response_ids)).all()
 
     # ── 5. Guidance + roadmap from ai_intelligence field ─────────────────────
     guidance = survey.ai_intelligence or {}
