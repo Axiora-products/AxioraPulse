@@ -430,6 +430,32 @@ def list_surveys(
     return [SurveyOut.model_validate(s) for s in surveys]
 
 
+@router.get("/check-slug", response_model=dict)
+@limiter.limit("30/minute")
+def check_slug(
+    request: Request,
+    slug: str,
+    exclude_survey_id: str | None = None,
+    db: Session = Depends(get_db),
+):
+    """
+    Check if a custom survey slug is valid and unique.
+    """
+    if not slug or not re.match(r"^[a-z0-9-]+$", slug) or len(slug) > 50:
+        return {"available": False, "reason": "invalid"}
+
+    q = db.query(Survey).filter(Survey.slug == slug)
+    if exclude_survey_id and exclude_survey_id.strip() not in ("", "null", "undefined"):
+        try:
+            parsed_uuid = uuid.UUID(exclude_survey_id)
+            q = q.filter(Survey.id != parsed_uuid)
+        except ValueError:
+            pass
+
+    exists = q.first() is not None
+    return {"available": not exists}
+
+
 # ── Public: fetch by slug (no auth required — SurveyRespond.jsx) ─────────────
 
 
