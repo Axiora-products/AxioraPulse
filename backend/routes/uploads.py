@@ -22,7 +22,9 @@ from db.database import get_db
 from db.models import UserProfile, UploadedFile
 from dependencies import get_current_user
 from core.rate_limiter import limiter
+from core.config import OPENAI_KEY
 
+import openai
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
@@ -269,13 +271,29 @@ def _convert_to_whisper_wav(audio_path: str, wav_path: str) -> None:
         raise ValueError("FFmpeg could not decode the uploaded audio") from exc
 
 
-def _transcribe_with_whisper(audio_path: str) -> dict:
-    duration = _get_audio_duration(audio_path)
-    if duration <= 0:
-        raise ValueError("Uploaded audio has no playable content")
-    if duration > MAX_AUDIO_DURATION_SECONDS:
-        raise ValueError("Audio is too long (max 10 minutes)")
+def _transcribe_via_api(audio_path: str) -> dict:
+    """
+    Transcribe audio using OpenAI's Whisper API.
+    """
+    client = openai.OpenAI(api_key=OPENAI_KEY)
+    
+    with open(audio_path, "rb") as audio_file:
+        response = client.audio.transcriptions.create(
+            model="whisper-1",
+            file=audio_file,
+            response_format="json"
+        )
+    
+    return {
+        "text": response.text.strip(),
+        "language": "en",  # OpenAI API handles detection, but we return en as default for consistency
+    }
 
+
+def _transcribe_via_local_model(audio_path: str) -> dict:
+    """
+    Transcribe audio using a locally loaded Whisper model.
+    """
     with tempfile.TemporaryDirectory() as temp_dir:
         wav_path = os.path.join(temp_dir, "audio.wav")
         _convert_to_whisper_wav(audio_path, wav_path)
@@ -293,6 +311,28 @@ def _transcribe_with_whisper(audio_path: str) -> dict:
         "text": result.get("text", "").strip(),
         "language": "en",
     }
+
+
+def _transcribe_with_whisper(audio_path: str) -> dict:
+    duration = _get_audio_duration(audio_path)
+    if duration <= 0:
+        raise ValueError("Uploaded audio has no playable content")
+    if duration > MAX_AUDIO_DURATION_SECONDS:
+        raise ValueError("Audio is too long (max 10 minutes)")
+
+    # Use OpenAI API if key is available (QA/Prod)
+    if OPENAI_KEY and not OPENAI_KEY.startswith("mock-"):
+        try:
+            logger.info("Using OpenAI API for transcription")
+            return _transcribe_via_api(audio_path)
+        except Exception as e:
+            logger.error("OpenAI API transcription failed, falling back to local: %s", str(e))
+            # Fallback to local if API fails for any reason
+            return _transcribe_via_local_model(audio_path)
+
+    # Otherwise use local model (Dev)
+    logger.info("Using local Whisper model for transcription")
+    return _transcribe_via_local_model(audio_path)
 
 
 @router.post("/file")
