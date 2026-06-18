@@ -10,7 +10,7 @@ import { useLoading } from '../context/LoadingContext';
 import { Reorder, useDragControls } from 'framer-motion';
 import ConfirmModal from '../components/ConfirmModal';
 import HelpTip from '../components/HelpTip';
-import PitchInvestorReadinessPanel from '../pitch-investor-readiness';
+import CAAgentPanel from '../components/CAAgentPanel';
 
 const hasO = t => ['single_choice', 'multiple_choice', 'dropdown', 'ranking', 'emoji_reaction', 'swipe_choice', 'visual_choice'].includes(t);
 const isMx = t => t === 'matrix';
@@ -966,8 +966,8 @@ export default function SurveyEdit() {
           {/* ── EXECUTE TAB ── */}
           {tab === 'execute' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
-              {/* Premium Pitch & Investor Readiness Dashboard */}
-              <PitchInvestorReadinessPanel survey={sv} />
+              {/* CA Agent — Content Analysis Agent */}
+              <CAAgentPanel survey={sv} />
 
               {/* Mentorship / Contact a Mentor */}
               <div style={{ background: 'var(--warm-white)', borderRadius: 22, border: '1.5px solid rgba(22,15,8,0.07)', padding: 32 }}>

@@ -1,4 +1,4 @@
-// frontend/src/pitch-investor-readiness/pdf/generator.js
+// frontend/src/pdf/investor_memo_generator.js
 
 /**
  * High-fidelity, print-optimized HTML generator for PDF document review
@@ -23,7 +23,7 @@ export function generateInvestorPDF(report) {
   <title>VC Investor Memo — ${report.survey_title}</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,700;1,9..144,300&family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Syne:wght@700;800&display=swap');
-    
+
     body {
       font-family: 'Fraunces', Georgia, serif;
       color: #160f08;
@@ -32,7 +32,7 @@ export function generateInvestorPDF(report) {
       padding: 0;
       background: #fffbf4;
     }
-    
+
     .cover-page {
       display: flex;
       flex-direction: column;
@@ -44,12 +44,12 @@ export function generateInvestorPDF(report) {
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
-    
+
     .cover-header {
       border-bottom: 2px solid #ff4500;
       padding-bottom: 20px;
     }
-    
+
     .cover-tag {
       font-family: 'Syne', sans-serif;
       font-size: 11px;
@@ -57,7 +57,7 @@ export function generateInvestorPDF(report) {
       text-transform: uppercase;
       color: #ff4500;
     }
-    
+
     .cover-title {
       font-family: 'Playfair Display', serif;
       font-size: 48px;
@@ -66,14 +66,14 @@ export function generateInvestorPDF(report) {
       margin: 20px 0 10px;
       letter-spacing: -1.5px;
     }
-    
+
     .cover-subtitle {
       font-family: 'Fraunces', serif;
       font-size: 18px;
       font-weight: 300;
       opacity: 0.7;
     }
-    
+
     .cover-meta {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -82,7 +82,7 @@ export function generateInvestorPDF(report) {
       padding-top: 30px;
       border-top: 1px solid rgba(253,245,232,0.1);
     }
-    
+
     .meta-box strong {
       display: block;
       font-family: 'Syne', sans-serif;
@@ -92,13 +92,13 @@ export function generateInvestorPDF(report) {
       color: #ff4500;
       margin-bottom: 4px;
     }
-    
+
     .container {
       max-width: 800px;
       margin: 40px auto;
       padding: 20px;
     }
-    
+
     .section-card {
       background: #fff;
       border-radius: 20px;
@@ -108,7 +108,7 @@ export function generateInvestorPDF(report) {
       box-shadow: 0 4px 20px rgba(22,15,8,0.02);
       page-break-inside: avoid;
     }
-    
+
     h2 {
       font-family: 'Playfair Display', serif;
       font-size: 24px;
@@ -119,7 +119,7 @@ export function generateInvestorPDF(report) {
       border-bottom: 1.5px solid rgba(22,15,8,0.06);
       padding-bottom: 8px;
     }
-    
+
     .score-circle {
       display: inline-flex;
       align-items: center;
@@ -134,20 +134,20 @@ export function generateInvestorPDF(report) {
       font-weight: 900;
       box-shadow: 0 8px 24px rgba(255,69,0,0.25);
     }
-    
+
     .scoring-grid {
       display: grid;
       grid-template-columns: 1fr 1.5fr;
       gap: 30px;
       align-items: center;
     }
-    
+
     .category-list {
       display: flex;
       flex-direction: column;
       gap: 12px;
     }
-    
+
     .category-item {
       display: flex;
       justify-content: space-between;
@@ -157,27 +157,27 @@ export function generateInvestorPDF(report) {
       background: #fffbf4;
       font-size: 13px;
     }
-    
+
     .category-item strong {
       font-family: 'Syne', sans-serif;
       font-size: 10px;
       text-transform: uppercase;
     }
-    
+
     .category-score {
       font-family: 'Playfair Display', serif;
       font-weight: 900;
       color: #ff4500;
       font-size: 15px;
     }
-    
+
     table {
       width: 100%;
       border-collapse: collapse;
       font-size: 13px;
       margin-top: 10px;
     }
-    
+
     th {
       text-align: left;
       padding: 12px;
@@ -189,19 +189,19 @@ export function generateInvestorPDF(report) {
       text-transform: uppercase;
       color: rgba(22,15,8,0.5);
     }
-    
+
     td {
       padding: 12px;
       border-bottom: 1px solid rgba(22,15,8,0.06);
     }
-    
+
     .tam-grid {
       display: grid;
       grid-template-columns: 1fr 1fr 1fr;
       gap: 16px;
       margin-bottom: 20px;
     }
-    
+
     .tam-card {
       background: #fffbf4;
       border-radius: 12px;
@@ -209,7 +209,7 @@ export function generateInvestorPDF(report) {
       text-align: center;
       border: 1.5px solid rgba(22,15,8,0.04);
     }
-    
+
     .tam-val {
       font-family: 'Playfair Display', serif;
       font-size: 20px;
@@ -217,19 +217,19 @@ export function generateInvestorPDF(report) {
       color: #ff4500;
       margin-top: 6px;
     }
-    
+
     .roadmap-timeline {
       display: flex;
       flex-direction: column;
       gap: 16px;
     }
-    
+
     .roadmap-node {
       border-left: 3px solid #ff4500;
       padding-left: 18px;
       position: relative;
     }
-    
+
     .roadmap-node::before {
       content: '';
       position: absolute;
@@ -241,14 +241,14 @@ export function generateInvestorPDF(report) {
       background: #fff;
       border: 2px solid #ff4500;
     }
-    
+
     .roadmap-title {
       font-family: 'Playfair Display', serif;
       font-size: 16px;
       font-weight: 700;
       margin-bottom: 4px;
     }
-    
+
     .footer {
       text-align: center;
       font-family: 'Syne', sans-serif;
@@ -271,7 +271,7 @@ export function generateInvestorPDF(report) {
       <h1 class="cover-title">${report.survey_title}</h1>
       <div class="cover-subtitle">Pitch & Investor Readiness Science intelligence Report</div>
     </div>
-    
+
     <div style="margin: 40px 0;">
       <div style="font-family:'Syne',sans-serif;font-size:12px;color:#ff4500;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:12px;">OVERALL PREPAREDNESS</div>
       <div style="display:flex;align-items:center;gap:20px;">
