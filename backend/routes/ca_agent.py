@@ -534,7 +534,7 @@ async def run_ca_agent(
         raise HTTPException(status_code=502, detail="CA Agent returned malformed JSON.")
     except Exception as e:
         print(f"[CA Agent Error] {e}")
-        raise HTTPException(status_code=503, detail="CA Agent AI provider unavailable.")
+        raise HTTPException(status_code=503, detail="CA Agent Pulse provider unavailable.")
 
     # ── 8. Inject authoritative fields ───────────────────────────────────────
     result["survey_id"] = survey_id

@@ -458,6 +458,9 @@ export default function ShareModal({ survey, isOpen, onClose, onSlugChange }) {
       const intro = `Hello! We would love to get your feedback on our survey: "${survey?.title || 'User Feedback'}"\n\nPlease tap this link to participate:`;
       setWhatsAppMessage(`${intro} ${withSource('whatsapp')}`);
       setTelegramMessage(`${intro} ${withSource('telegram')}`);
+      setCurrentSlug(survey?.slug || '');
+      setSlugDraft(survey?.slug || '');
+      setSlugStatus('idle');
     }
   }, [isOpen, survey, surveyUrl]);
 
@@ -474,6 +477,63 @@ export default function ShareModal({ survey, isOpen, onClose, onSlugChange }) {
     const tgCaption = resolve(aiSocialContent.captions?.telegram);
     if (tgCaption) setTelegramMessage(tgCaption);
   }, [aiSocialContent, surveyUrl]);
+
+  // Debounced custom survey slug availability check
+  useEffect(() => {
+    const trimmed = slugDraft.trim();
+    if (!trimmed || trimmed === currentSlug) {
+      setSlugStatus('idle');
+      return;
+    }
+    if (!/^[a-z0-9-]+$/.test(trimmed)) {
+      setSlugStatus('invalid');
+      return;
+    }
+
+    setSlugStatus('checking');
+    const timer = setTimeout(async () => {
+      try {
+        const params = { slug: trimmed };
+        if (survey?.id && survey.id !== 'undefined' && survey.id !== 'null') {
+          params.exclude_survey_id = survey.id;
+        }
+        const res = await API.get('/surveys/check-slug', { params });
+        if (res.data?.available) {
+          setSlugStatus('available');
+        } else if (res.data?.reason === 'invalid') {
+          setSlugStatus('invalid');
+        } else {
+          setSlugStatus('taken');
+        }
+      } catch (err) {
+        console.error('Failed to check slug availability:', err);
+        setSlugStatus('taken');
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [slugDraft, currentSlug, survey?.id]);
+
+  async function saveSlug() {
+    const trimmed = slugDraft.trim();
+    if (!trimmed || trimmed === currentSlug || slugStatus !== 'available') return;
+    setSavingSlug(true);
+    try {
+      await API.patch(`/surveys/${survey.id}`, { slug: trimmed });
+      setCurrentSlug(trimmed);
+      setSlugStatus('idle');
+      toast.success('Survey link updated successfully!');
+      if (onSlugChange) {
+        onSlugChange(trimmed);
+      }
+    } catch (err) {
+      console.error('Failed to save slug:', err);
+      toast.error(err.response?.data?.detail || 'Failed to update survey link');
+    } finally {
+      setSavingSlug(false);
+    }
+  }
+
 
 
   function copyLink() {
@@ -950,7 +1010,7 @@ export default function ShareModal({ survey, isOpen, onClose, onSlugChange }) {
                   // LinkedIn supports title + summary params to pre-fill the post body
                   linkedin: (caption) => {
                     const summary = encodeURIComponent(caption.substring(0, 400));
-                    return `https://www.linkedin.com/shareArticle?mini=true&url=${encodedUrl}&title=${encodeURIComponent(survey?.title || '')}&summary=${summary}`;
+                    return `https://www.linkedin.com/shareArticle?mini=true&url=${encodeURIComponent(withSource('linkedin'))}&title=${encodeURIComponent(survey?.title || '')}&summary=${summary}`;
                   },
                   // Twitter pre-fills the tweet text box ✔
                   twitter: (caption) => `https://twitter.com/intent/tweet?text=${encodeURIComponent(caption)}`,
@@ -961,13 +1021,13 @@ export default function ShareModal({ survey, isOpen, onClose, onSlugChange }) {
                   // Telegram: pass text separately from URL to avoid duplication in the pre-fill
                   telegram: (caption) => {
                     const textOnly = caption
-                      .replace(surveyUrl, '')
+                      .replace(withSource('telegram'), '')
                       .replace(/\n{3,}/g, '\n\n')
                       .trim();
-                    return `https://t.me/share/url?url=${encodedUrl}&text=${encodeURIComponent(textOnly)}`;
+                    return `https://t.me/share/url?url=${encodeURIComponent(withSource('telegram'))}&text=${encodeURIComponent(textOnly)}`;
                   },
                   // Facebook sharer only accepts a URL; caption is copied to clipboard for manual paste
-                  facebook: () => `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`,
+                  facebook: () => `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(withSource('facebook'))}`,
                 };
 
                 function getCaption(platformId) {
@@ -975,12 +1035,12 @@ export default function ShareModal({ survey, isOpen, onClose, onSlugChange }) {
                     const desc = survey?.description || `Please take a moment to share your feedback on our survey: "${survey?.title || 'User Feedback'}".`;
                     const cleanTitle = (survey?.title || '').replace(/[^a-zA-Z0-9]/g, '');
                     const hashtags = cleanTitle ? `#${cleanTitle} #Feedback #Survey` : '#Feedback #Survey';
-                    return `📊 We'd love your feedback!\n\n${desc}\n\n👉 ${surveyUrl}\n\n${hashtags}`;
+                    return `📊 We'd love your feedback!\n\n${desc}\n\n👉 ${withSource(platformId)}\n\n${hashtags}`;
                   };
                   if (!aiSocialContent) return fallback();
                   const raw = aiSocialContent.captions?.[platformId];
                   if (!raw) return fallback();
-                  return raw.replace(/\[link\]/gi, surveyUrl).replace(/\[survey link\]/gi, surveyUrl);
+                  return raw.replace(/\[link\]/gi, withSource(platformId)).replace(/\[survey link\]/gi, withSource(platformId));
                 }
 
                 async function copyCaption() {
@@ -1190,7 +1250,7 @@ export default function ShareModal({ survey, isOpen, onClose, onSlugChange }) {
                         }}>
                           <div style={{ fontSize: 22 }}>✨</div>
                           <div style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 10, color: 'rgba(253,245,232,0.5)', letterSpacing: '0.15em', textTransform: 'uppercase' }}>
-                            Generating AI share card…
+                            Generating Pulse share card…
                           </div>
                           <div style={{ width: 80, height: 3, borderRadius: 3, background: 'rgba(255,69,0,0.15)', overflow: 'hidden' }}>
                             <div style={{ width: '50%', height: '100%', background: 'var(--coral)', borderRadius: 3, animation: 'shimmer 1s infinite' }} />
@@ -1209,7 +1269,7 @@ export default function ShareModal({ survey, isOpen, onClose, onSlugChange }) {
                             borderRadius: 999, fontFamily: 'Syne,sans-serif', fontWeight: 700,
                             fontSize: 8, color: 'var(--coral)', textTransform: 'uppercase', letterSpacing: '0.1em',
                           }}>
-                            ✦ AI Generated
+                            ✦ Pulse Generated
                           </div>
                         )}
                         {aiSocialContent?.fallback_used && (

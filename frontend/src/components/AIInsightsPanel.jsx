@@ -696,7 +696,7 @@ export default function AIInsightsPanel({ survey, analytics, questionAnalytics }
   function exportFileBase() {
     const slug = (survey?.title || 'survey')
       .replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase();
-    return `${slug || 'survey'}-ai-insights`;
+    return `${slug || 'survey'}-pulse-insights`;
   }
 
   async function exportPDF() {
