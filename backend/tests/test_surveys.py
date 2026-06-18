@@ -304,3 +304,21 @@ def test_check_slug():
     resp_invalid = client.get("/surveys/check-slug?slug=Invalid_Slug!")
     assert resp_invalid.status_code == 200
     assert resp_invalid.json() == {"available": False, "reason": "invalid"}
+
+    # Test exclusion with null/undefined/empty string
+    resp_null = client.get("/surveys/check-slug?slug=test-survey&exclude_survey_id=null")
+    assert resp_null.status_code == 200
+    assert resp_null.json() == {"available": False}
+
+    resp_undef = client.get("/surveys/check-slug?slug=test-survey&exclude_survey_id=undefined")
+    assert resp_undef.status_code == 200
+    assert resp_undef.json() == {"available": False}
+
+    resp_empty = client.get("/surveys/check-slug?slug=test-survey&exclude_survey_id=")
+    assert resp_empty.status_code == 200
+    assert resp_empty.json() == {"available": False}
+
+    # Test exclusion with invalid UUID format (ignores gracefully)
+    resp_bad = client.get("/surveys/check-slug?slug=test-survey&exclude_survey_id=not-a-uuid")
+    assert resp_bad.status_code == 200
+    assert resp_bad.json() == {"available": False}
