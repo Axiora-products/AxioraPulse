@@ -452,6 +452,21 @@ export class AxioraPulseStack extends cdk.Stack {
         minCapacity: 2,
         maxCapacity: 2,
       });
+
+      if (frontendService) {
+        // Scheduled scaling to scale down to 0 at night/weekends for QA frontend
+        const frontendScaling = frontendService.autoScaleTaskCount({ maxCapacity: 2, minCapacity: 0 });
+        frontendScaling.scaleOnSchedule('FrontendScaleDownQA', {
+          schedule: appscaling.Schedule.cron({ hour: '14', minute: '30', weekDay: 'MON-FRI' }), // 8:00 PM IST / 2:30 PM UTC
+          minCapacity: 0,
+          maxCapacity: 0,
+        });
+        frontendScaling.scaleOnSchedule('FrontendScaleUpQA', {
+          schedule: appscaling.Schedule.cron({ hour: '3', minute: '30', weekDay: 'MON-FRI' }), // 9:00 AM IST / 3:30 AM UTC
+          minCapacity: 2,
+          maxCapacity: 2,
+        });
+      }
     }
 
 
