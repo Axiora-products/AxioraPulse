@@ -20,7 +20,53 @@ const opt = (...labels) =>
   }));
 
 const RAW_TEMPLATES = [
-  // ── 1. Manufacturing Safety ──────────────────────────────────────
+  // ── 1. Customer Satisfaction (CSAT) ────────────────────────────────
+  {
+    name: 'Customer Satisfaction Survey',
+    category: 'Customer Experience',
+    desc: 'Measure customer satisfaction, support quality, and key areas for service improvement.',
+    questions: [
+      { question_text: 'Overall, how satisfied are you with your experience?', question_type: 'scale', is_required: true, description: '1 = Very dissatisfied · 10 = Extremely satisfied' },
+      { question_text: 'How would you rate the quality of our service?', question_type: 'rating', is_required: true },
+      { question_text: 'Did our support team resolve your issue or answer your questions?', question_type: 'yes_no', is_required: true },
+      { question_text: 'How responsive was our team to your inquiry?', question_type: 'single_choice', is_required: false, options: opt('Extremely responsive', 'Somewhat responsive', 'Neutral', 'Not very responsive', 'Not at all responsive') },
+      { question_text: 'Which aspect of your experience was most satisfying?', question_type: 'multiple_choice', is_required: false, options: opt('Product quality', 'Customer support', 'Ease of use', 'Delivery speed', 'Pricing') },
+      { question_text: 'What could we have done to improve your experience?', question_type: 'long_text', is_required: false },
+    ],
+  },
+
+  // ── 2. Product Feedback ───────────────────────────────────────────
+  {
+    name: 'Product Feedback Survey',
+    category: 'Product Management',
+    desc: 'Gather actionable feedback on product usage, usability, bugs, and feature requests.',
+    questions: [
+      { question_text: 'How long have you been using our product?', question_type: 'single_choice', is_required: true, options: opt('Less than a month', '1 to 6 months', '6 to 12 months', '1 to 3 years', 'More than 3 years') },
+      { question_text: 'How frequently do you use the product?', question_type: 'single_choice', is_required: true, options: opt('Daily', 'Weekly', 'Monthly', 'Rarely') },
+      { question_text: 'How would you rate the product’s ease of use?', question_type: 'rating', is_required: true },
+      { question_text: 'What is your favorite feature of the product?', question_type: 'short_text', is_required: false },
+      { question_text: 'Have you encountered any issues or bugs?', question_type: 'yes_no', is_required: true },
+      { question_text: 'If yes, please describe the issues you encountered.', question_type: 'long_text', is_required: false },
+      { question_text: 'How likely are you to recommend our product to a colleague?', question_type: 'scale', is_required: false, description: '0 = Not at all likely · 10 = Extremely likely' },
+    ],
+  },
+
+  // ── 3. Employee Engagement ────────────────────────────────────────
+  {
+    name: 'Employee Engagement Survey',
+    category: 'Human Resources',
+    desc: 'Evaluate workplace culture, tools, recognition, and alignment with company goals.',
+    questions: [
+      { question_text: 'How happy are you working at our company?', question_type: 'emoji_reaction', is_required: true },
+      { question_text: 'How valued do you feel by your team and manager?', question_type: 'scale', is_required: true, description: '1 = Not valued at all · 10 = Highly valued' },
+      { question_text: 'Do you have the tools and resources you need to do your job effectively?', question_type: 'yes_no', is_required: true },
+      { question_text: 'How would you rate the communication within the company?', question_type: 'rating', is_required: true },
+      { question_text: 'Which areas do you feel the company could improve?', question_type: 'multiple_choice', is_required: false, options: opt('Work-life balance', 'Professional growth', 'Compensation', 'Company culture', 'Tools & equipment') },
+      { question_text: 'What is the best part of working here?', question_type: 'long_text', is_required: false },
+    ],
+  },
+
+  // ── 4. Manufacturing Safety ──────────────────────────────────────
   {
     name: 'Manufacturing Safety Survey',
     category: 'Manufacturing',

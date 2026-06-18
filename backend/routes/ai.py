@@ -1007,7 +1007,7 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
     except ValidationError as ve:
         print(f"[AI] Insights validation error: {ve}")
         print(f"[AI] Raw AI response: {text[:500] if text else 'N/A'}")
-        raise HTTPException(status_code=500, detail="AI provider returned an invalid data structure")
+        raise HTTPException(status_code=500, detail="Pulse engine returned an invalid data structure")
     except HTTPException:
         raise
     except Exception as e:
@@ -1162,7 +1162,7 @@ Rules:
         return AIGenerateResponse(**result_json)
     except ValidationError as ve:
         print(f"[AI] Generate validation error: {ve}")
-        raise HTTPException(status_code=500, detail="AI provider returned an invalid survey structure")
+        raise HTTPException(status_code=500, detail="Pulse engine returned an invalid survey structure")
     except HTTPException:
         raise
     except Exception as e:
@@ -1214,7 +1214,7 @@ Rules:
         return AISuggestionsResponse(**result_json)
     except ValidationError as ve:
         print(f"[AI] Suggestions validation error: {ve}")
-        raise HTTPException(status_code=500, detail="AI provider returned an invalid suggestion structure")
+        raise HTTPException(status_code=500, detail="Pulse engine returned an invalid suggestion structure")
     except HTTPException:
         raise
     except Exception as e:

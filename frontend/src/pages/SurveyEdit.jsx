@@ -95,7 +95,7 @@ export default function SurveyEdit() {
 
   const generatePDF = () => {
     if (!aiIntel) {
-      toast.error('Please visit the Guidance tab first to generate Pulse intelligence before downloading.');
+      toast.error('Please visit the Roadmap tab first to generate Pulse intelligence before downloading.');
       return;
     }
     const html = `<!DOCTYPE html>
@@ -409,10 +409,9 @@ export default function SurveyEdit() {
   const TABS = [
     { id: 'details', n: '01', label: 'Details' },
     { id: 'questions', n: '02', label: 'Questions', count: qs.length },
-    { id: 'guidance', n: '03', label: 'Guidance' },
-    { id: 'roadmap', n: '04', label: 'Roadmap' },
-    { id: 'execute', n: '05', label: 'Execute' },
-    { id: 'settings', n: '06', label: '⚙️' }
+    { id: 'roadmap', n: '03', label: 'Roadmap' },
+    { id: 'execute', n: '04', label: 'Execute' },
+    { id: 'settings', n: '05', label: '⚙️' }
   ];
   const curSection = getPreviewSection(previewStep, qs.length);
 
@@ -1127,7 +1126,7 @@ export default function SurveyEdit() {
           )}
 
           {/* ── GUIDANCE TAB ── */}
-          {tab === 'guidance' && (() => {
+          {false && (() => {
             const Skel = ({ w = '100%', h = 14, mb = 8 }) => <div style={{ width: w, height: h, borderRadius: 8, background: 'rgba(22,15,8,0.06)', marginBottom: mb, animation: 'pulse 1.5s ease-in-out infinite' }} />;
 
             if (!locationSubmitted) {

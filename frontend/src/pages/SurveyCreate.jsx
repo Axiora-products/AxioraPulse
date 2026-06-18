@@ -360,6 +360,7 @@ export default function SurveyCreate() {
 
   const handlePromptTemplate = (tmpl) => {
     loadTemplate(tmpl);
+    setFromTemplate(true);
     setPhase('builder');
   };
 
@@ -510,7 +511,7 @@ export default function SurveyCreate() {
     return (
       <SurveyPromptScreen
         onGenerate={handlePromptGenerate}
-        onSkip={() => { setAiGenerated(true); setPhase('builder'); }}
+        onSkip={() => { setAiGenerated(true); setFromTemplate(true); setPhase('builder'); }}
         onLoadTemplate={handlePromptTemplate}
         galleryTemplates={GALLERY_TEMPLATES}
         aiGenerating={aiGenerating}
@@ -861,7 +862,7 @@ export default function SurveyCreate() {
             <div style={{ width: 48, height: 48, borderRadius: 16, background: 'rgba(214,59,31,0.1)', color: 'var(--terracotta)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, marginBottom: 20 }}>⚠️</div>
             <h3 style={{ fontFamily: "'Playfair Display',serif", fontWeight: 900, fontSize: 24, margin: '0 0 12px 0', color: 'var(--espresso)' }}>Overwrite existing survey?</h3>
             <p style={{ fontFamily: "'Fraunces',serif", fontSize: 15, color: 'rgba(22,15,8,0.5)', lineHeight: 1.6, margin: '0 0 24px 0' }}>
-              This will replace your current survey title, description, welcome message, and all questions with the newly AI-generated ones. This action cannot be undone.
+              This will replace your current survey title, description, welcome message, and all questions with the newly Pulse-generated ones. This action cannot be undone.
             </p>
             <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
               <button onClick={() => { setShowConfirm(false); setPendingGen(null); }} style={{ padding: '12px 24px', borderRadius: 999, border: '1.5px solid rgba(22,15,8,0.1)', background: 'transparent', fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.5)', cursor: 'pointer' }}>Cancel</button>

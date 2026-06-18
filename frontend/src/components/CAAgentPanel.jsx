@@ -15,11 +15,11 @@ const v = (field) => {
 
 const CONF_COLORS = { HIGH: '#00a854', MEDIUM: '#d97706', LOW: '#9b6b00' };
 const CONF_BG = { HIGH: 'rgba(0,168,84,0.09)', MEDIUM: 'rgba(217,119,6,0.09)', LOW: 'rgba(155,107,0,0.09)' };
-const CONF_LABELS = { HIGH: '✅ Verified', MEDIUM: '~ Estimated', LOW: '🤖 AI Guess' };
+const CONF_LABELS = { HIGH: '✅ Verified', MEDIUM: '~ Estimated', LOW: '🤖 Pulse Estimate' };
 const CONF_TITLES = {
   HIGH: 'Verified — confirmed from your survey responses or multiple sources',
   MEDIUM: 'Estimated — based on some survey data or industry patterns',
-  LOW: 'AI Guess — no survey data available; estimated from industry benchmarks',
+  LOW: 'Pulse Estimate — no survey data available; estimated from industry benchmarks',
 };
 
 function ConfBadge({ field }) {
@@ -44,7 +44,7 @@ function SourceTag({ field }) {
     SURVEY_DATA: '📊 From your survey',
     GUIDANCE_DATA: '🧭 From platform guidance',
     CROSS_VALIDATED: '✅ Verified from multiple sources',
-    AI_ESTIMATE: '🤖 AI estimate',
+    AI_ESTIMATE: '🤖 Pulse estimate',
   };
   return (
     <span style={{ fontSize: 9, color: 'rgba(22,15,8,0.4)', fontFamily: "'Syne',sans-serif", marginLeft: 6 }}>
@@ -371,7 +371,7 @@ export default function CAAgentPanel({ survey }) {
               <div><span style={{ fontFamily: "'Syne',sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.38)' }}>Data Points</span><br /><span style={{ fontFamily: "'Playfair Display',serif", fontWeight: 900, fontSize: 20, color: 'var(--espresso)' }}>{result.total_data_points_analyzed}</span></div>
               <div title="Facts confirmed directly from your survey responses"><span style={{ fontFamily: "'Syne',sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.38)' }}>✅ From Survey</span><br /><span style={{ fontFamily: "'Playfair Display',serif", fontWeight: 900, fontSize: 20, color: '#00a854' }}>{cv.survey_backed_claims || 0}</span></div>
               <div title="Confirmed by both survey data and platform guidance together"><span style={{ fontFamily: "'Syne',sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.38)' }}>✅ Double Checked</span><br /><span style={{ fontFamily: "'Playfair Display',serif", fontWeight: 900, fontSize: 20, color: '#0088ff' }}>{cv.cross_validated_claims || 0}</span></div>
-              <div title="Estimated by AI using industry data — no direct survey evidence"><span style={{ fontFamily: "'Syne',sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.38)' }}>🤖 AI Guesses</span><br /><span style={{ fontFamily: "'Playfair Display',serif", fontWeight: 900, fontSize: 20, color: tc }}>{cv.ai_estimated_claims || 0}</span></div>
+              <div title="Estimated by Pulse using industry data — no direct survey evidence"><span style={{ fontFamily: "'Syne',sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.38)' }}>🤖 Pulse Estimates</span><br /><span style={{ fontFamily: "'Playfair Display',serif", fontWeight: 900, fontSize: 20, color: tc }}>{cv.ai_estimated_claims || 0}</span></div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={() => { setStatus('idle'); setResult(null); }} style={{ padding: '8px 16px', borderRadius: 999, border: '1.5px solid rgba(22,15,8,0.12)', background: 'transparent', fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.5)', cursor: 'pointer' }}>
