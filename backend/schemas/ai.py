@@ -189,3 +189,23 @@ class SurveyIntelligenceResponse(BaseModel):
     opportunities: List[SurveyIntelOpportunity]
     viabilityScore: int
     roadmap: List[SurveyIntelRoadmapStep]
+
+
+# ── Social Share Content Kit ──────────────────────────────────────────────────
+
+
+class SocialShareCaptions(BaseModel):
+    linkedin: str = ""
+    twitter: str = ""
+    instagram: str = ""
+    whatsapp: str = ""
+    telegram: str = ""
+    facebook: str = ""
+
+
+class SocialShareContentResponse(BaseModel):
+    description: str
+    tagline: str
+    hashtags: List[str] = Field(default_factory=list)
+    captions: SocialShareCaptions = Field(default_factory=SocialShareCaptions)
+    fallback_used: bool = False

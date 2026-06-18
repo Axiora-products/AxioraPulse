@@ -17,6 +17,7 @@
     "axios": "^1.15.0",
     "buffer": "^6.0.3",
     "chart.js": "^4.4.4",
+    "country-state-city": "^3.2.1",
     "date-fns": "^3.6.0",
     "framer-motion": "^11.3.0",
     "jspdf": "^4.2.1",
