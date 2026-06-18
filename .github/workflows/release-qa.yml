@@ -193,11 +193,11 @@ jobs:
             echo "frontend_needed=true" >> $GITHUB_OUTPUT
           fi
 
-       - name: Set up Docker Buildx
+      - name: Set up Docker Buildx
         if: steps.check-images.outputs.backend_needed == 'true' || steps.check-images.outputs.frontend_needed == 'true'
         uses: docker/setup-buildx-action@v3
 
-       - name: Fetch Frontend Config from SSM
+      - name: Fetch Frontend Config from SSM
         id: fetch-ssm
         if: steps.check-images.outputs.frontend_needed == 'true'
         run: |
@@ -212,7 +212,7 @@ jobs:
           echo "FRONTEND_URL=$FRONTEND_URL" >> $GITHUB_OUTPUT
           echo "API_BASE_URL=$API_BASE_URL" >> $GITHUB_OUTPUT
 
-       - name: Build and Push Backend
+      - name: Build and Push Backend
         if: steps.check-images.outputs.backend_needed == 'true'
         uses: docker/build-push-action@v5
         with:
