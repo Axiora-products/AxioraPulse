@@ -296,8 +296,10 @@ def test_ca_agent_survey_not_found(auth_headers):
 
 
 def test_ca_agent_success(auth_headers):
-    with patch("routes.ca_agent.call_ai_sync", return_value=json.dumps(_MOCK_CA_RESULT)), \
-         patch("routes.ca_agent.extract_survey_intelligence", return_value=_MOCK_INTEL):
+    with (
+        patch("routes.ca_agent.call_ai_sync", return_value=json.dumps(_MOCK_CA_RESULT)),
+        patch("routes.ca_agent.extract_survey_intelligence", return_value=_MOCK_INTEL),
+    ):
         response = client.post(
             f"/ca-agent/surveys/{SURVEY_ID}/analyze",
             json={},
@@ -310,8 +312,10 @@ def test_ca_agent_success(auth_headers):
 
 
 def test_ca_agent_malformed_json_from_ai(auth_headers):
-    with patch("routes.ca_agent.call_ai_sync", return_value="not-valid-json { broken"), \
-         patch("routes.ca_agent.extract_survey_intelligence", return_value=_MOCK_INTEL):
+    with (
+        patch("routes.ca_agent.call_ai_sync", return_value="not-valid-json { broken"),
+        patch("routes.ca_agent.extract_survey_intelligence", return_value=_MOCK_INTEL),
+    ):
         response = client.post(
             f"/ca-agent/surveys/{SURVEY_ID}/analyze",
             json={},
@@ -321,8 +325,10 @@ def test_ca_agent_malformed_json_from_ai(auth_headers):
 
 
 def test_ca_agent_ai_provider_error(auth_headers):
-    with patch("routes.ca_agent.call_ai_sync", side_effect=Exception("AI down")), \
-         patch("routes.ca_agent.extract_survey_intelligence", return_value=_MOCK_INTEL):
+    with (
+        patch("routes.ca_agent.call_ai_sync", side_effect=Exception("AI down")),
+        patch("routes.ca_agent.extract_survey_intelligence", return_value=_MOCK_INTEL),
+    ):
         response = client.post(
             f"/ca-agent/surveys/{SURVEY_ID}/analyze",
             json={},
@@ -340,8 +346,10 @@ def test_ca_agent_with_full_founder_inputs(auth_headers):
         "target_launch_city": "Hyderabad",
         "current_stage": "Seed",
     }
-    with patch("routes.ca_agent.call_ai_sync", return_value=json.dumps(_MOCK_CA_RESULT)), \
-         patch("routes.ca_agent.extract_survey_intelligence", return_value=_MOCK_INTEL):
+    with (
+        patch("routes.ca_agent.call_ai_sync", return_value=json.dumps(_MOCK_CA_RESULT)),
+        patch("routes.ca_agent.extract_survey_intelligence", return_value=_MOCK_INTEL),
+    ):
         response = client.post(
             f"/ca-agent/surveys/{SURVEY_ID}/analyze",
             json=payload,
