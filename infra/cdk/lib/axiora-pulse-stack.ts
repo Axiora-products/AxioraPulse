@@ -135,12 +135,24 @@ export class AxioraPulseStack extends cdk.Stack {
         repositoryName: `axiora/pulse-fastapi-${envName}`,
         removalPolicy: cdk.RemovalPolicy.DESTROY,
         emptyOnDelete: true,
+        lifecycleRules: [
+          {
+            maxImageCount: 5,
+            description: 'Retain only the last 5 images to optimize storage costs',
+          }
+        ]
       });
 
       frontendRepo = new ecr.Repository(this, 'FrontendRepo', {
         repositoryName: `axiora/pulse-frontend-${envName}`,
         removalPolicy: cdk.RemovalPolicy.DESTROY,
         emptyOnDelete: true,
+        lifecycleRules: [
+          {
+            maxImageCount: 5,
+            description: 'Retain only the last 5 images to optimize storage costs',
+          }
+        ]
       });
 
       // Allow Production account to pull from QA repository for promotion
