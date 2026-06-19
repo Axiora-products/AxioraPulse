@@ -66,6 +66,52 @@ export const SHORT_SURVEY_RULES = {
   preferredRequiredQuestionLimit: 5,
 };
 
+// Minimum input lengths (characters) before a Survey Health item is allowed to
+// count as complete. Single-character or very short inputs must NOT inflate the
+// health score, so each field has to clear a meaningful threshold first.
+export const SURVEY_HEALTH_MINIMUMS = {
+  title: 20,
+  welcomeMessage: 50,
+  description: 50,
+  questionText: 30,
+};
+
+// The locked default thank-you message. It is permanently visible and cannot be
+// edited, overwritten, or deleted — users may only append custom text after it.
+export const DEFAULT_THANK_YOU_MESSAGE = 'Thank you for completing this survey!';
+
+// Whether a free-text field has enough content to satisfy a health check.
+export function meetsMinLength(value, min) {
+  return (value || '').trim().length >= min;
+}
+
+// A question only contributes toward completion/quality once its text is
+// substantial enough (>= SURVEY_HEALTH_MINIMUMS.questionText characters).
+export function getQuestionCharCount(question = {}) {
+  return (question.question_text || question.text || '').trim().length;
+}
+
+export function isQuestionComplete(question = {}) {
+  return getQuestionCharCount(question) >= SURVEY_HEALTH_MINIMUMS.questionText;
+}
+
+// The thank-you message is stored as the locked default optionally followed by a
+// blank line and the user's custom addition. These helpers split/recombine the
+// two halves so the default text can never be lost.
+export function getThankYouCustom(message = '') {
+  if (!message) return '';
+  if (message.startsWith(DEFAULT_THANK_YOU_MESSAGE)) {
+    return message.slice(DEFAULT_THANK_YOU_MESSAGE.length).replace(/^\s+/, '');
+  }
+  // Legacy messages saved before the default was locked are treated as custom text.
+  return message;
+}
+
+export function composeThankYou(custom = '') {
+  const trimmed = (custom || '').trim();
+  return trimmed ? `${DEFAULT_THANK_YOU_MESSAGE}\n\n${trimmed}` : DEFAULT_THANK_YOU_MESSAGE;
+}
+
 export function estimateSurveyMinutes(questions = []) {
   const seconds = questions.reduce((total, q) => {
     const type = q?.question_type || q?.type;

@@ -5,7 +5,7 @@ import API from '../api/axios';
 import SurveyPromptScreen, { SURVEY_MODES, getSurveyModeLabel } from '../components/SurveyPromptScreen';
 import AISurveySuggestions from '../components/AISurveySuggestions';
 import useAuthStore from '../hooks/useAuth';
-import { QUESTION_TYPES, SHORT_SURVEY_RULES, SURVEY_TEXT_RULES, estimateSurveyMinutes, getFormatDiversityScore, getQuestionWordCount, isExpired, isValidSurveyTitle, isValidSurveyLongText, isValidQuestionText } from '../lib/constants';
+import { QUESTION_TYPES, SHORT_SURVEY_RULES, SURVEY_HEALTH_MINIMUMS, DEFAULT_THANK_YOU_MESSAGE, estimateSurveyMinutes, getFormatDiversityScore, getQuestionWordCount, isQuestionComplete, meetsMinLength, getThankYouCustom, composeThankYou, isExpired, SURVEY_TEXT_RULES, isValidSurveyTitle, isValidSurveyLongText, isValidQuestionText } from '../lib/constants';
 import { Reorder, useDragControls, motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { useLoading } from '../context/LoadingContext';
@@ -360,6 +360,7 @@ export default function SurveyCreate() {
 
   const handlePromptTemplate = (tmpl) => {
     loadTemplate(tmpl);
+    setFromTemplate(true);
     setPhase('builder');
   };
 
@@ -410,9 +411,10 @@ export default function SurveyCreate() {
 
   const tc = f.theme_color || '#FF4500';
   const reqCount = qs.filter(q => q.is_required).length;
-  // Only questions that actually have text count toward quality targets — empty
-  // placeholder questions must not mark targets as achieved.
-  const realQuestions = qs.filter(q => getQuestionWordCount(q) > 0);
+  // Only questions whose text clears the minimum length count toward quality
+  // targets — empty or single-character placeholder questions must not mark
+  // targets as achieved.
+  const realQuestions = qs.filter(q => isQuestionComplete(q));
   const hasRealQuestions = realQuestions.length > 0;
   const conciseQuestionCount = realQuestions.filter(q => getQuestionWordCount(q) <= SHORT_SURVEY_RULES.maxHighSignalWords).length;
   const hasAdaptiveFormats = getFormatDiversityScore(realQuestions) >= 3;
@@ -509,7 +511,7 @@ export default function SurveyCreate() {
     return (
       <SurveyPromptScreen
         onGenerate={handlePromptGenerate}
-        onSkip={() => { setAiGenerated(true); setPhase('builder'); }}
+        onSkip={() => { setAiGenerated(true); setFromTemplate(true); setPhase('builder'); }}
         onLoadTemplate={handlePromptTemplate}
         galleryTemplates={GALLERY_TEMPLATES}
         aiGenerating={aiGenerating}
@@ -860,7 +862,7 @@ export default function SurveyCreate() {
             <div style={{ width: 48, height: 48, borderRadius: 16, background: 'rgba(214,59,31,0.1)', color: 'var(--terracotta)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, marginBottom: 20 }}>⚠️</div>
             <h3 style={{ fontFamily: "'Playfair Display',serif", fontWeight: 900, fontSize: 24, margin: '0 0 12px 0', color: 'var(--espresso)' }}>Overwrite existing survey?</h3>
             <p style={{ fontFamily: "'Fraunces',serif", fontSize: 15, color: 'rgba(22,15,8,0.5)', lineHeight: 1.6, margin: '0 0 24px 0' }}>
-              This will replace your current survey title, description, welcome message, and all questions with the newly AI-generated ones. This action cannot be undone.
+              This will replace your current survey title, description, welcome message, and all questions with the newly Pulse-generated ones. This action cannot be undone.
             </p>
             <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
               <button onClick={() => { setShowConfirm(false); setPendingGen(null); }} style={{ padding: '12px 24px', borderRadius: 999, border: '1.5px solid rgba(22,15,8,0.1)', background: 'transparent', fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.5)', cursor: 'pointer' }}>Cancel</button>
@@ -1197,9 +1199,17 @@ export default function SurveyCreate() {
                   {welcomeError && <div style={ERR}>⚠ {welcomeError}</div>}
                 </div>
               </div>
-              <div><label style={LBL}>Thank You Message</label><textarea value={f.thank_you_message} onChange={e => s('thank_you_message', e.target.value)} placeholder="Shown after submission" rows={2} style={{ ...INP, borderRadius: 16 }} onFocus={fi} onBlur={fo} /></div>
-              <div className="sc-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 22 }}>
-                <div><label style={LBL}>Expires</label><input type="datetime-local" value={f.expires_at} onChange={e => s('expires_at', e.target.value)} style={{ ...INP, borderRadius: 16 }} onFocus={fi} onBlur={fo} /></div>
+              <div><label style={LBL}>Thank You Message</label>
+                <div style={{ ...INP, padding:0, borderRadius:16, overflow:'hidden', resize:'none' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:8, padding:'12px 17px', background:'rgba(22,15,8,0.04)', borderBottom:'1px solid rgba(22,15,8,0.08)' }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="rgba(22,15,8,0.4)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink:0 }}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    <span style={{ fontFamily:"'Fraunces',serif", fontSize:15, color:'var(--espresso)' }}>{DEFAULT_THANK_YOU_MESSAGE}</span>
+                  </div>
+                  <textarea value={getThankYouCustom(f.thank_you_message)} onChange={e=>s('thank_you_message',composeThankYou(e.target.value))} placeholder="Add an optional message after the default…" rows={2} style={{ width:'100%', boxSizing:'border-box', padding:'12px 17px', background:'transparent', border:'none', outline:'none', fontFamily:"'Fraunces',serif", fontSize:16, color:'var(--espresso)', resize:'vertical' }}/>
+                </div>
+              </div>
+              <div className="sc-2col" style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:22 }}>
+                <div><label style={LBL}>Expires</label><input type="datetime-local" value={f.expires_at} onChange={e=>s('expires_at',e.target.value)} style={{...INP,borderRadius:16}} onFocus={fi} onBlur={fo}/></div>
                 <div>
                   <label style={LBL}>Theme Colour</label>
                   <div className="question-footer">
