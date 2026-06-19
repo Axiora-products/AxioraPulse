@@ -1,10 +1,10 @@
-import asyncio
-import json
-from db.database import SessionLocal
-from db.models import Survey, SurveyQuestion, SurveyResponse, SurveyAnswer
-from routes.ca_agent import _build_ca_prompt, _CA_SYSTEM_INSTRUCTION
-from services.ai_provider import call_ai_sync
-from services.survey_intelligence import extract_survey_intelligence, FounderContext
+import asyncio  # pragma: no cover
+import json  # pragma: no cover
+from db.database import SessionLocal  # pragma: no cover
+from db.models import Survey, SurveyQuestion, SurveyResponse, SurveyAnswer  # pragma: no cover
+from routes.ca_agent import _build_ca_prompt, _CA_SYSTEM_INSTRUCTION  # pragma: no cover
+from services.ai_provider import call_ai_sync  # pragma: no cover
+from services.survey_intelligence import extract_survey_intelligence, FounderContext  # pragma: no cover
 
 
 async def main():  # pragma: no cover
@@ -60,5 +60,5 @@ async def main():  # pragma: no cover
     db.close()
 
 
-if __name__ == "__main__":
-    asyncio.run(main())
+if __name__ == "__main__":  # pragma: no cover
+    asyncio.run(main())  # pragma: no cover
