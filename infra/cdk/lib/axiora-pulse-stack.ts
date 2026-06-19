@@ -131,28 +131,34 @@ export class AxioraPulseStack extends cdk.Stack {
       backendRepo = ecr.Repository.fromRepositoryName(this, 'BackendRepo', `axiora/pulse-fastapi-${envName}`);
       frontendRepo = ecr.Repository.fromRepositoryName(this, 'FrontendRepo', `axiora/pulse-frontend-${envName}`);
     } else if (shortEnv === 'qa') {
+      const qaLifecycleRules = [
+        {
+          rulePriority: 1,
+          description: 'Keep images tagged with qa or latest',
+          tagStatus: ecr.TagStatus.TAGGED,
+          tagPrefixList: ['qa', 'latest'],
+          maxImageCount: 999,
+        },
+        {
+          rulePriority: 2,
+          description: 'Retain only the last 5 images to optimize storage costs',
+          tagStatus: ecr.TagStatus.ANY,
+          maxImageCount: 5,
+        }
+      ];
+
       backendRepo = new ecr.Repository(this, 'BackendRepo', {
         repositoryName: `axiora/pulse-fastapi-${envName}`,
         removalPolicy: cdk.RemovalPolicy.DESTROY,
         emptyOnDelete: true,
-        lifecycleRules: [
-          {
-            maxImageCount: 5,
-            description: 'Retain only the last 5 images to optimize storage costs',
-          }
-        ]
+        lifecycleRules: qaLifecycleRules
       });
 
       frontendRepo = new ecr.Repository(this, 'FrontendRepo', {
         repositoryName: `axiora/pulse-frontend-${envName}`,
         removalPolicy: cdk.RemovalPolicy.DESTROY,
         emptyOnDelete: true,
-        lifecycleRules: [
-          {
-            maxImageCount: 5,
-            description: 'Retain only the last 5 images to optimize storage costs',
-          }
-        ]
+        lifecycleRules: qaLifecycleRules
       });
 
       // Allow Production account to pull from QA repository for promotion
