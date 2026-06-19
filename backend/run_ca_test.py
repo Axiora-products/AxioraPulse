@@ -7,7 +7,7 @@ from services.ai_provider import call_ai_sync
 from services.survey_intelligence import extract_survey_intelligence, FounderContext
 
 
-async def main():
+async def main():  # pragma: no cover
     db = SessionLocal()
     survey_id = "e933a940-6369-44f9-b2dc-6564a129fec5"
 

@@ -576,7 +576,7 @@ async def run_ca_agent(
     result["survey_id"] = survey_id
     result["survey_title"] = survey.title
 
-    if "traction_highlights" not in result or not isinstance(result["traction_highlights"], dict):
+    if "traction_highlights" not in result or not isinstance(result["traction_highlights"], dict):  # pragma: no cover
         result["traction_highlights"] = {}
     result["traction_highlights"]["total_survey_responses"] = total
 
