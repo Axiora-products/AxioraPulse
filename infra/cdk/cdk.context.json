@@ -13,5 +13,9 @@
     "ap-south-1a",
     "ap-south-1b",
     "ap-south-1c"
-  ]
+  ],
+  "hosted-zone:account=399894608507:domainName=qa.axiorapulse.com:region=ap-south-1": {
+    "Id": "/hostedzone/Z04954691X0MY9E35KTZJ",
+    "Name": "qa.axiorapulse.com."
+  }
 }

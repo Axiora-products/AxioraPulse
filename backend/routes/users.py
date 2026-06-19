@@ -37,7 +37,7 @@ from schemas import (
 )
 from auth_utils import hash_password
 from dependencies import get_current_user
-from cognito_utils import get_cognito_client, COGNITO_USER_POOL_ID, admin_delete_user
+from cognito_utils import get_cognito_client, get_user_pool_id, admin_delete_user
 
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
 
@@ -75,7 +75,7 @@ def list_users(
     """
     users = (
         db.query(UserProfile)
-        .filter((UserProfile.id == current_user.id) | (UserProfile.invited_by == current_user.id))
+        .filter(UserProfile.tenant_id == current_user.tenant_id)
         .order_by(UserProfile.created_at)
         .all()
     )
@@ -119,18 +119,16 @@ def invite_user(
     _require_team_account(current_user)
     _require_manager(current_user)
 
-    # 🔍 Check if user already exists
-    existing = (
-        db.query(UserProfile)
-        .filter(
-            UserProfile.email == body.email,
-            UserProfile.tenant_id == current_user.tenant_id,
-        )
-        .first()
-    )
+    # 🔍 Check if user already exists in the entire system
+    existing = db.query(UserProfile).filter(UserProfile.email == body.email).first()
 
     # 🟡 CASE 1: Already exists
     if existing:
+        if existing.tenant_id != current_user.tenant_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This email is already registered with another organization.",
+            )
         if existing.account_status == "invited":
             # 🔁 RESEND INVITE
 
@@ -154,6 +152,10 @@ def invite_user(
                 )
             except Exception as e:
                 print("Email failed:", str(e))
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Reminder email failed to send: {str(e)}",
+                )
 
             return UserProfileOut.model_validate(existing)
 
@@ -208,6 +210,10 @@ def invite_user(
         )
     except Exception as e:
         print("Email failed:", str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Invitation email failed to send: {str(e)}",
+        )
 
     return UserProfileOut.model_validate(new_user)
 
@@ -227,14 +233,11 @@ def bulk_invite(
     tenant_name = current_user.tenant.name if current_user.tenant else "Axiora Pulse"
 
     for email in body.emails:
-        existing = (
-            db.query(UserProfile)
-            .filter(
-                UserProfile.email == email,
-                UserProfile.tenant_id == current_user.tenant_id,
-            )
-            .first()
-        )
+        existing = db.query(UserProfile).filter(UserProfile.email == email).first()
+
+        if existing and existing.tenant_id != current_user.tenant_id:
+            results.append({"email": email, "status": "failed", "error": "Registered with another organization"})
+            continue
 
         # 🔁 Already invited → resend
         if existing and existing.account_status == "invited":
@@ -326,7 +329,11 @@ def update_role(
 ):
     """Update a user's role (TeamManagement.jsx)."""
     _require_team_account(current_user)
-    _require_manager(current_user)
+    if current_user.role not in {RoleEnum.super_admin, RoleEnum.admin}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins and super admins can change user roles",
+        )
 
     user = (
         db.query(UserProfile)
@@ -338,6 +345,21 @@ def update_role(
     )
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+
+    # Prevent self-modification
+    if str(user.id) == str(current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot change your own role",
+        )
+
+    # Ensure non-super_admins cannot modify a super_admin's role
+    if user.role == RoleEnum.super_admin and current_user.role != RoleEnum.super_admin:
+        raise HTTPException(status_code=403, detail="Super Admin's role cannot be changed")
+
+    # Ensure non-super_admins cannot assign the super_admin role
+    if body.role == RoleEnum.super_admin.value and current_user.role != RoleEnum.super_admin:
+        raise HTTPException(status_code=403, detail="Admins cannot assign the Super Admin role")
 
     try:
         user.role = RoleEnum(body.role)
@@ -358,7 +380,11 @@ def update_status(
 ):
     """Activate or deactivate a user (TeamManagement.jsx)."""
     _require_team_account(current_user)
-    _require_manager(current_user)
+    if current_user.role not in {RoleEnum.super_admin, RoleEnum.admin}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins and super admins can change user status",
+        )
 
     user = (
         db.query(UserProfile)
@@ -370,6 +396,17 @@ def update_status(
     )
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+
+    # Prevent self-modification
+    if str(user.id) == str(current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot change your own status",
+        )
+
+    # Ensure non-super_admins cannot deactivate a super_admin
+    if user.role == RoleEnum.super_admin and current_user.role != RoleEnum.super_admin:
+        raise HTTPException(status_code=403, detail="Super Admin cannot be disabled")
 
     user.is_active = body.is_active
     db.commit()
@@ -388,8 +425,8 @@ def delete_user(
     Replaces the Netlify delete-user function.
     """
     _require_team_account(current_user)
-    if current_user.role != RoleEnum.super_admin:
-        raise HTTPException(status_code=403, detail="Only super_admin can delete users")
+    if current_user.role not in {RoleEnum.super_admin, RoleEnum.admin}:
+        raise HTTPException(status_code=403, detail="Only admins and super_admins can delete users")
 
     user = (
         db.query(UserProfile)
@@ -405,6 +442,10 @@ def delete_user(
     # Prevent self-deletion
     if str(user.id) == str(current_user.id):
         raise HTTPException(status_code=400, detail="Cannot delete your own account")
+
+    # Prevent non-super_admins from deleting a super_admin
+    if user.role == RoleEnum.super_admin and current_user.role != RoleEnum.super_admin:
+        raise HTTPException(status_code=403, detail="Super Admin cannot be deleted")
 
     # Delete from Cognito first if they have a registered email
     if user.email:
@@ -442,20 +483,21 @@ def accept_invite(
     db.commit()
 
     # Create/confirm the user in Cognito so they can sign in immediately
-    if COGNITO_USER_POOL_ID:
+    pool_id = get_user_pool_id()
+    if pool_id:
         try:
             client = get_cognito_client()
             cognito_sub = None
             try:
                 resp = client.admin_create_user(
-                    UserPoolId=COGNITO_USER_POOL_ID,
+                    UserPoolId=pool_id,
                     Username=user.email,
                     MessageAction="SUPPRESS",
                 )
                 cognito_sub = resp.get("User", {}).get("Username")
             except client.exceptions.UsernameExistsException:
                 try:
-                    resp = client.admin_get_user(UserPoolId=COGNITO_USER_POOL_ID, Username=user.email)
+                    resp = client.admin_get_user(UserPoolId=pool_id, Username=user.email)
                     cognito_sub = next(
                         (attr["Value"] for attr in resp.get("UserAttributes", []) if attr["Name"] == "sub"), None
                     )
@@ -467,7 +509,7 @@ def accept_invite(
                 db.commit()
 
             client.admin_set_user_password(
-                UserPoolId=COGNITO_USER_POOL_ID,
+                UserPoolId=pool_id,
                 Username=user.email,
                 Password=body.password,
                 Permanent=True,

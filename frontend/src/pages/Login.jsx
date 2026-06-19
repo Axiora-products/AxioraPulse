@@ -212,14 +212,14 @@ export default function Login() {
       const storeUser = useAuthStore.getState().user;
       if (!storeUser) throw new Error('Failed to sync session');
       toast.success('Welcome back!');
-      window.location.href = consumePostAuthRedirect();
+      window.location.href = consumePostAuthRedirect(storeUser.role === 'super_admin' ? '/super-admin' : '/dashboard');
     } catch (err) {
       toast.error(err.message || 'Verification failed');
     } finally { setOtpBusy(false); }
   };
 
   if (initialized && user) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={user.role === 'super_admin' ? '/super-admin' : '/dashboard'} replace />;
   }
   const go = async (e) => {
     e.preventDefault();
@@ -236,7 +236,7 @@ export default function Login() {
         throw new Error('Failed to synchronize user session with the backend. Please try again.');
       }
       toast.success('Welcome back!');
-      window.location.href = consumePostAuthRedirect();
+      window.location.href = consumePostAuthRedirect(storeUser.role === 'super_admin' ? '/super-admin' : '/dashboard');
     } catch (err) {
       if (err.code === 'UserNotConfirmedException') {
         toast.error('Email not verified. Redirecting to verification...');

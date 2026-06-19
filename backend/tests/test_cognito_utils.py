@@ -9,6 +9,7 @@ from db.models import UserProfile, Tenant
 # Capture the real implementation at module level, before any autouse fixture can
 # replace cognito_utils.verify_cognito_token with a mock.
 _real_verify_cognito_token = cognito_utils.verify_cognito_token
+_real_get_cognito_client = cognito_utils.get_cognito_client
 
 
 def test_admin_get_user_status_mock(monkeypatch, clean_db_for_cognito):
@@ -51,6 +52,103 @@ def clean_db_for_cognito():
 def test_admin_delete_user_mock(monkeypatch):
     monkeypatch.setenv("MOCK_COGNITO", "true")
     assert cognito_utils.admin_delete_user("any@example.com") is True
+
+
+def test_cognito_config_lookups_use_ssm_endpoint(monkeypatch):
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    monkeypatch.delenv("COGNITO_USER_POOL_ID", raising=False)
+    monkeypatch.delenv("COGNITO_APP_CLIENT_ID", raising=False)
+    monkeypatch.setenv("AWS_ENDPOINT_URL", "http://localhost:4566")
+
+    class MockSSMClient:
+        def get_parameter(self, Name):
+            if Name.endswith("COGNITO_USER_POOL_ID"):
+                return {"Parameter": {"Value": "pool-from-ssm"}}
+            if Name.endswith("COGNITO_APP_CLIENT_ID"):
+                return {"Parameter": {"Value": "client-from-ssm"}}
+            raise AssertionError(f"unexpected parameter: {Name}")
+
+    def mock_client(service_name, **kwargs):
+        assert service_name == "ssm"
+        assert kwargs["endpoint_url"] == "http://localhost:4566"
+        return MockSSMClient()
+
+    monkeypatch.setattr(cognito_utils.boto3, "client", mock_client)
+
+    assert cognito_utils.get_user_pool_id() == "pool-from-ssm"
+    assert cognito_utils.get_app_client_id() == "client-from-ssm"
+    assert os.environ["COGNITO_USER_POOL_ID"] == "pool-from-ssm"
+    assert os.environ["COGNITO_APP_CLIENT_ID"] == "client-from-ssm"
+
+
+def test_cognito_config_lookups_fall_back_to_env_on_ssm_error(monkeypatch):
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    monkeypatch.setenv("AWS_ENDPOINT_URL", "http://localhost:4566")
+    monkeypatch.setenv("COGNITO_USER_POOL_ID", "pool-from-env")
+    monkeypatch.setenv("COGNITO_APP_CLIENT_ID", "client-from-env")
+
+    def mock_client(*args, **kwargs):
+        raise RuntimeError("ssm unavailable")
+
+    monkeypatch.setattr(cognito_utils.boto3, "client", mock_client)
+
+    assert cognito_utils.get_user_pool_id() == "pool-from-env"
+    assert cognito_utils.get_app_client_id() == "client-from-env"
+
+
+def test_get_cognito_client_uses_local_endpoint(monkeypatch):
+    monkeypatch.setattr(cognito_utils, "get_cognito_client", _real_get_cognito_client)
+    _real_get_cognito_client.cache_clear()
+    monkeypatch.setenv("AWS_ENDPOINT_URL", "http://localhost:4566")
+    captured = {}
+
+    def mock_client(service_name, **kwargs):
+        captured["service_name"] = service_name
+        captured["kwargs"] = kwargs
+        return object()
+
+    monkeypatch.setattr(cognito_utils.boto3, "client", mock_client)
+
+    client = _real_get_cognito_client()
+
+    assert client is not None
+    assert captured["service_name"] == "cognito-idp"
+    assert captured["kwargs"]["endpoint_url"] == "http://localhost:4566"
+    assert captured["kwargs"]["aws_access_key_id"] == "mock"
+    _real_get_cognito_client.cache_clear()
+
+
+def test_admin_get_user_status_real_client_success(monkeypatch):
+    monkeypatch.setenv("MOCK_COGNITO", "false")
+    monkeypatch.setattr(cognito_utils, "get_user_pool_id", lambda: "pool-id")
+
+    class MockClient:
+        class exceptions:
+            class UserNotFoundException(Exception):
+                pass
+
+        def admin_get_user(self, **kwargs):
+            assert kwargs == {"UserPoolId": "pool-id", "Username": "confirmed@example.com"}
+            return {"UserStatus": "CONFIRMED"}
+
+    monkeypatch.setattr(cognito_utils, "get_cognito_client", lambda: MockClient())
+
+    assert cognito_utils.admin_get_user_status("confirmed@example.com") == "CONFIRMED"
+
+
+def test_admin_delete_user_real_client_success(monkeypatch):
+    monkeypatch.setenv("MOCK_COGNITO", "false")
+    monkeypatch.setattr(cognito_utils, "get_user_pool_id", lambda: "pool-id")
+    calls = []
+
+    class MockClient:
+        def admin_delete_user(self, **kwargs):
+            calls.append(kwargs)
+
+    monkeypatch.setattr(cognito_utils, "get_cognito_client", lambda: MockClient())
+
+    assert cognito_utils.admin_delete_user("delete@example.com") is True
+    assert calls == [{"UserPoolId": "pool-id", "Username": "delete@example.com"}]
 
 
 def test_verify_cognito_token_mock_invalid_token_use(monkeypatch):
