@@ -16,6 +16,9 @@ import * as appscaling from 'aws-cdk-lib/aws-applicationautoscaling';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
+import * as route53 from 'aws-cdk-lib/aws-route53';
+import * as acm from 'aws-cdk-lib/aws-certificatemanager';
+import * as route53_targets from 'aws-cdk-lib/aws-route53-targets';
 
 export interface AxioraPulseStackProps extends cdk.StackProps {
   environment: 'dev' | 'qa' | 'prod' | 'development' | 'production';
@@ -319,6 +322,33 @@ export class AxioraPulseStack extends cdk.Stack {
       loadBalancerName: `axiorapulse-${shortEnv}-alb`,
     });
 
+    const zoneName = 'axiorapulse.com';
+    const domainName = shortEnv === 'qa' ? `qa.${zoneName}` : (isProd ? zoneName : `dev.${zoneName}`);
+    let certificate: acm.ICertificate | undefined = undefined;
+
+    if (shortEnv === 'qa' || isProd) {
+      // 1. Look up Hosted Zone
+      const hostedZone = route53.HostedZone.fromLookup(this, 'HostedZone', {
+        domainName: zoneName,
+      });
+
+      // 2. Request Certificate
+      certificate = new acm.Certificate(this, 'Certificate', {
+        domainName: domainName,
+        validation: acm.CertificateValidation.fromDns(hostedZone),
+      });
+
+      // 3. Create Route 53 A record pointing to the load balancer
+      new route53.ARecord(this, 'AliasRecord', {
+        zone: hostedZone,
+        recordName: domainName,
+        target: route53.RecordTarget.fromAlias(new route53_targets.LoadBalancerTarget(alb)),
+      });
+
+      // Set frontend URL
+      frontendUrl = `https://${domainName}`;
+    }
+
     if (shortEnv === 'dev') {
       // S3 Bucket for frontend static assets
       const frontendBucket = new s3.Bucket(this, 'FrontendBucket', {
@@ -489,26 +519,64 @@ export class AxioraPulseStack extends cdk.Stack {
 
 
     if (frontendService) {
-      const frontendListener = alb.addListener('FrontendListener', {
-        port: 80,
+      if (certificate) {
+        // HTTPS Listener on port 443
+        const httpsListener = alb.addListener('HttpsListener', {
+          port: 443,
+          protocol: elbv2.ApplicationProtocol.HTTPS,
+          certificates: [elbv2.ListenerCertificate.fromArn(certificate.certificateArn)],
+          open: true,
+        });
+
+        httpsListener.addTargets('FrontendTargetHTTPS', {
+          port: 80,
+          targets: [frontendService],
+          healthCheck: {
+            path: '/',
+          }
+        });
+
+        // Redirect HTTP on port 80 to HTTPS on port 443
+        alb.addRedirect({
+          sourcePort: 80,
+          sourceProtocol: elbv2.ApplicationProtocol.HTTP,
+          targetPort: 443,
+          targetProtocol: elbv2.ApplicationProtocol.HTTPS,
+        });
+      } else {
+        // Fallback for HTTP if no certificate is defined (e.g. dev environment)
+        const frontendListener = alb.addListener('FrontendListener', {
+          port: 80,
+          protocol: elbv2.ApplicationProtocol.HTTP,
+          open: true,
+        });
+
+        frontendListener.addTargets('FrontendTarget', {
+          port: 80,
+          targets: [frontendService],
+          healthCheck: {
+            path: '/',
+          }
+        });
+      }
+    }
+
+    // Backend Listener
+    let backendListener: elbv2.ApplicationListener;
+    if (certificate) {
+      backendListener = alb.addListener('BackendListener', {
+        port: 8000,
+        protocol: elbv2.ApplicationProtocol.HTTPS,
+        certificates: [elbv2.ListenerCertificate.fromArn(certificate.certificateArn)],
+        open: true,
+      });
+    } else {
+      backendListener = alb.addListener('BackendListener', {
+        port: 8000,
         protocol: elbv2.ApplicationProtocol.HTTP,
         open: true,
       });
-
-      frontendListener.addTargets('FrontendTarget', {
-        port: 80,
-        targets: [frontendService],
-        healthCheck: {
-          path: '/',
-        }
-      });
     }
-
-    const backendListener = alb.addListener('BackendListener', {
-      port: 8000,
-      protocol: elbv2.ApplicationProtocol.HTTP,
-      open: true,
-    });
 
     backendListener.addTargets('BackendTarget', {
       port: 8000,
@@ -540,7 +608,7 @@ export class AxioraPulseStack extends cdk.Stack {
     });
 
     if (isProd || shortEnv === 'qa') {
-      frontendUrl = `http://${alb.loadBalancerDnsName}`;
+      // Keep secure https custom domain url instead of load balancer HTTP dns name
     }
 
     const frontendUrlParam = new ssm.StringParameter(this, 'FrontendUrlParam', {

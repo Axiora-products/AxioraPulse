@@ -76,9 +76,15 @@ def test_bulk_invite_users(auth_headers):
 
 
 def test_update_user_role(auth_headers):
-    list_resp = client.get("/users/", headers=auth_headers)
-    assert list_resp.status_code == 200
-    user_id = list_resp.json()[0]["id"]
+    # First, invite a new user to update
+    email = f"role_update_{uuid.uuid4().hex}@example.com"
+    invite_resp = client.post(
+        "/users/invite",
+        json={"email": email, "full_name": "Role Update Member", "role": "viewer"},
+        headers=auth_headers,
+    )
+    assert invite_resp.status_code == 200
+    user_id = invite_resp.json()["id"]
 
     payload = {"role": "manager"}
     response = client.patch(f"/users/{user_id}/role", json=payload, headers=auth_headers)
@@ -87,27 +93,40 @@ def test_update_user_role(auth_headers):
 
 
 def test_update_user_status(auth_headers):
-    list_resp = client.get("/users/", headers=auth_headers)
-    assert list_resp.status_code == 200
-    user_id = list_resp.json()[0]["id"]
+    # First, invite a new user to update status
+    email = f"status_update_{uuid.uuid4().hex}@example.com"
+    invite_resp = client.post(
+        "/users/invite",
+        json={"email": email, "full_name": "Status Update Member", "role": "viewer"},
+        headers=auth_headers,
+    )
+    assert invite_resp.status_code == 200
+    user_id = invite_resp.json()["id"]
 
     payload = {"is_active": False}
     response = client.patch(f"/users/{user_id}/status", json=payload, headers=auth_headers)
     assert response.status_code == 200
     assert response.json()["is_active"] is False
 
-    # Reactivate the user directly in the database since the user cannot authenticate while is_active is False
-    from db.database import SessionLocal
-    from db.models import UserProfile
 
-    db = SessionLocal()
-    try:
-        user = db.query(UserProfile).filter(UserProfile.id == user_id).first()
-        if user:
-            user.is_active = True
-            db.commit()
-    finally:
-        db.close()
+def test_self_role_update_blocked(auth_headers):
+    list_resp = client.get("/users/", headers=auth_headers)
+    assert list_resp.status_code == 200
+    own_id = list_resp.json()[0]["id"]
+
+    response = client.patch(f"/users/{own_id}/role", json={"role": "admin"}, headers=auth_headers)
+    assert response.status_code == 400
+    assert "Cannot change your own role" in response.json()["detail"]
+
+
+def test_self_status_update_blocked(auth_headers):
+    list_resp = client.get("/users/", headers=auth_headers)
+    assert list_resp.status_code == 200
+    own_id = list_resp.json()[0]["id"]
+
+    response = client.patch(f"/users/{own_id}/status", json={"is_active": False}, headers=auth_headers)
+    assert response.status_code == 400
+    assert "Cannot change your own status" in response.json()["detail"]
 
 
 def test_accept_invite(auth_headers):

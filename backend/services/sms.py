@@ -8,6 +8,15 @@ SNS_REGION = os.getenv("COGNITO_REGION", "ap-south-1")
 
 @lru_cache(maxsize=1)
 def get_sns_client():
+    endpoint_url = os.getenv("AWS_ENDPOINT_URL")
+    if endpoint_url:
+        return boto3.client(
+            "sns",
+            region_name=SNS_REGION,
+            endpoint_url=endpoint_url,
+            aws_access_key_id="mock",
+            aws_secret_access_key="mock",
+        )
     return boto3.client("sns", region_name=SNS_REGION)
 
 

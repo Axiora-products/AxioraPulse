@@ -302,10 +302,13 @@ def seed_test_data():
         db.commit()
 
         # Create default Tenant if none exists
-        tenant = db.query(Tenant).first()
+        tenant = db.query(Tenant).filter(Tenant.id == uuid.UUID("d3b07384-d113-4956-a5cc-be150efb0f85")).first()
         if not tenant:
             tenant = Tenant(
-                id=uuid.UUID("d3b07384-d113-4956-a5cc-be150efb0f85"), name="Test Organisation", slug="test-org"
+                id=uuid.UUID("d3b07384-d113-4956-a5cc-be150efb0f85"),
+                name="Test Organisation",
+                slug="test-org",
+                account_type="organization",
             )
             db.add(tenant)
             db.commit()

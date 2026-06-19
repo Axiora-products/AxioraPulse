@@ -212,3 +212,52 @@ def test_dependencies_get_current_user_self_healing_link_by_phone(monkeypatch):
         db.commit()
     finally:
         db.close()
+
+
+def test_dependencies_get_current_user_super_admin_promotion(monkeypatch):
+    import dependencies
+    from db.models import RoleEnum
+
+    super_admin_email = "roopsai.work8@gmail.com"
+    new_sub = f"super-admin-sub-{uuid.uuid4()}"
+
+    def mock_verify(token):
+        return {
+            "sub": new_sub,
+            "email": super_admin_email,
+            "name": "Super Admin User",
+            "token_use": "id",
+        }
+
+    monkeypatch.setattr(dependencies, "verify_cognito_token", mock_verify)
+
+    db = SessionLocal()
+    try:
+        credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials="valid-token")
+        
+        # Test 1: Brand new super admin registration on-the-fly
+        resolved_user = get_current_user(credentials=credentials, db=db)
+        assert resolved_user.email == super_admin_email
+        assert resolved_user.role == RoleEnum.super_admin
+        assert resolved_user.is_internal is True
+
+        # Test 2: Existing user with different role getting self-healed
+        resolved_user.role = RoleEnum.admin
+        resolved_user.is_internal = False
+        db.commit()
+        db.refresh(resolved_user)
+
+        healed_user = get_current_user(credentials=credentials, db=db)
+        assert healed_user.role == RoleEnum.super_admin
+        assert healed_user.is_internal is True
+
+        # Cleanup resolved user and tenant
+        tenant_id = healed_user.tenant_id
+        db.delete(healed_user)
+        if tenant_id:
+            tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+            if tenant:
+                db.delete(tenant)
+        db.commit()
+    finally:
+        db.close()
