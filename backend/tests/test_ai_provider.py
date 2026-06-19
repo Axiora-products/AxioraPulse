@@ -84,6 +84,11 @@ class TestCallGemini:
             result = _call_gemini("key", "prompt")
         assert "```" not in result
 
+    def test_empty_response_raises(self):
+        with patch("services.ai_provider.requests.post", return_value=_gemini_response("")):
+            with pytest.raises(ValueError, match="Empty response from Gemini API"):
+                _call_gemini("key", "prompt")
+
     def test_bad_structure_raises_value_error(self):
         resp = MagicMock()
         resp.raise_for_status = MagicMock()
@@ -163,8 +168,9 @@ class TestCallOpenAI:
             Exception("max_tokens not supported for this model"),
             _openai_response('{"ok":1}'),
         ]
-        with patch("services.ai_provider.openai.OpenAI", return_value=mc):
-            assert _call_openai("key", "prompt") == '{"ok":1}'
+        with patch("services.ai_provider.OPENAI_MODEL", "gpt-5"):
+            with patch("services.ai_provider.openai.OpenAI", return_value=mc):
+                assert _call_openai("key", "prompt") == '{"ok":1}'
 
     def test_unhandled_exception_reraises(self):
         mc = MagicMock()

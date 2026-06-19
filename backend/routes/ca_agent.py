@@ -42,9 +42,10 @@ _CA_SYSTEM_INSTRUCTION = (
     "TRACEABLE EVIDENCE CHAIN:\n"
     "Every single insight, score, recommendation, and financial estimate generated in the JSON MUST reference one or more extracted evidence points by their IDs in an 'evidence_refs' array field. No metric or value may be generated without a traceable evidence chain pointing to the manifest.\n"
     "\n"
-    "MISSING DATA ESTIMATION POLICY:\n"
-    "If required data (such as TAM/SAM/SOM, CAC, LTV, Return Ratio, Profit Margin, Payback Period, Funding Ask, Runway, or Funding Stage) is unavailable, do NOT stop the analysis and do NOT leave them blank. "
-    "Instead, generate a 'Reasonable Estimate' using category-specific industry benchmarks for the target geography. "
+    "MISSING DATA ESTIMATION POLICY (NO EMPTY FIELDS ALLOWED):\n"
+    "If required quantitative data (such as TAM/SAM/SOM, CAC, LTV, Return Ratio, Profit Margin, Payback Period, Funding Ask, Runway, or Funding Stage) is unavailable, generate a 'Reasonable Estimate' using category-specific industry benchmarks for the target geography.\n"
+    "If qualitative data (such as Vision Statement, Mission Statement, Roadmap Phases, or Pitch Narrative) is unavailable, you MUST generate a plausible, compelling version of it based on the startup's industry, problem, and solution.\n"
+    "Under NO circumstances can any field in the JSON structure be left blank, null, or empty. You MUST generate a value for every field.\n"
     "To satisfy the Traceable Evidence Chain rule for these estimated values, you can create a benchmark-based evidence point in the 'evidence_manifest' (e.g. 'Standard B2B SaaS Benchmark for India') and reference its ID in the 'evidence_refs' array. All financial and funding fields must be populated with sector-appropriate estimates tailored to the target geography.\n"
     "ESTIMATION FORMULAS:\n"
     "- If TAM/SAM/SOM is unavailable, estimate using:\n"
@@ -63,7 +64,7 @@ _CA_SYSTEM_INSTRUCTION = (
     "1. 'estimation_method': A description of the method used to estimate (e.g. standard formulas/benchmarks).\n"
     "2. 'assumptions': An array of strings representing the assumptions used.\n"
     "Example for estimated CAC:\n"
-    "\"cac\": {\"value\": \"₹8,000\", \"source\": \"ESTIMATED\", \"confidence\": \"LOW\", \"basis\": \"Estimated via industry benchmarks\", \"estimation_method\": \"Based on average B2B EdTech customer acquisition costs in India and expected pilot-school outreach model.\", \"assumptions\": [\"Direct founder-led sales\", \"Hyderabad-focused launch\", \"Small sales team\"], \"evidence_refs\": [\"EVID-3\"]}\n"
+    '"cac": {"value": "₹8,000", "source": "ESTIMATED", "confidence": "LOW", "basis": "Estimated via industry benchmarks", "estimation_method": "Based on average B2B EdTech customer acquisition costs in India and expected pilot-school outreach model.", "assumptions": ["Direct founder-led sales", "Hyderabad-focused launch", "Small sales team"], "evidence_refs": ["EVID-3"]}\n'
     "\n"
     "CONTENT DEPTH RULES (strictly enforced):\n"
     "NARRATIVE FIELDS (problem description, solution description, UVP, positioning statement, competitive moat, launch strategy, growth lever, business model description, pitch narrative, vision, mission, roadmap goals): "
@@ -229,10 +230,10 @@ def _build_ca_prompt(
     viability = guidance.get("viabilityScore", "N/A")
     category = guidance.get("category", "")
     loc = guidance.get("location") or {}
-    country = loc.get('country') or guidance.get("location_country") or ""
-    state = loc.get('state') or guidance.get("location_state") or ""
-    district = loc.get('district') or guidance.get("location_district") or ""
-    
+    country = loc.get("country") or guidance.get("location_country") or ""
+    state = loc.get("state") or guidance.get("location_state") or ""
+    district = loc.get("district") or guidance.get("location_district") or ""
+
     parts = [p for p in [district, state, country] if p]
     geography_str = ", ".join(parts) if parts else "Not specified"
 
@@ -581,8 +582,8 @@ async def run_ca_agent(
     # ── 8. Inject authoritative fields ───────────────────────────────────────
     result["survey_id"] = survey_id
     result["survey_title"] = survey.title
-    
-    if "traction_highlights" not in result or not isinstance(result["traction_highlights"], dict):
+
+    if "traction_highlights" not in result or not isinstance(result["traction_highlights"], dict):  # pragma: no cover
         result["traction_highlights"] = {}
     result["traction_highlights"]["total_survey_responses"] = total
 
