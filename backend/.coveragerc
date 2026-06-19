@@ -3,3 +3,5 @@ omit =
     init_local_aws.py
     tests/*
     alembic/*
+    run_ca_test.py
+    seed_*.py

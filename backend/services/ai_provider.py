@@ -3,8 +3,8 @@ services/ai_provider.py
 ───────────────────────
 Centralized multi-provider AI service with automatic failover.
 
-Supports: Gemini 2.5 Flash, OpenAI GPT-5.4 Mini, Anthropic Claude Sonnet.
-Priority order: Gemini → OpenAI → Anthropic.
+Supports: Anthropic Claude Sonnet (primary), OpenAI GPT (fallback).
+Priority order: Claude → OpenAI.
 
 Each provider returns raw JSON text. On failure (rate limit, network error,
 parse error), the next provider is tried automatically. Raises HTTP 503
@@ -13,9 +13,9 @@ only when all configured providers have failed.
 
 import os
 import logging
-import requests
 from typing import Optional
 
+import requests
 import anthropic
 import openai
 
@@ -25,8 +25,8 @@ logger = logging.getLogger("ai_provider")
 
 # ── Provider Models ───────────────────────────────────────────────────────────
 
-GEMINI_MODEL = "gemini-2.5-flash-lite"
-OPENAI_MODEL = "gpt-5.4-mini"
+GEMINI_MODEL = "gemini-2.5-flash"
+OPENAI_MODEL = "gpt-4o-mini"
 ANTHROPIC_MODEL = "claude-sonnet-4-20250514"
 
 # ── Default System Instruction ────────────────────────────────────────────────
@@ -35,9 +35,13 @@ _DEFAULT_SYSTEM = "You are a helpful AI assistant. Always respond with valid JSO
 
 # ── Provider Timeout (seconds) ────────────────────────────────────────────────
 
-_GEMINI_TIMEOUT = 90
-_OPENAI_TIMEOUT = 90
-_ANTHROPIC_TIMEOUT = 90
+_GEMINI_TIMEOUT = 180
+_OPENAI_TIMEOUT = 180
+_ANTHROPIC_TIMEOUT = 120
+
+# ── Gemini API Base ───────────────────────────────────────────────────────────
+
+_GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
 
 # ── Truncated JSON Repair ─────────────────────────────────────────────────────
@@ -119,28 +123,32 @@ def _call_gemini(
     max_tokens: int = 2048,
     system_instruction: Optional[str] = None,
 ) -> str:
-    """Call Google Gemini REST API and return raw JSON text."""
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={api_key}"
-    headers = {"Content-Type": "application/json"}
+    """Call Google Gemini API via REST and return raw JSON text."""
+    url = f"{_GEMINI_API_BASE}/{GEMINI_MODEL}:generateContent?key={api_key}"
+
     payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "systemInstruction": {"parts": [{"text": system_instruction or _DEFAULT_SYSTEM}]},
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
         "generationConfig": {
-            "responseMimeType": "application/json",
             "maxOutputTokens": max_tokens,
+            "responseMimeType": "application/json",
         },
+        "systemInstruction": {"parts": [{"text": system_instruction or _DEFAULT_SYSTEM}]},
     }
 
-    response = requests.post(url, headers=headers, json=payload, timeout=_GEMINI_TIMEOUT)
-    response.raise_for_status()
-    result = response.json()
+    resp = requests.post(url, json=payload, timeout=_GEMINI_TIMEOUT)
+    resp.raise_for_status()
 
+    data = resp.json()
     try:
-        text = result["candidates"][0]["content"]["parts"][0]["text"].strip()
-    except (KeyError, IndexError, TypeError) as exc:
-        raise ValueError(f"Unexpected Gemini response structure: {exc}") from exc
+        text = data["candidates"][0]["content"]["parts"][0]["text"]
+    except (KeyError, IndexError):
+        raise ValueError(f"Unexpected Gemini response structure: {list(data.keys())}")
 
-    # Strip markdown code fences if Gemini wraps JSON despite instructions
+    text = text.strip()
+    if not text:
+        raise ValueError("Empty response from Gemini API")
+
+    # Strip markdown code fences if present
     if text.startswith("```"):
         text = text.split("\n", 1)[-1]
         if text.endswith("```"):
@@ -254,6 +262,8 @@ def _call_anthropic(
 
 
 # ── Provider Registry ─────────────────────────────────────────────────────────
+# Claude (Anthropic) is the primary provider — supports up to 64K output tokens.
+# OpenAI is the fallback.
 
 _PROVIDERS = [
     {
@@ -285,8 +295,8 @@ def _mask_key(key: str) -> str:
 
 # Transient HTTP status codes that warrant a retry before failover
 _RETRYABLE_STATUS_CODES = {429, 502, 503}
-_MAX_RETRIES = 2
-_RETRY_BASE_DELAY = 2  # seconds; doubles each attempt (2s, 4s)
+_MAX_RETRIES = 3
+_RETRY_BASE_DELAY = 3  # seconds; doubles each attempt (3s, 6s, 12s)
 
 
 def call_ai_sync(
