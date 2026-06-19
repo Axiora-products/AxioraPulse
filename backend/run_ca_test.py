@@ -1,6 +1,5 @@
 import asyncio
 import json
-from sqlalchemy.orm import Session
 from db.database import SessionLocal
 from db.models import Survey, SurveyQuestion, SurveyResponse, SurveyAnswer
 from routes.ca_agent import _build_ca_prompt, _CA_SYSTEM_INSTRUCTION
