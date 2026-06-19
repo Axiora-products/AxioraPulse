@@ -72,7 +72,7 @@ const validatePhoneNumber = (val) => {
     parsed = parsed.slice(2);
   }
   if (parsed.length !== 10) {
-    return 'Phone number must have exactly 10 digits';
+    return 'Enter a valid mobile number';
   }
   return '';
 };
@@ -312,10 +312,14 @@ export default function Register() {
         throw new Error('Failed to synchronize user session with the backend. Please try again.');
       }
 
-      // Save phone number if provided during registration (and not just the default prefix)
-      if (f.phoneNumber && f.phoneNumber.trim() !== '+91') {
+      // Save phone number if provided during registration (and not just the default prefix).
+      // Strip '+91' from the value and check that actual digits remain before saving.
+      const phoneSuffix = f.phoneNumber.replace('+91', '').trim(); // '' if only the prefix was typed
+      if (phoneSuffix) {
         try {
-          await API.patch('/auth/me/profile', { phone_number: f.phoneNumber });
+          // Normalize: remove all whitespace so '+91 98765 43210' → '+9198765 43210'
+          const normalizedPhone = f.phoneNumber.replace(/\s/g, '');
+          await API.patch('/auth/me/profile', { phone_number: normalizedPhone });
         } catch (err) {
           console.warn('Failed to save phone number:', err);
         }
