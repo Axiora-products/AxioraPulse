@@ -324,12 +324,13 @@ export class AxioraPulseStack extends cdk.Stack {
 
     const zoneName = 'axiorapulse.com';
     const domainName = shortEnv === 'qa' ? `qa.${zoneName}` : (isProd ? zoneName : `dev.${zoneName}`);
+    const hostedZoneName = shortEnv === 'qa' ? domainName : zoneName;
     let certificate: acm.ICertificate | undefined = undefined;
 
     if (shortEnv === 'qa' || isProd) {
       // 1. Look up Hosted Zone
       const hostedZone = route53.HostedZone.fromLookup(this, 'HostedZone', {
-        domainName: zoneName,
+        domainName: hostedZoneName,
       });
 
       // 2. Request Certificate
@@ -536,12 +537,17 @@ export class AxioraPulseStack extends cdk.Stack {
           }
         });
 
-        // Redirect HTTP on port 80 to HTTPS on port 443
-        alb.addRedirect({
-          sourcePort: 80,
-          sourceProtocol: elbv2.ApplicationProtocol.HTTP,
-          targetPort: 443,
-          targetProtocol: elbv2.ApplicationProtocol.HTTPS,
+        // Reuse the existing port 80 listener when enabling HTTPS so CloudFormation
+        // updates it in place instead of creating a second listener on the same port.
+        alb.addListener('FrontendListener', {
+          port: 80,
+          protocol: elbv2.ApplicationProtocol.HTTP,
+          open: true,
+          defaultAction: elbv2.ListenerAction.redirect({
+            port: '443',
+            protocol: elbv2.ApplicationProtocol.HTTPS,
+            permanent: true,
+          }),
         });
       } else {
         // Fallback for HTTP if no certificate is defined (e.g. dev environment)

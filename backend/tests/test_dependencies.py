@@ -234,7 +234,7 @@ def test_dependencies_get_current_user_super_admin_promotion(monkeypatch):
     db = SessionLocal()
     try:
         credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials="valid-token")
-        
+
         # Test 1: Brand new super admin registration on-the-fly
         resolved_user = get_current_user(credentials=credentials, db=db)
         assert resolved_user.email == super_admin_email

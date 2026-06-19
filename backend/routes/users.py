@@ -120,11 +120,7 @@ def invite_user(
     _require_manager(current_user)
 
     # 🔍 Check if user already exists in the entire system
-    existing = (
-        db.query(UserProfile)
-        .filter(UserProfile.email == body.email)
-        .first()
-    )
+    existing = db.query(UserProfile).filter(UserProfile.email == body.email).first()
 
     # 🟡 CASE 1: Already exists
     if existing:
@@ -237,11 +233,7 @@ def bulk_invite(
     tenant_name = current_user.tenant.name if current_user.tenant else "Axiora Pulse"
 
     for email in body.emails:
-        existing = (
-            db.query(UserProfile)
-            .filter(UserProfile.email == email)
-            .first()
-        )
+        existing = db.query(UserProfile).filter(UserProfile.email == email).first()
 
         if existing and existing.tenant_id != current_user.tenant_id:
             results.append({"email": email, "status": "failed", "error": "Registered with another organization"})

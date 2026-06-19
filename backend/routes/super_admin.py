@@ -14,6 +14,7 @@ router = APIRouter(prefix="/super-admin", tags=["Super Admin"])
 
 # ─── Pydantic Schemas ─────────────────────────────────────────────────────────
 
+
 class GlobalStatsResponse(BaseModel):
     total_tenants: int
     total_users: int
@@ -23,11 +24,14 @@ class GlobalStatsResponse(BaseModel):
     growth_chart_data: List[Dict[str, Any]]
     usage_by_tenant: List[Dict[str, Any]]
 
+
 class TenantPlanUpdate(BaseModel):
     plan_type: str = Field(..., pattern="^(free|pro|growth|enterprise)$")
 
+
 class TenantStatusUpdate(BaseModel):
     is_active: bool
+
 
 class TenantListItem(BaseModel):
     id: str
@@ -43,6 +47,7 @@ class TenantListItem(BaseModel):
 
 
 # ─── Endpoints ────────────────────────────────────────────────────────────────
+
 
 @router.get("/stats", response_model=GlobalStatsResponse)
 def get_global_stats(
@@ -91,11 +96,13 @@ def get_global_stats(
         cumulative = 0
         for day, count in growth_query:
             cumulative += count
-            growth_chart_data.append({
-                "date": day.strftime("%b %d"),
-                "tenants": total_tenants,
-                "responses": cumulative,
-            })
+            growth_chart_data.append(
+                {
+                    "date": day.strftime("%b %d"),
+                    "tenants": total_tenants,
+                    "responses": cumulative,
+                }
+            )
 
     # Usage breakdown table data
     usage_by_tenant = []
@@ -108,13 +115,15 @@ def get_global_stats(
             .filter(Survey.tenant_id == t.id)
             .count()
         )
-        usage_by_tenant.append({
-            "tenant_name": t.name,
-            "plan": t.plan,
-            "response_count": response_count,
-            "user_count": user_count,
-            "survey_count": survey_count,
-        })
+        usage_by_tenant.append(
+            {
+                "tenant_name": t.name,
+                "plan": t.plan,
+                "response_count": response_count,
+                "user_count": user_count,
+                "survey_count": survey_count,
+            }
+        )
 
     return {
         "total_tenants": total_tenants,
@@ -135,13 +144,10 @@ def get_tenants(
     """Retrieve all tenants/organizations."""
     tenants = db.query(Tenant).order_by(Tenant.created_at.desc()).all()
     result = []
-    
+
     for t in tenants:
         owner = (
-            db.query(UserProfile)
-            .filter(UserProfile.tenant_id == t.id)
-            .order_by(UserProfile.created_at.asc())
-            .first()
+            db.query(UserProfile).filter(UserProfile.tenant_id == t.id).order_by(UserProfile.created_at.asc()).first()
         )
         owner_email = owner.email if owner else "no-owner@axiorapulse.com"
 
@@ -154,18 +160,20 @@ def get_tenants(
             .count()
         )
 
-        result.append({
-            "id": str(t.id),
-            "name": t.name,
-            "slug": t.slug,
-            "owner_email": owner_email,
-            "plan_type": t.plan,
-            "is_active": t.is_active,
-            "created_at": t.created_at.isoformat() if t.created_at else "",
-            "user_count": user_count,
-            "survey_count": survey_count,
-            "response_count": response_count,
-        })
+        result.append(
+            {
+                "id": str(t.id),
+                "name": t.name,
+                "slug": t.slug,
+                "owner_email": owner_email,
+                "plan_type": t.plan,
+                "is_active": t.is_active,
+                "created_at": t.created_at.isoformat() if t.created_at else "",
+                "user_count": user_count,
+                "survey_count": survey_count,
+                "response_count": response_count,
+            }
+        )
     return result
 
 
@@ -180,16 +188,19 @@ def update_tenant_plan(
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
-        
+
     tenant.plan = body.plan_type
     db.commit()
     db.refresh(tenant)
-    return {"message": f"Updated {tenant.name} plan to {body.plan_type}", "tenant": {
-        "id": str(tenant.id),
-        "name": tenant.name,
-        "slug": tenant.slug,
-        "plan_type": tenant.plan,
-    }}
+    return {
+        "message": f"Updated {tenant.name} plan to {body.plan_type}",
+        "tenant": {
+            "id": str(tenant.id),
+            "name": tenant.name,
+            "slug": tenant.slug,
+            "plan_type": tenant.plan,
+        },
+    }
 
 
 @router.patch("/tenants/{tenant_id}/status", response_model=Dict[str, Any])
@@ -203,14 +214,17 @@ def update_tenant_status(
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
-        
+
     tenant.is_active = body.is_active
     db.commit()
     db.refresh(tenant)
-    
+
     action = "activated" if body.is_active else "suspended"
-    return {"message": f"Organization {tenant.name} has been {action}", "tenant": {
-        "id": str(tenant.id),
-        "name": tenant.name,
-        "is_active": tenant.is_active,
-    }}
+    return {
+        "message": f"Organization {tenant.name} has been {action}",
+        "tenant": {
+            "id": str(tenant.id),
+            "name": tenant.name,
+            "is_active": tenant.is_active,
+        },
+    }

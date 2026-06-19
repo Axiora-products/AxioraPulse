@@ -18,6 +18,7 @@ load_dotenv()
 
 COGNITO_REGION = os.getenv("COGNITO_REGION", "ap-south-1")
 
+
 def get_user_pool_id() -> str | None:
     if "PYTEST_CURRENT_TEST" in os.environ:
         return os.getenv("COGNITO_USER_POOL_ID")
@@ -38,6 +39,7 @@ def get_user_pool_id() -> str | None:
         except Exception:
             pass
     return os.getenv("COGNITO_USER_POOL_ID")
+
 
 def get_app_client_id() -> str | None:
     if "PYTEST_CURRENT_TEST" in os.environ:
@@ -145,7 +147,9 @@ def verify_cognito_token(token: str) -> dict | None:
     Decode and verify a Cognito ID token.
     Returns the payload dict or None on any failure.
     """
-    print(f"DEBUG verify_cognito_token: type={type(token)}, len={len(token) if token else 0}, value={repr(token)[:100]}...")
+    print(
+        f"DEBUG verify_cognito_token: type={type(token)}, len={len(token) if token else 0}, value={repr(token)[:100]}..."
+    )
     mock = os.getenv("MOCK_COGNITO", "false").lower() == "true"
     client_id = get_app_client_id() or "mock-client-id"
     mock_secret = os.getenv("MOCK_COGNITO_SECRET", "mock-secret-key-1234567890")
@@ -186,6 +190,7 @@ def verify_cognito_token(token: str) -> dict | None:
     except Exception as e:
         print(f"COGNITO TOKEN VERIFICATION EXCEPTION: {str(e)}")
         import traceback
+
         traceback.print_exc()
 
     # If Cognito verification failed, try OTP token verification

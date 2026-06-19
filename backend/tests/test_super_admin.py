@@ -12,9 +12,9 @@ client = TestClient(app)
 def super_admin_auth(monkeypatch):
     import dependencies
     import routes.auth
-    
+
     super_sub = f"super-sub-{uuid.uuid4()}"
-    
+
     def mock_verify(token):
         if token == "super-admin-token":
             return {
