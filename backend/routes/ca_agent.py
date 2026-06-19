@@ -64,7 +64,7 @@ _CA_SYSTEM_INSTRUCTION = (
     "1. 'estimation_method': A description of the method used to estimate (e.g. standard formulas/benchmarks).\n"
     "2. 'assumptions': An array of strings representing the assumptions used.\n"
     "Example for estimated CAC:\n"
-    "\"cac\": {\"value\": \"₹8,000\", \"source\": \"ESTIMATED\", \"confidence\": \"LOW\", \"basis\": \"Estimated via industry benchmarks\", \"estimation_method\": \"Based on average B2B EdTech customer acquisition costs in India and expected pilot-school outreach model.\", \"assumptions\": [\"Direct founder-led sales\", \"Hyderabad-focused launch\", \"Small sales team\"], \"evidence_refs\": [\"EVID-3\"]}\n"
+    '"cac": {"value": "₹8,000", "source": "ESTIMATED", "confidence": "LOW", "basis": "Estimated via industry benchmarks", "estimation_method": "Based on average B2B EdTech customer acquisition costs in India and expected pilot-school outreach model.", "assumptions": ["Direct founder-led sales", "Hyderabad-focused launch", "Small sales team"], "evidence_refs": ["EVID-3"]}\n'
     "\n"
     "LANGUAGE RULES (strictly enforced):\n"
     "1. Write like you are explaining to a smart friend who has never run a startup.\n"
@@ -223,10 +223,10 @@ def _build_ca_prompt(
     viability = guidance.get("viabilityScore", "N/A")
     category = guidance.get("category", "")
     loc = guidance.get("location") or {}
-    country = loc.get('country') or guidance.get("location_country") or ""
-    state = loc.get('state') or guidance.get("location_state") or ""
-    district = loc.get('district') or guidance.get("location_district") or ""
-    
+    country = loc.get("country") or guidance.get("location_country") or ""
+    state = loc.get("state") or guidance.get("location_state") or ""
+    district = loc.get("district") or guidance.get("location_district") or ""
+
     parts = [p for p in [district, state, country] if p]
     geography_str = ", ".join(parts) if parts else "Not specified"
 
@@ -575,7 +575,7 @@ async def run_ca_agent(
     # ── 8. Inject authoritative fields ───────────────────────────────────────
     result["survey_id"] = survey_id
     result["survey_title"] = survey.title
-    
+
     if "traction_highlights" not in result or not isinstance(result["traction_highlights"], dict):
         result["traction_highlights"] = {}
     result["traction_highlights"]["total_survey_responses"] = total

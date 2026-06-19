@@ -132,9 +132,7 @@ def _call_gemini(
             "maxOutputTokens": max_tokens,
             "responseMimeType": "application/json",
         },
-        "systemInstruction": {
-            "parts": [{"text": system_instruction or _DEFAULT_SYSTEM}]
-        },
+        "systemInstruction": {"parts": [{"text": system_instruction or _DEFAULT_SYSTEM}]},
     }
 
     resp = requests.post(url, json=payload, timeout=_GEMINI_TIMEOUT)
