@@ -164,25 +164,14 @@ function EditField({ label, value, onChange, multiline = false, rows = 3, disabl
     cursor: disabled ? 'default' : 'text',
   };
 
-  let finalTooltip = tooltip;
-  if (fieldData) {
-    const src = (fieldData.source || '').toUpperCase();
-    const basis = fieldData.basis || fieldData.estimation_method || '';
-    const isEstimated = src === 'ESTIMATED' || src === 'BENCHMARK' || (fieldData.confidence || '').toUpperCase() === 'LOW';
-    if (basis) {
-      const typeText = isEstimated ? 'Estimated Value' : 'Actual Value';
-      finalTooltip = `${tooltip}\n\n[${typeText}]\n${basis}`;
-    }
-  }
-
   return (
     <div style={{ marginBottom: 16 }}>
       <label style={{ display: 'block', fontFamily: "'Syne',sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.4)', marginBottom: 6 }}>
-        {label} 
+        {label}
         {tooltip && (
           <span className="pulse-tooltip-container">
             <span className="pulse-tooltip-dot">i</span>
-            <span className="pulse-tooltip-text">{finalTooltip}</span>
+            <span className="pulse-tooltip-text">{tooltip}</span>
           </span>
         )}
         {badge}

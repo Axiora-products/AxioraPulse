@@ -235,20 +235,6 @@ function val(field) {
   return field.value || 'â€”';
 }
 
-function conf(field) {
-  if (!field || !field.confidence) return '';
-  const c = field.confidence.toLowerCase();
-  const cls = c === 'high' ? 'conf-high' : c === 'medium' ? 'conf-medium' : 'conf-low';
-  return `<span class="confidence-badge ${cls}">${field.confidence}</span>`;
-}
-
-function confBadge(level) {
-  if (!level) return '';
-  const l = level.toLowerCase();
-  const cls = l === 'high' ? 'conf-high' : l === 'medium' ? 'conf-medium' : 'conf-low';
-  return `<span class="confidence-badge ${cls}">${level}</span>`;
-}
-
 export function generatePitchDeckPDF(ca) {
   if (!ca) return;
 
@@ -323,7 +309,7 @@ export function generatePitchDeckPDF(ca) {
       <div style="display:flex;flex-direction:column;gap:12px;">
         <div style="background:rgba(255,69,0,0.08);border:1px solid rgba(255,69,0,0.2);border-radius:12px;padding:16px 18px;">
           <div style="font-family:'Syne',sans-serif;font-size:9px;letter-spacing:0.15em;text-transform:uppercase;color:rgba(255,255,255,0.4);margin-bottom:6px;">Pain Intensity</div>
-          <div style="font-family:'Playfair Display',serif;font-size:24px;font-weight:900;color:#ff4500;">${val(prob.pain_intensity_score)}/10 ${conf(prob.pain_intensity_score)}</div>
+          <div style="font-family:'Playfair Display',serif;font-size:24px;font-weight:900;color:#ff4500;">${val(prob.pain_intensity_score)}/10</div>
         </div>
         <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:16px 18px;">
           <div style="font-family:'Syne',sans-serif;font-size:9px;letter-spacing:0.15em;text-transform:uppercase;color:rgba(255,255,255,0.4);margin-bottom:6px;">Current Alternatives</div>
@@ -336,7 +322,7 @@ export function generatePitchDeckPDF(ca) {
       <div style="font-size:14px;line-height:1.65;opacity:0.85;">${val(prob.affected_population)}</div>
       ${demandSignals.map(s => `
         <div style="margin-top:14px;padding:10px 14px;background:rgba(255,69,0,0.06);border-radius:8px;border-left:2px solid #ff4500;">
-          <div style="font-size:12px;opacity:0.8;">${val(s)} ${conf(s)}</div>
+          <div style="font-size:12px;opacity:0.8;">${val(s)}</div>
         </div>
       `).join('')}
     </div>
@@ -364,7 +350,6 @@ export function generatePitchDeckPDF(ca) {
           <div style="width:32px;height:32px;border-radius:8px;background:#ff4500;color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:900;font-size:14px;flex-shrink:0;">${i + 1}</div>
           <div style="flex:1;">
             <div style="font-size:14px;color:rgba(22,15,8,0.9);line-height:1.5;">${val(f)}</div>
-            ${conf(f) ? `<div style="margin-top:3px;">${conf(f)}</div>` : ''}
           </div>
         </div>
       `).join('')}
@@ -382,19 +367,16 @@ export function generatePitchDeckPDF(ca) {
     <div class="stat-card">
       <div class="stat-label">TAM â€” Total Market</div>
       <div class="stat-value">${val(mkt.tam)}</div>
-      ${conf(mkt.tam)}
       <div class="stat-desc">${mkt.tam?.basis || ''}</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">SAM â€” Serviceable Market</div>
       <div class="stat-value">${val(mkt.sam)}</div>
-      ${conf(mkt.sam)}
       <div class="stat-desc">${mkt.sam?.basis || ''}</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">SOM â€” Obtainable Market</div>
       <div class="stat-value">${val(mkt.som)}</div>
-      ${conf(mkt.som)}
       <div class="stat-desc">${mkt.som?.basis || ''}</div>
     </div>
   </div>
@@ -407,7 +389,6 @@ export function generatePitchDeckPDF(ca) {
     <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:14px;padding:22px;">
       <div style="font-family:'Syne',sans-serif;font-size:9px;letter-spacing:0.15em;text-transform:uppercase;color:rgba(255,255,255,0.35);margin-bottom:12px;">Market Growth Rate</div>
       <div style="font-family:'Playfair Display',serif;font-size:32px;font-weight:900;color:#ff4500;">${val(mkt.market_growth_rate)}</div>
-      ${conf(mkt.market_growth_rate)}
     </div>
   </div>
   <div class="slide-number">4 / 12</div>
@@ -435,7 +416,6 @@ export function generatePitchDeckPDF(ca) {
             <div style="font-family:'Playfair Display',serif;font-weight:900;color:#ff4500;font-size:15px;">${val(r.projected_contribution_pct)}</div>
           </div>
           <div style="font-size:13px;color:rgba(22,15,8,0.65);line-height:1.5;">${val(r.description)}</div>
-          ${conf(r.description) ? `<div style="margin-top:4px;">${conf(r.description)}</div>` : ''}
         </div>
       `).join('')}
     </div>
@@ -486,7 +466,7 @@ export function generatePitchDeckPDF(ca) {
     <div>
       <div style="margin-bottom:20px;">
         <div style="font-family:'Syne',sans-serif;font-size:9px;letter-spacing:0.15em;text-transform:uppercase;color:rgba(255,255,255,0.35);margin-bottom:8px;">Primary Channel</div>
-        <div style="font-size:16px;font-weight:700;color:#ff4500;">${val(gtm.primary_channel)} ${conf(gtm.primary_channel)}</div>
+        <div style="font-size:16px;font-weight:700;color:#ff4500;">${val(gtm.primary_channel)}</div>
       </div>
       <div style="margin-bottom:20px;">
         <div style="font-family:'Syne',sans-serif;font-size:9px;letter-spacing:0.15em;text-transform:uppercase;color:rgba(255,255,255,0.35);margin-bottom:8px;">Launch Strategy</div>
@@ -523,7 +503,6 @@ export function generatePitchDeckPDF(ca) {
       <div class="stat-card-light">
         <div class="stat-label-dark">${y.year}</div>
         <div style="font-family:'Playfair Display',serif;font-size:22px;font-weight:900;color:#ff4500;">${val(y.revenue)}</div>
-        ${confBadge(y.revenue?.confidence)}
         <div style="margin-top:12px;font-size:11px;color:rgba(22,15,8,0.5);line-height:1.6;">
           <div>Cost: ${val(y.operating_cost)}</div>
           <div>Team: ${val(y.headcount)}</div>
@@ -536,8 +515,8 @@ export function generatePitchDeckPDF(ca) {
   <div style="background:#160f08;border-radius:14px;padding:20px 26px;">
     <div style="font-family:'Syne',sans-serif;font-size:9px;letter-spacing:0.15em;text-transform:uppercase;color:#ff4500;margin-bottom:12px;">Unit Economics</div>
     <div style="display:flex;gap:32px;flex-wrap:wrap;">
-      <div><span style="color:rgba(255,255,255,0.4);font-size:11px;">CAC</span><br><span style="color:#fdf5e8;font-size:16px;font-weight:700;">${val(ue.cac)}</span> ${confBadge(ue.cac?.confidence)}</div>
-      <div><span style="color:rgba(255,255,255,0.4);font-size:11px;">LTV</span><br><span style="color:#fdf5e8;font-size:16px;font-weight:700;">${val(ue.ltv)}</span> ${confBadge(ue.ltv?.confidence)}</div>
+      <div><span style="color:rgba(255,255,255,0.4);font-size:11px;">CAC</span><br><span style="color:#fdf5e8;font-size:16px;font-weight:700;">${val(ue.cac)}</span></div>
+      <div><span style="color:rgba(255,255,255,0.4);font-size:11px;">LTV</span><br><span style="color:#fdf5e8;font-size:16px;font-weight:700;">${val(ue.ltv)}</span></div>
       <div><span style="color:rgba(255,255,255,0.4);font-size:11px;">LTV:CAC</span><br><span style="color:#ff4500;font-size:16px;font-weight:700;">${val(ue.ltv_cac_ratio)}</span></div>
       <div><span style="color:rgba(255,255,255,0.4);font-size:11px;">Gross Margin</span><br><span style="color:#fdf5e8;font-size:16px;font-weight:700;">${val(ue.gross_margin)}</span></div>
       <div><span style="color:rgba(255,255,255,0.4);font-size:11px;">Payback</span><br><span style="color:#fdf5e8;font-size:16px;font-weight:700;">${val(ue.payback_period)}</span></div>
@@ -573,14 +552,12 @@ export function generatePitchDeckPDF(ca) {
       <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:14px 18px;display:flex;align-items:center;gap:14px;">
         <div style="width:8px;height:8px;border-radius:50%;background:#ff4500;flex-shrink:0;"></div>
         <div style="font-size:14px;opacity:0.85;flex:1;">${val(t)}</div>
-        ${conf(t)}
       </div>
     `).join('')}
     ${strengths.map(s => `
       <div style="background:rgba(0,200,100,0.04);border:1px solid rgba(0,200,100,0.15);border-radius:12px;padding:14px 18px;display:flex;align-items:center;gap:14px;">
         <div style="width:8px;height:8px;border-radius:50%;background:#00c864;flex-shrink:0;"></div>
         <div style="font-size:14px;opacity:0.85;flex:1;">${val(s)}</div>
-        ${conf(s)}
       </div>
     `).join('')}
   </div>
@@ -624,7 +601,7 @@ export function generatePitchDeckPDF(ca) {
     <div>
       <div style="background:#160f08;border-radius:14px;padding:22px 26px;margin-bottom:16px;">
         <div style="font-family:'Syne',sans-serif;font-size:9px;letter-spacing:0.15em;text-transform:uppercase;color:#ff4500;margin-bottom:10px;">Vision</div>
-        <div style="color:#fdf5e8;font-size:15px;line-height:1.65;">${val(team.vision_statement)} ${conf(team.vision_statement)}</div>
+        <div style="color:#fdf5e8;font-size:15px;line-height:1.65;">${val(team.vision_statement)}</div>
       </div>
       <div style="background:#fff;border:1.5px solid rgba(22,15,8,0.07);border-radius:14px;padding:22px 26px;box-shadow:0 2px 10px rgba(22,15,8,0.04);">
         <div style="font-family:'Syne',sans-serif;font-size:9px;letter-spacing:0.15em;text-transform:uppercase;color:rgba(22,15,8,0.4);margin-bottom:10px;">Mission</div>

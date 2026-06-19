@@ -8,24 +8,6 @@ const val = (field, fallback = '—') => {
 };
 const safeList = (arr) => (Array.isArray(arr) ? arr : []);
 
-const srcBadge = (field) => {
-  if (!field) return '';
-  const src = (field.source || '').toUpperCase();
-  const conf = (field.confidence || '').toUpperCase();
-  const isEstimated = src === 'ESTIMATED' || src === 'BENCHMARK' || conf === 'LOW';
-  
-  let refsHtml = '';
-  if (Array.isArray(field.evidence_refs) && field.evidence_refs.length > 0) {
-    refsHtml = `<span style="font-family:'Syne',sans-serif;font-size:8px;font-weight:700;padding:2px 6px;border-radius:4px;background:#e6f7ff;border:1px solid #91d5ff;color:#1890ff;margin-left:4px;display:inline-block;vertical-align:middle;">Refs: ${field.evidence_refs.join(', ')}</span>`;
-  }
-  
-  if (isEstimated) {
-    return `<span style="font-family:'Syne',sans-serif;font-size:8px;font-weight:700;letter-spacing:0.05em;padding:3px 8px;border-radius:4px;background:#fff5f5;border:1px solid #ffd8d8;color:#ff4500;margin-left:8px;display:inline-block;white-space:nowrap;vertical-align:middle;">⚠ Estimated (Benchmark-Based)</span>${refsHtml}`;
-  } else {
-    return `<span style="font-family:'Syne',sans-serif;font-size:8px;font-weight:700;letter-spacing:0.05em;padding:3px 8px;border-radius:4px;background:#f6ffed;border:1px solid #d9f7be;color:#389e0d;margin-left:8px;display:inline-block;white-space:nowrap;vertical-align:middle;">✓ Actual (Survey-Based)</span>${refsHtml}`;
-  }
-};
-
 // ── Pulse Logo SVG (dark bg = light text, light bg = dark text) ──────────────
 const pulseLogo = (mode = 'light') => {
   const axColor = mode === 'dark' ? 'rgba(253,245,232,0.35)' : 'rgba(22,15,8,0.35)';
@@ -267,134 +249,6 @@ export function generateInvestorReadyPDF(result, editData = null) {
   const features     = safeList(sol.key_features);
   const hiring       = safeList(result.team_and_vision?.key_hiring_needs);
 
-  const isEstimatedField = (field) => {
-    if (!field) return false;
-    const src = (field.source || '').toUpperCase();
-    const conf = (field.confidence || '').toUpperCase();
-    return src === 'ESTIMATED' || src === 'BENCHMARK' || conf === 'LOW';
-  };
-
-  const estimatedFields = [];
-  const addIfEstimated = (name, field, valOverride = null) => {
-    if (isEstimatedField(field)) {
-      const valText = valOverride || val(field);
-      let fallbackMethod = '';
-      let fallbackAssumptions = [];
-      const lowerName = name.toLowerCase();
-
-      if (lowerName.includes('tam') || lowerName.includes('sam') || lowerName.includes('som')) {
-        fallbackMethod = 'Based on standard market sizing formulas. TAM = Potential Customers × Estimated Annual Revenue Per Customer; SAM = TAM × Reachable Market %; SOM = SAM × Expected Market Share %.';
-        fallbackAssumptions = [
-          'Potential customer base is estimated from target regional demographics.',
-          'Expected market share is modeled at a conservative entry-level capture rate (typically 7-10% for SAM/SOM capture).',
-          'Annual revenue per customer is estimated from target pricing tier.'
-        ];
-      } else if (lowerName.includes('cac') || lowerName.includes('customer acquisition cost')) {
-        fallbackMethod = 'Estimated using industry benchmarks for similar startups in target region and expected outreach models.';
-        fallbackAssumptions = [
-          'Direct founder-led sales for initial cohorts.',
-          'Target region-focused launch and localized digital marketing.',
-          'Lean sales/outreach team and organic referral loops.'
-        ];
-      } else if (lowerName.includes('ltv') || lowerName.includes('lifetime value')) {
-        fallbackMethod = 'LTV derived from formula: Estimated Annual Revenue × Estimated Retention Years × Estimated Gross Margin.';
-        fallbackAssumptions = [
-          'Estimated retention years based on industry benchmarks (typically 1.5 - 3 years for early stage).',
-          'Gross margins are projected based on operating costs of comparable products.',
-          'Pricing is assumed to remain stable during the retention period.'
-        ];
-      } else if (lowerName.includes('funding ask') || lowerName.includes('runway') || lowerName.includes('funding stage')) {
-        fallbackMethod = 'Runway needs estimated using formula: Monthly Burn × Desired Runway Months.';
-        fallbackAssumptions = [
-          'Monthly burn is modeled on post-raise headcount expansion and growth marketing.',
-          'Desired runway target is set to the industry standard of 12-18 months.',
-          'Hiring plan and operational expenses follow the outlined use of funds split.'
-        ];
-      } else {
-        fallbackMethod = 'Derived primarily from industry benchmarks or market assumptions.';
-        fallbackAssumptions = [
-          'Standard sector averages apply.',
-          'Early-stage launch model and geographic market data.'
-        ];
-      }
-
-      const methodText = field.estimation_method || fallbackMethod;
-      let assumptionsList = [];
-      if (Array.isArray(field.assumptions)) {
-        assumptionsList = field.assumptions;
-      } else if (typeof field.assumptions === 'string') {
-        assumptionsList = field.assumptions.split(/[\n,]+/).map(s => s.trim().replace(/^\*\s*/, '')).filter(Boolean);
-      } else {
-        assumptionsList = fallbackAssumptions;
-      }
-
-      const confText = (field.confidence || 'LOW').toUpperCase();
-
-      estimatedFields.push({
-        metric: name,
-        value: valText,
-        sourceType: 'Estimated',
-        estimationMethod: methodText,
-        assumptions: assumptionsList,
-        confidence: confText
-      });
-    }
-  };
-
-  addIfEstimated('Total Addressable Market (TAM)', result.market_opportunity?.tam, d.tam);
-  addIfEstimated('Serviceable Addressable Market (SAM)', result.market_opportunity?.sam, d.sam);
-  addIfEstimated('Serviceable Obtainable Market (SOM)', result.market_opportunity?.som, d.som);
-  addIfEstimated('Customer Acquisition Cost (CAC)', ue.cac);
-  addIfEstimated('Customer Lifetime Value (LTV)', ue.ltv);
-  addIfEstimated('Funding Ask', fund.ask_amount, d.funding_ask);
-  addIfEstimated('Funding Runway (Months)', fund.runway_months, d.funding_runway);
-
-  let estimationCardHtml = '';
-  if (estimatedFields.length > 0) {
-    estimationCardHtml = `
-    <!-- Estimation Details & Assumptions Summary Card -->
-    <div style="background:#fff;border-radius:14px;padding:22px;border:1px solid rgba(22,15,8,0.07);border-top:4px solid #ff4500;margin-top:14px;page-break-inside:avoid;">
-      <div style="font-family:'Syne',sans-serif;font-size:9px;font-weight:800;letter-spacing:0.18em;text-transform:uppercase;color:#ff4500;margin-bottom:14px;">
-        ⚠ Estimation Details &amp; Assumptions
-      </div>
-      <p style="font-family:'Fraunces',serif;font-size:12px;font-weight:300;color:rgba(22,15,8,0.55);line-height:1.6;margin-bottom:16px;">
-        The following metrics were not directly available in survey responses or founder inputs and have been estimated using industry benchmarks, geographic market data, and standard SaaS/startup metrics under our Missing Data Estimation Policy.
-      </p>
-      
-      <div style="display:flex;flex-direction:column;gap:12px;">
-        ${estimatedFields.map(ef => `
-          <div style="padding:14px;background:rgba(22,15,8,0.02);border-radius:10px;border:1px solid rgba(22,15,8,0.04);page-break-inside:avoid;">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">
-              <div>
-                <span style="font-family:'Syne',sans-serif;font-size:11px;font-weight:800;color:#160f08;">Metric: ${ef.metric}</span>
-                <span style="font-family:'Syne',sans-serif;font-size:8px;font-weight:700;letter-spacing:0.05em;padding:2px 6px;border-radius:4px;background:#fff5f5;border:1px solid #ffd8d8;color:#ff4500;margin-left:8px;display:inline-block;white-space:nowrap;vertical-align:middle;">⚠ Estimated (Benchmark-Based)</span>
-              </div>
-              <span style="font-family:'Playfair Display',serif;font-size:16px;font-weight:900;color:#ff4500;">Value: ${ef.value}</span>
-            </div>
-            
-            <div style="font-family:'Fraunces',serif;font-size:12px;font-weight:300;color:#160f08;margin-bottom:8px;line-height:1.5;">
-              <strong style="font-family:'Syne',sans-serif;font-size:8px;font-weight:700;letter-spacing:0.05em;color:rgba(22,15,8,0.5);text-transform:uppercase;display:block;margin-bottom:2px;">Estimation Method:</strong>
-              ${ef.estimationMethod}
-            </div>
-            
-            <div style="font-family:'Fraunces',serif;font-size:12px;font-weight:300;color:#160f08;margin-bottom:8px;line-height:1.5;">
-              <strong style="font-family:'Syne',sans-serif;font-size:8px;font-weight:700;letter-spacing:0.05em;color:rgba(22,15,8,0.5);text-transform:uppercase;display:block;margin-bottom:2px;">Assumptions:</strong>
-              <ul style="margin:4px 0 0 16px;padding:0;list-style-type:disc;">
-                ${ef.assumptions.map(a => `<li style="margin-bottom:2px;">${a}</li>`).join('')}
-              </ul>
-            </div>
-            
-            <div style="font-family:'Fraunces',serif;font-size:12px;font-weight:300;color:#160f08;line-height:1.5;">
-              <strong style="font-family:'Syne',sans-serif;font-size:8px;font-weight:700;letter-spacing:0.05em;color:rgba(22,15,8,0.5);text-transform:uppercase;display:inline-block;margin-right:4px;">Confidence:</strong>
-              <span style="font-family:'Syne',sans-serif;font-size:9px;font-weight:800;color:${ef.confidence === 'HIGH' ? '#00a854' : ef.confidence === 'MEDIUM' ? '#d97706' : '#d63b1f'}">${ef.confidence}</span>
-            </div>
-          </div>
-        `).join('')}
-      </div>
-    </div>
-    `;
-  }
-
   const evidenceManifest = safeList(result.evidence_manifest);
   let manifestHtml = '';
   if (evidenceManifest.length > 0) {
@@ -623,8 +477,8 @@ export function generateInvestorReadyPDF(result, editData = null) {
       <div style="background:#fff;border-radius:18px;border:1px solid rgba(22,15,8,0.07);
         padding:28px 30px;border-top:5px solid #ff4500;">
         ${cardTitle('🔴 The Problem')}
-        ${prob.headline ? `<div style="font-family:'Playfair Display',serif;font-size:19px;
-          font-weight:700;color:#160f08;margin-bottom:12px;line-height:1.25;">${prob.headline}</div>` : ''}
+        ${val(prob.headline) !== '—' ? `<div style="font-family:'Playfair Display',serif;font-size:19px;
+          font-weight:700;color:#160f08;margin-bottom:12px;line-height:1.25;">${val(prob.headline)}</div>` : ''}
         <p style="font-family:'Fraunces',serif;font-size:13px;font-weight:300;
           line-height:1.75;margin-bottom:16px;">${d.problem}</p>
         ${val(prob.pain_intensity_score) !== '—' ? `
@@ -648,8 +502,8 @@ export function generateInvestorReadyPDF(result, editData = null) {
       <div style="background:#fff;border-radius:18px;border:1px solid rgba(22,15,8,0.07);
         padding:28px 30px;border-top:5px solid #00a854;">
         ${cardTitle('🟢 Our Solution')}
-        ${sol.headline ? `<div style="font-family:'Playfair Display',serif;font-size:19px;
-          font-weight:700;color:#160f08;margin-bottom:12px;line-height:1.25;">${sol.headline}</div>` : ''}
+        ${val(sol.headline) !== '—' ? `<div style="font-family:'Playfair Display',serif;font-size:19px;
+          font-weight:700;color:#160f08;margin-bottom:12px;line-height:1.25;">${val(sol.headline)}</div>` : ''}
         <p style="font-family:'Fraunces',serif;font-size:13px;font-weight:300;
           line-height:1.75;margin-bottom:18px;">${d.solution}</p>
 
@@ -708,7 +562,6 @@ export function generateInvestorReadyPDF(result, editData = null) {
         ${cardTitle('Data Confidence', true)}
         ${progressBar('Survey-Backed Facts', `${cv.survey_backed_claims || 0}`, '#00a854', true)}
         ${progressBar('Cross-Validated Data', `${cv.cross_validated_claims || 0}`, '#0088ff', true)}
-        ${progressBar('AI-Estimated Signals', `${cv.ai_estimated_claims || 0}`, '#ff4500', true)}
       `)}
       ${darkCard(`
         ${cardTitle('Market Signal Quality', true)}
@@ -906,9 +759,9 @@ export function generateInvestorReadyPDF(result, editData = null) {
     <!-- TAM funnel visual -->
     <div style="margin-bottom:24px;">
       ${[
-        ['TAM', 'Total Addressable Market — Everyone who has this problem globally', d.tam, '100%', '#160f08', mkt.tam],
-        ['SAM', 'Serviceable Market — The segment we can realistically target', d.sam, '60%',  '#ff4500', mkt.sam],
-        ['SOM', 'Our Target — What we can capture in Year 1–3', d.som, '30%', '#ff4500', mkt.som],
+        ['TAM', 'Total Addressable Market — The full size of the global market for this type of product. This is the maximum possible revenue if every customer who has this problem became a paying customer.', d.tam, '100%', '#160f08', mkt.tam],
+        ['SAM', 'Serviceable Addressable Market — The portion of the total market that this startup can realistically reach today, based on its geography, product, and pricing. These are the customers the startup can actually sell to right now.', d.sam, '60%',  '#ff4500', mkt.sam],
+        ['SOM', 'Serviceable Obtainable Market — The realistic revenue share the startup aims to capture in the first 1–3 years, based on current team size, budget, and go-to-market plan. This is a conservative and achievable early-stage target.', d.som, '30%', '#ff4500', mkt.som],
       ].map(([abbr, desc, value, width, bg, field]) => `
         <div style="width:${width};margin-bottom:10px;">
           <div style="background:${bg};border-radius:12px;padding:18px 24px;
@@ -924,7 +777,6 @@ export function generateInvestorReadyPDF(result, editData = null) {
             <div style="font-family:'Playfair Display',serif;font-size:28px;font-weight:900;
               color:${bg === '#160f08' ? '#ff4500' : '#fff'};flex-shrink:0;margin-left:20px;text-align:right;">
               ${value}
-              <div style="margin-top:2px;">${srcBadge(field)}</div>
             </div>
           </div>
         </div>`).join('')}
@@ -936,7 +788,7 @@ export function generateInvestorReadyPDF(result, editData = null) {
         <div style="font-family:'Playfair Display',serif;font-size:36px;font-weight:900;
           color:#ff4500;margin-bottom:8px;">${val(mkt.market_growth_rate)}</div>
         <p style="font-family:'Fraunces',serif;font-size:12px;font-weight:300;
-          color:rgba(22,15,8,0.6);">Year-on-year market expansion rate, sourced from cross-validated industry data.</p>
+          color:rgba(22,15,8,0.6);">This percentage shows how fast the overall market is growing every year. A higher growth rate means more new customers are entering the market, giving this startup a larger opportunity to win business — without needing to take customers away from established competitors.</p>
         <div style="margin-top:14px;padding:10px 14px;background:rgba(255,69,0,0.05);border-radius:10px;">
           <div style="font-family:'Syne',sans-serif;font-size:8px;font-weight:700;
             letter-spacing:0.12em;text-transform:uppercase;color:rgba(22,15,8,0.4);margin-bottom:4px;">
@@ -1014,7 +866,6 @@ export function generateInvestorReadyPDF(result, editData = null) {
             <div style="text-align:right;">
               <span style="font-family:'Playfair Display',serif;font-size:20px;
                 font-weight:900;color:${c};flex-shrink:0;margin-left:12px;">${v}</span>
-              ${field ? `<div style="margin-top:2px;">${srcBadge(field)}</div>` : ''}
             </div>
           </div>`).join('')}
       `)}
@@ -1210,7 +1061,6 @@ export function generateInvestorReadyPDF(result, editData = null) {
         margin-bottom:12px;">We Are Raising</div>
       <div style="font-family:'Playfair Display',serif;font-size:62px;font-weight:900;
         color:#ff4500;line-height:1;margin-bottom:8px;">${d.funding_ask}</div>
-      <div style="margin-bottom:16px;">${srcBadge(fund.ask_amount)}</div>
       <div style="display:flex;justify-content:center;gap:24px;">
         ${[['Stage', d.funding_stage, fund.funding_stage], ['Runway', d.funding_runway, fund.runway_months]].map(([l, v, f]) => `
           <div>
@@ -1219,7 +1069,6 @@ export function generateInvestorReadyPDF(result, editData = null) {
               color:rgba(253,245,232,0.35);margin-bottom:4px;">${l}</div>
             <div style="font-family:'Playfair Display',serif;font-size:18px;
               font-weight:900;color:#fdf5e8;">${v}</div>
-            <div style="margin-top:2px;">${srcBadge(f)}</div>
           </div>`).join('')}
       </div>
     </div>
@@ -1311,8 +1160,6 @@ export function generateInvestorReadyPDF(result, editData = null) {
             'Facts confirmed directly from your survey responses'],
           ['Cross-Validated',  cv.cross_validated_claims || 0, '#0088ff',
             'Data matched across multiple platform sources'],
-          ['AI-Estimated',     cv.ai_estimated_claims   || 0, '#ff4500',
-            'Figures estimated from industry benchmarks'],
         ].map(([l, v, c, desc]) => `
           <div style="text-align:center;padding:16px;background:#fff;
             border-radius:12px;border:1px solid rgba(22,15,8,0.06);">
@@ -1326,7 +1173,6 @@ export function generateInvestorReadyPDF(result, editData = null) {
           </div>`).join('')}
       </div>
     </div>
-    ${estimationCardHtml}
     ${manifestHtml}
   </div>
   ${ftr(T)}
