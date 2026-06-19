@@ -130,7 +130,7 @@ export default function Settings() {
   async function sendPhoneOtp() {
     if (!phoneForm.number) return toast.error('Enter your mobile number');
     if (!isValidPhone(phoneForm.number))
-      return toast.error('Enter a valid 10-digit Indian mobile number');
+      return toast.error('Enter a valid mobile number');
     setPhoneBusy(true);
     try {
       await sendPhoneLinkOTP(phoneForm.number);
@@ -307,7 +307,7 @@ export default function Settings() {
         {phoneStep === 'idle' && (
           <>
             {profile?.phone_number && profile?.phone_verified ? (
-              /* Linked & verified */
+              /* ── State 1: Linked & verified ── */
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <span style={{ fontFamily: 'Fraunces, serif', fontSize: 18, color: 'var(--espresso)', letterSpacing: '0.05em' }}>{maskPhone(profile.phone_number)}</span>
@@ -341,8 +341,48 @@ export default function Settings() {
                   )}
                 </div>
               </div>
+            ) : profile?.phone_number && !profile?.phone_verified ? (
+              /* ── State 2: Number saved (from Register) but not yet verified ── */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span style={{ fontFamily: 'Fraunces, serif', fontSize: 18, color: 'var(--espresso)', letterSpacing: '0.05em' }}>{maskPhone(profile.phone_number)}</span>
+                  <span style={{ fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '3px 10px', borderRadius: 999, background: 'rgba(217,119,6,0.12)', color: '#b45309', border: '1px solid rgba(217,119,6,0.25)' }}>⚠ Unverified</span>
+                </div>
+                <p style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 13, color: 'rgba(22,15,8,0.45)', lineHeight: 1.6, margin: 0 }}>
+                  This number hasn't been verified yet. Verify it to enable phone-based login.
+                </p>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  {/* Send OTP to the stored number and jump straight to OTP entry */}
+                  <button
+                    disabled={phoneBusy}
+                    onClick={async () => {
+                      setPhoneBusy(true);
+                      try {
+                        await sendPhoneLinkOTP(profile.phone_number);
+                        setPhoneForm(p => ({ ...p, number: profile.phone_number, otp: '' }));
+                        setPhoneStep('otp');
+                        toast.success('OTP sent to your phone');
+                      } catch (err) {
+                        toast.error(err.response?.data?.detail || err.message || 'Failed to send OTP');
+                      } finally { setPhoneBusy(false); }
+                    }}
+                    style={{ ...btn, fontSize: 10, padding: '10px 20px', opacity: phoneBusy ? 0.5 : 1 }}
+                    onMouseEnter={e => { if (!phoneBusy) e.currentTarget.style.background = 'var(--coral)'; }}
+                    onMouseLeave={e => { if (!phoneBusy) e.currentTarget.style.background = 'var(--espresso)'; }}>
+                    {phoneBusy ? 'Sending…' : 'Verify now →'}
+                  </button>
+                  {/* Let the user swap to a different number instead */}
+                  <button
+                    onClick={() => { setPhoneStep('input'); setPhoneForm({ number: '+91 ', otp: '' }); }}
+                    style={{ ...btn, background: 'transparent', color: 'var(--espresso)', border: '1px solid rgba(22,15,8,0.15)', fontSize: 10, padding: '10px 20px' }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--coral)'; e.currentTarget.style.color = 'var(--coral)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(22,15,8,0.15)'; e.currentTarget.style.color = 'var(--espresso)'; }}>
+                    Change number
+                  </button>
+                </div>
+              </div>
             ) : (
-              /* Not linked */
+              /* ── State 3: No number linked ── */
               <div>
                 <p style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 14, color: 'rgba(22,15,8,0.5)', lineHeight: 1.65, marginBottom: 20, marginTop: -16 }}>
                   Link a mobile number to enable phone-based login.
