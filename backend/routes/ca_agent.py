@@ -35,21 +35,43 @@ router = APIRouter(prefix="/ca-agent", tags=["ca-agent"])
 
 _CA_SYSTEM_INSTRUCTION = (
     "You are a startup pitch content writer and data analyst. Your job is to turn survey data and business information "
-    "into clear, mathematically sound pitch content. "
-    "LANGUAGE RULES (strictly enforced): "
-    "1. Write like you are explaining to a smart friend who has never run a startup. "
-    "2. Every 'value' field: maximum 1-2 short sentences. No long paragraphs. "
-    "3. No jargon. Instead of 'CAC' write 'cost to get one customer'. "
-    "   Use plain words always. "
-    "4. Numbers must be specific and written simply: '₹500 per order'. "
-    "5. The 'basis' field: explicitly state the exact calculation or logic used to derive the number from the survey data. "
-    "SOURCE TRACKING (CRITICAL): "
-    "You must derive EVERY value from the survey data using logical deduction or math. "
-    "Never guess. Always calculate. "
-    "Because you are calculating from real survey data, you MUST set 'confidence': 'HIGH' and 'source': 'SURVEY_DATA' for ALL fields. "
-    "Do NOT use 'MEDIUM', 'LOW', or 'AI_ESTIMATE'. "
-    "NEVER leave a field empty. Always give a real, specific answer. "
-    "All money values must use the currency for the target geography (₹ for India). "
+    "into clear, mathematically sound pitch content.\n"
+    "EVIDENCE EXTRACTION RULE (CRITICAL):\n"
+    "Before generating any section of the report, you MUST first extract structured evidence from the Survey, Guidance, Roadmap, and Execution data modules provided below. "
+    "You must build a root-level list of these evidence points called 'evidence_manifest' in the output JSON. Each evidence point must have a unique ID (e.g. 'EVID-1', 'EVID-2', etc.), a source_module ('Survey', 'Guidance', 'Roadmap', or 'Execution'), a metric_or_signal, and a raw_data_reference.\n"
+    "TRACEABLE EVIDENCE CHAIN:\n"
+    "Every single insight, score, recommendation, and financial estimate generated in the JSON MUST reference one or more extracted evidence points by their IDs in an 'evidence_refs' array field. No metric or value may be generated without a traceable evidence chain pointing to the manifest.\n"
+    "\n"
+    "MISSING DATA ESTIMATION POLICY:\n"
+    "If required data (such as TAM/SAM/SOM, CAC, LTV, Return Ratio, Profit Margin, Payback Period, Funding Ask, Runway, or Funding Stage) is unavailable, do NOT stop the analysis and do NOT leave them blank. "
+    "Instead, generate a 'Reasonable Estimate' using category-specific industry benchmarks for the target geography. "
+    "To satisfy the Traceable Evidence Chain rule for these estimated values, you can create a benchmark-based evidence point in the 'evidence_manifest' (e.g. 'Standard B2B SaaS Benchmark for India') and reference its ID in the 'evidence_refs' array. All financial and funding fields must be populated with sector-appropriate estimates tailored to the target geography.\n"
+    "ESTIMATION FORMULAS:\n"
+    "- If TAM/SAM/SOM is unavailable, estimate using:\n"
+    "  TAM = Potential Customers * Estimated Annual Revenue Per Customer\n"
+    "  SAM = TAM * Reachable Market %\n"
+    "  SOM = SAM * Expected Market Share %\n"
+    "- If CAC is unavailable, estimate using industry benchmarks.\n"
+    "- If LTV is unavailable, estimate using:\n"
+    "  LTV = Estimated Annual Revenue * Estimated Retention Years * Estimated Gross Margin\n"
+    "- If Funding Ask is unavailable, estimate runway needs using: Monthly Burn * Desired Runway Months. Provide allocation assumptions.\n"
+    "ESTIMATION RULE:\n"
+    "Never present estimated values as factual. Every value object in the output JSON has 'source' and 'confidence'.\n"
+    "- For actual values (directly supported by survey or founder data), set 'source': 'SURVEY_DATA' or 'CROSS_VALIDATED' and 'confidence': 'HIGH' or 'MEDIUM'.\n"
+    "- For estimated values (benchmark-based, derived from benchmarks/assumptions), set 'source': 'ESTIMATED' or 'BENCHMARK' and 'confidence': 'LOW'.\n"
+    "For every estimated value, you MUST also add two fields to the object:\n"
+    "1. 'estimation_method': A description of the method used to estimate (e.g. standard formulas/benchmarks).\n"
+    "2. 'assumptions': An array of strings representing the assumptions used.\n"
+    "Example for estimated CAC:\n"
+    "\"cac\": {\"value\": \"₹8,000\", \"source\": \"ESTIMATED\", \"confidence\": \"LOW\", \"basis\": \"Estimated via industry benchmarks\", \"estimation_method\": \"Based on average B2B EdTech customer acquisition costs in India and expected pilot-school outreach model.\", \"assumptions\": [\"Direct founder-led sales\", \"Hyderabad-focused launch\", \"Small sales team\"], \"evidence_refs\": [\"EVID-3\"]}\n"
+    "\n"
+    "LANGUAGE RULES (strictly enforced):\n"
+    "1. Write like you are explaining to a smart friend who has never run a startup.\n"
+    "2. Every 'value' field: maximum 1-2 short sentences. No long paragraphs.\n"
+    "3. No jargon. Instead of 'CAC' write 'cost to get one customer'. Use plain words always.\n"
+    "4. Numbers must be specific and written simply: '₹500 per order'.\n"
+    "5. The 'basis' field: explicitly state the exact calculation or logic used to derive the number.\n"
+    "All money values must use the currency for the target geography (₹ for India).\n"
     "Respond with valid raw JSON only — no markdown, no text outside the JSON."
 )
 
@@ -199,10 +221,13 @@ def _build_ca_prompt(
     opportunities = guidance.get("opportunities", [])
     viability = guidance.get("viabilityScore", "N/A")
     category = guidance.get("category", "")
-    loc = guidance.get("location", {})
-    geography_str = (
-        f"{loc.get('country', '')}, {loc.get('state', '')}, {loc.get('district', '')}" if loc else "Not specified"
-    )
+    loc = guidance.get("location") or {}
+    country = loc.get('country') or guidance.get("location_country") or ""
+    state = loc.get('state') or guidance.get("location_state") or ""
+    district = loc.get('district') or guidance.get("location_district") or ""
+    
+    parts = [p for p in [district, state, country] if p]
+    geography_str = ", ".join(parts) if parts else "Not specified"
 
     # Intelligence
     intel_section = intelligence.get("prompt_section", "No intelligence computed.")
@@ -226,7 +251,7 @@ Description: {survey.description or "Not provided"}
 Total Completed Responses: {total}
 Overall Intelligence Score: {overall_score}/100
 Total Evidence Points: {total_evidence}
-Industry Category (from guidance): {category}
+Industry Category (from guidance): {category or "Not specified — please infer the industry vertical from the survey title and description."}
 Geography: {geography_str}
 
 == SURVEY QUESTIONS ({len(questions)} total) ==
@@ -259,11 +284,12 @@ Capability Scores: {json.dumps(cap_scores, indent=2)}
 STRICT RULES:
 1. "value" fields: specific answer, max 1-2 short plain sentences. No paragraphs. No jargon.
 2. Write as if explaining to someone who has never heard of startups or investing.
-3. confidence: MUST ALWAYS BE "HIGH"
-4. source: MUST ALWAYS BE "SURVEY_DATA" or "CROSS_VALIDATED"
-5. basis: explicitly state the exact calculation or logic used to derive the number from the survey data.
-6. All money in the currency for the target geography (₹ for India).
-7. Replace all jargon in values: CAC → "cost to get one customer", LTV → "lifetime value per customer", GTM → "go-to-market", etc.
+3. For actual values (supported by survey/founder data), set 'source': 'SURVEY_DATA' or 'CROSS_VALIDATED' and 'confidence': 'HIGH' or 'MEDIUM'.
+4. For estimated values (benchmark-based), set 'source': 'ESTIMATED' or 'BENCHMARK', 'confidence': 'LOW', and include 'estimation_method' (string) and 'assumptions' (list of strings).
+5. Every field MUST contain 'evidence_refs' referencing one or more evidence point IDs from the 'evidence_manifest'.
+6. basis: explicitly state the exact calculation or logic used to derive the number.
+7. All money in the currency for the target geography (₹ for India).
+8. Replace all jargon in values: CAC → "cost to get one customer", LTV → "lifetime value per customer", etc.
 
 {{
   "survey_id": "{survey.id}",
@@ -274,11 +300,20 @@ STRICT RULES:
   "geography": "{geography_str}",
   "industry_vertical": "{category}",
 
+  "evidence_manifest": [
+    {{
+      "id": "EVID-1",
+      "source_module": "Survey|Guidance|Roadmap|Execution",
+      "metric_or_signal": "Description of the evidence point",
+      "raw_data_reference": "Specific survey question or guidance milestone/row index"
+    }}
+  ],
+
   "business_profile": {{
-    "industry_vertical": {{"value": "...", "confidence": "HIGH", "source": "SURVEY_DATA", "basis": "..."}},
-    "business_stage": {{"value": "Idea/MVP/Early Traction/Growth", "confidence": "...", "source": "...", "basis": "..."}},
-    "geographic_focus": {{"value": "city, state, country", "confidence": "HIGH", "source": "SURVEY_DATA", "basis": "based on respondent city distribution"}},
-    "target_customer": {{"value": "...", "confidence": "...", "source": "...", "basis": "..."}}
+    "industry_vertical": {{"value": "...", "confidence": "HIGH", "source": "SURVEY_DATA", "basis": "...", "evidence_refs": ["EVID-1"]}},
+    "business_stage": {{"value": "Idea/MVP/Early Traction/Growth", "confidence": "...", "source": "...", "basis": "...", "evidence_refs": []}},
+    "geographic_focus": {{"value": "city, state, country", "confidence": "HIGH", "source": "SURVEY_DATA", "basis": "based on respondent city distribution", "evidence_refs": []}},
+    "target_customer": {{"value": "...", "confidence": "...", "source": "...", "basis": "...", "evidence_refs": []}}
   }},
 
   "problem_statement": {{
@@ -527,7 +562,7 @@ async def run_ca_agent(
     prompt = _build_ca_prompt(survey, questions, responses, answers, guidance, intelligence, founder_inputs)
 
     try:
-        raw = await run_in_threadpool(call_ai_sync, prompt, 12000, _CA_SYSTEM_INSTRUCTION)
+        raw = await run_in_threadpool(call_ai_sync, prompt, 16000, _CA_SYSTEM_INSTRUCTION)
         result = json.loads(raw)
     except json.JSONDecodeError as e:
         print(f"[CA Agent JSON Error] {e}\nRaw: {raw[:500]}")
@@ -539,6 +574,9 @@ async def run_ca_agent(
     # ── 8. Inject authoritative fields ───────────────────────────────────────
     result["survey_id"] = survey_id
     result["survey_title"] = survey.title
+    
+    if "traction_highlights" not in result or not isinstance(result["traction_highlights"], dict):
+        result["traction_highlights"] = {}
     result["traction_highlights"]["total_survey_responses"] = total
 
     return result
