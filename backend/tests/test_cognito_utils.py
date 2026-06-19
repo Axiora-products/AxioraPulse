@@ -9,6 +9,7 @@ from db.models import UserProfile, Tenant
 # Capture the real implementation at module level, before any autouse fixture can
 # replace cognito_utils.verify_cognito_token with a mock.
 _real_verify_cognito_token = cognito_utils.verify_cognito_token
+_real_get_cognito_client = cognito_utils.get_cognito_client
 
 
 def test_admin_get_user_status_mock(monkeypatch, clean_db_for_cognito):
@@ -96,7 +97,8 @@ def test_cognito_config_lookups_fall_back_to_env_on_ssm_error(monkeypatch):
 
 
 def test_get_cognito_client_uses_local_endpoint(monkeypatch):
-    cognito_utils.get_cognito_client.cache_clear()
+    monkeypatch.setattr(cognito_utils, "get_cognito_client", _real_get_cognito_client)
+    _real_get_cognito_client.cache_clear()
     monkeypatch.setenv("AWS_ENDPOINT_URL", "http://localhost:4566")
     captured = {}
 
@@ -107,13 +109,13 @@ def test_get_cognito_client_uses_local_endpoint(monkeypatch):
 
     monkeypatch.setattr(cognito_utils.boto3, "client", mock_client)
 
-    client = cognito_utils.get_cognito_client()
+    client = _real_get_cognito_client()
 
     assert client is not None
     assert captured["service_name"] == "cognito-idp"
     assert captured["kwargs"]["endpoint_url"] == "http://localhost:4566"
     assert captured["kwargs"]["aws_access_key_id"] == "mock"
-    cognito_utils.get_cognito_client.cache_clear()
+    _real_get_cognito_client.cache_clear()
 
 
 def test_admin_get_user_status_real_client_success(monkeypatch):
