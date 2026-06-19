@@ -122,6 +122,10 @@
         {
           "name": "META_WHATSAPP_PHONE_NUMBER_ID",
           "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/META_WHATSAPP_PHONE_NUMBER_ID"
+        },
+        {
+          "name": "RESEND_API_KEY",
+          "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/RESEND_API_KEY"
         }
       ],
       "logConfiguration": {

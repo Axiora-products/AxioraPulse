@@ -17,8 +17,51 @@ from dotenv import load_dotenv
 load_dotenv()
 
 COGNITO_REGION = os.getenv("COGNITO_REGION", "ap-south-1")
-COGNITO_USER_POOL_ID = os.getenv("COGNITO_USER_POOL_ID")
-COGNITO_APP_CLIENT_ID = os.getenv("COGNITO_APP_CLIENT_ID")
+
+
+def get_user_pool_id() -> str | None:
+    if "PYTEST_CURRENT_TEST" in os.environ:
+        return os.getenv("COGNITO_USER_POOL_ID")
+    endpoint = os.getenv("AWS_ENDPOINT_URL")
+    if endpoint:
+        try:
+            ssm = boto3.client(
+                "ssm",
+                region_name=COGNITO_REGION,
+                endpoint_url=endpoint,
+                aws_access_key_id="mock",
+                aws_secret_access_key="mock",
+            )
+            res = ssm.get_parameter(Name="/axiorapulse/dev/COGNITO_USER_POOL_ID")
+            pool_id = res["Parameter"]["Value"]
+            os.environ["COGNITO_USER_POOL_ID"] = pool_id
+            return pool_id
+        except Exception:
+            pass
+    return os.getenv("COGNITO_USER_POOL_ID")
+
+
+def get_app_client_id() -> str | None:
+    if "PYTEST_CURRENT_TEST" in os.environ:
+        return os.getenv("COGNITO_APP_CLIENT_ID")
+    endpoint = os.getenv("AWS_ENDPOINT_URL")
+    if endpoint:
+        try:
+            ssm = boto3.client(
+                "ssm",
+                region_name=COGNITO_REGION,
+                endpoint_url=endpoint,
+                aws_access_key_id="mock",
+                aws_secret_access_key="mock",
+            )
+            res = ssm.get_parameter(Name="/axiorapulse/dev/COGNITO_APP_CLIENT_ID")
+            client_id = res["Parameter"]["Value"]
+            os.environ["COGNITO_APP_CLIENT_ID"] = client_id
+            return client_id
+        except Exception:
+            pass
+    return os.getenv("COGNITO_APP_CLIENT_ID")
+
 
 MOCK_COGNITO = os.getenv("MOCK_COGNITO", "false").lower() == "true"
 MOCK_COGNITO_SECRET = os.getenv("MOCK_COGNITO_SECRET", "mock-secret-key-1234567890")
@@ -26,6 +69,15 @@ MOCK_COGNITO_SECRET = os.getenv("MOCK_COGNITO_SECRET", "mock-secret-key-12345678
 
 @lru_cache(maxsize=1)
 def get_cognito_client():
+    endpoint_url = os.getenv("AWS_ENDPOINT_URL")
+    if endpoint_url:
+        return boto3.client(
+            "cognito-idp",
+            region_name=COGNITO_REGION,
+            endpoint_url=endpoint_url,
+            aws_access_key_id="mock",
+            aws_secret_access_key="mock",
+        )
     return boto3.client("cognito-idp", region_name=COGNITO_REGION)
 
 
@@ -50,7 +102,7 @@ def admin_get_user_status(email: str) -> str | None:
             return None
 
     client = get_cognito_client()
-    pool_id = os.getenv("COGNITO_USER_POOL_ID")
+    pool_id = get_user_pool_id()
     try:
         resp = client.admin_get_user(UserPoolId=pool_id, Username=email)
         return resp.get("UserStatus")
@@ -68,7 +120,7 @@ def admin_delete_user(email: str) -> bool:
         return True
 
     client = get_cognito_client()
-    pool_id = os.getenv("COGNITO_USER_POOL_ID")
+    pool_id = get_user_pool_id()
     try:
         client.admin_delete_user(UserPoolId=pool_id, Username=email)
         return True
@@ -77,10 +129,9 @@ def admin_delete_user(email: str) -> bool:
         return False
 
 
-@lru_cache(maxsize=1)
-def _get_jwks() -> list:
+@lru_cache(maxsize=4)
+def _get_jwks(pool_id: str) -> list:
     endpoint_url = os.getenv("AWS_ENDPOINT_URL")
-    pool_id = os.getenv("COGNITO_USER_POOL_ID")
     region = os.getenv("COGNITO_REGION", "ap-south-1")
     if endpoint_url:
         url = f"{endpoint_url.rstrip('/')}/{pool_id}/.well-known/jwks.json"
@@ -96,8 +147,11 @@ def verify_cognito_token(token: str) -> dict | None:
     Decode and verify a Cognito ID token.
     Returns the payload dict or None on any failure.
     """
+    print(
+        f"DEBUG verify_cognito_token: type={type(token)}, len={len(token) if token else 0}, value={repr(token)[:100]}..."
+    )
     mock = os.getenv("MOCK_COGNITO", "false").lower() == "true"
-    client_id = os.getenv("COGNITO_APP_CLIENT_ID") or "mock-client-id"
+    client_id = get_app_client_id() or "mock-client-id"
     mock_secret = os.getenv("MOCK_COGNITO_SECRET", "mock-secret-key-1234567890")
 
     if mock:
@@ -116,7 +170,8 @@ def verify_cognito_token(token: str) -> dict | None:
         headers = jwt.get_unverified_headers(token)
         kid = headers.get("kid")
 
-        keys = _get_jwks()
+        pool_id = get_user_pool_id()
+        keys = _get_jwks(pool_id)
         key = next((k for k in keys if k["kid"] == kid), None)
         if key is None:
             raise JWTError("No matching public key found")
@@ -132,8 +187,11 @@ def verify_cognito_token(token: str) -> dict | None:
             raise JWTError("Token use is not ID")
 
         return payload
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"COGNITO TOKEN VERIFICATION EXCEPTION: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
 
     # If Cognito verification failed, try OTP token verification
     OTP_JWT_SECRET = os.getenv("OTP_JWT_SECRET", "otp-secret-key-change-in-production")

@@ -94,6 +94,7 @@ class Tenant(Base):
     slug = Column(String(100), unique=True, index=True, nullable=False)
     plan = Column(String(50), default="free")
     account_type = Column(String(20), nullable=False, default="organization")  # 'personal' | 'organization'
+    is_active = Column(Boolean, nullable=False, default=True)
     primary_color = Column(String(20), default="#FF4500")
     approved_domains = Column(ARRAY(Text), default=[])
     created_at = Column(DateTime(timezone=True), server_default=func.now())

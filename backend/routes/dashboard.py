@@ -81,7 +81,7 @@ def dashboard_stats(
     team_members = (
         db.query(func.count(UserProfile.id))
         .filter(
-            ((UserProfile.id == current_user.id) | (UserProfile.invited_by == current_user.id)),
+            UserProfile.tenant_id == current_user.tenant_id,
             UserProfile.account_status == "active",
         )
         .scalar()

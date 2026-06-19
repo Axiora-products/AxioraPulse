@@ -26,7 +26,12 @@ const useAuthStore = create((set, get) => ({
         set({ user, profile, tenant, loading: false, initialized: true });
         return;
       } catch (meErr) {
-        // Token is invalid/expired; fall back to Cognito session restoration
+        // Only fall back to Cognito session restoration if the token was deleted (i.e. invalid/expired)
+        if (localStorage.getItem('token')) {
+          // Keep the token (e.g. network drop or aborted request). Do not fall back.
+          set({ loading: false, initialized: true });
+          return;
+        }
       }
     }
 
@@ -70,7 +75,11 @@ const useAuthStore = create((set, get) => ({
         set({ user, profile, tenant, loading: false, initialized: true });
         return true;
       } catch (meErr) {
-        // Token is invalid/expired; fall back to Cognito session restoration
+        // Only fall back to Cognito session restoration if the token was deleted (i.e. invalid/expired)
+        if (localStorage.getItem('token')) {
+          // Keep the token (e.g. network drop or aborted request). Do not fall back.
+          return true;
+        }
       }
     }
 

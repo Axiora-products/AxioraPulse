@@ -66,6 +66,7 @@ def seed_ssm():
         "ZOOM_CLIENT_SECRET": "mock-zoom-client-secret",
         "AWS_SES_REGION": "ap-south-1",
         "EMAIL_FROM": "Axiora Pulse <noreply@axiorapulse.com>",
+        "RESEND_API_KEY": os.getenv("RESEND_API_KEY", "mock-resend-api-key"),
         "TWILIO_ACCOUNT_SID": "ACmockaccountsid1234567890",
         "TWILIO_AUTH_TOKEN": "mocktwilioauthtoken1234567890",
         "TWILIO_WHATSAPP_FROM": "+14155238886",
@@ -156,6 +157,7 @@ def seed_cognito():
         dev_users = [
             {"email": "dev@axiorapulse.com", "name": "Developer User"},
             {"email": "admin@axioraadmin.com", "name": "Admin User"},
+            {"email": "roopsai.work8@gmail.com", "name": "Super Admin"},
         ]
 
         for u in dev_users:

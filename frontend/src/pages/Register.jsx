@@ -137,7 +137,7 @@ export default function Register() {
   useEffect(() => { stopLoading(); }, [stopLoading]);
 
   if (initialized && user) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={user.role === 'super_admin' ? '/super-admin' : '/dashboard'} replace />;
   }
 
   const s = (k, v) => {

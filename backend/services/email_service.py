@@ -1,29 +1,40 @@
 import os
-import boto3
-from botocore.exceptions import ClientError
-
-_ses_client = None
-
-
-def _get_ses():
-    global _ses_client
-    if _ses_client is None:
-        region = os.getenv("AWS_SES_REGION", "ap-south-1")
-        _ses_client = boto3.client("ses", region_name=region)
-    return _ses_client
+import requests
 
 
 def send_email(to_email: str, subject: str, body: str):
     email_from = os.getenv("EMAIL_FROM", "Axiora Pulse <noreply@axiorapulse.com>")
+    api_key = os.getenv("RESEND_API_KEY")
+
+    # Fallback to local stdout logging if API key is missing or mocked
+    if not api_key or api_key.startswith("mock") or api_key == "dummy":
+        print("\n=== [LOCAL EMAIL SIMULATION] ===")
+        print(f"From: {email_from}")
+        print(f"To: {to_email}")
+        print(f"Subject: {subject}")
+        print(f"Body: {body[:300]}...")
+        print("===============================\n")
+        return
+
+    # Send using Resend REST API
+    url = "https://api.resend.com/emails"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "from": email_from,
+        "to": [to_email],
+        "subject": subject,
+        "html": body,
+    }
 
     try:
-        _get_ses().send_email(
-            Source=email_from,
-            Destination={"ToAddresses": [to_email]},
-            Message={
-                "Subject": {"Data": subject, "Charset": "UTF-8"},
-                "Body": {"Html": {"Data": body, "Charset": "UTF-8"}},
-            },
-        )
-    except ClientError as e:
-        raise Exception(f"SES error: {e.response['Error']['Message']}")
+        response = requests.post(url, json=payload, headers=headers, timeout=10)
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        try:
+            error_detail = response.json().get("message", str(e))
+        except Exception:
+            error_detail = str(e)
+        raise Exception(f"Resend API error: {error_detail}")

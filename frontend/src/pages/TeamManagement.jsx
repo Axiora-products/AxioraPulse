@@ -151,9 +151,9 @@ export default function TeamManagement() {
     setDeactivateTarget(uid);
   }
 
-  // req #14: only super_admin can delete users
+  // Both admin and super_admin can delete users
   function confirmDelete(uid) {
-    if (profile.role !== 'super_admin') return toast.error("Only Super Admins can delete users");
+    if (profile.role !== 'super_admin' && profile.role !== 'admin') return toast.error("Only Admins and Super Admins can delete users");
     const target = members.find(m => m.id === uid);
     if (target?.role === 'super_admin') return toast.error("Super Admin cannot be deleted");
     setDeleteTarget(uid);
@@ -177,6 +177,23 @@ export default function TeamManagement() {
       await API.patch(`/users/${uid}/status`, { is_active: true });
       toast.success('Member reactivated'); load();
     } catch (err) { toast.error(err.response?.data?.detail || 'Failed to reactivate'); }
+  }
+
+  async function resendInvite(member) {
+    setBusy(true);
+    try {
+      await API.post('/users/invite', {
+        email: member.email,
+        role: member.role,
+        full_name: member.full_name || null
+      });
+      toast.success(`Resent invitation to ${member.email}`);
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Failed to resend invite');
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -240,9 +257,11 @@ export default function TeamManagement() {
                 {m.id === profile.id && (
                   <span style={{ fontFamily: 'Syne, sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.3)', background: 'var(--cream-deep)', padding: '3px 8px', borderRadius: 999 }}>You</span>
                 )}
-                {m.is_active === false && (
+                {m.is_active === false ? (
                   <span id={`member-status-${m.id}`} style={{ fontFamily: 'Syne, sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--terracotta)', background: 'rgba(214,59,31,0.08)', padding: '3px 8px', borderRadius: 999 }}>Disabled</span>
-                )}
+                ) : m.account_status === 'invited' ? (
+                  <span id={`member-status-${m.id}`} style={{ fontFamily: 'Syne, sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#A07000', background: 'rgba(255,184,0,0.12)', padding: '3px 8px', borderRadius: 999 }}>Pending</span>
+                ) : null}
               </div>
               <div style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 12, color: 'rgba(22,15,8,0.38)', marginBottom: 10, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.email}</div>
 
@@ -259,6 +278,14 @@ export default function TeamManagement() {
             {/* Action — enable / deactivate */}
             {hasPermission(profile?.role, 'manage_team') && m.id !== profile.id && m.role !== 'super_admin' && (
               <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                {m.account_status === 'invited' && m.is_active !== false && (
+                  <button onClick={() => resendInvite(m)} title="Resend invitation email"
+                    style={{ width: 30, height: 30, borderRadius: '50%', border: 'none', background: 'none', color: 'rgba(22,15,8,0.2)', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
+                    onMouseEnter={e => { e.currentTarget.style.color = '#A07000'; e.currentTarget.style.background = 'rgba(255,184,0,0.12)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.color = 'rgba(22,15,8,0.2)'; e.currentTarget.style.background = 'none'; }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                  </button>
+                )}
                 {m.is_active === false ? (
                   <button onClick={() => reactivate(m.id)} title="Re-enable member"
                     style={{ padding: '8px 16px', borderRadius: 999, border: 'none', background: 'rgba(30,122,74,0.1)', color: 'var(--sage)', fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}
@@ -276,8 +303,8 @@ export default function TeamManagement() {
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="8" y1="12" x2="16" y2="12" /></svg>
                   </button>
                 )}
-                {/* req #14: only super_admin sees delete button */}
-                {profile.role === 'super_admin' && (
+                {/* Both admin and super_admin see delete button */}
+                {(profile.role === 'super_admin' || profile.role === 'admin') && (
                   <button onClick={() => confirmDelete(m.id)} title="Delete user permanently"
                     style={{ width: 30, height: 30, borderRadius: '50%', border: 'none', background: 'none', color: 'rgba(22,15,8,0.15)', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
                     onMouseEnter={e => { e.currentTarget.style.color = 'var(--terracotta)'; e.currentTarget.style.background = 'rgba(214,59,31,0.06)'; }}

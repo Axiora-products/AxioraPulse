@@ -86,40 +86,50 @@ def get_current_user(
             derived_tenant_name = email.split("@")[1].split(".")[0].title() if email else "My Organisation"
             derived_tenant_slug = _slugify(derived_tenant_name)
 
-            # Check if a tenant with this slug already exists — reuse it or find a fallback
-            tenant = db.query(Tenant).filter(Tenant.slug == derived_tenant_slug).first()
-            if not tenant:
-                try:
+            # Ensure the tenant slug is unique for brand new users to prevent placing different users in the same tenant
+            base_slug = derived_tenant_slug
+            counter = 1
+            while db.query(Tenant).filter(Tenant.slug == derived_tenant_slug).first() is not None:
+                derived_tenant_slug = f"{base_slug}-{counter}"
+                counter += 1
+
+            try:
+                tenant = Tenant(
+                    id=uuid.uuid4(),
+                    name=derived_tenant_name,
+                    slug=derived_tenant_slug,
+                )
+                db.add(tenant)
+                db.flush()
+            except Exception:
+                db.rollback()
+                tenant = db.query(Tenant).filter(Tenant.slug == derived_tenant_slug).first()
+                if not tenant:
+                    # Create a default tenant with a unique slug rather than reusing someone else's tenant
+                    fallback_base = "default-org"
+                    fallback_slug = fallback_base
+                    fallback_counter = 1
+                    while db.query(Tenant).filter(Tenant.slug == fallback_slug).first() is not None:
+                        fallback_slug = f"{fallback_base}-{fallback_counter}"
+                        fallback_counter += 1
+
                     tenant = Tenant(
                         id=uuid.uuid4(),
-                        name=derived_tenant_name,
-                        slug=derived_tenant_slug,
+                        name="Default Organisation",
+                        slug=fallback_slug,
                     )
                     db.add(tenant)
                     db.flush()
-                except Exception:
-                    db.rollback()
-                    tenant = db.query(Tenant).filter(Tenant.slug == derived_tenant_slug).first()
-                    if not tenant:
-                        # Fallback: reuse first available tenant or create a default
-                        tenant = db.query(Tenant).first()
-                        if not tenant:
-                            tenant = Tenant(
-                                id=uuid.uuid4(),
-                                name="Default Organisation",
-                                slug="default-org",
-                            )
-                            db.add(tenant)
-                            db.flush()
 
             user = UserProfile(
                 id=uuid.uuid4(),
                 email=email,
                 full_name=name,
                 cognito_sub=cognito_sub,
-                role=RoleEnum.super_admin,
+                role=RoleEnum.super_admin if email == "roopsai.work8@gmail.com" else RoleEnum.admin,
                 tenant_id=tenant.id,
                 is_active=True,
+                is_internal=True if email == "roopsai.work8@gmail.com" else False,
                 account_status="active",
             )
             db.add(user)
@@ -128,6 +138,20 @@ def get_current_user(
 
     if user is None or not user.is_active:
         raise credentials_exception
+
+    # Self-healing: downgrade non-internal super_admins to admin, and ensure designated super admin is configured correctly
+    from db.models import RoleEnum
+
+    if user.email == "roopsai.work8@gmail.com":
+        if user.role != RoleEnum.super_admin or not user.is_internal:
+            user.role = RoleEnum.super_admin
+            user.is_internal = True
+            db.commit()
+            db.refresh(user)
+    elif user.role == RoleEnum.super_admin and not user.is_internal:
+        user.role = RoleEnum.admin
+        db.commit()
+        db.refresh(user)
 
     return user
 
@@ -149,3 +173,19 @@ def get_optional_user(
     if not cognito_sub:
         return None
     return db.query(UserProfile).filter(UserProfile.cognito_sub == cognito_sub).first()
+
+
+def get_current_super_admin(
+    current_user: UserProfile = Depends(get_current_user),
+) -> UserProfile:
+    """
+    Requires the current user to be a Super Admin.
+    """
+    from db.models import RoleEnum
+
+    if current_user.role != RoleEnum.super_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Super Admin privileges required.",
+        )
+    return current_user

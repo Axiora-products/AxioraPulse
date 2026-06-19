@@ -57,6 +57,11 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
   const mediaRecorderRef = useRef(null);
 
   const startRecording = async () => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      toast.error("Audio recording requires a secure connection (HTTPS) or is not supported by your browser.");
+      return;
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: true,
@@ -106,7 +111,12 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
       setAudioChunks(chunks);
       setIsRecording(true);
     } catch (err) {
-      console.error("Mic permission denied", err);
+      console.error("Mic access error", err);
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        toast.error("Microphone access denied. Please enable microphone permissions in your browser.");
+      } else {
+        toast.error(`Microphone access failed: ${err.message || 'Unknown error'}`);
+      }
     }
   };
 
