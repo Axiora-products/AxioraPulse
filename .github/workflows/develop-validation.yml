@@ -127,7 +127,7 @@ jobs:
           USER_POOL_ID=$(aws ssm get-parameter --name "/axiorapulse/qa/COGNITO_USER_POOL_ID" --region ap-south-1 --query "Parameter.Value" --output text)
           APP_CLIENT_ID=$(aws ssm get-parameter --name "/axiorapulse/qa/COGNITO_APP_CLIENT_ID" --region ap-south-1 --query "Parameter.Value" --output text)
           FRONTEND_URL=$(aws ssm get-parameter --name "/axiorapulse/qa/FRONTEND_URL" --region ap-south-1 --query "Parameter.Value" --output text)
-          API_BASE_URL="${FRONTEND_URL}:8000"
+          API_BASE_URL="/api"
 
           echo "USER_POOL_ID=$USER_POOL_ID" >> $GITHUB_OUTPUT
           echo "APP_CLIENT_ID=$APP_CLIENT_ID" >> $GITHUB_OUTPUT
