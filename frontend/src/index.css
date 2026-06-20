@@ -44,38 +44,6 @@ body {
 }
 
 /* ─── CUSTOM SCROLLBAR ─── */
-.idea-protection-badge {
-  position: fixed;
-  right: 18px;
-  top: 18px;
-  z-index: 1200;
-  padding: 7px 11px;
-  border: 1px solid rgba(22,15,8,0.08);
-  border-radius: 999px;
-  background: rgba(255,251,244,0.82);
-  color: rgba(22,15,8,0.48);
-  box-shadow: 0 8px 28px rgba(22,15,8,0.07);
-  backdrop-filter: blur(12px);
-  font-family: 'Syne', sans-serif;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  line-height: 1;
-  text-transform: uppercase;
-  pointer-events: none;
-}
-
-@media (max-width: 640px) {
-  .idea-protection-badge {
-    top: auto;
-    right: auto;
-    left: 12px;
-    bottom: 12px;
-    max-width: calc(100vw - 24px);
-    font-size: 8px;
-  }
-}
-
 ::-webkit-scrollbar { width: 3px; }
 ::-webkit-scrollbar-track { background: var(--cream); }
 ::-webkit-scrollbar-thumb {
