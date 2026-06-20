@@ -523,8 +523,6 @@ export default function SurveyCreate() {
   // ── Builder Phase ──
   return (
     <div>
-      <div className="idea-protection-badge">Confidentiality Protected by Axiora Pulse</div>
-
       <style>{`
         @keyframes qCardIn { from { opacity:0; transform:translateY(16px) scale(0.985); } to { opacity:1; transform:translateY(0) scale(1); } }
         @keyframes pulseRing { 0%,100%{transform:translate(-50%,-50%) scale(1);opacity:0.6} 50%{transform:translate(-50%,-50%) scale(1.8);opacity:0} }
@@ -797,34 +795,6 @@ export default function SurveyCreate() {
     height: 20px !important;
     min-width: 20px !important;
   }
-
-  .idea-protection-badge{
-    display:flex !important;
-    align-items:center;
-    justify-content:center;
-
-    position:relative !important;
-    bottom:auto !important;
-    top:auto !important;
-    left:auto !important;
-    right:auto !important;
-
-    width:100%;
-    margin:0 0 16px 0 !important;
-    padding:8px 12px !important;
-
-    background:rgba(255,69,0,0.08);
-    border:1px solid rgba(255,69,0,0.15);
-    border-radius:999px;
-
-    font-size:10px !important;
-    font-weight:700;
-    letter-spacing:.12em;
-    text-transform:uppercase;
-
-    color:#FF4500;
-  }
-   
 
   /* Hide huge ghost number */
   .q-ghost-num{
