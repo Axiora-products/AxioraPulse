@@ -371,8 +371,6 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
 
   return (
     <div className="cp-center">
-      <div className="idea-protection-badge">Confidentiality Protected by Axiora Pulse</div>
-
       {/* Hidden file inputs */}
       <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.txt,image/*" style={{ display: 'none' }} onChange={handleFileUpload} />
       <input ref={audioInputRef} type="file" accept="audio/*" style={{ display: 'none' }} onChange={handleAudioUpload} />

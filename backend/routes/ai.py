@@ -24,7 +24,6 @@ from schemas import (
     AISuggestionsResponse,
     AIGenerateRequest,
     AIGenerateResponse,
-    IdeaProtectionMetadata,
     SurveyIntelligenceResponse,
     SocialShareContentResponse,
     SocialShareCaptions,
@@ -293,273 +292,6 @@ def _optimize_generated_survey(result_json: dict, body: AIGenerateRequest) -> di
 
 
 # _get_client() and _call_gemini() removed — now using services.ai_provider.call_ai_sync
-
-
-SENSITIVE_CATEGORY_LABELS = {
-    "core_idea": "core_idea",
-    "business_model": "business_model",
-    "differentiators": "differentiators",
-    "strategy": "strategy",
-    "execution_details": "execution_details",
-    "proprietary_insights": "proprietary_insights",
-}
-
-# NOTE: Generic idea-description words (idea, app, tool, product, platform,
-# building, concept, predicts, attrition, using, model, workflow, insight, trend,
-# behavior, productivity, validate, targeting, launch, unique, buy, sell, …) were
-# intentionally removed. They fired on almost every prompt, which forced the
-# question generator to work from a generalized brief instead of the real idea and
-# produced generic, off-topic questions. Protection now triggers ONLY on genuinely
-# confidential specifics — proprietary data sources, algorithms/scoring methods,
-# pricing/business model, named integrations, and stated differentiators — so the
-# topic itself always reaches the generator.
-SENSITIVE_CATEGORY_KEYWORDS = {
-    "core_idea": ["predictive model", "proprietary algorithm", "secret sauce"],
-    "business_model": ["pricing", "subscription", "revenue", "monetize", "business model", "gtm"],
-    "differentiators": ["differentiator", "competitive advantage", "moat", "proprietary advantage"],
-    "strategy": ["go-to-market", "launch strategy", "growth strategy"],
-    "execution_details": [
-        "slack",
-        "microsoft teams",
-        "algorithm",
-        "scoring method",
-        "scoring model",
-        "internal scoring",
-        "proprietary integration",
-    ],
-    "proprietary_insights": [
-        "proprietary",
-        "data source",
-        "internal signals",
-        "proprietary signals",
-    ],
-}
-
-SENSITIVE_REPLACEMENTS = [
-    (r"\bSlack\b", "workforce signals"),
-    (r"\bMicrosoft Teams\b", "workforce signals"),
-    (r"\bemployee attrition\b|\battrition\b", "workforce retention risk"),
-    (r"\bmanager feedback\b", "workforce signals"),
-    (r"\bproductivity trends?\b", "workforce patterns"),
-    (r"\bbehavior tracking\b|\bbehaviour tracking\b|\bbehavior\b|\bbehaviour\b", "engagement patterns"),
-    (r"\bAI tool\b|\bAI platform\b|\bAI app\b", "analytics solution"),
-    (r"\bAI\b", "advanced"),
-    (r"\bpredicts?\b|\bprediction\b|\bpredictive model\b", "identifies patterns related to"),
-    (r"\bscoring method\b|\binternal scoring\b|\bscore\b", "assessment approach"),
-    (r"\balgorithm\b|\bmodel\b", "analytical method"),
-]
-
-LEAK_TERM_IGNORE = {
-    "using",
-    "building",
-    "idea",
-    "concept",
-    "platform",
-    "tool",
-    "app",
-    "product",
-    "model",
-    "teams",
-    "workflow",
-    "buy",
-    "sell",
-    "validate",
-    "strategy",
-    "insight",
-    "trend",
-    "internal",
-}
-
-
-def _detect_sensitive_categories(text: str) -> list[str]:
-    lowered = text.lower()
-    detected = [
-        category
-        for category, keywords in SENSITIVE_CATEGORY_KEYWORDS.items()
-        if any(keyword in lowered for keyword in keywords)
-    ]
-    return detected
-
-
-def detect_sensitive_idea_info(text: str) -> dict:
-    """Deterministic first-pass classifier that runs before any LLM processing."""
-    detected = _detect_sensitive_categories(text)
-    return {
-        "detected_sensitive_categories": detected,
-        "protection_applied": bool(detected),
-    }
-
-
-def _apply_sensitive_replacements(text: str) -> str:
-    masked = text
-    for pattern, replacement in SENSITIVE_REPLACEMENTS:
-        masked = re.sub(pattern, replacement, masked, flags=re.IGNORECASE)
-    return masked
-
-
-def _extract_leak_terms(text: str) -> list[str]:
-    lowered = text.lower()
-    terms = set()
-    for keywords in SENSITIVE_CATEGORY_KEYWORDS.values():
-        for keyword in keywords:
-            if len(keyword) > 3 and keyword not in LEAK_TERM_IGNORE and keyword in lowered:
-                terms.add(keyword)
-    for pattern, _replacement in SENSITIVE_REPLACEMENTS:
-        cleaned = pattern.replace(r"\b", "").replace("?", "").replace("\\", "")
-        for part in cleaned.split("|"):
-            part = part.strip("()").lower()
-            if len(part) > 3 and part not in LEAK_TERM_IGNORE and part in lowered:
-                terms.add(part)
-    return sorted(terms, key=len, reverse=True)
-
-
-def _mask_context_before_llm(original_context: str) -> str:
-    masked = _apply_sensitive_replacements(original_context)
-    if masked != original_context:
-        masked += (
-            "\n\nConfidentiality note: specific owner details above were abstracted before "
-            "this protection step. Preserve validation intent without restoring or guessing "
-            "the original concept, data sources, mechanism, strategy, or differentiators."
-        )
-    return masked
-
-
-def _fallback_protect_context(original_context: str) -> dict:
-    detected = _detect_sensitive_categories(original_context)
-    protection_applied = bool(detected)
-    if protection_applied:
-        protected_context = (
-            "Create a market validation survey for the relevant buyer or user segment. "
-            "Ask about the respondent's current workflows, pain points, budget ownership, "
-            "buying criteria, perceived value of generalized analytical insights, "
-            "adoption barriers, privacy expectations, and willingness to evaluate a new solution. "
-            "Do not reveal the exact product concept, data sources, scoring methods, strategy, "
-            "business model, differentiators, or execution details from the owner prompt."
-        )
-    else:
-        protected_context = original_context
-
-    return {
-        "protected_context": protected_context,
-        "detected_sensitive_categories": detected,
-        "protection_applied": protection_applied,
-        "protected_context_summary": (
-            "Sensitive idea details were generalized into validation themes."
-            if protection_applied
-            else "No sensitive idea details detected."
-        ),
-    }
-
-
-def protect_idea_context(original_context: str) -> dict:
-    """
-    Idea-protection intelligence layer.
-    Runs before final survey generation so public-facing questions validate the market
-    without exposing the owner's confidential idea, strategy, model, or execution details.
-    """
-    if not original_context.strip():
-        return _fallback_protect_context(original_context)
-
-    classified = detect_sensitive_idea_info(original_context)
-    llm_safe_context = (
-        _mask_context_before_llm(original_context) if classified["protection_applied"] else original_context
-    )
-
-    prompt = f"""Analyze this private survey-owner prompt and protect the idea before public survey questions are generated.
-
-Already-masked owner prompt:
-{llm_safe_context[:8000]}
-
-Detect sensitive information in these categories:
-- core_idea
-- business_model
-- differentiators
-- strategy
-- execution_details
-- proprietary_insights
-
-Return JSON only with this exact structure:
-{{
-  "protected_context": "A generalized, abstracted survey-generation brief that preserves validation goals but removes exact confidential details.",
-  "detected_sensitive_categories": ["core_idea"],
-  "protection_applied": true,
-  "protected_context_summary": "One sentence explaining what was generalized."
-}}
-
-Protection rules:
-- Do not expose exact product concepts, proprietary data sources, algorithms, scoring methods, launch strategy, unique differentiators, or business model details.
-- Do not restore, infer, or guess any masked details.
-- Replace specific execution details with broad problem/market language.
-- Preserve useful validation intent: current workflows, pain points, urgency, perceived value, buying criteria, adoption barriers, privacy/trust concerns, and willingness to explore a solution.
-- If no sensitive details are present, return the original intent in protected_context and set protection_applied to false."""
-
-    try:
-        text = call_ai_sync(prompt, 1200)
-        result = json.loads(text)
-        protected_context = str(result.get("protected_context") or "").strip()
-        detected = result.get("detected_sensitive_categories") or []
-        if not protected_context:
-            return _fallback_protect_context(original_context)
-        detected = [SENSITIVE_CATEGORY_LABELS[c] for c in detected if c in SENSITIVE_CATEGORY_LABELS]
-        if not detected:
-            detected = classified["detected_sensitive_categories"]
-        return {
-            "protected_context": protected_context,
-            "detected_sensitive_categories": detected,
-            "protection_applied": bool(
-                result.get("protection_applied") or detected or classified["protection_applied"]
-            ),
-            "protected_context_summary": result.get("protected_context_summary"),
-        }
-    except Exception as e:
-        print(f"[AI] Idea protection fallback used: {e}")
-        return _fallback_protect_context(original_context)
-
-
-def _sanitize_text_for_leaks(text: str, leak_terms: list[str]) -> str:
-    sanitized = _apply_sensitive_replacements(text)
-    for term in leak_terms:
-        sanitized = re.sub(re.escape(term), "generalized workforce signal", sanitized, flags=re.IGNORECASE)
-    return sanitized
-
-
-def _contains_leak(result_json: dict, leak_terms: list[str]) -> bool:
-    if not leak_terms:
-        return False
-    public_payload = json.dumps(
-        {
-            "title": result_json.get("title"),
-            "description": result_json.get("description"),
-            "welcome_message": result_json.get("welcome_message"),
-            "questions": result_json.get("questions"),
-        },
-        ensure_ascii=False,
-    ).lower()
-    return any(term.lower() in public_payload for term in leak_terms)
-
-
-def _sanitize_generated_survey(result_json: dict, leak_terms: list[str]) -> dict:
-    sanitized = dict(result_json)
-    for key in ("title", "description", "welcome_message"):
-        if isinstance(sanitized.get(key), str):
-            sanitized[key] = _sanitize_text_for_leaks(sanitized[key], leak_terms)
-    questions = []
-    for question in sanitized.get("questions") or []:
-        q = dict(question)
-        if isinstance(q.get("text"), str):
-            q["text"] = _sanitize_text_for_leaks(q["text"], leak_terms)
-        if isinstance(q.get("options"), list):
-            q["options"] = [
-                {
-                    **option,
-                    "label": _sanitize_text_for_leaks(str(option.get("label", "")), leak_terms),
-                    "value": _sanitize_text_for_leaks(str(option.get("value", "")), leak_terms),
-                }
-                for option in q["options"]
-            ]
-        questions.append(q)
-    sanitized["questions"] = questions
-    return sanitized
 
 
 @router.get("/ping")
@@ -1082,31 +814,13 @@ async def generate_survey(
     if body.audioContext:
         extra_context += f"\n\nAdditional context from audio transcript:\n{body.audioContext[:4000]}"
 
-    original_owner_context = f"{body.aiContext}{extra_context}"
-    leak_terms = _extract_leak_terms(original_owner_context)
+    survey_context = f"{body.aiContext}{extra_context}"
 
-    # The idea-protection layer runs before final survey generation. The original
-    # owner prompt stays internal to this request; the question generator receives
-    # only the protected, generalized validation brief below.
-    protection_result = await run_in_threadpool(protect_idea_context, original_owner_context)
-    protected_context = protection_result["protected_context"]
-    protection_metadata = IdeaProtectionMetadata(
-        protection_applied=protection_result["protection_applied"],
-        detected_sensitive_categories=protection_result["detected_sensitive_categories"],
-        protected_context_summary=protection_result.get("protected_context_summary"),
-    )
+    prompt = f"""Generate a complete survey based on the following idea/brief.
 
-    prompt = f"""Generate a complete survey based on the following protected validation brief.
-
-Protected validation brief: {protected_context}
-Target audience: {body.targetAudience or "Infer from the protected validation brief"}
+Idea / brief: {survey_context}
+Target audience: {body.targetAudience or "Infer from the idea/brief"}
 Engagement goals: {body.engagementGoals or "High completion, low fatigue, mobile-friendly participation"}
-
-Idea-protection requirements:
-- The survey must validate the market, pain points, workflows, buying criteria, trust concerns, and perceived value without revealing the owner's confidential idea.
-- Do not expose exact product strategy, business model, unique differentiators, execution plans, proprietary insights, internal data sources, scoring methods, or implementation details.
-- Do not include or imply any masked source names, data sources, mechanisms, or scoring approaches.
-- Generalize any sensitive concept into broad problem or outcome language.
 
 Return a JSON object with this exact structure:
 {{
@@ -1141,7 +855,7 @@ Rules:
 - For emoji_reaction options, use emoji characters as labels and stable lowercase values.
 - Make questions clear, unbiased, engaging, and fatigue-resistant.
 - Adapt tone and depth based on the survey style described above.
-- CRITICAL: Every question MUST be directly relevant to the validation brief topic. Do not generate generic filler questions unrelated to the domain.
+- CRITICAL: Every question MUST be directly relevant to the idea/brief topic. Do not generate generic filler questions unrelated to the domain.
 - CRITICAL: Question type MUST semantically match the question content. Never assign yes_no to questions starting with "how", "what", "which", "where", or "why" — use single_choice or multiple_choice with relevant answer options instead.
 - CRITICAL: Options for choice-type questions MUST be contextually meaningful answers to the specific question. Generic "Yes/No" options must ONLY appear on genuine polar yes/no questions. A question like "How do you acquire X?" must have options like specific methods, channels, or approaches — never Yes/No.
 - For each single_choice, multiple_choice, or dropdown question, provide 3-6 specific, meaningful options that directly address the question asked."""
@@ -1155,10 +869,6 @@ Rules:
         )
         result_json = json.loads(text)
         result_json = _optimize_generated_survey(result_json, body)
-        if _contains_leak(result_json, leak_terms):
-            result_json = _sanitize_generated_survey(result_json, leak_terms)
-            protection_metadata.leak_validation_applied = True
-        result_json["protection_metadata"] = protection_metadata.model_dump()
         return AIGenerateResponse(**result_json)
     except ValidationError as ve:
         print(f"[AI] Generate validation error: {ve}")
