@@ -70,6 +70,19 @@ SUPER_ADMIN_EMAILS = {
     if e.strip()
 }
 
+# ── PII field-level encryption ─────────────────────────────────────────────────
+# Comma-separated Fernet keys; the first encrypts, all are tried on decrypt (key
+# rotation). Unset => passthrough (plaintext) for local dev; set it in production.
+PII_ENCRYPTION_KEYS = [
+    k.strip() for k in os.getenv("PII_ENCRYPTION_KEYS", "").split(",") if k.strip()
+]
+
+# ── Row-Level Security (defense-in-depth, opt-in) ──────────────────────────────
+# When true (and the RLS migration has been applied), the app sets a per-request
+# Postgres tenant GUC so the database itself enforces tenant isolation even if app
+# code has an authorization slip. Default OFF — enable & test in staging first.
+ENABLE_DB_RLS = os.getenv("ENABLE_DB_RLS", "false").strip().lower() == "true"
+
 
 if not DATABASE_URL:
     raise Exception("DATABASE_URL is missing")
