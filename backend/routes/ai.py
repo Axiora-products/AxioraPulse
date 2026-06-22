@@ -1104,7 +1104,19 @@ class AITranslateRequest(BaseModel):
 
 
 @router.post("/translate-survey")
-async def translate_survey(body: AITranslateRequest):
+@limiter.limit("10/minute")
+async def translate_survey(request: Request, body: AITranslateRequest):
+    # This endpoint is intentionally anonymous (used by the public respondent page
+    # for live translation), so it is rate-limited and the input is bounded to
+    # prevent LLM cost abuse / DoS. (AP-SEC-008)
+    if len(body.questions) > 200:
+        raise HTTPException(status_code=400, detail="Too many questions to translate")
+    total_chars = len(body.title or "") + len(body.description or "")
+    for q in body.questions:
+        total_chars += len(str(q.get("question_text", ""))) + len(str(q.get("description", "")))
+    if total_chars > 40000:
+        raise HTTPException(status_code=400, detail="Survey content too large to translate")
+
     # AI provider is resolved automatically by call_ai_sync
 
     lang_name = "Hindi" if body.language == "hi" else "Telugu" if body.language == "te" else body.language
