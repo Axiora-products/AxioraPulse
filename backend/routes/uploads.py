@@ -27,6 +27,12 @@ from db.models import UserProfile, UploadedFile
 from dependencies import get_current_user
 from core.rate_limiter import limiter
 from core.config import OPENAI_KEY, SECRET_KEY
+from services.audit import record_audit
+from services.content_extraction import (
+    extract_from_document,
+    extract_from_url,
+    ExtractionError,
+)
 
 import openai
 from google.oauth2.credentials import Credentials
@@ -92,14 +98,18 @@ async def _read_capped(file: "UploadFile", max_bytes: int) -> bytes:
 
 # Magic-byte signatures for the content types we accept. text/plain has no
 # reliable signature and is allowed through (it is never executed).
+_OOXML_SIG = [b"PK\x03\x04", b"PK\x05\x06"]  # DOCX/XLSX are ZIP containers
+_OLE_SIG = [b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"]  # legacy DOC/XLS compound file
 _MAGIC_SIGNATURES = {
     "application/pdf": [b"%PDF"],
     "image/png": [b"\x89PNG\r\n\x1a\n"],
     "image/jpeg": [b"\xff\xd8\xff"],
+    "image/jpg": [b"\xff\xd8\xff"],
     "image/webp": [b"RIFF"],  # 'WEBP' marker checked separately at offset 8
-    # DOCX is a ZIP container; legacy DOC is an OLE compound file.
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [b"PK\x03\x04", b"PK\x05\x06"],
-    "application/msword": [b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1", b"PK\x03\x04"],
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": _OOXML_SIG,
+    "application/msword": _OLE_SIG + [b"PK\x03\x04"],
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": _OOXML_SIG,
+    "application/vnd.ms-excel": _OLE_SIG + _OOXML_SIG,
 }
 
 
@@ -122,10 +132,15 @@ def _validate_magic(contents: bytes, content_type: str) -> None:
 ALLOWED_FILE_TYPES = {
     "application/pdf",
     "text/plain",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "application/msword",
+    "text/csv",
+    "application/csv",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",  # .docx
+    "application/msword",  # .doc
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",  # .xlsx
+    "application/vnd.ms-excel",  # .xls
     "image/png",
     "image/jpeg",
+    "image/jpg",
     "image/webp",
 }
 
@@ -420,14 +435,27 @@ async def upload_file(
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(get_current_user),
 ):
-    if file.content_type not in ALLOWED_FILE_TYPES:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unsupported file type: {file.content_type}",
-        )
+    ip = request.client.host if getattr(request, "client", None) else None
 
-    contents = await _read_capped(file, 10 * 1024 * 1024)  # (AP-SEC-011)
-    _validate_magic(contents, file.content_type)  # (AP-SEC-030)
+    if file.content_type not in ALLOWED_FILE_TYPES:
+        # Log rejected uploads for security monitoring (blocks executables/scripts).
+        record_audit(
+            db, action="upload.rejected", actor=current_user, tenant_id=current_user.tenant_id,
+            target_type="file", ip_address=ip,
+            detail={"reason": "unsupported_type", "content_type": file.content_type, "filename": file.filename},
+        )
+        raise HTTPException(status_code=400, detail="This file type is not supported.")
+
+    try:
+        contents = await _read_capped(file, 10 * 1024 * 1024)  # (AP-SEC-011)
+        _validate_magic(contents, file.content_type)  # (AP-SEC-030)
+    except HTTPException as exc:
+        record_audit(
+            db, action="upload.rejected", actor=current_user, tenant_id=current_user.tenant_id,
+            target_type="file", ip_address=ip,
+            detail={"reason": "size_or_magic", "status": exc.status_code, "content_type": file.content_type},
+        )
+        raise
 
     file_id = str(uuid.uuid4())
     ext = os.path.splitext(file.filename or "file")[1]
@@ -437,14 +465,15 @@ async def upload_file(
     with open(filepath, "wb") as f:
         f.write(contents)
 
-    extracted = _extract_text_from_file(filepath, file.content_type)
+    # Traditional parser / OCR extraction with confidence (AI is not used here).
+    result = extract_from_document(contents, file.content_type, file.filename or "")
 
     db_file = UploadedFile(
         id=uuid.UUID(file_id),
         filename=file.filename or "Untitled",
         content_type=file.content_type,
         file_size=len(contents),
-        extracted_text=extracted,
+        extracted_text=result.text,
         upload_type="file",
         tenant_id=current_user.tenant_id,
         created_by=current_user.id,
@@ -455,14 +484,84 @@ async def upload_file(
     db.refresh(db_file)
 
     base_url = str(request.base_url).rstrip("/")
+    payload = result.as_dict()
     return {
         "id": str(db_file.id),
         "filename": db_file.filename,
         "content_type": db_file.content_type,
         "file_size": db_file.file_size,
-        "extracted_text": extracted,
+        "extracted_text": result.text,
         "upload_type": "file",
         "file_url": _signed_download_url(base_url, db_file.id),
+        # Extraction metadata for the user-verification step.
+        "confidence": payload["confidence"],
+        "ocr_quality": payload["ocr_quality"],
+        "warnings": payload["warnings"],
+        "needs_review": payload["needs_review"],
+        "source": db_file.filename,
+    }
+
+
+class LinkExtractRequest(BaseModel):
+    url: str
+
+
+@router.post("/link")
+@limiter.limit("10/minute")
+async def extract_link(
+    request: Request,
+    body: LinkExtractRequest,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(get_current_user),
+):
+    """Extract page title / description / headings / main content from a website
+    link using a traditional HTML parser behind an SSRF guard. Returns the same
+    extraction-metadata shape as file upload for the verification step."""
+    ip = request.client.host if getattr(request, "client", None) else None
+    url = (body.url or "").strip()
+    if not url:
+        raise HTTPException(status_code=422, detail="Please enter a website link.")
+    if not url.lower().startswith(("http://", "https://")):
+        url = "https://" + url
+
+    try:
+        result = extract_from_url(url)
+    except ExtractionError as exc:
+        record_audit(
+            db, action="link.rejected", actor=current_user, tenant_id=current_user.tenant_id,
+            target_type="link", ip_address=ip, detail={"url": url[:300], "reason": str(exc)},
+        )
+        raise HTTPException(status_code=422, detail=str(exc))
+    except Exception as exc:
+        logger.warning("Link extraction error: %s", type(exc).__name__)
+        raise HTTPException(status_code=502, detail="We could not read that website link. Please try another.")
+
+    # Persist as a tenant-scoped context source so it can be reused/removed.
+    db_file = UploadedFile(
+        id=uuid.uuid4(),
+        filename=url[:500],
+        content_type="text/uri-list",
+        file_size=len(result.text or ""),
+        extracted_text=result.text,
+        upload_type="link",
+        tenant_id=current_user.tenant_id,
+        created_by=current_user.id,
+    )
+    db.add(db_file)
+    db.commit()
+    db.refresh(db_file)
+
+    payload = result.as_dict()
+    return {
+        "id": str(db_file.id),
+        "filename": url,
+        "upload_type": "link",
+        "extracted_text": result.text,
+        "confidence": payload["confidence"],
+        "ocr_quality": payload["ocr_quality"],
+        "warnings": payload["warnings"],
+        "needs_review": payload["needs_review"],
+        "source": url,
     }
 
 
