@@ -429,6 +429,26 @@ class WaitlistEntry(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class AuditLog(Base):
+    """
+    Append-only audit trail for security-sensitive actions: role/permission
+    changes, payments, super-admin operations, user deletion, etc. (AP-SEC-027)
+    """
+
+    __tablename__ = "audit_logs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    actor_user_id = Column(UUID(as_uuid=True), nullable=True, index=True)
+    actor_email = Column(String(255), nullable=True)
+    tenant_id = Column(UUID(as_uuid=True), nullable=True, index=True)
+    action = Column(String(100), nullable=False, index=True)  # e.g. 'user.role_changed'
+    target_type = Column(String(50), nullable=True)
+    target_id = Column(String(100), nullable=True)
+    ip_address = Column(String(64), nullable=True)
+    detail = Column(JSONB, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
 class UploadedFile(Base):
     """
     Stores uploaded file metadata and extracted text content.
