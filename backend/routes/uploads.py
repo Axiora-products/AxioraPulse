@@ -70,6 +70,55 @@ def _signed_download_url(base_url: str, file_id) -> str:
     return f"{base_url}/uploads/download/{file_id}?token={_make_download_token(file_id)}"
 
 
+# ── Upload size + content validation (AP-SEC-011, AP-SEC-030) ──────────────────
+_UPLOAD_CHUNK = 1024 * 1024  # 1 MB
+
+
+async def _read_capped(file: "UploadFile", max_bytes: int) -> bytes:
+    """Read an upload in chunks, aborting as soon as it exceeds max_bytes so a
+    huge body can't be fully buffered into memory first. (AP-SEC-011)"""
+    chunks = []
+    total = 0
+    while True:
+        chunk = await file.read(_UPLOAD_CHUNK)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > max_bytes:
+            raise HTTPException(status_code=413, detail="File too large")
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+# Magic-byte signatures for the content types we accept. text/plain has no
+# reliable signature and is allowed through (it is never executed).
+_MAGIC_SIGNATURES = {
+    "application/pdf": [b"%PDF"],
+    "image/png": [b"\x89PNG\r\n\x1a\n"],
+    "image/jpeg": [b"\xff\xd8\xff"],
+    "image/webp": [b"RIFF"],  # 'WEBP' marker checked separately at offset 8
+    # DOCX is a ZIP container; legacy DOC is an OLE compound file.
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [b"PK\x03\x04", b"PK\x05\x06"],
+    "application/msword": [b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1", b"PK\x03\x04"],
+}
+
+
+def _validate_magic(contents: bytes, content_type: str) -> None:
+    """Reject files whose bytes don't match their declared content type so a
+    client cannot smuggle, e.g., an HTML/script payload as application/pdf.
+    (AP-SEC-030)"""
+    if content_type == "text/plain":
+        return
+    signatures = _MAGIC_SIGNATURES.get(content_type)
+    if not signatures:
+        return
+    head = contents[:16]
+    if not any(head.startswith(sig) for sig in signatures):
+        raise HTTPException(status_code=400, detail="File content does not match its declared type")
+    if content_type == "image/webp" and contents[8:12] != b"WEBP":
+        raise HTTPException(status_code=400, detail="File content does not match its declared type")
+
+
 ALLOWED_FILE_TYPES = {
     "application/pdf",
     "text/plain",
@@ -377,9 +426,8 @@ async def upload_file(
             detail=f"Unsupported file type: {file.content_type}",
         )
 
-    contents = await file.read()
-    if len(contents) > 10 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="File too large (max 10 MB)")
+    contents = await _read_capped(file, 10 * 1024 * 1024)  # (AP-SEC-011)
+    _validate_magic(contents, file.content_type)  # (AP-SEC-030)
 
     file_id = str(uuid.uuid4())
     ext = os.path.splitext(file.filename or "file")[1]
@@ -507,9 +555,10 @@ async def upload_from_drive(
             "file_url": _signed_download_url(base_url, db_file.id),
         }
 
-    except Exception as e:
-        print(f"Drive upload error: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Google Drive error: {str(e)}")
+    except Exception as exc:
+        # Don't leak raw upstream error detail to the client. (AP-SEC-038)
+        logger.error("Google Drive import failed: %s", type(exc).__name__)
+        raise HTTPException(status_code=502, detail="Failed to import file from Google Drive")
 
 
 @router.post("/audio")
@@ -527,9 +576,7 @@ async def upload_audio(
             detail=f"Unsupported audio type: {file.content_type}",
         )
 
-    contents = await file.read()
-    if len(contents) > 25 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="Audio file too large (max 25 MB)")
+    contents = await _read_capped(file, 25 * 1024 * 1024)  # (AP-SEC-011)
 
     file_id = str(uuid.uuid4())
     ext = _get_audio_suffix(file.filename, content_type)
@@ -622,13 +669,10 @@ async def transcribe_audio(
             detail=f"Unsupported audio type: {upload.content_type}",
         )
 
-    contents = await upload.read()
+    contents = await _read_capped(upload, 25 * 1024 * 1024)  # (AP-SEC-011)
 
     if not contents:
         raise HTTPException(status_code=400, detail="Uploaded audio file is empty")
-
-    if len(contents) > 25 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="Audio file too large (max 25 MB)")
 
     suffix = _get_audio_suffix(upload.filename, content_type)
     temp_path = None
