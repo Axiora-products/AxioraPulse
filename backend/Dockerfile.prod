@@ -42,6 +42,13 @@ RUN sed -i 's/\r$//' entrypoint.sh \
     && cp entrypoint.sh /usr/local/bin/axiorapulse-entrypoint.sh \
     && chmod +x /usr/local/bin/axiorapulse-entrypoint.sh
 
+# Run as a non-root user (least privilege). The app writes uploads and the
+# whisper cache under /app, so those must be owned by the runtime user. (AP-SEC-035)
+RUN useradd --create-home --uid 10001 appuser \
+    && mkdir -p /app/uploaded_files_store/whisper_cache \
+    && chown -R appuser:appuser /app
+USER appuser
+
 # Expose port 8000
 EXPOSE 8000
 
