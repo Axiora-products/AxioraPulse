@@ -13,6 +13,7 @@ Startup sequence:
 
 import sys
 import os
+import logging
 
 # Ensure the backend root is on the path so `db`, `routes`, etc. resolve
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -46,6 +47,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
+from core import config
 from core.rate_limiter import limiter
 
 
@@ -54,12 +56,16 @@ from core.rate_limiter import limiter
 
 
 # ── App ───────────────────────────────────────────────────────────────────────
+# Interactive API docs are disabled in production to avoid exposing the full API
+# surface map. (AP-SEC-020)
+_docs_enabled = not config.IS_PRODUCTION
 app = FastAPI(
     title="Nexora Pulse API",
     description="FastAPI backend for the Nexora Pulse survey science platform",
     version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url="/docs" if _docs_enabled else None,
+    redoc_url="/redoc" if _docs_enabled else None,
+    openapi_url="/openapi.json" if _docs_enabled else None,
     root_path="/api",
 )
 # ── Rate Limiter ─────────────────────────────────────────────────────────────
@@ -67,12 +73,21 @@ app.state.limiter = limiter
 app.add_middleware(SlowAPIMiddleware)
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
-# Use wildcard origins and disable credentials for maximum development compatibility.
-# Since we use Bearer tokens (Authorization header) rather than cookies,
-# allow_credentials=True is NOT required.
+# Restrict origins to the configured frontend(s). FRONTEND_URL may contain a
+# comma-separated list. In non-production, fall back to wildcard for local dev
+# convenience. We use Bearer tokens (not cookies), so credentials stay disabled.
+# (AP-SEC-019)
+_allowed_origins = [o.strip() for o in config.FRONTEND_URL.split(",") if o.strip()]
+if not _allowed_origins:
+    if config.IS_PRODUCTION:
+        # Fail safe: no origins configured in prod => allow none rather than all.
+        _allowed_origins = []
+    else:
+        _allowed_origins = ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_allowed_origins,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -109,12 +124,19 @@ app.include_router(super_admin_router)
 # ── Health ────────────────────────────────────────────────────────────────────
 @app.get("/health", tags=["health"])
 def health():
+    # Return 503 (not 200) when unhealthy so load balancers/orchestrators gate
+    # traffic correctly, and never leak the raw DB error/connection string.
+    # (AP-SEC-026)
     try:
         with engine.connect() as connection:
             connection.execute(text("SELECT 1"))
         return {"status": "healthy", "service": "Nexora Pulse API", "database": "connected"}
-    except Exception as e:
-        return {"status": "unhealthy", "database": "disconnected", "error": str(e)}
+    except Exception as exc:
+        logging.getLogger(__name__).error("Health check DB failure: %s", type(exc).__name__)
+        return JSONResponse(
+            status_code=503,
+            content={"status": "unhealthy", "database": "disconnected"},
+        )
 
 
 @app.get("/", tags=["health"])
