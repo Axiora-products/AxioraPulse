@@ -15,6 +15,7 @@ GET    /responses/session/{token} — find in-progress response by session_token
 
 import re
 import uuid
+import secrets
 from datetime import datetime, timezone
 from typing import List, Optional
 from core.rate_limiter import limiter
@@ -60,6 +61,35 @@ def _load_response(response_id: uuid.UUID, db: Session) -> SurveyResponse:
     )
     if not r:
         raise HTTPException(status_code=404, detail="Response not found")
+    return r
+
+
+def _extract_session_token(request: Request, explicit: str | None = None) -> str | None:
+    """Session token the respondent holds, from query (`st`) or header.
+
+    sendBeacon cannot set headers, so the query param is supported too.
+    """
+    return (
+        explicit
+        or request.query_params.get("st")
+        or request.headers.get("x-session-token")
+    )
+
+
+def _load_owned_response(
+    response_id: uuid.UUID, request: Request, db: Session, explicit_token: str | None = None
+) -> SurveyResponse:
+    """Load a response and assert the caller proves ownership via session token.
+
+    The respondent flow is anonymous; the session_token (held only in the
+    respondent's browser) is the capability that authorizes reading/mutating a
+    specific response. Without it, a response_id alone must NOT grant access.
+    (AP-SEC-003)
+    """
+    r = _load_response(response_id, db)
+    token = _extract_session_token(request, explicit_token)
+    if not token or not r.session_token or not secrets.compare_digest(token, r.session_token):
+        raise HTTPException(status_code=403, detail="Not authorized for this response")
     return r
 
 
@@ -138,7 +168,7 @@ def get_response_by_session(request: Request, token: str, db: Session = Depends(
 @router.get("/{response_id}", response_model=ResponseOut)
 @limiter.limit("20/minute")
 def get_response(request: Request, response_id: uuid.UUID, db: Session = Depends(get_db)):
-    return ResponseOut.model_validate(_load_response(response_id, db))
+    return ResponseOut.model_validate(_load_owned_response(response_id, request, db))
 
 
 # ── Update metadata ───────────────────────────────────────────────────────────
@@ -153,9 +183,7 @@ def update_response(
     db: Session = Depends(get_db),
 ):
     """Update email, status, last_saved_at, or metadata."""
-    r = db.query(SurveyResponse).filter(SurveyResponse.id == response_id).first()
-    if not r:
-        raise HTTPException(status_code=404, detail="Response not found")
+    r = _load_owned_response(response_id, request, db)
 
     if body.respondent_email is not None:
         r.respondent_email = body.respondent_email
@@ -203,9 +231,7 @@ def upsert_answers(
     On conflict (response_id, question_id) update the existing row.
     Mirrors the Supabase `.upsert()` with onConflict='response_id,question_id'.
     """
-    r = db.query(SurveyResponse).filter(SurveyResponse.id == response_id).first()
-    if not r:
-        raise HTTPException(status_code=404, detail="Response not found")
+    r = _load_owned_response(response_id, request, db)
 
     for ans in answers:
         existing = (
@@ -253,9 +279,7 @@ def submit_response(
     Replaces the Netlify `respond` function (action='submit').
     Accepts optional `metadata` dict (quality_score etc.).
     """
-    r = db.query(SurveyResponse).filter(SurveyResponse.id == response_id).first()
-    if not r:
-        raise HTTPException(status_code=404, detail="Response not found")
+    r = _load_owned_response(response_id, request, db)
 
     r.status = ResponseStatusEnum.completed
     r.completed_at = datetime.now(timezone.utc)
@@ -283,9 +307,7 @@ def abandon_response(
     Mark a response as abandoned + store drop-off metadata.
     Called by useExitDetection.js / useResponseTracking.js onAbandon.
     """
-    r = db.query(SurveyResponse).filter(SurveyResponse.id == response_id).first()
-    if not r:
-        raise HTTPException(status_code=404, detail="Response not found")
+    r = _load_owned_response(response_id, request, db)
 
     r.status = ResponseStatusEnum.abandoned
     if isinstance(body, dict) and body.get("metadata"):

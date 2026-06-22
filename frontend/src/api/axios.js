@@ -10,6 +10,15 @@ API.interceptors.request.use((config) => {
     if (token) {
         config.headers.Authorization = `Bearer ${token}`;
     }
+    // Attach the respondent session token to /responses/ calls so the backend can
+    // verify the caller owns the response being read/modified. (AP-SEC-003)
+    const url = config.url || "";
+    if (url.includes("/responses/")) {
+        const st = localStorage.getItem("nx_active_session");
+        if (st) {
+            config.headers["X-Session-Token"] = st;
+        }
+    }
     return config;
 });
 
