@@ -78,10 +78,15 @@ server {
         expires 0;
     }
 
-    # Security headers
+    # Security headers (AP-SEC-031)
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
+    # Conservative CSP: restrict framing (clickjacking), plugins and <base> without
+    # constraining script/style/connect sources (Razorpay, Cognito, fonts, etc.).
+    # Tighten to a full default-src allow-list once all third-party origins are enumerated.
+    add_header Content-Security-Policy "frame-ancestors 'self'; object-src 'none'; base-uri 'self'" always;
 
     gzip on;
     gzip_types text/plain text/css application/json application/javascript text/xml application/xml image/svg+xml;
