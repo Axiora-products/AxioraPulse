@@ -26,6 +26,7 @@ from core import config
 from db.database import get_db
 from db.models import Payment, Plan, Subscription, Tenant, UserProfile
 from dependencies import get_current_user
+from services.audit import record_audit
 from schemas.payment import (
     CreateOrderRequest,
     CreateOrderResponse,
@@ -187,6 +188,15 @@ def verify_payment(
         tenant.plan = plan.code
 
     db.commit()
+    record_audit(
+        db,
+        action="payment.verified",
+        actor=current_user,
+        tenant_id=current_user.tenant_id,
+        target_type="payment",
+        target_id=payment.id,
+        detail={"plan": plan.code, "amount_paise": payment.amount_paise, "order_id": body.razorpay_order_id},
+    )
     return {"success": True, "plan": plan.code}
 
 

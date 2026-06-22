@@ -38,6 +38,7 @@ from schemas import (
 )
 from auth_utils import hash_password
 from dependencies import get_current_user
+from services.audit import record_audit
 from cognito_utils import get_cognito_client, get_user_pool_id, admin_delete_user
 
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
@@ -429,6 +430,7 @@ def update_role(
     if body.role == RoleEnum.super_admin.value and current_user.role != RoleEnum.super_admin:
         raise HTTPException(status_code=403, detail="Admins cannot assign the Super Admin role")
 
+    previous_role = user.role.value if hasattr(user.role, "value") else str(user.role)
     try:
         user.role = RoleEnum(body.role)
     except ValueError:
@@ -436,6 +438,15 @@ def update_role(
 
     db.commit()
     db.refresh(user)
+    record_audit(
+        db,
+        action="user.role_changed",
+        actor=current_user,
+        tenant_id=current_user.tenant_id,
+        target_type="user",
+        target_id=user.id,
+        detail={"from": previous_role, "to": body.role},
+    )
     return UserProfileOut.model_validate(user)
 
 
@@ -479,6 +490,15 @@ def update_status(
     user.is_active = body.is_active
     db.commit()
     db.refresh(user)
+    record_audit(
+        db,
+        action="user.status_changed",
+        actor=current_user,
+        tenant_id=current_user.tenant_id,
+        target_type="user",
+        target_id=user.id,
+        detail={"is_active": body.is_active},
+    )
     return UserProfileOut.model_validate(user)
 
 
@@ -523,8 +543,19 @@ def delete_user(
     if user.email:
         admin_delete_user(user.email)
 
+    deleted_email = user.email
+    deleted_id = user.id
     db.delete(user)
     db.commit()
+    record_audit(
+        db,
+        action="user.deleted",
+        actor=current_user,
+        tenant_id=current_user.tenant_id,
+        target_type="user",
+        target_id=deleted_id,
+        detail={"email": deleted_email},
+    )
     return {"message": "User deleted successfully"}
 
 

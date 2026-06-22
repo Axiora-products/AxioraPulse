@@ -49,6 +49,26 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from core import config
 from core.rate_limiter import limiter
+from core.logging_config import configure_logging
+
+# ── Logging & error tracking ───────────────────────────────────────────────────
+# (AP-SEC-027) Configure structured, secret-redacting logging before anything else,
+# and wire Sentry when a DSN is provided.
+configure_logging()
+
+SENTRY_DSN = os.getenv("SENTRY_DSN")
+if SENTRY_DSN:
+    try:
+        import sentry_sdk
+
+        sentry_sdk.init(
+            dsn=SENTRY_DSN,
+            environment=config.ENVIRONMENT,
+            traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1")),
+            send_default_pii=False,
+        )
+    except Exception:
+        logging.getLogger(__name__).warning("Sentry SDK init failed; continuing without it")
 
 
 # ── Create tables ─────────────────────────────────────────────────────────────
