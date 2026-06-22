@@ -23,6 +23,7 @@ from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from db.database import Base
+from db.encryption import EncryptedString
 from datetime import datetime
 
 import enum
@@ -233,7 +234,7 @@ class SurveyResponse(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     survey_id = Column(UUID(as_uuid=True), ForeignKey("surveys.id", ondelete="CASCADE"), index=True, nullable=False)
     session_token = Column(String(100), nullable=True)
-    respondent_email = Column(String(255), nullable=True)
+    respondent_email = Column(EncryptedString, nullable=True)  # PII (encrypted at rest)
     source = Column(String(50), nullable=True)  # acquisition channel: whatsapp|linkedin|email|qr|direct|…
     language = Column(String(10), nullable=False, default="en")
     status = Column(SAEnum(ResponseStatusEnum), default=ResponseStatusEnum.in_progress)
@@ -242,11 +243,11 @@ class SurveyResponse(Base):
     last_saved_at = Column(DateTime(timezone=True), nullable=True)
     response_metadata = Column("metadata", JSONB, nullable=True)
 
-    # demographics
-    age_range = Column(String(50), nullable=True)
-    gender = Column(String(50), nullable=True)
-    occupation = Column(String(100), nullable=True)
-    city = Column(String(100), nullable=True)
+    # demographics (PII — encrypted at rest)
+    age_range = Column(EncryptedString, nullable=True)
+    gender = Column(EncryptedString, nullable=True)
+    occupation = Column(EncryptedString, nullable=True)
+    city = Column(EncryptedString, nullable=True)
 
     __table_args__ = (UniqueConstraint("session_token", name="uq_survey_response_session_token"),)
 
@@ -405,8 +406,8 @@ class DemoSchedule(Base):
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
 
-    name = Column(String, nullable=False)
-    email = Column(String, nullable=False)
+    name = Column(EncryptedString, nullable=False)  # PII (encrypted at rest)
+    email = Column(EncryptedString, nullable=False)  # PII (encrypted at rest)
 
     # demo booking details
     demo_date = Column(String, nullable=False)

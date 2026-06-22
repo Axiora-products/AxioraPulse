@@ -43,6 +43,36 @@ After SEC-001 lands, `OTP_JWT_SECRET` and `MOCK_COGNITO_SECRET` should no longer
 
 ---
 
+## 2b. PII field-level encryption & Row-Level Security (defense-in-depth)
+
+**PII encryption (recommended for production).** Respondent PII (email, demographics)
+and demo contact details are encrypted at the field level. Generate a Fernet key and
+provision it; without it the columns store plaintext (dev only).
+
+```bash
+# Generate a key
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+# Provision (comma-separated; first encrypts, all decrypt — for rotation)
+aws ssm put-parameter --name "/axiorapulse/$ENV/PII_ENCRYPTION_KEYS" --type SecureString --value "<key>" --overwrite
+```
+Add `PII_ENCRYPTION_KEYS` to `ecs-task-def.json` secrets. Run migration `e6f7a8b9c0d1`
+(widens the encrypted columns to TEXT). Existing rows stay readable (legacy plaintext
+falls through); to encrypt them, re-save the rows or run a one-off re-encryption script.
+**Key loss = data loss** for encrypted fields — back the key up in a KMS/secret vault.
+
+**Row-Level Security (opt-in, staging-first).** Postgres enforces tenant isolation so
+an app-layer authorization slip cannot leak another tenant's rows.
+
+1. Apply migration `f7a8b9c0d1e2` (enables FORCE RLS + fail-open-when-unset policies —
+   safe to apply; it does nothing until the app sets the tenant GUC).
+2. Set `ENABLE_DB_RLS=true` **in staging first** and run the full integration suite +
+   a load test. Verify: normal users see only their tenant; super-admin sees all;
+   public/respondent flows still work; no "empty result" regressions.
+3. Only after staging passes, set `ENABLE_DB_RLS=true` in production.
+> ⚠️ The RLS GUC plumbing must be validated against a real Postgres + the connection
+> pool. The design fails **open** (no extra constraint) if the GUC is unset, so a
+> plumbing bug degrades protection rather than causing an outage — but test it.
+
 ## 3. Provision secrets to AWS (SSM Parameter Store / Secrets Manager)
 
 The app reads prod secrets via `ecs-task-def.json` (good). Add the **missing** ones and the new integration secrets. Use the per-environment path `parameter/axiorapulse/<env>/…` (and tighten the IAM read scope per AP-SEC-035).
