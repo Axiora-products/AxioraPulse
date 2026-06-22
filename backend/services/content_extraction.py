@@ -364,6 +364,39 @@ def _fetch_html(url: str) -> str:
     raise ExtractionError("That website link redirected too many times.")
 
 
+_IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".svg")
+
+
+def is_loadable_image(url: str, timeout: int = 4) -> bool:
+    """Return True only if `url` is a safe, reachable, image resource.
+
+    Used to verify web-collected images referenced by AI-generated questions
+    actually load before they are shown to respondents. SSRF-guarded; bounded by
+    a short timeout; treats a 200 with an image content-type (or image extension)
+    as loadable.
+    """
+    if not url or not isinstance(url, str):
+        return False
+    try:
+        _assert_safe_url(url)
+    except ExtractionError:
+        return False
+    headers = {"User-Agent": "AxioraPulseBot/1.0 (+media-check)"}
+    try:
+        resp = requests.head(url, timeout=timeout, allow_redirects=True, headers=headers)
+        if resp.status_code in (403, 405) or resp.status_code >= 500:
+            # Some CDNs reject HEAD — retry a lightweight GET.
+            resp = requests.get(url, timeout=timeout, stream=True, headers=headers)
+        if resp.status_code != 200:
+            return False
+        ctype = (resp.headers.get("content-type") or "").split(";", 1)[0].strip().lower()
+        if ctype.startswith("image/"):
+            return True
+        return urlparse(url).path.lower().endswith(_IMAGE_EXTS)
+    except Exception:
+        return False
+
+
 def extract_from_url(url: str) -> ExtractionResult:
     r = ExtractionResult(source=url)
     html = _fetch_html(url)  # raises ExtractionError on unsafe/unreachable

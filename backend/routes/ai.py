@@ -279,6 +279,78 @@ def _flow_bucket(question: dict, original_index: int, total: int) -> tuple:
     return (2, original_index)
 
 
+# Question types where the image IS the answer choice (a broken image makes the
+# option/question unusable). For other types images are decorative.
+_IMAGE_DEPENDENT_TYPES = {"visual_choice", "swipe_choice"}
+_MAX_MEDIA_CHECKS = 60
+
+
+def _filter_unloadable_media(questions: list) -> list:
+    """Verify any web-collected images referenced by generated questions actually
+    load. Broken decorative images are stripped; an image-dependent question left
+    with fewer than 2 valid image options is skipped entirely. (web-media safety)"""
+    from concurrent.futures import ThreadPoolExecutor
+    from services.content_extraction import is_loadable_image
+
+    # Collect unique image URLs across all options.
+    urls = []
+    seen = set()
+    for q in questions:
+        opts = q.get("options")
+        if isinstance(opts, list):
+            for o in opts:
+                u = o.get("image_url") if isinstance(o, dict) else None
+                if u and u not in seen:
+                    seen.add(u)
+                    urls.append(u)
+    if not urls:
+        return questions
+
+    urls = urls[:_MAX_MEDIA_CHECKS]
+    loadable = {}
+    try:
+        with ThreadPoolExecutor(max_workers=8) as ex:
+            for u, ok in zip(urls, ex.map(is_loadable_image, urls)):
+                loadable[u] = ok
+    except Exception as exc:
+        logger.warning("Media validation failed, keeping questions as-is: %s", type(exc).__name__)
+        return questions
+
+    def _ok(u):
+        # URLs we couldn't check (beyond the cap) are kept rather than dropped.
+        return loadable.get(u, True)
+
+    out = []
+    for q in questions:
+        opts = q.get("options")
+        if not (isinstance(opts, list) and any(isinstance(o, dict) and o.get("image_url") for o in opts)):
+            out.append(q)
+            continue
+
+        image_dependent = q.get("type") in _IMAGE_DEPENDENT_TYPES
+        kept = []
+        for o in opts:
+            img = o.get("image_url") if isinstance(o, dict) else None
+            if not img:
+                kept.append(o)
+                continue
+            if _ok(img):
+                kept.append(o)
+            elif image_dependent:
+                continue  # the image is the choice — drop the broken option
+            else:
+                kept.append({k: v for k, v in o.items() if k != "image_url"})  # strip broken image, keep text
+
+        if image_dependent:
+            valid = [o for o in kept if isinstance(o, dict) and o.get("image_url")]
+            if len(valid) < 2:
+                logger.info("Skipping image-based question — its media failed to load")
+                continue  # skip the whole question
+        out.append({**q, "options": kept})
+
+    return out
+
+
 def _optimize_generated_survey(result_json: dict, body: AIGenerateRequest) -> dict:
     mode = (body.mode or "conversational").lower().replace(" ", "_")
     context = " ".join(filter(None, [body.aiContext, body.targetAudience, body.engagementGoals]))
@@ -330,6 +402,9 @@ def _optimize_generated_survey(result_json: dict, body: AIGenerateRequest) -> di
         if options is not None:
             item["options"] = options
         optimized.append(item)
+
+    # Verify any web-collected images load; drop broken media / image-only questions.
+    optimized = _filter_unloadable_media(optimized)
 
     return {
         **result_json,
@@ -935,7 +1010,8 @@ Rules:
             system_instruction + " Always respond with valid JSON only — no markdown, no explanation.",
         )
         result_json = json.loads(text)
-        result_json = _optimize_generated_survey(result_json, body)
+        # Optimization now performs outbound media checks — run off the event loop.
+        result_json = await run_in_threadpool(_optimize_generated_survey, result_json, body)
         return AIGenerateResponse(**result_json)
     except ValidationError as ve:
         print(f"[AI] Generate validation error: {ve}")
