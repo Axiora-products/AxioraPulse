@@ -33,7 +33,7 @@ def schedule_demo(request: Request, body: DemoRequest, db: Session = Depends(get
 
     token_url = f"https://zoom.us/oauth/token?grant_type=account_credentials&account_id={ACCOUNT_ID}"
 
-    token_response = requests.post(token_url, auth=(CLIENT_ID, CLIENT_SECRET))
+    token_response = requests.post(token_url, auth=(CLIENT_ID, CLIENT_SECRET), timeout=10)
 
     token_data = token_response.json()
 
@@ -59,7 +59,7 @@ def schedule_demo(request: Request, body: DemoRequest, db: Session = Depends(get
         "settings": {"join_before_host": True, "waiting_room": True},
     }
 
-    meeting_response = requests.post(meeting_url, json=meeting_data, headers=headers)
+    meeting_response = requests.post(meeting_url, json=meeting_data, headers=headers, timeout=10)
 
     meeting = meeting_response.json()
 
