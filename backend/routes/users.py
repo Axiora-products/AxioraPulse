@@ -16,7 +16,7 @@ import os
 import time
 import re
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 from urllib.parse import urlparse
 from pydantic import BaseModel
@@ -43,6 +43,24 @@ from cognito_utils import get_cognito_client, get_user_pool_id, admin_delete_use
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+# Pending invites expire after this window. (AP-SEC-016)
+INVITE_TTL = timedelta(days=7)
+
+
+def _invite_expiry() -> datetime:
+    return datetime.now(timezone.utc) + INVITE_TTL
+
+
+def _invite_is_expired(user: UserProfile) -> bool:
+    exp = user.invite_expires_at
+    if exp is None:
+        # Legacy invites issued before expiry existed are treated as still valid.
+        return False
+    if exp.tzinfo is None:
+        exp = exp.replace(tzinfo=timezone.utc)
+    return exp < datetime.now(timezone.utc)
+
 
 # Roles that allow inviting / managing users
 MANAGER_ROLES = {RoleEnum.super_admin, RoleEnum.admin, RoleEnum.manager}
@@ -172,6 +190,7 @@ def invite_user(
 
             # Generate new token (recommended)
             existing.invite_token = secrets.token_urlsafe(32)
+            existing.invite_expires_at = _invite_expiry()
             db.commit()
             db.refresh(existing)
 
@@ -220,6 +239,7 @@ def invite_user(
         is_active=True,
         account_status="invited",
         invite_token=secrets.token_urlsafe(32),
+        invite_expires_at=_invite_expiry(),
     )
 
     db.add(new_user)
@@ -288,6 +308,7 @@ def bulk_invite(
         # 🔁 Already invited → resend
         if existing and existing.account_status == "invited":
             existing.invite_token = secrets.token_urlsafe(32)
+            existing.invite_expires_at = _invite_expiry()
             db.commit()
             db.refresh(existing)
 
@@ -333,6 +354,7 @@ def bulk_invite(
             is_active=True,
             account_status="invited",
             invite_token=secrets.token_urlsafe(32),
+            invite_expires_at=_invite_expiry(),
         )
 
         db.add(new_user)
@@ -519,7 +541,8 @@ def accept_invite(
     if user.account_status != "invited":
         raise HTTPException(status_code=400, detail="User is already active")
 
-    from datetime import datetime, timezone
+    if _invite_is_expired(user):  # (AP-SEC-016)
+        raise HTTPException(status_code=410, detail="This invitation has expired. Please request a new one.")
 
     user.full_name = body.full_name.strip()
     user.password_hash = hash_password(body.password)
@@ -580,6 +603,8 @@ def get_invite_info(
     )
     if not user or user.account_status != "invited":
         raise HTTPException(status_code=404, detail="Invalid or expired invitation token")
+    if _invite_is_expired(user):  # (AP-SEC-016)
+        raise HTTPException(status_code=410, detail="This invitation has expired. Please request a new one.")
 
     return {
         "email": user.email,

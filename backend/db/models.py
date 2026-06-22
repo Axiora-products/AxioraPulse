@@ -133,6 +133,7 @@ class UserProfile(Base):
     is_internal = Column(Boolean, nullable=False, default=False)  # Axiora team members bypass payment gates
     account_status = Column(String(50), default="active")  # 'active' | 'invited'
     invite_token = Column(String(100), unique=True, nullable=True)
+    invite_expires_at = Column(DateTime(timezone=True), nullable=True)  # (AP-SEC-016)
     invite_accepted_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
