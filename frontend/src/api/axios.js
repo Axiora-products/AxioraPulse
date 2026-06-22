@@ -1,5 +1,7 @@
 import axios from "axios";
 
+import { getApiErrorMessage } from "../lib/apiError";
+
 const API = axios.create({
     baseURL: import.meta.env.VITE_API_BASE_URL || "/api",
 });
@@ -42,6 +44,10 @@ API.interceptors.response.use(
                 });
             }
         }
+        // Centralized error handling: attach a user-friendly message that callers
+        // can surface safely (getApiErrorMessage also logs the technical detail
+        // internally). Raw backend/exception text is never meant to reach the UI.
+        err.friendlyMessage = getApiErrorMessage(err);
         return Promise.reject(err);
     }
 );

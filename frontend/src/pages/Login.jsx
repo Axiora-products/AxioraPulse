@@ -7,6 +7,7 @@ import useAuthStore from "../hooks/useAuth";
 import { cognitoSignIn, cognitoForgotPassword, cognitoConfirmPassword, cognitoResendCode } from '../lib/cognito';
 import { sendLoginOTP, verifyLoginOTP } from '../lib/otp';
 import { consumePostAuthRedirect } from '../lib/pendingTemplate';
+import { getApiErrorMessage } from '../lib/apiError';
 
 const Logo = ({ dark }) => (
   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 0, lineHeight: 1 }}>
@@ -34,7 +35,8 @@ function friendlyAuthError(msg = '') {
     return 'Too many attempts — please wait a minute before trying again.';
   if (m.includes('network') || m.includes('fetch'))
     return 'Connection error. Please check your internet and try again.';
-  return msg;
+  // Never surface raw exception text to the user.
+  return 'Something went wrong. Please try again.';
 }
 
 function ForgotPasswordModal({ onClose }) {
@@ -196,7 +198,7 @@ export default function Login() {
       toast.success('OTP sent to your phone');
       setResendTimer(30);
     } catch (err) {
-      toast.error(err.message || 'Failed to send OTP');
+      toast.error(getApiErrorMessage(err, 'Failed to send OTP'));
     } finally { setOtpBusy(false); }
   };
 
@@ -214,7 +216,7 @@ export default function Login() {
       toast.success('Welcome back!');
       window.location.href = consumePostAuthRedirect(storeUser.role === 'super_admin' ? '/super-admin' : '/dashboard');
     } catch (err) {
-      toast.error(err.message || 'Verification failed');
+      toast.error(getApiErrorMessage(err, 'Verification failed'));
     } finally { setOtpBusy(false); }
   };
 

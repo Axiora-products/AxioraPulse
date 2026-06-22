@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import useDrivePicker from 'react-google-drive-picker';
 import API from '../api/axios';
+import { getApiErrorMessage } from '../lib/apiError';
 
 export const SURVEY_MODES = [
   { id: 'conversational', label: 'Conversational', icon: '💬', desc: 'Warm, friendly, natural dialogue style' },
@@ -99,7 +100,7 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
             ? err.response.data
             : JSON.stringify(err.response?.data || {});
           console.error('Transcription failed:', err.response?.status, errorText);
-          toast.error(err.response?.data?.detail || 'Audio transcription failed');
+          toast.error(getApiErrorMessage(err, 'Audio transcription failed'));
         } finally {
           setIsTranscribingMic(false);
           setAudioChunks([]);
@@ -115,7 +116,7 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
       if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
         toast.error("Microphone access denied. Please enable microphone permissions in your browser.");
       } else {
-        toast.error(`Microphone access failed: ${err.message || 'Unknown error'}`);
+        toast.error('Microphone access failed. Please allow microphone permission and try again.');
       }
     }
   };
@@ -153,7 +154,7 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
             }]);
             toast.success(`"${file.name}" attached from Drive`);
           } catch (err) {
-            toast.error(err.response?.data?.detail || "Drive import failed");
+            toast.error(getApiErrorMessage(err, "Drive import failed"));
             console.error(err);
           } finally {
             setUploading(false);
@@ -289,7 +290,7 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
       }]);
       toast.success(`"${data.filename}" attached`);
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Upload failed');
+      toast.error(getApiErrorMessage(err, 'Upload failed'));
     }
     setUploading(false);
     e.target.value = '';
@@ -314,7 +315,7 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
       }]);
       toast.success(`"${data.filename}" attached`);
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Audio upload failed');
+      toast.error(getApiErrorMessage(err, 'Audio upload failed'));
     }
     setUploading(false);
     e.target.value = '';
