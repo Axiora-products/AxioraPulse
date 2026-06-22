@@ -6,6 +6,7 @@ AI-powered survey insights with multi-provider failover
 """
 
 import json
+import logging
 import re
 from datetime import datetime, timezone
 from fastapi import Request, APIRouter, Depends, HTTPException, Form
@@ -33,6 +34,8 @@ from services.feature_gate import require_feature
 from services.ai_provider import call_ai_sync
 
 router = APIRouter(prefix="/ai", tags=["ai"])
+
+logger = logging.getLogger(__name__)
 # Pulse Insights are cached per-survey and only re-generated once this many new
 # responses have arrived since the last analysis (keeps insights stable + cheap).
 INSIGHTS_REFRESH_THRESHOLD = 50
@@ -737,8 +740,8 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
 
         return AIInsightsResponse(**result_json)
     except ValidationError as ve:
-        print(f"[AI] Insights validation error: {ve}")
-        print(f"[AI] Raw AI response: {text[:500] if text else 'N/A'}")
+        # Do not log the raw model output — it can contain respondent PII. (AP-SEC-014)
+        logger.warning("AI insights validation error: %s", ve.error_count() if hasattr(ve, "error_count") else "invalid")
         raise HTTPException(status_code=500, detail="Pulse engine returned an invalid data structure")
     except HTTPException:
         raise

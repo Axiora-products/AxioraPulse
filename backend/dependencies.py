@@ -10,11 +10,17 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
+from core import config
 from db.database import get_db
 from db.models import UserProfile
 from cognito_utils import verify_cognito_token
 
 bearer_scheme = HTTPBearer(auto_error=False)
+
+
+def _is_super_admin_email(email: str | None) -> bool:
+    """Super-admin grants are config/data-driven, not hardcoded. (AP-SEC-002)"""
+    return bool(email) and email.strip().lower() in config.SUPER_ADMIN_EMAILS
 
 
 def get_current_user(
@@ -126,10 +132,10 @@ def get_current_user(
                 email=email,
                 full_name=name,
                 cognito_sub=cognito_sub,
-                role=RoleEnum.super_admin if email == "roopsai.work8@gmail.com" else RoleEnum.admin,
+                role=RoleEnum.super_admin if _is_super_admin_email(email) else RoleEnum.admin,
                 tenant_id=tenant.id,
                 is_active=True,
-                is_internal=True if email == "roopsai.work8@gmail.com" else False,
+                is_internal=_is_super_admin_email(email),
                 account_status="active",
             )
             db.add(user)
@@ -139,10 +145,12 @@ def get_current_user(
     if user is None or not user.is_active:
         raise credentials_exception
 
-    # Self-healing: downgrade non-internal super_admins to admin, and ensure designated super admin is configured correctly
+    # Self-healing: reconcile super_admin status against the configured allowlist.
+    # Emails in SUPER_ADMIN_EMAILS are promoted; any other super_admin that is not
+    # marked internal is downgraded to admin. (AP-SEC-002)
     from db.models import RoleEnum
 
-    if user.email == "roopsai.work8@gmail.com":
+    if _is_super_admin_email(user.email):
         if user.role != RoleEnum.super_admin or not user.is_internal:
             user.role = RoleEnum.super_admin
             user.is_internal = True

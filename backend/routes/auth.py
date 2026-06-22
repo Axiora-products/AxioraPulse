@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 
+from core import config
 from core.rate_limiter import limiter
 from db.database import get_db
 from db.models import Tenant, UserProfile, RoleEnum
@@ -323,17 +324,22 @@ def migrate_check(
 
 
 @router.post("/cleanup-unconfirmed")
-def cleanup_unconfirmed(body: CleanupRequest):
+@limiter.limit("3/minute")
+def cleanup_unconfirmed(request: Request, body: CleanupRequest):
     """
     Deletes a user from Cognito ONLY if they are UNCONFIRMED.
-    Used during signup retries to allow fresh start.
-    """
-    status = admin_get_user_status(body.email)
-    if status == "UNCONFIRMED":
-        success = admin_delete_user(body.email)
-        return {"deleted": success, "email": body.email}
+    Used during signup retries to allow a fresh start.
 
-    return {"deleted": False, "status": status}
+    Hardened (AP-SEC-013): rate-limited, and always returns a generic response so
+    it cannot be used to enumerate which emails exist or are confirmed.
+    """
+    try:
+        if admin_get_user_status(body.email) == "UNCONFIRMED":
+            admin_delete_user(body.email)
+    except Exception:
+        pass
+    # Generic response regardless of outcome — no account-status disclosure.
+    return {"ok": True}
 
 
 @router.post("/mock-login")
@@ -342,7 +348,9 @@ def mock_login(body: dict, db: Session = Depends(get_db)):
     Generate a self-signed JWT token for a local developer.
     Only available when MOCK_COGNITO=true.
     """
-    if not os.getenv("MOCK_COGNITO", "false").lower() == "true":
+    # Mock login is a local-development aid only. core.config guarantees
+    # MOCK_COGNITO is never true in production. (AP-SEC-029)
+    if not config.MOCK_COGNITO or not config.MOCK_COGNITO_SECRET:
         raise HTTPException(400, "Mock Cognito is not enabled in this environment")
 
     email = body.get("email")
@@ -369,8 +377,7 @@ def mock_login(body: dict, db: Session = Depends(get_db)):
         "iss": f"https://cognito-idp.{os.getenv('COGNITO_REGION', 'ap-south-1')}.amazonaws.com/{get_user_pool_id() or 'mock-user-pool-id'}",
     }
 
-    secret = os.getenv("MOCK_COGNITO_SECRET", "mock-secret-key-1234567890")
-    token = jwt.encode(payload, secret, algorithm="HS256")
+    token = jwt.encode(payload, config.MOCK_COGNITO_SECRET, algorithm="HS256")
 
     return {"id_token": token}
 
