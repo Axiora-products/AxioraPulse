@@ -1,6 +1,11 @@
 import os
+import logging
 import boto3
 from functools import lru_cache
+
+from core import config
+
+logger = logging.getLogger(__name__)
 
 MOCK_MODE = os.getenv("MOCK_COGNITO", "false").lower() == "true"
 SNS_REGION = os.getenv("COGNITO_REGION", "ap-south-1")
@@ -23,9 +28,11 @@ def get_sns_client():
 def send_otp_sms(phone_number: str, otp_code: str) -> bool:
     message = f"Your AxioraPulse verification code is: {otp_code}. Valid for 5 minutes. Do not share this code."
 
-    if os.getenv("ENVIRONMENT", "development").lower() not in ("production", "prod"):
+    # Only echo the OTP on explicit local development — never in any deployed
+    # environment, and gated on an allowlist rather than "not production". (AP-SEC-014)
+    if config.IS_LOCAL and not config.IS_PRODUCTION:
         print(f"\n{'=' * 50}")
-        print(f"[DEV ONLY] OTP for {phone_number}: {otp_code}")
+        print(f"[LOCAL DEV ONLY] OTP for {phone_number}: {otp_code}")
         print(f"{'=' * 50}\n")
 
     if MOCK_MODE:
@@ -42,6 +49,6 @@ def send_otp_sms(phone_number: str, otp_code: str) -> bool:
             },
         )
         return True
-    except Exception as e:
-        print(f"SNS SMS ERROR: {str(e)}")
+    except Exception as exc:
+        logger.error("SNS SMS publish failed: %s", type(exc).__name__)
         return False
