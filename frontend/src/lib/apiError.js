@@ -61,6 +61,15 @@ export function getApiErrorMessage(error, fallback = ERROR.GENERIC) {
   if (error && /network/i.test(error.message || ''))
     return ERROR.NETWORK;
 
+  // Server-curated, display-safe messages (e.g. content-safety rejections). These
+  // are explicitly designed to be shown to the user, unlike raw exception detail.
+  const data = error?.response?.data;
+  const detail = data?.detail;
+  if (detail && typeof detail === 'object' && detail.code === 'content_violation' && detail.message)
+    return detail.message;
+  if (data && data.code === 'content_violation' && data.message)
+    return data.message;
+
   const status = error?.response?.status;
   if (status) {
     switch (status) {
