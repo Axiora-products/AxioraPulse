@@ -489,8 +489,12 @@ def delete_user(
     db: Session = Depends(get_db),
 ):
     """
-    Hard-delete a user.  Only super_admin can delete.
-    Replaces the Netlify delete-user function.
+    Hard-delete a user within the caller's own tenant.
+
+    Admins and super_admins may delete users in their tenant (org self-management).
+    Guards below prevent self-deletion and deletion of a super_admin by a
+    non-super_admin; cross-tenant deletion is impossible (tenant-scoped query).
+    (AP-SEC-036)
     """
     _require_team_account(current_user)
     if current_user.role not in {RoleEnum.super_admin, RoleEnum.admin}:

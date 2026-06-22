@@ -71,7 +71,7 @@ export default function AcceptInvite() {
   async function handleSubmit(e) {
     e.preventDefault();
     if (!f.fullName.trim()) return toast.error('Please enter your name');
-    if (f.password.length < 6) return toast.error('Password must be at least 6 characters');
+    if (f.password.length < 12) return toast.error('Password must be at least 12 characters');
     if (f.password !== f.confirm) return toast.error('Passwords do not match');
 
     setBusy(true);
