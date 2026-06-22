@@ -102,6 +102,34 @@ def rate_limit_handler(request, exc):
     )
 
 
+# ── Security headers ───────────────────────────────────────────────────────────
+# Applied to every response. The SPA sets its own page CSP at the edge; for this
+# API we focus on transport, sniffing and clickjacking protections. (AP-SEC-031)
+_CSP_EXEMPT_PREFIXES = ("/docs", "/redoc", "/openapi.json", "/surveys/og/")
+
+
+@app.middleware("http")
+async def security_headers(request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    response.headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
+    if config.IS_PRODUCTION:
+        response.headers.setdefault(
+            "Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload"
+        )
+    # A restrictive CSP for JSON API responses; exempt doc UIs and the OG HTML
+    # page (consumed by social crawlers) which legitimately need inline content.
+    path = request.url.path
+    if not any(path.startswith(p) for p in _CSP_EXEMPT_PREFIXES):
+        response.headers.setdefault(
+            "Content-Security-Policy",
+            "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+        )
+    return response
+
+
 # ── Routers ───────────────────────────────────────────────────────────────────
 app.include_router(auth_router)
 app.include_router(users_router)
