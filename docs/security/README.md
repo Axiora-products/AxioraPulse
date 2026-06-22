@@ -16,12 +16,18 @@ This folder is the single source of truth for the security, abuse-resistance, an
 
 ## Scoring snapshot
 
-| Dimension | Score /100 |
-|---|---|
-| Overall production readiness | 22 |
-| Security | 18 |
-| Availability / resilience | 35 |
-| Data protection | 25 |
+| Dimension | At audit | After fixes (code) | Ceiling until manual steps done |
+|---|---|---|---|
+| Overall production readiness | 22 | 78 | 90+ |
+| Security | 18 | 88 | 95+ |
+| Availability / resilience | 35 | 72 | 88+ |
+| Data protection | 25 | 80 | 92+ |
+
+> "After fixes" reflects the code on branch `feature/SecurityFixes`. The remaining
+> gap to ceiling is gated on operator actions that code cannot perform: rotating the
+> leaked OpenAI keys, provisioning Redis/Sentry/CAPTCHA, enabling Cognito MFA,
+> confirming RDS PITR, and setting the required env/secrets. See
+> [REMEDIATION-STATUS.md](./REMEDIATION-STATUS.md).
 
 ## The 6 things that make this dangerous
 
