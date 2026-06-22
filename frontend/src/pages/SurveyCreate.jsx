@@ -8,6 +8,7 @@ import useAuthStore from '../hooks/useAuth';
 import { QUESTION_TYPES, SHORT_SURVEY_RULES, SURVEY_HEALTH_MINIMUMS, DEFAULT_THANK_YOU_MESSAGE, estimateSurveyMinutes, getFormatDiversityScore, getQuestionWordCount, isQuestionComplete, meetsMinLength, getThankYouCustom, composeThankYou, isExpired, SURVEY_TEXT_RULES, isValidSurveyTitle, isValidSurveyLongText, isValidQuestionText } from '../lib/constants';
 import { Reorder, useDragControls, motion } from 'framer-motion';
 import toast from 'react-hot-toast';
+import { getApiErrorMessage } from '../lib/apiError';
 import { useLoading } from '../context/LoadingContext';
 import { consumePendingTemplate } from '../lib/pendingTemplate';
 import { track, ANALYTICS_EVENTS } from '../lib/analytics';
@@ -402,9 +403,7 @@ export default function SurveyCreate() {
       toast.success(status === 'active' ? 'Survey published!' : 'Draft saved');
       nav(`/surveys/${sv.id}/edit`);
     } catch (e) {
-      console.error(e);
-      const msg = e.response?.data?.detail;
-      toast.error(typeof msg === 'string' ? msg : e.message || 'Failed to save');
+      toast.error(getApiErrorMessage(e, 'Unable to save the survey. Please try again.'));
     }
     finally { setBusy(false); }
   }

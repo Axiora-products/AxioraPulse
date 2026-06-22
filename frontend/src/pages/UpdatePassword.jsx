@@ -23,7 +23,8 @@ function friendlyAuthError(msg = '') {
     return 'Too many attempts — please wait a minute before trying again.';
   if (m.includes('network') || m.includes('fetch'))
     return 'Connection error. Please check your internet and try again.';
-  return msg;
+  // Never surface raw exception text to the user.
+  return 'Something went wrong. Please try again.';
 }
 
 export default function UpdatePassword() {
