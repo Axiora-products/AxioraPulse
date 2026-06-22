@@ -817,7 +817,9 @@ async def generate_survey(
     if body.audioContext:
         extra_context += f"\n\nAdditional context from audio transcript:\n{body.audioContext[:4000]}"
 
-    survey_context = f"{body.aiContext}{extra_context}"
+    # Bound the free-text brief to keep prompt size (and LLM cost) under control
+    # and limit prompt-injection surface. (AP-SEC-033)
+    survey_context = f"{(body.aiContext or '')[:4000]}{extra_context}"
 
     prompt = f"""Generate a complete survey based on the following idea/brief.
 
