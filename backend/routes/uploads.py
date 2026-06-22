@@ -18,11 +18,15 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
+from datetime import datetime, timedelta, timezone
+
+from jose import jwt, JWTError
+
 from db.database import get_db
 from db.models import UserProfile, UploadedFile
 from dependencies import get_current_user
 from core.rate_limiter import limiter
-from core.config import OPENAI_KEY
+from core.config import OPENAI_KEY, SECRET_KEY
 
 import openai
 from google.oauth2.credentials import Credentials
@@ -37,6 +41,34 @@ UPLOAD_DIR = os.path.join(
     "uploaded_files_store",
 )
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+# ── Signed download URLs (AP-SEC-007) ──────────────────────────────────────────
+# Uploaded files are tenant-private. Browser <a>/<img> requests can't carry the
+# Bearer token, so authenticated listing/upload responses hand out a short-lived
+# signed URL that the download endpoint verifies (capability URL, S3-presign style).
+_DOWNLOAD_TOKEN_TTL = timedelta(hours=1)
+
+
+def _make_download_token(file_id) -> str:
+    payload = {
+        "fid": str(file_id),
+        "scope": "file-download",
+        "exp": datetime.now(timezone.utc) + _DOWNLOAD_TOKEN_TTL,
+    }
+    return jwt.encode(payload, SECRET_KEY, algorithm="HS256")
+
+
+def _verify_download_token(token: str, file_id: str) -> bool:
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+    except JWTError:
+        return False
+    return payload.get("scope") == "file-download" and payload.get("fid") == file_id
+
+
+def _signed_download_url(base_url: str, file_id) -> str:
+    return f"{base_url}/uploads/download/{file_id}?token={_make_download_token(file_id)}"
+
 
 ALLOWED_FILE_TYPES = {
     "application/pdf",
@@ -382,7 +414,7 @@ async def upload_file(
         "file_size": db_file.file_size,
         "extracted_text": extracted,
         "upload_type": "file",
-        "file_url": f"{base_url}/uploads/download/{db_file.id}",
+        "file_url": _signed_download_url(base_url, db_file.id),
     }
 
 
@@ -472,7 +504,7 @@ async def upload_from_drive(
             "file_size": db_file.file_size,
             "extracted_text": extracted,
             "upload_type": "file",
-            "file_url": f"{base_url}/uploads/download/{db_file.id}",
+            "file_url": _signed_download_url(base_url, db_file.id),
         }
 
     except Exception as e:
@@ -564,7 +596,7 @@ async def upload_audio(
         "text": transcript,
         "language": detected_language,
         "upload_type": "audio",
-        "file_url": f"{base_url}/uploads/download/{db_file.id}",
+        "file_url": _signed_download_url(base_url, db_file.id),
     }
 
 
@@ -668,7 +700,7 @@ async def list_uploaded_files(
             "file_size": f.file_size,
             "upload_type": f.upload_type,
             "extracted_text": f.extracted_text,
-            "file_url": f"{base_url}/uploads/download/{f.id}",
+            "file_url": _signed_download_url(base_url, f.id),
             "created_at": f.created_at.isoformat() if f.created_at else None,
         }
         for f in files
@@ -678,12 +710,18 @@ async def list_uploaded_files(
 @router.get("/download/{file_id}")
 async def download_file(
     file_id: str,
+    token: str = "",
     db: Session = Depends(get_db),
 ):
     try:
         file_uuid = uuid.UUID(file_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid file ID format")
+
+    # Require a valid short-lived signed token issued by an authenticated
+    # listing/upload response for this file. (AP-SEC-007)
+    if not token or not _verify_download_token(token, str(file_uuid)):
+        raise HTTPException(status_code=403, detail="Invalid or expired download link")
 
     db_file = db.query(UploadedFile).filter(UploadedFile.id == file_uuid).first()
     if not db_file:
