@@ -44,6 +44,7 @@ def _get_cipher():
         return None
     try:
         from cryptography.fernet import Fernet, MultiFernet
+
         return MultiFernet([Fernet(k.encode()) for k in keys])
     except Exception as exc:  # invalid key material
         logger.error("Failed to initialize PII encryption cipher: %s", type(exc).__name__)

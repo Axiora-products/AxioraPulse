@@ -136,9 +136,7 @@ async def security_headers(request, call_next):
     response.headers.setdefault("Referrer-Policy", "no-referrer")
     response.headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
     if config.IS_PRODUCTION:
-        response.headers.setdefault(
-            "Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload"
-        )
+        response.headers.setdefault("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload")
     # A restrictive CSP for JSON API responses; exempt doc UIs and the OG HTML
     # page (consumed by social crawlers) which legitimately need inline content.
     path = request.url.path

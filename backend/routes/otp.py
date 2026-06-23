@@ -40,6 +40,7 @@ def _issue_otp_token(payload: dict) -> str:
         )
     return jwt.encode(payload, OTP_JWT_SECRET, algorithm="HS256")
 
+
 PHONE_REGEX = re.compile(r"^\+\d{10,15}$")
 
 

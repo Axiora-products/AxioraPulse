@@ -528,11 +528,7 @@ def get_survey_og(slug: str, db: Session = Depends(get_db)):
     Nginx bot-detection routes crawler User-Agents from /s/{slug} to
     /api/surveys/og/{slug} so the share URL stays clean.
     """
-    survey = (
-        db.query(Survey)
-        .filter(Survey.slug == slug, Survey.status != SurveyStatusEnum.draft)
-        .first()
-    )
+    survey = db.query(Survey).filter(Survey.slug == slug, Survey.status != SurveyStatusEnum.draft).first()
     if not survey:
         raise HTTPException(status_code=404, detail="Survey not found")
 

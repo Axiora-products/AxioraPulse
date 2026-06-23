@@ -440,8 +440,12 @@ async def upload_file(
     if file.content_type not in ALLOWED_FILE_TYPES:
         # Log rejected uploads for security monitoring (blocks executables/scripts).
         record_audit(
-            db, action="upload.rejected", actor=current_user, tenant_id=current_user.tenant_id,
-            target_type="file", ip_address=ip,
+            db,
+            action="upload.rejected",
+            actor=current_user,
+            tenant_id=current_user.tenant_id,
+            target_type="file",
+            ip_address=ip,
             detail={"reason": "unsupported_type", "content_type": file.content_type, "filename": file.filename},
         )
         raise HTTPException(status_code=400, detail="This file type is not supported.")
@@ -451,8 +455,12 @@ async def upload_file(
         _validate_magic(contents, file.content_type)  # (AP-SEC-030)
     except HTTPException as exc:
         record_audit(
-            db, action="upload.rejected", actor=current_user, tenant_id=current_user.tenant_id,
-            target_type="file", ip_address=ip,
+            db,
+            action="upload.rejected",
+            actor=current_user,
+            tenant_id=current_user.tenant_id,
+            target_type="file",
+            ip_address=ip,
             detail={"reason": "size_or_magic", "status": exc.status_code, "content_type": file.content_type},
         )
         raise
@@ -528,8 +536,13 @@ async def extract_link(
         result = extract_from_url(url)
     except ExtractionError as exc:
         record_audit(
-            db, action="link.rejected", actor=current_user, tenant_id=current_user.tenant_id,
-            target_type="link", ip_address=ip, detail={"url": url[:300], "reason": str(exc)},
+            db,
+            action="link.rejected",
+            actor=current_user,
+            tenant_id=current_user.tenant_id,
+            target_type="link",
+            ip_address=ip,
+            detail={"url": url[:300], "reason": str(exc)},
         )
         raise HTTPException(status_code=422, detail=str(exc))
     except Exception as exc:
