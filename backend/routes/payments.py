@@ -12,6 +12,7 @@ GET  /payments/subscription        — current tenant subscription
 
 import hashlib
 import hmac
+import json
 import logging
 import uuid
 from datetime import datetime
@@ -25,6 +26,7 @@ from core import config
 from db.database import get_db
 from db.models import Payment, Plan, Subscription, Tenant, UserProfile
 from dependencies import get_current_user
+from services.audit import record_audit
 from schemas.payment import (
     CreateOrderRequest,
     CreateOrderResponse,
@@ -147,9 +149,16 @@ def verify_payment(
     if not payment:
         raise HTTPException(status_code=404, detail="Payment record not found")
 
-    plan = db.query(Plan).filter(Plan.code == body.plan_code, Plan.is_active).first()
+    # Resolve the plan from the ORDER, never from the client-supplied plan_code.
+    # Otherwise a user could pay for a cheap plan and verify with an expensive
+    # plan_code to get the expensive plan for the cheap price. (AP-SEC-005)
+    plan = db.query(Plan).filter(Plan.id == payment.plan_id, Plan.is_active).first()
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
+
+    # Integrity: the amount captured must match the plan's price.
+    if payment.amount_paise != plan.price_paise:
+        raise HTTPException(status_code=400, detail="Payment amount does not match plan price")
 
     # 3. Update payment row
     payment.razorpay_payment_id = body.razorpay_payment_id
@@ -179,6 +188,15 @@ def verify_payment(
         tenant.plan = plan.code
 
     db.commit()
+    record_audit(
+        db,
+        action="payment.verified",
+        actor=current_user,
+        tenant_id=current_user.tenant_id,
+        target_type="payment",
+        target_id=payment.id,
+        detail={"plan": plan.code, "amount_paise": payment.amount_paise, "order_id": body.razorpay_order_id},
+    )
     return {"success": True, "plan": plan.code}
 
 
@@ -189,10 +207,26 @@ def verify_payment(
 async def razorpay_webhook(request: Request, db: Session = Depends(get_db)):
     """
     Receive Razorpay webhook events.
-    Validates the X-Razorpay-Signature header before processing.
+    Verifies the X-Razorpay-Signature header (HMAC-SHA256 over the raw body)
+    before processing. Fail-closed: disabled until RAZORPAY_WEBHOOK_SECRET is set.
+    (AP-SEC-004)
     """
+    if not config.RAZORPAY_WEBHOOK_SECRET:
+        logger.error("Razorpay webhook received but RAZORPAY_WEBHOOK_SECRET is not configured")
+        raise HTTPException(status_code=503, detail="Webhook not configured")
+
+    raw_body = await request.body()
+    signature = request.headers.get("X-Razorpay-Signature", "")
+    expected = hmac.new(
+        config.RAZORPAY_WEBHOOK_SECRET.encode(),
+        raw_body,
+        hashlib.sha256,
+    ).hexdigest()
+    if not signature or not hmac.compare_digest(expected, signature):
+        raise HTTPException(status_code=400, detail="Invalid webhook signature")
+
     try:
-        payload = await request.json()
+        payload = json.loads(raw_body)
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
 

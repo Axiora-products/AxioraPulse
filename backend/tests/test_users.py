@@ -7,6 +7,16 @@ import uuid
 client = TestClient(app)
 
 
+def _invite_token_for(email):
+    """Invite tokens are no longer exposed in the API response (AP-SEC-016); read
+    the freshly-created row's token directly from the DB for test purposes."""
+    db = SessionLocal()
+    try:
+        return db.query(UserProfile).filter(UserProfile.email == email).first().invite_token
+    finally:
+        db.close()
+
+
 def _set_account_type(account_type):
     """Flip the dev user's tenant account_type, returning the previous value."""
     db = SessionLocal()
@@ -271,7 +281,7 @@ def test_accept_invite(auth_headers):
     payload = {"email": email, "full_name": "Accept User", "role": "viewer"}
     invite_resp = client.post("/users/invite", json=payload, headers=auth_headers)
     assert invite_resp.status_code == 200
-    invite_token = invite_resp.json().get("invite_token")
+    invite_token = _invite_token_for(email)
     assert invite_token is not None
 
     # Retrieve info using token
@@ -295,7 +305,7 @@ def test_accept_invite_links_existing_cognito_user(auth_headers, monkeypatch):
         headers=auth_headers,
     )
     assert invite_resp.status_code == 200
-    invite_token = invite_resp.json()["invite_token"]
+    invite_token = _invite_token_for(email)
 
     class MockCognitoClient:
         class exceptions:
@@ -333,7 +343,7 @@ def test_share_survey_email(auth_headers):
     payload = {
         "email": "someone@example.com",
         "survey_title": "Customer Satisfaction",
-        "survey_link": "http://localhost/survey/sat",
+        "survey_link": "http://localhost:5173/survey/sat",
         "subject": "Quick Survey",
         "body": "Please fill out this survey.",
     }
@@ -345,7 +355,7 @@ def test_bulk_share_survey_email(auth_headers):
     payload = {
         "emails": ["client1@example.com", "client2@example.com", "invalid-email"],
         "survey_title": "Product Feedback",
-        "survey_link": "http://localhost/survey/product",
+        "survey_link": "http://localhost:5173/survey/product",
         "subject": "Tell us what you think",
         "body": "Feedback matters.",
     }
@@ -361,7 +371,7 @@ def test_bulk_share_whatsapp(auth_headers):
     payload = {
         "numbers": ["+1234567890", "+9876543210"],
         "survey_title": "Mobile App Experience",
-        "survey_link": "http://localhost/survey/app",
+        "survey_link": "http://localhost:5173/survey/app",
         "message": "Click to take survey: ",
     }
     response = client.post("/users/bulk-share-whatsapp", json=payload, headers=auth_headers)

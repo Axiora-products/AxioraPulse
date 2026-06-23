@@ -13,4 +13,5 @@ class InviteRequest(BaseModel):
 
 class AcceptInviteRequest(BaseModel):
     full_name: str
-    password: str = Field(..., min_length=6)
+    # Align with the Cognito password policy (min 12 chars). (AP-SEC-040)
+    password: str = Field(..., min_length=12)

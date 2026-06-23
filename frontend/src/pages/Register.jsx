@@ -7,6 +7,7 @@ import useAuthStore from "../hooks/useAuth";
 import { cognitoSignUp, cognitoConfirmSignUp, cognitoSignIn, cognitoResendCode } from '../lib/cognito';
 import API from '../api/axios';
 import { consumePostAuthRedirect } from '../lib/pendingTemplate';
+import { getApiErrorMessage } from '../lib/apiError';
 const Logo = ({ dark }) => (
   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 0, lineHeight: 1 }}>
     <span style={{ fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: dark ? 'rgba(253,245,232,0.35)' : 'rgba(22,15,8,0.35)', marginRight: 8, position: 'relative', top: -2 }}>Axiora</span>
@@ -249,7 +250,7 @@ export default function Register() {
           { duration: 6000 }
         );
       } else {
-        toast.error(err.message || 'Registration failed');
+        toast.error(getApiErrorMessage(err, 'Registration failed'));
       }
     } finally {
       setBusy(false);
@@ -263,7 +264,7 @@ export default function Register() {
       await cognitoResendCode(f.email);
       toast.success('New verification code sent!');
     } catch (err) {
-      toast.error(err.message || 'Failed to resend code');
+      toast.error(getApiErrorMessage(err, 'Failed to resend code'));
     } finally {
       setResending(false);
     }
@@ -331,7 +332,7 @@ export default function Register() {
       if (err.code === 'CodeMismatchException') {
         toast.error('Incorrect code — please try again');
       } else {
-        toast.error(err.message || 'Verification failed');
+        toast.error(getApiErrorMessage(err, 'Verification failed'));
       }
     } finally {
       setBusy(false);

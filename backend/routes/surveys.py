@@ -81,6 +81,36 @@ def _require_creator(user: UserProfile):
         raise HTTPException(status_code=403, detail="Insufficient permissions to modify surveys")
 
 
+# Org-level managers may administer any survey in their tenant.
+SURVEY_ADMIN_ROLES = {"super_admin", "admin", "manager"}
+
+
+def _authorize_survey_write(survey, user: UserProfile, db: Session) -> None:
+    """Object-level authorization for survey mutations.
+
+    Tenant scoping alone is insufficient: a plain creator must not be able to
+    edit/delete a teammate's survey just by knowing its id. Allow org managers,
+    the survey's creator, or a user granted an editor share. (AP-SEC-017)
+    """
+    role_val = user.role.value if hasattr(user.role, "value") else str(user.role)
+    if role_val in SURVEY_ADMIN_ROLES:
+        return
+    if survey.created_by == user.id:
+        return
+    editor_share = (
+        db.query(SurveyShare)
+        .filter(
+            SurveyShare.survey_id == survey.id,
+            SurveyShare.shared_with == user.id,
+            SurveyShare.permission == SharePermissionEnum.editor,
+        )
+        .first()
+    )
+    if editor_share:
+        return
+    raise HTTPException(status_code=403, detail="You do not have permission to modify this survey")
+
+
 def _gen_slug(title: str) -> str:
     """Generate a URL slug from a title + random suffix."""
     base = re.sub(r"[^\w\s-]", "", title.lower()).strip()
@@ -467,6 +497,8 @@ def get_survey_by_slug(request: Request, slug: str, db: Session = Depends(get_db
         .options(joinedload(Survey.questions))
         .options(joinedload(Survey.creator))
         .filter(Survey.slug == slug)
+        # Never expose unpublished (draft) surveys publicly. (AP-SEC-037)
+        .filter(Survey.status != SurveyStatusEnum.draft)
         .first()
     )
     if not survey:
@@ -496,7 +528,7 @@ def get_survey_og(slug: str, db: Session = Depends(get_db)):
     Nginx bot-detection routes crawler User-Agents from /s/{slug} to
     /api/surveys/og/{slug} so the share URL stays clean.
     """
-    survey = db.query(Survey).filter(Survey.slug == slug).first()
+    survey = db.query(Survey).filter(Survey.slug == slug, Survey.status != SurveyStatusEnum.draft).first()
     if not survey:
         raise HTTPException(status_code=404, detail="Survey not found")
 
@@ -652,6 +684,7 @@ def update_survey(
     survey = db.query(Survey).filter(Survey.id == survey_id, Survey.tenant_id == current_user.tenant_id).first()
     if not survey:
         raise HTTPException(status_code=404, detail="Survey not found")
+    _authorize_survey_write(survey, current_user, db)
 
     update_data = body.model_dump(exclude_unset=True)
 
@@ -708,6 +741,7 @@ def update_survey_status(
     survey = db.query(Survey).filter(Survey.id == survey_id, Survey.tenant_id == current_user.tenant_id).first()
     if not survey:
         raise HTTPException(status_code=404, detail="Survey not found")
+    _authorize_survey_write(survey, current_user, db)
 
     try:
         new_status = SurveyStatusEnum(body.status)
@@ -749,6 +783,7 @@ def delete_survey(
     survey = db.query(Survey).filter(Survey.id == survey_id, Survey.tenant_id == current_user.tenant_id).first()
     if not survey:
         raise HTTPException(status_code=404, detail="Survey not found")
+    _authorize_survey_write(survey, current_user, db)
 
     db.delete(survey)
     db.commit()
@@ -785,6 +820,7 @@ def replace_questions(
     survey = db.query(Survey).filter(Survey.id == survey_id, Survey.tenant_id == current_user.tenant_id).first()
     if not survey:
         raise HTTPException(status_code=404, detail="Survey not found")
+    _authorize_survey_write(survey, current_user, db)
 
     _upsert_questions(survey.id, questions, db)
     db.commit()
@@ -888,6 +924,7 @@ def share_survey(
     survey = db.query(Survey).filter(Survey.id == survey_id, Survey.tenant_id == current_user.tenant_id).first()
     if not survey:
         raise HTTPException(status_code=404, detail="Survey not found")
+    _authorize_survey_write(survey, current_user, db)
 
     # Ensure recipient belongs to the same tenant
     target_user = (
@@ -931,6 +968,10 @@ def revoke_share(
 ):
     """Remove a team member's access to a survey."""
     _require_creator(current_user)
+    survey = db.query(Survey).filter(Survey.id == survey_id, Survey.tenant_id == current_user.tenant_id).first()
+    if not survey:
+        raise HTTPException(status_code=404, detail="Survey not found")
+    _authorize_survey_write(survey, current_user, db)
     share = db.query(SurveyShare).filter(SurveyShare.id == share_id, SurveyShare.survey_id == survey_id).first()
     if not share:
         raise HTTPException(status_code=404, detail="Share record not found")
