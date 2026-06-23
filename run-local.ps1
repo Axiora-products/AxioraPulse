@@ -221,7 +221,19 @@ Write-Host "⚙️  Preparing local environment files..."
 if (-not (Test-Path -Path "backend")) { New-Item -ItemType Directory -Path "backend" | Out-Null }
 if (-not (Test-Path -Path "frontend")) { New-Item -ItemType Directory -Path "frontend" | Out-Null }
 
-if (-not (Test-Path -Path "backend\.env.docker")) { New-Item -ItemType File -Path "backend\.env.docker" | Out-Null }
+# The backend fail-closes on a missing/insecure SECRET_KEY at import time, so an
+# empty .env.docker would crash it before init_local_aws.py can generate the real
+# one. Seed a valid bootstrap secret on first run to break that chicken-and-egg.
+if (-not (Test-Path -Path "backend\.env.docker")) {
+    $bootBytes = New-Object byte[] 48
+    [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bootBytes)
+    $bootSecret = ([Convert]::ToBase64String($bootBytes)) -replace '[+/=]', ''
+    @(
+        "# Bootstrap env for first container start. Overwritten by init_local_aws.py.",
+        "SECRET_KEY=$bootSecret",
+        "ENVIRONMENT=development"
+    ) | Set-Content -Path "backend\.env.docker" -Encoding utf8
+}
 if (-not (Test-Path -Path "frontend\.env.local")) { New-Item -ItemType File -Path "frontend\.env.local" | Out-Null }
 
 # --- Startup Services (Unified) ---

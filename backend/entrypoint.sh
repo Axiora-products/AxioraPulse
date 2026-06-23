@@ -56,15 +56,23 @@ echo "Running database migrations..."
 if ! alembic upgrade head; then
     echo "WARNING: Database migrations failed."
     echo "This frequently happens in local development when switching between branches"
-    echo "where a migration revision exists in the database but not in the current codebase."
+    echo "where the database schema no longer matches the current migration history."
 
-    if [ "$ENVIRONMENT" = "production" ]; then
-        echo "ERROR: Refusing automatic Alembic recovery in production."
-        echo "Manual migration repair is required."
-        exit 1
-    fi
+    case "$ENVIRONMENT" in
+        production|prod)
+            echo "ERROR: Refusing automatic Alembic recovery in production."
+            echo "Manual migration repair is required."
+            exit 1
+            ;;
+    esac
 
-    echo "Attempting local auto-recovery by resetting the Alembic version marker..."
+    # Local auto-recovery: rebuild the schema from scratch so it always matches the
+    # codebase, then migrate from base. We deliberately do NOT 'alembic stamp head'
+    # here — stamping marks the DB as migrated WITHOUT applying any DDL, which
+    # silently leaves the schema out of sync (e.g. columns from skipped migrations
+    # never get created, surfacing later as UndefinedColumn 500s).
+    echo "Local auto-recovery: dropping and rebuilding the database schema from scratch."
+    echo "WARNING: this DESTROYS all data in this local database."
     python -c "
 import os
 import sys
@@ -81,27 +89,25 @@ try:
     conn = psycopg2.connect(db_url, connect_timeout=5)
     conn.autocommit = True
     with conn.cursor() as cur:
-        cur.execute('DELETE FROM alembic_version')
+        cur.execute('DROP SCHEMA public CASCADE; CREATE SCHEMA public;')
     conn.close()
-    print('Cleared Alembic version marker.')
+    print('Schema dropped and recreated (empty).')
 except Exception as exc:
-    print(f'ERROR: Failed to clear Alembic version marker: {exc}')
+    print(f'ERROR: Failed to rebuild schema: {exc}')
     sys.exit(1)
 "
 
     if [ $? -ne 0 ]; then
-        echo "ERROR: Failed to reset Alembic version marker. Manual intervention required."
+        echo "ERROR: Failed to rebuild the database schema. Manual intervention required."
         exit 1
     fi
 
-    echo "Stamping database to the current codebase head..."
-    if alembic stamp head; then
-        echo "Successfully stamped database to current head. Retrying migrations..."
-        alembic upgrade head
-    else
-        echo "ERROR: Failed to stamp database to head. Manual intervention required."
+    echo "Re-running migrations from base..."
+    if ! alembic upgrade head; then
+        echo "ERROR: Migrations failed even after a clean schema rebuild. Manual intervention required."
         exit 1
     fi
+    echo "Successfully rebuilt schema and applied all migrations."
 fi
 
 echo "Database setup complete!"
