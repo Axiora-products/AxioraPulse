@@ -1,12 +1,13 @@
 """
 services/content_extraction.py
 ──────────────────────────────
-Traditional (non-AI) content extraction for documents, spreadsheets, images and
-website links, with a heuristic confidence score per extraction.
+Traditional (non-AI) content extraction for documents, spreadsheets and website
+links, with a heuristic confidence score per extraction.
 
-Design goals (per the Document/Screenshot/Link workflow):
-  - Use deterministic parsers (pypdf, python-docx, openpyxl, csv) and OCR
-    (pytesseract) — the AI is reserved for survey generation, not extraction.
+Design goals (per the Document/Link workflow):
+  - Use deterministic parsers (pypdf, python-docx, openpyxl, csv) — the AI is
+    reserved for survey generation, not extraction. Image OCR was removed: it was
+    unreliable, so only structured document/text formats are supported.
   - Never raise on a single bad input: every extractor returns an
     ExtractionResult with text + confidence + warnings, degrading gracefully when
     an optional library or the Tesseract binary is unavailable.
@@ -225,75 +226,6 @@ def _extract_txt(data: bytes) -> ExtractionResult:
     return r
 
 
-# ── Images (OCR) ───────────────────────────────────────────────────────────────
-def _ocr_quality_from_conf(conf: int) -> str:
-    if conf >= 85:
-        return "High"
-    if conf >= 60:
-        return "Medium"
-    return "Low"
-
-
-def _extract_image_ocr(data: bytes) -> ExtractionResult:
-    r = ExtractionResult(source="image")
-    try:
-        from PIL import Image
-    except ImportError:
-        r.warnings.append("Image processing is not available on the server.")
-        return r
-    try:
-        img = Image.open(io.BytesIO(data))
-        img.load()
-        r.warnings.append("")  # placeholder removed below
-        r.warnings = []
-        metadata = {"format": img.format, "width": img.width, "height": img.height, "mode": img.mode}
-        r.source = f"image ({img.format})"
-        try:
-            import pytesseract
-
-            ocr = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT)
-            words, confs = [], []
-            for word, conf in zip(ocr.get("text", []), ocr.get("conf", [])):
-                if word and word.strip():
-                    words.append(word)
-                    try:
-                        c = int(float(conf))
-                        if c >= 0:
-                            confs.append(c)
-                    except (ValueError, TypeError):
-                        pass
-            text, r.truncated = sanitize_extracted(" ".join(words))
-            r.text = text
-            avg = int(sum(confs) / len(confs)) if confs else 0
-            r.confidence = avg if text else 0
-            r.ocr_quality = _ocr_quality_from_conf(avg)
-            if not text:
-                r.warnings.append("No readable text was detected in this image.")
-            elif avg < CONFIDENCE_REVIEW_THRESHOLD:
-                r.warnings.append(
-                    "Some text may not have been read accurately. Please review and edit before continuing."
-                )
-        except ImportError:
-            r.warnings.append("OCR is not available on the server.")
-            r.ocr_quality = "Low"
-        except Exception as exc:
-            # Most commonly the Tesseract binary is missing.
-            logger.warning("OCR failed: %s", type(exc).__name__)
-            r.warnings.append(
-                "Text could not be extracted from this image automatically. Please add the context manually."
-            )
-            r.ocr_quality = "Low"
-        # Attach lightweight metadata note.
-        r.text = (
-            r.text
-            + (f"\n\n[Image metadata: {metadata['format']} {metadata['width']}x{metadata['height']}]" if r.text else "")
-        ).strip()
-    except Exception as exc:
-        logger.warning("Image open failed: %s", type(exc).__name__)
-        r.warnings.append("We could not process this image. Please review or re-upload.")
-    return r
-
-
 # ── Dispatcher ─────────────────────────────────────────────────────────────────
 def extract_from_document(data: bytes, content_type: str, filename: str = "") -> ExtractionResult:
     ct = (content_type or "").split(";", 1)[0].strip().lower()
@@ -309,8 +241,6 @@ def extract_from_document(data: bytes, content_type: str, filename: str = "") ->
         return _extract_csv(data)
     if ct == "text/plain" or name.endswith(".txt"):
         return _extract_txt(data)
-    if ct.startswith("image/") or name.endswith((".png", ".jpg", ".jpeg", ".webp")):
-        return _extract_image_ocr(data)
 
     r = ExtractionResult(source="file")
     r.warnings.append("This file type is not supported for content extraction.")

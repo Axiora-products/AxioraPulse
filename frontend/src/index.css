@@ -1878,7 +1878,7 @@ body {
   justify-content: flex-start;
   /* Fill the scroll area (which is already sized to viewport minus footer). */
   min-height: 100%;
-  padding: 48px 24px 60px;
+  padding: 20px 24px 60px;
   position: relative;
   overflow: hidden;
 }
@@ -2398,6 +2398,18 @@ body {
   background: rgba(255, 69, 0, 0.10);
 }
 
+/* ── Top bar (skip to manual builder) ── */
+.cp-topbar {
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  margin-bottom: 8px;
+  position: relative;
+  z-index: 3;
+  animation: cpFadeUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 /* ── Skip Link ── */
 .cp-skip {
   margin-top: 32px;
@@ -2410,15 +2422,18 @@ body {
 .cp-skip-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   background: none;
   border: none;
-  font-family: 'Fraunces', serif;
-  font-weight: 300;
-  font-size: 14px;
-  color: rgba(22, 15, 8, 0.32);
-  letter-spacing: 0;
-  text-transform: none;
+  /* Match the app's UI font (Syne) used by every other button/label, instead
+     of the thin light-serif that looked out of place on the Research Studio. */
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  font-size: 10px;
+  color: rgba(22, 15, 8, 0.45);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
   transition: color 0.2s;
 }
 

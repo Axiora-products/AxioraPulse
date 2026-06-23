@@ -80,8 +80,8 @@ if SENTRY_DSN:
 # surface map. (AP-SEC-020)
 _docs_enabled = not config.IS_PRODUCTION
 app = FastAPI(
-    title="Nexora Pulse API",
-    description="FastAPI backend for the Nexora Pulse survey science platform",
+    title="Axiora Pulse API",
+    description="FastAPI backend for the Axiora Pulse survey science platform",
     version="1.0.0",
     docs_url="/docs" if _docs_enabled else None,
     redoc_url="/redoc" if _docs_enabled else None,
@@ -176,7 +176,7 @@ def health():
     try:
         with engine.connect() as connection:
             connection.execute(text("SELECT 1"))
-        return {"status": "healthy", "service": "Nexora Pulse API", "database": "connected"}
+        return {"status": "healthy", "service": "Axiora Pulse API", "database": "connected"}
     except Exception as exc:
         logging.getLogger(__name__).error("Health check DB failure: %s", type(exc).__name__)
         return JSONResponse(
@@ -187,4 +187,4 @@ def health():
 
 @app.get("/", tags=["health"])
 def root():
-    return {"message": "Nexora Pulse API is running. Visit /docs for the interactive API explorer."}
+    return {"message": "Axiora Pulse API is running. Visit /docs for the interactive API explorer."}

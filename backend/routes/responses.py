@@ -124,6 +124,8 @@ def create_response(request: Request, body: ResponseCreate, db: Session = Depend
         age_range=body.age_range,
         gender=body.gender,
         occupation=body.occupation,
+        country=body.country,
+        state=body.state,
         city=body.city,
         status=ResponseStatusEnum.in_progress,
         started_at=datetime.now(timezone.utc),
@@ -202,6 +204,12 @@ def update_response(
 
     if body.occupation is not None:
         r.occupation = body.occupation
+
+    if body.country is not None:
+        r.country = body.country
+
+    if body.state is not None:
+        r.state = body.state
 
     if body.city is not None:
         r.city = body.city

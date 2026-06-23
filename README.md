@@ -37,7 +37,7 @@ This orchestrator starts the database, spins up the mock AWS environment (Floci)
 * **Frontend Application**: [http://localhost:5173](http://localhost:5173) (Vite server with hot reload)
 * **Backend REST API**: [http://localhost:8000](http://localhost:8000)
 * **Swagger API Documentation**: [http://localhost:8000/docs](http://localhost:8000/docs)
-* **Local Database**: `localhost:5432` (`database: nexpulse` | `user: postgres` | `password: root`)
+* **Local Database**: `localhost:5432` (`database: axiorapulse` | `user: postgres` | `password: root`)
 
 ---
 

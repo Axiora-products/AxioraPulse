@@ -74,6 +74,50 @@ def test_detect_cyber_offensive_exempt_with_defensive_context():
     assert cm._detect_cyber("a scanner to detect and prevent privilege escalation") is None
 
 
+@pytest.mark.parametrize(
+    "text,category",
+    [
+        ("A tool for malware creation", "cyber"),
+        ("A service that provides hacking instructions", "cyber"),
+        ("System exploitation attempts as a service", "cyber"),
+        ("An app for fraud or scams", "illegal"),
+        ("Drug manufacturing or distribution business", "illegal"),
+        ("A tool for criminal activity planning", "illegal"),
+        ("An app for violence promotion", "violent"),
+        ("An app for self-harm promotion", "violent"),
+        ("A site for exploitative content", "explicit"),
+    ],
+)
+def test_ambiguous_reversed_phrasings_are_blocked(text, category):
+    with pytest.raises(cm.ContentModerationError) as e:
+        cm.validate_ai_context(text)
+    assert e.value.category == category
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "A fraud detection SaaS for banks",
+        "An ethical hacking certification course",
+        "A malware detection and analysis tool",
+        "A domestic violence survivor support service",
+        "A self-harm recovery support community",
+        "A pharmaceutical drug manufacturing compliance platform",
+        "A crime prevention neighborhood watch app",
+        "An anti-money-laundering compliance monitor for fintechs",
+    ],
+)
+def test_legitimate_context_is_exempted(text):
+    # These share words with prohibited acts but read as defensive/educational/
+    # medical/support businesses — they must NOT be blocked.
+    assert cm.validate_ai_context(text) == text
+
+
+def test_detect_ambiguous_direct():
+    assert cm._detect_ambiguous("a tool for malware creation") is not None
+    assert cm._detect_ambiguous("a malware detection and analysis tool") is None
+
+
 def test_register_and_block_violations():
     assert cm.register_violation("") == 0  # empty key ignored
     assert cm.is_violation_blocked("") is False
