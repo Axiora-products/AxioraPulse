@@ -13,6 +13,9 @@ function getToken(slug) {
   const k = `nx_${slug}`;
   let t = localStorage.getItem(k);
   if (!t) { t = 's_' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem(k, t); }
+  // Expose the active session token so the axios interceptor can authorize
+  // /responses/ calls for this respondent. (AP-SEC-003)
+  localStorage.setItem('nx_active_session', t);
   return t;
 }
 

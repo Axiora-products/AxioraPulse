@@ -23,6 +23,7 @@ from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from db.database import Base
+from db.encryption import EncryptedString
 from datetime import datetime
 
 import enum
@@ -133,6 +134,7 @@ class UserProfile(Base):
     is_internal = Column(Boolean, nullable=False, default=False)  # Axiora team members bypass payment gates
     account_status = Column(String(50), default="active")  # 'active' | 'invited'
     invite_token = Column(String(100), unique=True, nullable=True)
+    invite_expires_at = Column(DateTime(timezone=True), nullable=True)  # (AP-SEC-016)
     invite_accepted_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -232,7 +234,7 @@ class SurveyResponse(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     survey_id = Column(UUID(as_uuid=True), ForeignKey("surveys.id", ondelete="CASCADE"), index=True, nullable=False)
     session_token = Column(String(100), nullable=True)
-    respondent_email = Column(String(255), nullable=True)
+    respondent_email = Column(EncryptedString, nullable=True)  # PII (encrypted at rest)
     source = Column(String(50), nullable=True)  # acquisition channel: whatsapp|linkedin|email|qr|direct|…
     language = Column(String(10), nullable=False, default="en")
     status = Column(SAEnum(ResponseStatusEnum), default=ResponseStatusEnum.in_progress)
@@ -241,11 +243,11 @@ class SurveyResponse(Base):
     last_saved_at = Column(DateTime(timezone=True), nullable=True)
     response_metadata = Column("metadata", JSONB, nullable=True)
 
-    # demographics
-    age_range = Column(String(50), nullable=True)
-    gender = Column(String(50), nullable=True)
-    occupation = Column(String(100), nullable=True)
-    city = Column(String(100), nullable=True)
+    # demographics (PII — encrypted at rest)
+    age_range = Column(EncryptedString, nullable=True)
+    gender = Column(EncryptedString, nullable=True)
+    occupation = Column(EncryptedString, nullable=True)
+    city = Column(EncryptedString, nullable=True)
 
     __table_args__ = (UniqueConstraint("session_token", name="uq_survey_response_session_token"),)
 
@@ -404,8 +406,8 @@ class DemoSchedule(Base):
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
 
-    name = Column(String, nullable=False)
-    email = Column(String, nullable=False)
+    name = Column(EncryptedString, nullable=False)  # PII (encrypted at rest)
+    email = Column(EncryptedString, nullable=False)  # PII (encrypted at rest)
 
     # demo booking details
     demo_date = Column(String, nullable=False)
@@ -426,6 +428,26 @@ class WaitlistEntry(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     email = Column(String, nullable=False, unique=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class AuditLog(Base):
+    """
+    Append-only audit trail for security-sensitive actions: role/permission
+    changes, payments, super-admin operations, user deletion, etc. (AP-SEC-027)
+    """
+
+    __tablename__ = "audit_logs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    actor_user_id = Column(UUID(as_uuid=True), nullable=True, index=True)
+    actor_email = Column(String(255), nullable=True)
+    tenant_id = Column(UUID(as_uuid=True), nullable=True, index=True)
+    action = Column(String(100), nullable=False, index=True)  # e.g. 'user.role_changed'
+    target_type = Column(String(50), nullable=True)
+    target_id = Column(String(100), nullable=True)
+    ip_address = Column(String(64), nullable=True)
+    detail = Column(JSONB, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
 
 
 class UploadedFile(Base):

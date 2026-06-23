@@ -18,11 +18,21 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
+from datetime import datetime, timedelta, timezone
+
+from jose import jwt, JWTError
+
 from db.database import get_db
 from db.models import UserProfile, UploadedFile
 from dependencies import get_current_user
 from core.rate_limiter import limiter
-from core.config import OPENAI_KEY
+from core.config import OPENAI_KEY, SECRET_KEY
+from services.audit import record_audit
+from services.content_extraction import (
+    extract_from_document,
+    extract_from_url,
+    ExtractionError,
+)
 
 import openai
 from google.oauth2.credentials import Credentials
@@ -38,13 +48,99 @@ UPLOAD_DIR = os.path.join(
 )
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+# ── Signed download URLs (AP-SEC-007) ──────────────────────────────────────────
+# Uploaded files are tenant-private. Browser <a>/<img> requests can't carry the
+# Bearer token, so authenticated listing/upload responses hand out a short-lived
+# signed URL that the download endpoint verifies (capability URL, S3-presign style).
+_DOWNLOAD_TOKEN_TTL = timedelta(hours=1)
+
+
+def _make_download_token(file_id) -> str:
+    payload = {
+        "fid": str(file_id),
+        "scope": "file-download",
+        "exp": datetime.now(timezone.utc) + _DOWNLOAD_TOKEN_TTL,
+    }
+    return jwt.encode(payload, SECRET_KEY, algorithm="HS256")
+
+
+def _verify_download_token(token: str, file_id: str) -> bool:
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+    except JWTError:
+        return False
+    return payload.get("scope") == "file-download" and payload.get("fid") == file_id
+
+
+def _signed_download_url(base_url: str, file_id) -> str:
+    return f"{base_url}/uploads/download/{file_id}?token={_make_download_token(file_id)}"
+
+
+# ── Upload size + content validation (AP-SEC-011, AP-SEC-030) ──────────────────
+_UPLOAD_CHUNK = 1024 * 1024  # 1 MB
+
+
+async def _read_capped(file: "UploadFile", max_bytes: int) -> bytes:
+    """Read an upload in chunks, aborting as soon as it exceeds max_bytes so a
+    huge body can't be fully buffered into memory first. (AP-SEC-011)"""
+    chunks = []
+    total = 0
+    while True:
+        chunk = await file.read(_UPLOAD_CHUNK)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > max_bytes:
+            raise HTTPException(status_code=413, detail="File too large")
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+# Magic-byte signatures for the content types we accept. text/plain has no
+# reliable signature and is allowed through (it is never executed).
+_OOXML_SIG = [b"PK\x03\x04", b"PK\x05\x06"]  # DOCX/XLSX are ZIP containers
+_OLE_SIG = [b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"]  # legacy DOC/XLS compound file
+_MAGIC_SIGNATURES = {
+    "application/pdf": [b"%PDF"],
+    "image/png": [b"\x89PNG\r\n\x1a\n"],
+    "image/jpeg": [b"\xff\xd8\xff"],
+    "image/jpg": [b"\xff\xd8\xff"],
+    "image/webp": [b"RIFF"],  # 'WEBP' marker checked separately at offset 8
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": _OOXML_SIG,
+    "application/msword": _OLE_SIG + [b"PK\x03\x04"],
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": _OOXML_SIG,
+    "application/vnd.ms-excel": _OLE_SIG + _OOXML_SIG,
+}
+
+
+def _validate_magic(contents: bytes, content_type: str) -> None:
+    """Reject files whose bytes don't match their declared content type so a
+    client cannot smuggle, e.g., an HTML/script payload as application/pdf.
+    (AP-SEC-030)"""
+    if content_type == "text/plain":
+        return
+    signatures = _MAGIC_SIGNATURES.get(content_type)
+    if not signatures:
+        return
+    head = contents[:16]
+    if not any(head.startswith(sig) for sig in signatures):
+        raise HTTPException(status_code=400, detail="File content does not match its declared type")
+    if content_type == "image/webp" and contents[8:12] != b"WEBP":
+        raise HTTPException(status_code=400, detail="File content does not match its declared type")
+
+
 ALLOWED_FILE_TYPES = {
     "application/pdf",
     "text/plain",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "application/msword",
+    "text/csv",
+    "application/csv",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",  # .docx
+    "application/msword",  # .doc
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",  # .xlsx
+    "application/vnd.ms-excel",  # .xls
     "image/png",
     "image/jpeg",
+    "image/jpg",
     "image/webp",
 }
 
@@ -339,15 +435,35 @@ async def upload_file(
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(get_current_user),
 ):
-    if file.content_type not in ALLOWED_FILE_TYPES:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unsupported file type: {file.content_type}",
-        )
+    ip = request.client.host if getattr(request, "client", None) else None
 
-    contents = await file.read()
-    if len(contents) > 10 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="File too large (max 10 MB)")
+    if file.content_type not in ALLOWED_FILE_TYPES:
+        # Log rejected uploads for security monitoring (blocks executables/scripts).
+        record_audit(
+            db,
+            action="upload.rejected",
+            actor=current_user,
+            tenant_id=current_user.tenant_id,
+            target_type="file",
+            ip_address=ip,
+            detail={"reason": "unsupported_type", "content_type": file.content_type, "filename": file.filename},
+        )
+        raise HTTPException(status_code=400, detail="This file type is not supported.")
+
+    try:
+        contents = await _read_capped(file, 10 * 1024 * 1024)  # (AP-SEC-011)
+        _validate_magic(contents, file.content_type)  # (AP-SEC-030)
+    except HTTPException as exc:
+        record_audit(
+            db,
+            action="upload.rejected",
+            actor=current_user,
+            tenant_id=current_user.tenant_id,
+            target_type="file",
+            ip_address=ip,
+            detail={"reason": "size_or_magic", "status": exc.status_code, "content_type": file.content_type},
+        )
+        raise
 
     file_id = str(uuid.uuid4())
     ext = os.path.splitext(file.filename or "file")[1]
@@ -357,14 +473,15 @@ async def upload_file(
     with open(filepath, "wb") as f:
         f.write(contents)
 
-    extracted = _extract_text_from_file(filepath, file.content_type)
+    # Traditional parser / OCR extraction with confidence (AI is not used here).
+    result = extract_from_document(contents, file.content_type, file.filename or "")
 
     db_file = UploadedFile(
         id=uuid.UUID(file_id),
         filename=file.filename or "Untitled",
         content_type=file.content_type,
         file_size=len(contents),
-        extracted_text=extracted,
+        extracted_text=result.text,
         upload_type="file",
         tenant_id=current_user.tenant_id,
         created_by=current_user.id,
@@ -375,14 +492,89 @@ async def upload_file(
     db.refresh(db_file)
 
     base_url = str(request.base_url).rstrip("/")
+    payload = result.as_dict()
     return {
         "id": str(db_file.id),
         "filename": db_file.filename,
         "content_type": db_file.content_type,
         "file_size": db_file.file_size,
-        "extracted_text": extracted,
+        "extracted_text": result.text,
         "upload_type": "file",
-        "file_url": f"{base_url}/uploads/download/{db_file.id}",
+        "file_url": _signed_download_url(base_url, db_file.id),
+        # Extraction metadata for the user-verification step.
+        "confidence": payload["confidence"],
+        "ocr_quality": payload["ocr_quality"],
+        "warnings": payload["warnings"],
+        "needs_review": payload["needs_review"],
+        "source": db_file.filename,
+    }
+
+
+class LinkExtractRequest(BaseModel):
+    url: str
+
+
+@router.post("/link")
+@limiter.limit("10/minute")
+async def extract_link(
+    request: Request,
+    body: LinkExtractRequest,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(get_current_user),
+):
+    """Extract page title / description / headings / main content from a website
+    link using a traditional HTML parser behind an SSRF guard. Returns the same
+    extraction-metadata shape as file upload for the verification step."""
+    ip = request.client.host if getattr(request, "client", None) else None
+    url = (body.url or "").strip()
+    if not url:
+        raise HTTPException(status_code=422, detail="Please enter a website link.")
+    if not url.lower().startswith(("http://", "https://")):
+        url = "https://" + url
+
+    try:
+        result = extract_from_url(url)
+    except ExtractionError as exc:
+        record_audit(
+            db,
+            action="link.rejected",
+            actor=current_user,
+            tenant_id=current_user.tenant_id,
+            target_type="link",
+            ip_address=ip,
+            detail={"url": url[:300], "reason": str(exc)},
+        )
+        raise HTTPException(status_code=422, detail=str(exc))
+    except Exception as exc:
+        logger.warning("Link extraction error: %s", type(exc).__name__)
+        raise HTTPException(status_code=502, detail="We could not read that website link. Please try another.")
+
+    # Persist as a tenant-scoped context source so it can be reused/removed.
+    db_file = UploadedFile(
+        id=uuid.uuid4(),
+        filename=url[:500],
+        content_type="text/uri-list",
+        file_size=len(result.text or ""),
+        extracted_text=result.text,
+        upload_type="link",
+        tenant_id=current_user.tenant_id,
+        created_by=current_user.id,
+    )
+    db.add(db_file)
+    db.commit()
+    db.refresh(db_file)
+
+    payload = result.as_dict()
+    return {
+        "id": str(db_file.id),
+        "filename": url,
+        "upload_type": "link",
+        "extracted_text": result.text,
+        "confidence": payload["confidence"],
+        "ocr_quality": payload["ocr_quality"],
+        "warnings": payload["warnings"],
+        "needs_review": payload["needs_review"],
+        "source": url,
     }
 
 
@@ -472,12 +664,13 @@ async def upload_from_drive(
             "file_size": db_file.file_size,
             "extracted_text": extracted,
             "upload_type": "file",
-            "file_url": f"{base_url}/uploads/download/{db_file.id}",
+            "file_url": _signed_download_url(base_url, db_file.id),
         }
 
-    except Exception as e:
-        print(f"Drive upload error: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Google Drive error: {str(e)}")
+    except Exception as exc:
+        # Don't leak raw upstream error detail to the client. (AP-SEC-038)
+        logger.error("Google Drive import failed: %s", type(exc).__name__)
+        raise HTTPException(status_code=502, detail="Failed to import file from Google Drive")
 
 
 @router.post("/audio")
@@ -495,9 +688,7 @@ async def upload_audio(
             detail=f"Unsupported audio type: {file.content_type}",
         )
 
-    contents = await file.read()
-    if len(contents) > 25 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="Audio file too large (max 25 MB)")
+    contents = await _read_capped(file, 25 * 1024 * 1024)  # (AP-SEC-011)
 
     file_id = str(uuid.uuid4())
     ext = _get_audio_suffix(file.filename, content_type)
@@ -564,7 +755,7 @@ async def upload_audio(
         "text": transcript,
         "language": detected_language,
         "upload_type": "audio",
-        "file_url": f"{base_url}/uploads/download/{db_file.id}",
+        "file_url": _signed_download_url(base_url, db_file.id),
     }
 
 
@@ -590,13 +781,10 @@ async def transcribe_audio(
             detail=f"Unsupported audio type: {upload.content_type}",
         )
 
-    contents = await upload.read()
+    contents = await _read_capped(upload, 25 * 1024 * 1024)  # (AP-SEC-011)
 
     if not contents:
         raise HTTPException(status_code=400, detail="Uploaded audio file is empty")
-
-    if len(contents) > 25 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="Audio file too large (max 25 MB)")
 
     suffix = _get_audio_suffix(upload.filename, content_type)
     temp_path = None
@@ -668,7 +856,7 @@ async def list_uploaded_files(
             "file_size": f.file_size,
             "upload_type": f.upload_type,
             "extracted_text": f.extracted_text,
-            "file_url": f"{base_url}/uploads/download/{f.id}",
+            "file_url": _signed_download_url(base_url, f.id),
             "created_at": f.created_at.isoformat() if f.created_at else None,
         }
         for f in files
@@ -678,12 +866,18 @@ async def list_uploaded_files(
 @router.get("/download/{file_id}")
 async def download_file(
     file_id: str,
+    token: str = "",
     db: Session = Depends(get_db),
 ):
     try:
         file_uuid = uuid.UUID(file_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid file ID format")
+
+    # Require a valid short-lived signed token issued by an authenticated
+    # listing/upload response for this file. (AP-SEC-007)
+    if not token or not _verify_download_token(token, str(file_uuid)):
+        raise HTTPException(status_code=403, detail="Invalid or expired download link")
 
     db_file = db.query(UploadedFile).filter(UploadedFile.id == file_uuid).first()
     if not db_file:

@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 from app.main import app
+from routes.uploads import _make_download_token
 import io
 
 client = TestClient(app)
@@ -187,19 +188,22 @@ def test_download_file(auth_headers):
     assert "file_url" in upload_data
     assert f"/uploads/download/{file_id}" in upload_data["file_url"]
 
-    # Download the file
-    response = client.get(f"/uploads/download/{file_id}", headers=auth_headers)
+    # Download the file using the signed token (AP-SEC-007: a valid ?token= is
+    # required; the bare /download/{id} path is no longer accessible).
+    response = client.get(f"/uploads/download/{file_id}?token={_make_download_token(file_id)}", headers=auth_headers)
     assert response.status_code == 200
     assert response.content == file_content
 
-    # Try downloading with non-existent UUID
+    # Non-existent UUID with a valid token reaches the not-found check (404).
     import uuid
 
     random_id = str(uuid.uuid4())
-    response = client.get(f"/uploads/download/{random_id}", headers=auth_headers)
+    response = client.get(
+        f"/uploads/download/{random_id}?token={_make_download_token(random_id)}", headers=auth_headers
+    )
     assert response.status_code == 404
 
-    # Try downloading with invalid UUID format
+    # Invalid UUID format is rejected (400) before the token check.
     response = client.get("/uploads/download/not-a-valid-uuid", headers=auth_headers)
     assert response.status_code == 400
 
@@ -221,8 +225,8 @@ def test_delete_file_endpoint(auth_headers):
     assert response.status_code == 200
     assert response.json()["success"] is True
 
-    # Try to download the deleted file (should fail with 404)
-    response = client.get(f"/uploads/download/{file_id}", headers=auth_headers)
+    # Try to download the deleted file (valid token, but row is gone => 404)
+    response = client.get(f"/uploads/download/{file_id}?token={_make_download_token(file_id)}", headers=auth_headers)
     assert response.status_code == 404
 
     # Try to delete again (should fail with 404)

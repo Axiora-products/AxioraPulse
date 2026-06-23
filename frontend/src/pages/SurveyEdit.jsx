@@ -11,6 +11,7 @@ import { Reorder, useDragControls } from 'framer-motion';
 import ConfirmModal from '../components/ConfirmModal';
 import HelpTip from '../components/HelpTip';
 import CAAgentPanel from '../components/CAAgentPanel';
+import { getApiErrorMessage } from '../lib/apiError';
 
 const hasO = t => ['single_choice', 'multiple_choice', 'dropdown', 'ranking', 'emoji_reaction', 'swipe_choice', 'visual_choice'].includes(t);
 const isMx = t => t === 'matrix';
@@ -217,7 +218,7 @@ export default function SurveyEdit() {
       setAiIntel(intelligenceData);
     } catch (err) {
       console.error('[AI Intel]', err);
-      setAiIntelError(err.response?.data?.detail || 'Failed to generate intelligence. Please try again.');
+      setAiIntelError(getApiErrorMessage(err, 'Failed to generate intelligence. Please try again.'));
     } finally {
       setAiIntelLoading(false);
     }
@@ -303,9 +304,7 @@ export default function SurveyEdit() {
       toast.success('Saved');
       await load();
     } catch (e) {
-      console.error(e);
-      const msg = e.response?.data?.detail;
-      toast.error(typeof msg === 'string' ? msg : 'Failed to save');
+      toast.error(getApiErrorMessage(e, 'Unable to save the survey. Please try again.'));
     }
     finally { setBusy(false); }
   }
@@ -318,9 +317,7 @@ export default function SurveyEdit() {
       toast.success('Updated');
       load();
     } catch (e) {
-      console.error(e);
-      const msg = e.response?.data?.detail;
-      toast.error(typeof msg === 'string' ? msg : 'Failed to update status');
+      toast.error(getApiErrorMessage(e, 'Unable to update the survey status. Please try again.'));
     }
   }
 
@@ -342,7 +339,7 @@ export default function SurveyEdit() {
       toast.success('Survey deleted'); nav('/surveys');
     } catch (e) {
       console.error(e);
-      toast.error(e.response?.data?.detail || 'Delete failed');
+      toast.error(getApiErrorMessage(e, 'Delete failed'));
     }
   }
 
@@ -354,7 +351,7 @@ export default function SurveyEdit() {
       load();
     } catch (e) {
       console.error(e);
-      toast.error(e.response?.data?.detail || 'Share failed');
+      toast.error(getApiErrorMessage(e, 'Share failed'));
     }
   }
 

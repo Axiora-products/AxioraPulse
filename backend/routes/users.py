@@ -16,8 +16,9 @@ import os
 import time
 import re
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import List, Optional
+from urllib.parse import urlparse
 from pydantic import BaseModel
 from schemas import BulkInviteRequest
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -37,19 +38,75 @@ from schemas import (
 )
 from auth_utils import hash_password
 from dependencies import get_current_user
+from services.audit import record_audit
 from cognito_utils import get_cognito_client, get_user_pool_id, admin_delete_user
 
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
 
 router = APIRouter(prefix="/users", tags=["users"])
 
+# Pending invites expire after this window. (AP-SEC-016)
+INVITE_TTL = timedelta(days=7)
+
+
+def _invite_expiry() -> datetime:
+    return datetime.now(timezone.utc) + INVITE_TTL
+
+
+def _invite_is_expired(user: UserProfile) -> bool:
+    exp = user.invite_expires_at
+    if exp is None:
+        # Legacy invites issued before expiry existed are treated as still valid.
+        return False
+    if exp.tzinfo is None:
+        exp = exp.replace(tzinfo=timezone.utc)
+    return exp < datetime.now(timezone.utc)
+
+
 # Roles that allow inviting / managing users
 MANAGER_ROLES = {RoleEnum.super_admin, RoleEnum.admin, RoleEnum.manager}
+
+# Privilege ordering used to enforce that a caller cannot grant a role higher
+# than their own (e.g. a manager inviting an admin). (AP-SEC-018)
+ROLE_RANK = {
+    RoleEnum.viewer: 1,
+    RoleEnum.creator: 2,
+    RoleEnum.manager: 3,
+    RoleEnum.admin: 4,
+    RoleEnum.super_admin: 5,
+}
 
 
 def _require_manager(current_user: UserProfile):
     if current_user.role not in MANAGER_ROLES:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+
+def _assert_can_assign_role(current_user: UserProfile, role: RoleEnum) -> None:
+    """A caller may never grant a role with higher privilege than their own."""
+    if ROLE_RANK.get(role, 99) > ROLE_RANK.get(current_user.role, 0):
+        raise HTTPException(status_code=403, detail="You cannot grant a role higher than your own")
+    if role == RoleEnum.super_admin and current_user.role != RoleEnum.super_admin:
+        raise HTTPException(status_code=403, detail="Only a super admin can grant the super admin role")
+
+
+# Roles permitted to distribute surveys via email/WhatsApp (excludes viewer).
+DISTRIBUTOR_ROLES = {RoleEnum.super_admin, RoleEnum.admin, RoleEnum.manager, RoleEnum.creator}
+
+
+def _require_distributor(current_user: UserProfile) -> None:
+    if current_user.role not in DISTRIBUTOR_ROLES:
+        raise HTTPException(status_code=403, detail="Insufficient permissions to send survey invitations")
+
+
+def _assert_trusted_link(url: str | None) -> None:
+    """Survey links sent through our branded channels must point at our own
+    frontend — otherwise the feature is an arbitrary phishing relay. (AP-SEC-010)"""
+    if not url:
+        return
+    allowed = urlparse(FRONTEND_URL).netloc
+    if allowed and urlparse(url).netloc != allowed:
+        raise HTTPException(status_code=400, detail="Survey link must point to the application domain")
 
 
 def _require_team_account(current_user: UserProfile):
@@ -134,6 +191,7 @@ def invite_user(
 
             # Generate new token (recommended)
             existing.invite_token = secrets.token_urlsafe(32)
+            existing.invite_expires_at = _invite_expiry()
             db.commit()
             db.refresh(existing)
 
@@ -169,6 +227,8 @@ def invite_user(
     except ValueError:
         raise HTTPException(status_code=400, detail=f"Invalid role: {body.role}")
 
+    _assert_can_assign_role(current_user, role)
+
     new_user = UserProfile(
         id=uuid.uuid4(),
         email=body.email,
@@ -180,6 +240,7 @@ def invite_user(
         is_active=True,
         account_status="invited",
         invite_token=secrets.token_urlsafe(32),
+        invite_expires_at=_invite_expiry(),
     )
 
     db.add(new_user)
@@ -229,6 +290,12 @@ def bulk_invite(
     _require_team_account(current_user)
     _require_manager(current_user)
 
+    try:
+        invite_role = RoleEnum(body.role)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Invalid role: {body.role}")
+    _assert_can_assign_role(current_user, invite_role)  # (AP-SEC-018)
+
     results = []
     tenant_name = current_user.tenant.name if current_user.tenant else "Axiora Pulse"
 
@@ -242,6 +309,7 @@ def bulk_invite(
         # 🔁 Already invited → resend
         if existing and existing.account_status == "invited":
             existing.invite_token = secrets.token_urlsafe(32)
+            existing.invite_expires_at = _invite_expiry()
             db.commit()
             db.refresh(existing)
 
@@ -287,6 +355,7 @@ def bulk_invite(
             is_active=True,
             account_status="invited",
             invite_token=secrets.token_urlsafe(32),
+            invite_expires_at=_invite_expiry(),
         )
 
         db.add(new_user)
@@ -361,6 +430,7 @@ def update_role(
     if body.role == RoleEnum.super_admin.value and current_user.role != RoleEnum.super_admin:
         raise HTTPException(status_code=403, detail="Admins cannot assign the Super Admin role")
 
+    previous_role = user.role.value if hasattr(user.role, "value") else str(user.role)
     try:
         user.role = RoleEnum(body.role)
     except ValueError:
@@ -368,6 +438,15 @@ def update_role(
 
     db.commit()
     db.refresh(user)
+    record_audit(
+        db,
+        action="user.role_changed",
+        actor=current_user,
+        tenant_id=current_user.tenant_id,
+        target_type="user",
+        target_id=user.id,
+        detail={"from": previous_role, "to": body.role},
+    )
     return UserProfileOut.model_validate(user)
 
 
@@ -411,6 +490,15 @@ def update_status(
     user.is_active = body.is_active
     db.commit()
     db.refresh(user)
+    record_audit(
+        db,
+        action="user.status_changed",
+        actor=current_user,
+        tenant_id=current_user.tenant_id,
+        target_type="user",
+        target_id=user.id,
+        detail={"is_active": body.is_active},
+    )
     return UserProfileOut.model_validate(user)
 
 
@@ -421,8 +509,12 @@ def delete_user(
     db: Session = Depends(get_db),
 ):
     """
-    Hard-delete a user.  Only super_admin can delete.
-    Replaces the Netlify delete-user function.
+    Hard-delete a user within the caller's own tenant.
+
+    Admins and super_admins may delete users in their tenant (org self-management).
+    Guards below prevent self-deletion and deletion of a super_admin by a
+    non-super_admin; cross-tenant deletion is impossible (tenant-scoped query).
+    (AP-SEC-036)
     """
     _require_team_account(current_user)
     if current_user.role not in {RoleEnum.super_admin, RoleEnum.admin}:
@@ -451,8 +543,19 @@ def delete_user(
     if user.email:
         admin_delete_user(user.email)
 
+    deleted_email = user.email
+    deleted_id = user.id
     db.delete(user)
     db.commit()
+    record_audit(
+        db,
+        action="user.deleted",
+        actor=current_user,
+        tenant_id=current_user.tenant_id,
+        target_type="user",
+        target_id=deleted_id,
+        detail={"email": deleted_email},
+    )
     return {"message": "User deleted successfully"}
 
 
@@ -473,7 +576,8 @@ def accept_invite(
     if user.account_status != "invited":
         raise HTTPException(status_code=400, detail="User is already active")
 
-    from datetime import datetime, timezone
+    if _invite_is_expired(user):  # (AP-SEC-016)
+        raise HTTPException(status_code=410, detail="This invitation has expired. Please request a new one.")
 
     user.full_name = body.full_name.strip()
     user.password_hash = hash_password(body.password)
@@ -534,6 +638,8 @@ def get_invite_info(
     )
     if not user or user.account_status != "invited":
         raise HTTPException(status_code=404, detail="Invalid or expired invitation token")
+    if _invite_is_expired(user):  # (AP-SEC-016)
+        raise HTTPException(status_code=410, detail="This invitation has expired. Please request a new one.")
 
     return {
         "email": user.email,
@@ -620,10 +726,14 @@ def _send_single_whatsapp_task(number: str, message: str, media_url: Optional[st
 
 
 @router.post("/share-survey")
+@limiter.limit("20/minute")
 def share_survey(
+    request: Request,
     body: ShareSurveyRequest,
     current_user: UserProfile = Depends(get_current_user),
 ):
+    _require_distributor(current_user)  # (AP-SEC-010)
+    _assert_trusted_link(body.survey_link)
     email_regex = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
     email_clean = body.email.strip()
     if not email_regex.match(email_clean):
@@ -652,15 +762,19 @@ def share_survey(
     try:
         send_email(to_email=email_clean, subject=subject, body=body_content)
         return {"message": f"Survey shared successfully with {email_clean}"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=502, detail="Failed to send email")
 
 
 @router.post("/bulk-share-survey")
+@limiter.limit("10/minute")
 def bulk_share_survey(
+    request: Request,
     body: BulkShareSurveyRequest,
     current_user: UserProfile = Depends(get_current_user),
 ):
+    _require_distributor(current_user)  # (AP-SEC-010)
+    _assert_trusted_link(body.survey_link)
     results = []
     valid_emails = []
     email_regex = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
@@ -717,10 +831,14 @@ def bulk_share_survey(
 
 
 @router.post("/bulk-share-whatsapp")
+@limiter.limit("10/minute")
 def bulk_share_whatsapp(
+    request: Request,
     body: BulkShareWhatsAppRequest,
     current_user: UserProfile = Depends(get_current_user),
 ):
+    _require_distributor(current_user)  # (AP-SEC-010)
+    _assert_trusted_link(body.survey_link)
     results = []
     unique_numbers = list(dict.fromkeys(body.numbers))
 

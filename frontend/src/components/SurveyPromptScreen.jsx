@@ -3,6 +3,22 @@ import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import useDrivePicker from 'react-google-drive-picker';
 import API from '../api/axios';
+import { getApiErrorMessage } from '../lib/apiError';
+import ExtractedContentReview from './ExtractedContentReview';
+
+// Normalize an upload/link API response into a context-source entry.
+function toSource(data, type) {
+  return {
+    id: data.id,
+    filename: data.filename || data.source || 'Untitled',
+    extractedText: data.extracted_text || '',
+    confidence: typeof data.confidence === 'number' ? data.confidence : null,
+    ocrQuality: data.ocr_quality || null,
+    warnings: data.warnings || [],
+    needsReview: !!data.needs_review,
+    type,
+  };
+}
 
 export const SURVEY_MODES = [
   { id: 'conversational', label: 'Conversational', icon: '💬', desc: 'Warm, friendly, natural dialogue style' },
@@ -41,6 +57,9 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
   const [uploadOpen, setUploadOpen] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState([]);
   const [attachedAudio, setAttachedAudio] = useState([]);
+  const [attachedLinks, setAttachedLinks] = useState([]);
+  const [linkInput, setLinkInput] = useState('');
+  const [addingLink, setAddingLink] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [draftId, setDraftId] = useState(null);
   const [draftSaved, setDraftSaved] = useState(false);
@@ -99,7 +118,7 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
             ? err.response.data
             : JSON.stringify(err.response?.data || {});
           console.error('Transcription failed:', err.response?.status, errorText);
-          toast.error(err.response?.data?.detail || 'Audio transcription failed');
+          toast.error(getApiErrorMessage(err, 'Audio transcription failed'));
         } finally {
           setIsTranscribingMic(false);
           setAudioChunks([]);
@@ -115,7 +134,7 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
       if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
         toast.error("Microphone access denied. Please enable microphone permissions in your browser.");
       } else {
-        toast.error(`Microphone access failed: ${err.message || 'Unknown error'}`);
+        toast.error('Microphone access failed. Please allow microphone permission and try again.');
       }
     }
   };
@@ -145,15 +164,10 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
               filename: file.name,
               mimeType: file.mimeType
             });
-            setAttachedFiles(prev => [...prev, {
-              id: res.data.id,
-              filename: res.data.filename,
-              extractedText: res.data.extracted_text || '',
-              type: 'file'
-            }]);
+            setAttachedFiles(prev => [...prev, toSource(res.data, 'file')]);
             toast.success(`"${file.name}" attached from Drive`);
           } catch (err) {
-            toast.error(err.response?.data?.detail || "Drive import failed");
+            toast.error(getApiErrorMessage(err, "Drive import failed"));
             console.error(err);
           } finally {
             setUploading(false);
@@ -281,18 +295,43 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
       const { data } = await API.post('/uploads/file', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      setAttachedFiles(prev => [...prev, {
-        id: data.id,
-        filename: data.filename,
-        extractedText: data.extracted_text || '',
-        type: 'file',
-      }]);
-      toast.success(`"${data.filename}" attached`);
+      setAttachedFiles(prev => [...prev, toSource(data, 'file')]);
+      if (data.needs_review) {
+        toast('⚠ Extracted text may be incomplete — please review it.', { icon: '⚠️' });
+      } else {
+        toast.success(`"${data.filename}" attached`);
+      }
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Upload failed');
+      toast.error(getApiErrorMessage(err, 'Upload failed'));
     }
     setUploading(false);
     e.target.value = '';
+  };
+
+  // ── Website Link Handler ──
+  const handleAddLink = async () => {
+    const url = linkInput.trim();
+    if (!url) return;
+    setAddingLink(true);
+    try {
+      const { data } = await API.post('/uploads/link', { url });
+      setAttachedLinks(prev => [...prev, toSource(data, 'link')]);
+      setLinkInput('');
+      if (data.needs_review) {
+        toast('⚠ Limited content extracted — please review it.', { icon: '⚠️' });
+      } else {
+        toast.success('Website content attached');
+      }
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'We could not read that website link.'));
+    }
+    setAddingLink(false);
+  };
+
+  // ── Edit extracted content (verification step) ──
+  const updateExtractedText = (id, type, text) => {
+    const setter = type === 'audio' ? setAttachedAudio : type === 'link' ? setAttachedLinks : setAttachedFiles;
+    setter(prev => prev.map(item => (item.id === id ? { ...item, extractedText: text } : item)));
   };
 
   // ── Audio Upload Handler ──
@@ -306,15 +345,10 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
       const { data } = await API.post('/uploads/audio', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      setAttachedAudio(prev => [...prev, {
-        id: data.id,
-        filename: data.filename,
-        extractedText: data.extracted_text || '',
-        type: 'audio',
-      }]);
+      setAttachedAudio(prev => [...prev, toSource(data, 'audio')]);
       toast.success(`"${data.filename}" attached`);
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Audio upload failed');
+      toast.error(getApiErrorMessage(err, 'Audio upload failed'));
     }
     setUploading(false);
     e.target.value = '';
@@ -322,6 +356,7 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
 
   const removeAttachment = (id, type) => {
     if (type === 'file') setAttachedFiles(prev => prev.filter(f => f.id !== id));
+    else if (type === 'link') setAttachedLinks(prev => prev.filter(f => f.id !== id));
     else setAttachedAudio(prev => prev.filter(f => f.id !== id));
   };
 
@@ -330,14 +365,21 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
   const handleLibrarySelect = (file) => {
     if (file.upload_type === 'audio') {
       if (!attachedAudio.find(f => f.id === file.id)) {
-        setAttachedAudio(prev => [...prev, { id: file.id, filename: file.filename, extractedText: file.extracted_text || '', type: 'audio' }]);
+        setAttachedAudio(prev => [...prev, toSource(file, 'audio')]);
         toast.success(`"${file.filename}" attached`);
       } else {
         toast.error('File already attached');
       }
+    } else if (file.upload_type === 'link') {
+      if (!attachedLinks.find(f => f.id === file.id)) {
+        setAttachedLinks(prev => [...prev, toSource(file, 'link')]);
+        toast.success('Website content attached');
+      } else {
+        toast.error('Link already attached');
+      }
     } else {
       if (!attachedFiles.find(f => f.id === file.id)) {
-        setAttachedFiles(prev => [...prev, { id: file.id, filename: file.filename, extractedText: file.extracted_text || '', type: 'file' }]);
+        setAttachedFiles(prev => [...prev, toSource(file, 'file')]);
         toast.success(`"${file.filename}" attached`);
       } else {
         toast.error('File already attached');
@@ -346,13 +388,15 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
   };
 
   const handleSubmit = () => {
-    const hasAttachments = attachedFiles.length > 0 || attachedAudio.length > 0;
+    const hasAttachments = attachedFiles.length > 0 || attachedAudio.length > 0 || attachedLinks.length > 0;
     if (!prompt.trim() && !hasAttachments) return toast.error('Describe what you want to research or attach a file');
     if (selectedMode.id === 'custom' && !customInstruction.trim()) return toast.error('Add custom mode instructions first');
-    const fileContext = attachedFiles.map(f => f.extractedText).filter(Boolean).join('\n\n');
+    // Use the (possibly user-edited) verified extracted content. Links are folded
+    // into the document context so they reach the AI as additional context.
+    const docs = [...attachedFiles, ...attachedLinks].map(f => f.extractedText).filter(Boolean).join('\n\n');
     const audioContext = attachedAudio.map(f => f.extractedText).filter(Boolean).join('\n\n');
     const finalPrompt = prompt.trim() || "Please generate a comprehensive survey based on the provided documents.";
-    onGenerate(finalPrompt, finalPrompt, selectedMode.id, fileContext, audioContext, customInstruction);
+    onGenerate(finalPrompt, finalPrompt, selectedMode.id, docs, audioContext, customInstruction);
   };
 
   const handleKeyDown = (e) => {
@@ -367,12 +411,13 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
     if (tmpl) onLoadTemplate(tmpl);
   };
 
-  const hasAttachments = attachedFiles.length > 0 || attachedAudio.length > 0;
+  const reviewItems = [...attachedFiles, ...attachedLinks, ...attachedAudio];
+  const hasAttachments = reviewItems.length > 0;
 
   return (
     <div className="cp-center">
       {/* Hidden file inputs */}
-      <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.txt,image/*" style={{ display: 'none' }} onChange={handleFileUpload} />
+      <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.png,.jpg,.jpeg,.webp,image/*" style={{ display: 'none' }} onChange={handleFileUpload} />
       <input ref={audioInputRef} type="file" accept="audio/*" style={{ display: 'none' }} onChange={handleAudioUpload} />
 
       {/* Decorative blobs */}
@@ -400,40 +445,43 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
             disabled={aiGenerating}
           />
 
-          {/* Attached Files Chips */}
+          {/* Website link input */}
+          <div style={{ padding: '4px 16px 0', display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input
+              type="url"
+              value={linkInput}
+              onChange={e => setLinkInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddLink(); } }}
+              placeholder="Paste a business website or product page link…"
+              disabled={addingLink || aiGenerating}
+              style={{
+                flex: 1, boxSizing: 'border-box', padding: '9px 12px', borderRadius: 10,
+                border: '1px solid rgba(22,15,8,0.15)', background: '#fff',
+                fontFamily: "'Fraunces', serif", fontSize: 13, color: 'var(--espresso, #160F08)', outline: 'none',
+              }}
+            />
+            <button
+              type="button"
+              onClick={handleAddLink}
+              disabled={addingLink || aiGenerating || !linkInput.trim()}
+              style={{
+                padding: '9px 14px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                background: 'var(--espresso, #160F08)', color: 'var(--cream, #FDF5E8)',
+                fontFamily: "'Syne', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: '0.06em',
+                opacity: (addingLink || !linkInput.trim()) ? 0.5 : 1,
+              }}
+            >
+              {addingLink ? 'Reading…' : 'Add link'}
+            </button>
+          </div>
+
+          {/* Extracted-content verification step (review / edit / remove + confidence) */}
           {hasAttachments && (
-            <div style={{ padding: '4px 16px 8px', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {attachedFiles.map(f => (
-                <div key={f.id} style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 6,
-                  padding: '5px 10px 5px 8px', borderRadius: 10,
-                  background: 'rgba(255,69,0,0.06)', border: '1px solid rgba(255,69,0,0.15)',
-                  fontFamily: "'Syne', sans-serif", fontSize: 9, fontWeight: 700,
-                  letterSpacing: '0.04em', color: 'var(--coral)',
-                }}>
-                  📄 {f.filename}
-                  <button onClick={() => removeAttachment(f.id, 'file')} style={{
-                    background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(22,15,8,0.3)',
-                    fontSize: 11, lineHeight: 1, padding: 0, marginLeft: 2,
-                  }}>✕</button>
-                </div>
-              ))}
-              {attachedAudio.map(f => (
-                <div key={f.id} style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 6,
-                  padding: '5px 10px 5px 8px', borderRadius: 10,
-                  background: 'rgba(0,71,255,0.06)', border: '1px solid rgba(0,71,255,0.15)',
-                  fontFamily: "'Syne', sans-serif", fontSize: 9, fontWeight: 700,
-                  letterSpacing: '0.04em', color: 'var(--cobalt)',
-                }}>
-                  🎙️ {f.filename}
-                  <button onClick={() => removeAttachment(f.id, 'audio')} style={{
-                    background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(22,15,8,0.3)',
-                    fontSize: 11, lineHeight: 1, padding: 0, marginLeft: 2,
-                  }}>✕</button>
-                </div>
-              ))}
-            </div>
+            <ExtractedContentReview
+              items={reviewItems}
+              onEdit={updateExtractedText}
+              onRemove={removeAttachment}
+            />
           )}
 
           {/* Toolbar */}
