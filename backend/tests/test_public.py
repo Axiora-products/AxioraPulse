@@ -42,9 +42,11 @@ def test_send_email_error(monkeypatch):
         "surveyTitle": "Failing Email Survey",
         "surveyUrl": "https://pulse.axiora.com/s/failing",
     }
+    # Upstream email-provider failure surfaces as 502 with a generic detail
+    # (the internal exception message is intentionally not leaked).
     response = client.post("/public/send-email", json=payload)
-    assert response.status_code == 500
-    assert "AWS SES connection failed" in response.json()["detail"]
+    assert response.status_code == 502
+    assert "Failed to send email" in response.json()["detail"]
 
 
 def test_join_waitlist():

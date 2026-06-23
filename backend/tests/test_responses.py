@@ -36,41 +36,44 @@ def test_submit_response(auth_headers):
     assert get_session.status_code == 200
     assert get_session.json()["id"] == response_id
 
-    # 3. Get session by ID
-    get_by_id = client.get(f"/responses/{response_id}")
+    # 3. Get session by ID — respondent proves ownership with the session token (?st=).
+    # The bare response_id alone must NOT grant access (AP-SEC-003).
+    get_by_id = client.get(f"/responses/{response_id}?st={session_token}")
     assert get_by_id.status_code == 200
     assert get_by_id.json()["session_token"] == session_token
 
     # 4. Update response details
     update_payload = {"respondent_email": "updated_respondent@example.com"}
-    update_resp = client.patch(f"/responses/{response_id}", json=update_payload)
+    update_resp = client.patch(f"/responses/{response_id}?st={session_token}", json=update_payload)
     assert update_resp.status_code == 200
     assert update_resp.json()["respondent_email"] == "updated_respondent@example.com"
 
     # 5. Submit answers for questions
     answers_payload = [{"question_id": QUESTION_ID, "answer_value": "5"}]
-    answers_resp = client.post(f"/responses/{response_id}/answers", json=answers_payload)
+    answers_resp = client.post(f"/responses/{response_id}/answers?st={session_token}", json=answers_payload)
     assert answers_resp.status_code == 200
     assert answers_resp.json()["count"] == 1
 
     # 6. Submit the response (complete survey)
-    submit_resp = client.post(f"/responses/{response_id}/submit")
+    submit_resp = client.post(f"/responses/{response_id}/submit?st={session_token}")
     assert submit_resp.status_code == 200
     assert submit_resp.json()["message"] == "Response submitted successfully"
     # Verify status via GET
-    get_by_id = client.get(f"/responses/{response_id}")
+    get_by_id = client.get(f"/responses/{response_id}?st={session_token}")
     assert get_by_id.json()["status"] == "completed"
 
     # 7. Create another session and abandon it
     response2 = client.post("/responses/", json={"survey_id": SURVEY_ID})
     assert response2.status_code == 201
-    response_id2 = response2.json()["id"]
+    data2 = response2.json()
+    response_id2 = data2["id"]
+    session_token2 = data2["session_token"]
 
-    abandon_resp = client.post(f"/responses/{response_id2}/abandon")
+    abandon_resp = client.post(f"/responses/{response_id2}/abandon?st={session_token2}")
     assert abandon_resp.status_code == 200
     assert abandon_resp.json()["message"] == "Response marked as abandoned"
     # Verify status via GET
-    get_by_id2 = client.get(f"/responses/{response_id2}")
+    get_by_id2 = client.get(f"/responses/{response_id2}?st={session_token2}")
     assert get_by_id2.json()["status"] == "abandoned"
 
 
@@ -96,15 +99,16 @@ def test_response_language_tracking(auth_headers):
     assert response_again.status_code == 201
     assert response_again.json()["language"] == "hi"
 
-    # 4. Update language to 'te' via PATCH
+    # 4. Update language to 'te' via PATCH (respondent proves ownership via ?st=)
+    rid = response_again.json()["id"]
     update_payload = {"language": "te"}
-    update_resp = client.patch(f"/responses/{response_again.json()['id']}", json=update_payload)
+    update_resp = client.patch(f"/responses/{rid}?st=lang-session-123", json=update_payload)
     assert update_resp.status_code == 200
     assert update_resp.json()["language"] == "te"
 
     # 5. Test with an invalid language (should default to en)
     update_payload_invalid = {"language": "fr"}
-    update_resp_invalid = client.patch(f"/responses/{response_again.json()['id']}", json=update_payload_invalid)
+    update_resp_invalid = client.patch(f"/responses/{rid}?st=lang-session-123", json=update_payload_invalid)
     assert update_resp_invalid.status_code == 200
     assert update_resp_invalid.json()["language"] == "en"
 

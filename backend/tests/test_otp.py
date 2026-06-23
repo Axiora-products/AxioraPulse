@@ -116,15 +116,16 @@ def test_otp_verify_too_many_attempts(clean_db):
         purpose="login",
         user_id=clean_db["verified_user"].id,
         expires_at=datetime.now(timezone.utc) + timedelta(minutes=5),
-        attempts=4,
+        attempts=5,
     )
     db.add(otp_record)
     db.commit()
 
-    # The 5th attempt (attempts is incremented before checking attempts >= 5)
+    # Budget is exhausted (attempts >= 5), so the next verify is rejected up-front
+    # with 429 before the code is even compared. (AP-SEC-015)
     verify_resp = client.post("/auth/otp/verify", json={"phone_number": phone, "otp_code": "000000"})
     assert verify_resp.status_code == 429
-    assert verify_resp.json()["detail"] == "Too many attempts"
+    assert verify_resp.json()["detail"] == "Too many attempts. Request a new code."
 
 
 def test_otp_verify_expired_or_not_found():
