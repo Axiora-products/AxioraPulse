@@ -139,9 +139,10 @@ def test_insights_invalid_schema_returns_500(auth_headers, monkeypatch):
     branch, which logs without the raw output and raises HTTP 500 (line 863)."""
     import routes.ai
 
-    # overallScore must be an int per the schema; a non-coercible string forces a
-    # pydantic ValidationError when constructing AIInsightsResponse.
-    bad = json.dumps({"overallScore": "not-a-number"})
+    # topStrengths is typed List[str] and is NOT defensively rebuilt by the endpoint
+    # (unlike overallScore, which is coerced/nulled). A list containing a dict cannot
+    # be coerced to List[str], forcing a pydantic ValidationError at AIInsightsResponse(**...).
+    bad = json.dumps({"topStrengths": [{"nested": "object"}]})
     monkeypatch.setattr(routes.ai, "call_ai_sync", MagicMock(return_value=bad))
 
     payload = {"surveyTitle": "T", "responses": {}, "questionSummaries": []}
