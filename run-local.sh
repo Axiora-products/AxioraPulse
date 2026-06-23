@@ -207,8 +207,25 @@ echo "========================================================================"
 # --- Generate Dummy Environment Files (to prevent Docker Compose startup error) ---
 echo "⚙️  Preparing local environment files..."
 mkdir -p backend frontend
-touch backend/.env.docker
-touch frontend/.env.local
+
+# The backend fail-closes on a missing/insecure SECRET_KEY at import time, so an
+# empty .env.docker would crash it before init_local_aws.py can generate the real
+# one. Seed a valid bootstrap secret on first run to break that chicken-and-egg.
+if [ ! -f backend/.env.docker ] || [ ! -s backend/.env.docker ]; then
+  boot_secret=$(openssl rand -base64 48 2>/dev/null | tr -dc 'a-zA-Z0-9' | head -c 48)
+  if [ -z "$boot_secret" ]; then
+    boot_secret="bootstrap-secret-key-for-local-development-purposes"
+  fi
+  cat << EOF > backend/.env.docker
+# Bootstrap env for first container start. Overwritten by init_local_aws.py.
+SECRET_KEY=$boot_secret
+ENVIRONMENT=development
+EOF
+fi
+
+if [ ! -f frontend/.env.local ]; then
+  touch frontend/.env.local
+fi
 
 # --- Startup Services (Unified) ---
 echo "🌐 Spin up the local development/test container stack..."
