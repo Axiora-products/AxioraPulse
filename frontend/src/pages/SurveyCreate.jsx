@@ -4,6 +4,7 @@ import API from '../api/axios';
 
 import SurveyPromptScreen, { SURVEY_MODES, getSurveyModeLabel } from '../components/SurveyPromptScreen';
 import AISurveySuggestions from '../components/AISurveySuggestions';
+import ConfirmModal from '../components/ConfirmModal';
 import useAuthStore from '../hooks/useAuth';
 import { QUESTION_TYPES, SHORT_SURVEY_RULES, SURVEY_HEALTH_MINIMUMS, DEFAULT_THANK_YOU_MESSAGE, estimateSurveyMinutes, getFormatDiversityScore, getQuestionWordCount, isQuestionComplete, meetsMinLength, getThankYouCustom, composeThankYou, isExpired, SURVEY_TEXT_RULES, isValidSurveyTitle, isValidSurveyLongText, isValidQuestionText } from '../lib/constants';
 import { Reorder, useDragControls, motion } from 'framer-motion';
@@ -207,6 +208,7 @@ export default function SurveyCreate() {
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiGenerated, setAiGenerated] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [showBackConfirm, setShowBackConfirm] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const [tmplTab, setTmplTab] = useState('gallery');
   const [catFilter, setCatFilter] = useState('All');
@@ -268,6 +270,14 @@ export default function SurveyCreate() {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [modeOpen]);
+
+  // Reset scroll to the top whenever we switch between the prompt and builder
+  // phases — otherwise the new screen renders at the previous scroll offset
+  // (e.g. opening the builder from the bottom-anchored "Skip" link).
+  useEffect(() => {
+    document.querySelector('.ws-content-main')?.scrollTo({ top: 0 });
+    window.scrollTo({ top: 0 });
+  }, [phase]);
 
   const s = (k, v) => { sf(p => ({ ...p, [k]: v })); setDirty(true); };
   // Anonymous responses and requiring an email are mutually exclusive — enabling
@@ -367,6 +377,13 @@ export default function SurveyCreate() {
     loadTemplate(tmpl);
     setFromTemplate(true);
     setPhase('builder');
+  };
+
+  // Return from the builder to the AI survey builder (prompt) screen.
+  // When there are unsaved changes, confirm via an on-brand modal first.
+  const backToPrompt = () => {
+    if (dirty) { setShowBackConfirm(true); return; }
+    setPhase('prompt');
   };
 
   async function save(status = 'draft') {
@@ -828,6 +845,18 @@ export default function SurveyCreate() {
 
 `}</style>
 
+      {/* ── BACK-TO-PROMPT CONFIRMATION ── */}
+      <ConfirmModal
+        open={showBackConfirm}
+        onClose={() => setShowBackConfirm(false)}
+        title="Discard unsaved changes?"
+        body="Going back to the AI survey builder will discard the unsaved changes to this draft."
+        confirmLabel="Go back"
+        cancelLabel="Keep editing"
+        danger
+        onConfirm={() => { setShowBackConfirm(false); setPhase('prompt'); }}
+      />
+
       {/* ── OVERWRITE CONFIRMATION MODAL ── */}
       {showConfirm && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(22,15,8,0.6)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
@@ -984,7 +1013,18 @@ export default function SurveyCreate() {
         {/* Bottom separator */}
         <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '1px', background: 'linear-gradient(90deg,transparent,rgba(22,15,8,0.08) 30%,rgba(22,15,8,0.08) 70%,transparent)' }} />
 
-        <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 18 }}>
+          {/* Row 1 — Back on its own line, above everything */}
+          <button onClick={backToPrompt} title="Back to the AI survey builder"
+            style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 6, padding: 0, border: 'none', background: 'none', fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.5)', cursor: 'pointer', transition: 'color 0.2s' }}
+            onMouseEnter={e => { e.currentTarget.style.color = 'var(--coral)'; }}
+            onMouseLeave={e => { e.currentTarget.style.color = 'rgba(22,15,8,0.5)'; }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12" /><polyline points="12 19 5 12 12 5" /></svg>
+            Back
+          </button>
+
+          {/* Row 2 — studio tag (+ unsaved) on the left, actions on the right */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <div style={{ width: 28, height: 1.5, background: 'var(--coral)', borderRadius: 1 }} />
             <span style={{ fontFamily: "'Syne',sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--coral)' }}>Research Studio</span>
@@ -1013,6 +1053,7 @@ export default function SurveyCreate() {
               {busy ? 'Publishing…' : <><span>Publish</span><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg></>}
             </button>
           </div>
+          </div>
         </div>
       </div>
 
@@ -1021,7 +1062,10 @@ export default function SurveyCreate() {
         className="sc-grid"
         style={{
           display: 'grid',
-          gridTemplateColumns: 'minmax(0,1fr) 360px',
+          // Proportional columns keep the Live Preview / Survey Health panel at
+          // ~27% of the workspace instead of a fixed 360px, which ballooned to a
+          // third (or more) of the page on narrower screens.
+          gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)',
           gap: 28,
           alignItems: 'start'
         }}
@@ -1048,8 +1092,9 @@ export default function SurveyCreate() {
           {/* ── DETAILS TAB ── */}
           {tab === 'details' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
-              {/* AI Context Box — hidden when a template was pre-loaded */}
-              <div style={{ display: fromTemplate ? 'none' : 'block', background: 'rgba(255,69,0,0.03)', padding: 24, borderRadius: 20, border: `1.5px solid ${tc}30` }}>
+              {/* AI Context Box — hidden once a survey has been generated, and for
+                  manual/template builds. Re-enter the AI builder via the "Back" button. */}
+              <div style={{ display: (fromTemplate || aiGenerated) ? 'none' : 'block', background: 'rgba(255,69,0,0.03)', padding: 24, borderRadius: 20, border: `1.5px solid ${tc}30` }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
                   <span style={{ fontSize: 16 }}>✨</span>
                   <h3 style={{ margin: 0, fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 18, color: 'var(--espresso)' }}>Pulse Survey Generator</h3>

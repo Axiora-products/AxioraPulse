@@ -14,6 +14,8 @@ class ResponseCreate(BaseModel):
     age_range: Optional[str] = None
     gender: Optional[str] = None
     occupation: Optional[str] = None
+    country: Optional[str] = None
+    state: Optional[str] = None
     city: Optional[str] = None
     status: str = "in_progress"
 
@@ -27,6 +29,8 @@ class ResponseUpdate(BaseModel):
     age_range: Optional[str] = None
     gender: Optional[str] = None
     occupation: Optional[str] = None
+    country: Optional[str] = None
+    state: Optional[str] = None
     city: Optional[str] = None
 
 
@@ -62,6 +66,8 @@ class ResponseOut(BaseModel):
     age_range: Optional[str] = None
     gender: Optional[str] = None
     occupation: Optional[str] = None
+    country: Optional[str] = None
+    state: Optional[str] = None
     city: Optional[str] = None
 
     model_config = {"from_attributes": True}
