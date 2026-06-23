@@ -213,10 +213,15 @@ def test_verify_cognito_token_otp_fallback_success(monkeypatch):
     monkeypatch.setenv("MOCK_COGNITO", "false")
     monkeypatch.setenv("COGNITO_APP_CLIENT_ID", "test-client")
 
-    # Prepare a valid OTP token (HS256 signed using OTP_JWT_SECRET)
-    OTP_JWT_SECRET = "otp-secret-key-change-in-production"
+    # Prepare a valid OTP token (HS256 signed using OTP_JWT_SECRET). The secret must
+    # be a real (non-default) value or core.config._clean_secret nulls it and the
+    # fallback is disabled (AP-SEC-001), so configure one and sign with it.
+    from core import config
+
+    otp_secret = "a-valid-test-otp-secret-not-default"
+    monkeypatch.setattr(config, "OTP_JWT_SECRET", otp_secret)
     payload = {"sub": "user-123", "token_use": "id", "aud": "test-client"}
-    token = jwt.encode(payload, OTP_JWT_SECRET, algorithm="HS256")
+    token = jwt.encode(payload, otp_secret, algorithm="HS256")
 
     # Make Cognito check fail (which will trigger fallback)
     def mock_get_unverified_headers(t):

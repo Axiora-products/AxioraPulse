@@ -181,7 +181,11 @@ def test_post_ai_generate_http_exception_reraise(auth_headers, monkeypatch):
         "call_ai_sync",
         MagicMock(side_effect=FastHTTPException(status_code=503, detail="AI down")),
     )
-    response = client.post("/ai/generate", json={"aiContext": "test"}, headers=auth_headers)
+    # aiContext must clear content moderation (>= 10 chars, benign) before the
+    # handler is reached, so the mocked call_ai_sync's 503 can propagate.
+    response = client.post(
+        "/ai/generate", json={"aiContext": "Customer feedback survey for a coffee shop"}, headers=auth_headers
+    )
     assert response.status_code == 503
 
 
