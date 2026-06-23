@@ -195,6 +195,80 @@ _CATEGORY_PATTERNS = [
 ]
 
 
+# ── Intent-aware patterns (blocked only when NOT a legitimate use) ──────────────
+# Many prohibited *acts* share words with legitimate businesses: "fraud detection",
+# "ethical hacking course", "malware analysis", "domestic-violence support",
+# "self-harm recovery", "crime prevention". These patterns also catch the natural
+# (reversed/bare) phrasings the strict lists above miss ("malware creation" vs
+# "create malware") — but they are suppressed when the text reads as defensive,
+# educational, research, support, or pharma/medical context. (mirrors _detect_cyber)
+_LEGIT_CONTEXT = _c(
+    r"(detect\w*|prevent\w*|protect\w*|aware\w*|awareness|education\w*|train\w*|support|"
+    r"victim|survivor|research\w*|combat\w*|anti[\s-]?\w+|report\w*|helpline|hotline|recovery|"
+    r"rehab\w*|justice|reform|safeguard\w*|stop\w*|reduc\w*|against|monitor\w*|investigat\w*|"
+    r"complian\w*|forensic\w*|audit\w*|ethical|certified|defen[cs]\w*|mitigat\w*|pentest\w*|"
+    r"penetration\s+test\w*|bug\s+bounty|simulat\w*|firewall|scanner|secur\w*|"
+    r"pharmaceutical|pharmacy|medication|prescription|clinical|medical)"
+)
+
+_AMBIGUOUS_PATTERNS = [
+    # Cyber (offensive framing; exempt for ethical/defensive/training contexts)
+    ("cyber", _c(r"how\s+to\s+hack\b")),
+    ("cyber", _c(r"hack(ing)?\s+(instruction\w*|tutorial\w*|guide|course|service|tool|kit|software)")),
+    (
+        "cyber",
+        _c(
+            r"(malware|ransomware|spyware|keylogger|botnet|trojan\w*|rootkit|worm)\s+"
+            r"(creation|develop\w*|builder|kit|generator|making|writing|coding|author\w*)"
+        ),
+    ),
+    ("cyber", _c(r"(system|network|server|application|web|software|vulnerabilit\w*)\s+exploitation")),
+    ("cyber", _c(r"exploitation\s+(attempt\w*|tool|kit|framework|technique\w*)")),
+    # Illegal (reversed / bare forms)
+    ("illegal", _c(r"\b(fraud|frauds|scam|scams|scamming|defraud\w*|embezzl\w*)\b")),
+    ("illegal", _c(r"\bdrug\s+(manufactur\w*|traffick\w*|smuggl\w*|dealing|cartel|lab\b)")),
+    (
+        "illegal",
+        _c(
+            r"(manufactur\w*|produc\w*|cook\w*|synthesi\w*|sell\w*|distribut\w*)\s+(\w+\s+){0,2}(meth\w*|cocaine|heroin|fentanyl|crack|mdma|narcotics)"
+        ),
+    ),
+    ("illegal", _c(r"(meth\w*|cocaine|heroin|fentanyl|narcotics)\s+(manufactur\w*|production|lab\b|synthesis)")),
+    (
+        "illegal",
+        _c(
+            r"(plan\w*|organiz\w*|coordinat\w*|facilitat\w*)\s+(\w+\s+){0,2}(crime\b|criminal\s+activit\w*|illegal\s+activit\w*)"
+        ),
+    ),
+    ("illegal", _c(r"criminal\s+activit\w*\s+(planning|plan\w*)")),
+    # Violent (reversed / bare forms)
+    (
+        "violent",
+        _c(r"(promot\w*|glorif\w*|incit\w*|encourag\w*|spread\w*)\s+(\w+\s+){0,2}(violence|terrorism|extremism)"),
+    ),
+    ("violent", _c(r"violence\s+(promotion|glorif\w*|incitement)")),
+    ("violent", _c(r"(promot\w*|encourag\w*|glorif\w*|romanticiz\w*)\s+self[\s-]?harm")),
+    ("violent", _c(r"self[\s-]?harm\s+(promotion|content|encourage\w*|glorif\w*)")),
+    # Explicit (reversed / bare forms)
+    ("explicit", _c(r"exploitative\s+(content|material|images?|videos?|services?)")),
+    ("explicit", _c(r"adult[\s-]only\s+(illegal|escort|sexual|explicit)")),
+]
+
+
+def _detect_ambiguous(text: str):
+    """Return (category, matched) for an intent-aware prohibited phrase, or None.
+
+    Suppressed entirely when the text carries a legitimate (defensive/educational/
+    research/support/medical) context, to keep false positives low."""
+    if _LEGIT_CONTEXT.search(text):
+        return None
+    for category, pat in _AMBIGUOUS_PATTERNS:
+        m = pat.search(text)
+        if m:
+            return category, m.group(0)[:60]
+    return None
+
+
 def sanitize_text(text: str) -> str:
     """Normalize unicode, strip control/zero-width chars and collapse whitespace."""
     if not text:
@@ -232,6 +306,12 @@ def validate_ai_context(text: str) -> str:
     cyber_match = _detect_cyber(cleaned)
     if cyber_match:
         raise ContentModerationError("cyber", matched=cyber_match)
+
+    # Intent-aware patterns (reversed/bare phrasings) with a legitimate-context
+    # exemption — catches "malware creation", "violence promotion", "fraud", etc.
+    ambiguous = _detect_ambiguous(cleaned)
+    if ambiguous:
+        raise ContentModerationError(ambiguous[0], matched=ambiguous[1])
 
     # Remaining categories.
     for category, patterns in _CATEGORY_PATTERNS:

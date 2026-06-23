@@ -6,6 +6,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
+import toast from 'react-hot-toast';
 import API from '../api/axios';
 import useAuthStore from '../hooks/useAuth';
 import { formatDateTime } from '../lib/constants';
@@ -1473,8 +1474,7 @@ export default function SurveyAnalytics() {
 
   } catch (err) {
     console.error('[Excel export failed]', err);
-    // Swap this for your toast/alert system if preferred
-    alert('Export failed — please try again.');
+    toast.error('Export failed — please try again.');
   }
 }
 

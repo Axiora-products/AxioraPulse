@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ShareModal from '../components/ShareModal';
 import AISurveySuggestions from '../components/AISurveySuggestions';
+import LocationSelect from '../components/LocationSelect';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import API from '../api/axios';
 import useAuthStore from '../hooks/useAuth';
@@ -700,10 +701,11 @@ export default function SurveyEdit() {
       <ConfirmModal open={extendOpen} title="Reactivate Survey" body="This survey has expired. Choose how many days to extend it." confirmLabel="Reactivate" onConfirm={days => { doExtend(days); setExtendOpen(false); }} onClose={() => setExtendOpen(false)} prompt={{ label: 'Extend by (days)', defaultValue: '7', type: 'number', min: 1, max: 365 }} />
       <ConfirmModal open={deleteOpen} title="Delete Survey" body="This action cannot be undone. All responses will be permanently deleted." confirmLabel="Delete" danger onConfirm={() => { doDelete(); setDeleteOpen(false); }} onClose={() => setDeleteOpen(false)} />
       <ShareModal
-        survey={{ id: sv.id, slug: sv.slug, title: sv.title, description: sv.description }}
+        survey={{ id: sv.id, slug: sv.slug, title: sv.title, description: sv.description, status: sv.status }}
         isOpen={pubShareOpen}
         onClose={() => setPubShareOpen(false)}
         onSlugChange={(s) => setSv(p => ({ ...p, slug: s }))}
+        onPublished={() => setSv(p => ({ ...p, status: 'active' }))}
       />
 
       {/* ── PAGE HEADER ── */}
@@ -1141,18 +1143,13 @@ export default function SurveyEdit() {
                   </p>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 18, maxWidth: 400, margin: '0 auto 32px', textAlign: 'left' }}>
-                    <div>
-                      <label style={LBL}>Target Country (Leave blank for Global)</label>
-                      <input type="text" placeholder="e.g. United States, India, Germany" value={locationCountry} onChange={e => setLocationCountry(e.target.value)} style={INP} onFocus={fi} onBlur={fo} />
-                    </div>
-                    <div>
-                      <label style={LBL}>Target State / Region (Leave blank for National)</label>
-                      <input type="text" placeholder="e.g. California, Telangana, Bavaria" value={locationState} onChange={e => setLocationState(e.target.value)} style={INP} onFocus={fi} onBlur={fo} />
-                    </div>
-                    <div>
-                      <label style={LBL}>Target District / City (Leave blank for State-level)</label>
-                      <input type="text" placeholder="e.g. Los Angeles, Hyderabad, Munich" value={locationDistrict} onChange={e => setLocationDistrict(e.target.value)} style={INP} onFocus={fi} onBlur={fo} />
-                    </div>
+                    <LocationSelect
+                      value={{ country: locationCountry, state: locationState, city: locationDistrict }}
+                      onChange={(loc) => { setLocationCountry(loc.country || ''); setLocationState(loc.state || ''); setLocationDistrict(loc.city || ''); }}
+                      labels={{ country: 'Target Country (Leave blank for Global)', state: 'Target State / Region (Leave blank for National)', city: 'Target District / City (Leave blank for State-level)' }}
+                      labelStyle={LBL}
+                      selectStyle={INP}
+                    />
                   </div>
 
                   <button onClick={() => {
@@ -1297,18 +1294,13 @@ export default function SurveyEdit() {
                   </p>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 18, maxWidth: 400, margin: '0 auto 32px', textAlign: 'left' }}>
-                    <div>
-                      <label style={LBL}>Target Country (Leave blank for Global)</label>
-                      <input type="text" placeholder="e.g. United States, India, Germany" value={locationCountry} onChange={e => setLocationCountry(e.target.value)} style={INP} onFocus={fi} onBlur={fo} />
-                    </div>
-                    <div>
-                      <label style={LBL}>Target State / Region (Leave blank for National)</label>
-                      <input type="text" placeholder="e.g. California, Telangana, Bavaria" value={locationState} onChange={e => setLocationState(e.target.value)} style={INP} onFocus={fi} onBlur={fo} />
-                    </div>
-                    <div>
-                      <label style={LBL}>Target District / City (Leave blank for State-level)</label>
-                      <input type="text" placeholder="e.g. Los Angeles, Hyderabad, Munich" value={locationDistrict} onChange={e => setLocationDistrict(e.target.value)} style={INP} onFocus={fi} onBlur={fo} />
-                    </div>
+                    <LocationSelect
+                      value={{ country: locationCountry, state: locationState, city: locationDistrict }}
+                      onChange={(loc) => { setLocationCountry(loc.country || ''); setLocationState(loc.state || ''); setLocationDistrict(loc.city || ''); }}
+                      labels={{ country: 'Target Country (Leave blank for Global)', state: 'Target State / Region (Leave blank for National)', city: 'Target District / City (Leave blank for State-level)' }}
+                      labelStyle={LBL}
+                      selectStyle={INP}
+                    />
                   </div>
 
                   <button onClick={() => {

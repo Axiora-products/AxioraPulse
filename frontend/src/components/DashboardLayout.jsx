@@ -25,8 +25,7 @@ export default function DashboardLayout() {
   const [surveys, setSurveys] = useState([]);
   const [files, setFiles] = useState([]);
   const [sidebarLoading, setSidebarLoading] = useState(true);
-  const [showSurveys, setShowSurveys] = useState(true);
-  const [activeOpen, setActiveOpen] = useState(true);
+  const [recentOpen, setRecentOpen] = useState(true);
   const [draftsOpen, setDraftsOpen] = useState(true);
 
   // Fetch surveys and files for sidebar
@@ -135,10 +134,11 @@ export default function DashboardLayout() {
   // Personal accounts have no team-management surface
   const isPersonal = tenant?.account_type === 'personal';
 
-  // Group surveys by status
-  const activeSurveys = surveys.filter(s => s.status === 'active');
+  // Group surveys by status. "Recent" = every non-draft survey, newest first.
+  const recentSurveys = [...surveys]
+    .filter(s => s.status !== 'draft')
+    .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
   const draftSurveys = surveys.filter(s => s.status === 'draft');
-  const closedSurveys = surveys.filter(s => ['closed', 'paused', 'expired'].includes(s.status));
 
   function handleSignOut() { signOut(); setUserMenu(false); }
 
@@ -270,7 +270,15 @@ export default function DashboardLayout() {
             </button>
 
           </div>
-          <Link to="/surveys/new" className="ws-new-btn" onClick={() => setMobileOpen(false)}>
+          <Link to="/surveys/new" className="ws-new-btn" onClick={(e) => {
+            setMobileOpen(false);
+            // Already on the create page: React Router won't remount the same route,
+            // so force a fresh load to reset the builder to a brand-new survey.
+            if (loc.pathname === '/surveys/new') {
+              e.preventDefault();
+              window.location.assign('/surveys/new');
+            }
+          }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
             <span>New Survey</span>
           </Link>
@@ -309,36 +317,14 @@ export default function DashboardLayout() {
               </div>
             </NavLink>
           </div>
-          <div
-            className="ws-sidebar-section"
-            onClick={() => setShowSurveys(!showSurveys)}
-            style={{
-              cursor: "pointer",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginTop: "12px",
-            }}
-          >
-            <div className="ws-sidebar-section-label">
-              My Surveys ({surveys.length})
-            </div>
-            
-            <span style={{ fontSize: "12px" }}>
-              {showSurveys ? "▾" : "▸"}
-            </span>
-          </div>
-
-          {showSurveys && (
-            <>
-            {/* Active Surveys */}
-            {activeSurveys.length > 0 && (
-            <div className="ws-sidebar-section">
-              <button type="button" className="ws-sidebar-section-label ws-sidebar-section-toggle" onClick={() => setActiveOpen(o => !o)} aria-expanded={activeOpen}>
-                <span>Active ({activeSurveys.length})</span>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 'auto', transform: activeOpen ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.2s ease' }}><polyline points="6 9 12 15 18 9" /></svg>
+          {/* Recent Surveys */}
+          {recentSurveys.length > 0 && (
+            <div className="ws-sidebar-section" style={{ marginTop: 12 }}>
+              <button type="button" className="ws-sidebar-section-label ws-sidebar-section-toggle" onClick={() => setRecentOpen(o => !o)} aria-expanded={recentOpen}>
+                <span>Recent Surveys ({recentSurveys.length})</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 'auto', transform: recentOpen ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.2s ease' }}><polyline points="6 9 12 15 18 9" /></svg>
               </button>
-              {activeOpen && activeSurveys.map(s => (
+              {recentOpen && recentSurveys.map(s => (
                 <NavLink key={s.id} to={`/surveys/${s.id}/edit`} title={s.title} className={`ws-sidebar-item${loc.pathname.includes(s.id) ? ' active' : ''}`} onClick={() => setMobileOpen(false)}>
                   <div className="ws-sidebar-item-icon">📊</div>
                   <div className="ws-sidebar-item-text">
@@ -389,22 +375,6 @@ export default function DashboardLayout() {
             </div>
           )}
 
-          {/* Closed Surveys */}
-          {closedSurveys.length > 0 && (
-            <div className="ws-sidebar-section">
-              <div className="ws-sidebar-section-label">Closed ({closedSurveys.length})</div>
-              {closedSurveys.map(s => (
-                <NavLink key={s.id} to={`/surveys/${s.id}/analytics`} title={s.title} className={`ws-sidebar-item${loc.pathname.includes(s.id) ? ' active' : ''}`} onClick={() => setMobileOpen(false)}>
-                  <div className="ws-sidebar-item-icon" style={{ opacity: 0.5 }}>📋</div>
-                  <div className="ws-sidebar-item-text">
-                    <span className="ws-sidebar-item-title" style={{ opacity: 0.7 }}>{s.title}</span>
-                    <span className="ws-sidebar-item-meta">{s.status}</span>
-                  </div>
-                </NavLink>
-              ))}
-            </div>
-          )}
-
           {/* No surveys */}
           {surveys.length === 0 && !sidebarLoading && (
             <div className="ws-empty">
@@ -414,10 +384,7 @@ export default function DashboardLayout() {
               <div className="ws-empty-text">No surveys yet.<br />Create your first one!</div>
             </div>
           )}
-
-          </>
-        )}
-        </div> 
+        </div>
         {/* User Section at bottom */}
         <div className="ws-sidebar-user" ref={userRef}>
           <div className="ws-sidebar-avatar" onClick={() => setUserMenu(v => !v)}>

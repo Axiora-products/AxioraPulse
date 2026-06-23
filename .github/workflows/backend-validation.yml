@@ -16,7 +16,7 @@ jobs:
     name: Lint & Test
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: postgresql://postgres:root@localhost:5432/nexpulse
+      DATABASE_URL: postgresql://postgres:root@localhost:5432/axiorapulse
       AWS_ENDPOINT_URL: http://localhost:4566
       AWS_DEFAULT_REGION: ap-south-1
       AWS_ACCESS_KEY_ID: mock
@@ -28,7 +28,7 @@ jobs:
       postgres:
         image: postgres:17
         env:
-          POSTGRES_DB: nexpulse
+          POSTGRES_DB: axiorapulse
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: root
         ports:

@@ -102,10 +102,6 @@ _OOXML_SIG = [b"PK\x03\x04", b"PK\x05\x06"]  # DOCX/XLSX are ZIP containers
 _OLE_SIG = [b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"]  # legacy DOC/XLS compound file
 _MAGIC_SIGNATURES = {
     "application/pdf": [b"%PDF"],
-    "image/png": [b"\x89PNG\r\n\x1a\n"],
-    "image/jpeg": [b"\xff\xd8\xff"],
-    "image/jpg": [b"\xff\xd8\xff"],
-    "image/webp": [b"RIFF"],  # 'WEBP' marker checked separately at offset 8
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document": _OOXML_SIG,
     "application/msword": _OLE_SIG + [b"PK\x03\x04"],
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": _OOXML_SIG,
@@ -125,10 +121,10 @@ def _validate_magic(contents: bytes, content_type: str) -> None:
     head = contents[:16]
     if not any(head.startswith(sig) for sig in signatures):
         raise HTTPException(status_code=400, detail="File content does not match its declared type")
-    if content_type == "image/webp" and contents[8:12] != b"WEBP":
-        raise HTTPException(status_code=400, detail="File content does not match its declared type")
 
 
+# Documents, spreadsheets and text only. Image uploads (and OCR) were removed —
+# OCR proved unreliable, so only formats with deterministic parsers are accepted.
 ALLOWED_FILE_TYPES = {
     "application/pdf",
     "text/plain",
@@ -138,10 +134,6 @@ ALLOWED_FILE_TYPES = {
     "application/msword",  # .doc
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",  # .xlsx
     "application/vnd.ms-excel",  # .xls
-    "image/png",
-    "image/jpeg",
-    "image/jpg",
-    "image/webp",
 }
 
 ALLOWED_AUDIO_TYPES = {
@@ -296,9 +288,6 @@ def _extract_text_from_file(filepath: str, content_type: str) -> str:
                 return text[:8000]
             except ImportError:
                 return "[DOCX text extraction unavailable — install python-docx]"
-
-        if content_type and content_type.startswith("image/"):
-            return f"[Image file: {os.path.basename(filepath)}]"
 
     except Exception as e:
         return f"[Error extracting text: {str(e)}]"
