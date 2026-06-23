@@ -64,18 +64,12 @@ MOCK_COGNITO_SECRET = _clean_secret(os.getenv("MOCK_COGNITO_SECRET"))
 # Comma-separated allowlist of emails granted super_admin. Data/config-driven so
 # it is revocable without a code deploy and contains no hardcoded identity.
 # (AP-SEC-002)
-SUPER_ADMIN_EMAILS = {
-    e.strip().lower()
-    for e in os.getenv("SUPER_ADMIN_EMAILS", "").split(",")
-    if e.strip()
-}
+SUPER_ADMIN_EMAILS = {e.strip().lower() for e in os.getenv("SUPER_ADMIN_EMAILS", "").split(",") if e.strip()}
 
 # ── PII field-level encryption ─────────────────────────────────────────────────
 # Comma-separated Fernet keys; the first encrypts, all are tried on decrypt (key
 # rotation). Unset => passthrough (plaintext) for local dev; set it in production.
-PII_ENCRYPTION_KEYS = [
-    k.strip() for k in os.getenv("PII_ENCRYPTION_KEYS", "").split(",") if k.strip()
-]
+PII_ENCRYPTION_KEYS = [k.strip() for k in os.getenv("PII_ENCRYPTION_KEYS", "").split(",") if k.strip()]
 
 # ── Row-Level Security (defense-in-depth, opt-in) ──────────────────────────────
 # When true (and the RLS migration has been applied), the app sets a per-request

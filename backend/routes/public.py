@@ -26,11 +26,7 @@ router = APIRouter(prefix="/public", tags=["public"])
 def _assert_trusted_survey_url(survey_url: str) -> None:
     """Only allow links to our own frontend so this branded email cannot be used
     as a phishing relay to arbitrary URLs. (AP-SEC-010)"""
-    allowed_hosts = {
-        urlparse(o.strip()).netloc
-        for o in config.FRONTEND_URL.split(",")
-        if o.strip()
-    }
+    allowed_hosts = {urlparse(o.strip()).netloc for o in config.FRONTEND_URL.split(",") if o.strip()}
     # No configured frontend (local dev) → skip host enforcement.
     if not allowed_hosts:
         return

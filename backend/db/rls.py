@@ -73,8 +73,6 @@ def register_rls_listener(session_factory) -> None:
                 connection.exec_driver_sql("SELECT set_config('app.bypass_rls', 'on', true)")
             tid = _current_tenant.get()
             if tid:
-                connection.exec_driver_sql(
-                    "SELECT set_config('app.current_tenant', %s, true)", (tid,)
-                )
+                connection.exec_driver_sql("SELECT set_config('app.current_tenant', %s, true)", (tid,))
         except Exception as exc:
             logger.error("RLS after_begin GUC failed: %s", type(exc).__name__)

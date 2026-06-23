@@ -175,9 +175,7 @@ def verify_cognito_token(token: str) -> dict | None:
             logger.error("MOCK_COGNITO enabled but MOCK_COGNITO_SECRET is unset/insecure")
             return None
         try:
-            payload = jwt.decode(
-                token, config.MOCK_COGNITO_SECRET, algorithms=["HS256"], audience=client_id
-            )
+            payload = jwt.decode(token, config.MOCK_COGNITO_SECRET, algorithms=["HS256"], audience=client_id)
             return payload if payload.get("token_use") == "id" else None
         except Exception as exc:
             logger.warning("Mock token verification failed: %s", type(exc).__name__)
@@ -205,9 +203,7 @@ def verify_cognito_token(token: str) -> dict | None:
     # ── OTP-issued token fallback (only if explicitly configured) ─────────────
     if config.OTP_JWT_SECRET:
         try:
-            payload = jwt.decode(
-                token, config.OTP_JWT_SECRET, algorithms=["HS256"], audience=client_id
-            )
+            payload = jwt.decode(token, config.OTP_JWT_SECRET, algorithms=["HS256"], audience=client_id)
             return payload if payload.get("token_use") == "id" else None
         except Exception:
             return None

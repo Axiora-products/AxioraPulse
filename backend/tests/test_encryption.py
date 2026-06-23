@@ -8,8 +8,10 @@ from cryptography.fernet import Fernet, MultiFernet
 def _reload_with_keys(monkeypatch, keys):
     monkeypatch.setenv("PII_ENCRYPTION_KEYS", keys)
     import core.config as cfg
+
     importlib.reload(cfg)
     import db.encryption as enc
+
     importlib.reload(enc)
     enc._get_cipher.cache_clear()
     return enc
@@ -20,7 +22,7 @@ def test_roundtrip_and_ciphertext(monkeypatch):
     enc = _reload_with_keys(monkeypatch, k)
     t = enc.EncryptedString()
     ct = t.process_bind_param("respondent@example.com", None)
-    assert ct != "respondent@example.com"          # stored value is ciphertext
+    assert ct != "respondent@example.com"  # stored value is ciphertext
     assert t.process_result_value(ct, None) == "respondent@example.com"
 
 

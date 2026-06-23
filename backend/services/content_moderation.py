@@ -89,8 +89,10 @@ _CYBER_ALWAYS = [
     _c(r"steal\s+(passwords?|credentials?|logins?|accounts?|user\s+data)"),
     _c(r"crack\s+(passwords?|software|licen[cs]e)"),
     _c(r"bypass\s+(authentication|login|2fa|mfa|password)"),
-    _c(r"(hack|hacking)\s+(into\s+)?(a\s+|the\s+|someone'?s?\s+)?(\w+\s+)?"
-       r"(system|account|server|website|web\s*site|network|database|\bdb\b|wifi|wi-fi|email|computer|phone|device|cloud)"),
+    _c(
+        r"(hack|hacking)\s+(into\s+)?(a\s+|the\s+|someone'?s?\s+)?(\w+\s+)?"
+        r"(system|account|server|website|web\s*site|network|database|\bdb\b|wifi|wi-fi|email|computer|phone|device|cloud)"
+    ),
     # Malicious tooling — only when the intent is to create/spread/sell it.
     _c(
         r"(creat\w*|build\w*|develop\w*|writ\w*|mak\w*|launch\w*|deploy\w*|sell\w*|"
@@ -131,6 +133,7 @@ def _detect_cyber(text: str):
             if m:
                 return m.group(0)[:60]
     return None
+
 
 _ILLEGAL = [
     _c(r"money\s+launder\w*|launder\w*\s+money"),
@@ -198,10 +201,7 @@ def sanitize_text(text: str) -> str:
         return ""
     text = unicodedata.normalize("NFKC", text)
     # Remove zero-width and other invisible/control characters (except newlines/tabs)
-    text = "".join(
-        ch for ch in text
-        if ch in ("\n", "\t") or (unicodedata.category(ch)[0] != "C")
-    )
+    text = "".join(ch for ch in text if ch in ("\n", "\t") or (unicodedata.category(ch)[0] != "C"))
     return text.strip()
 
 

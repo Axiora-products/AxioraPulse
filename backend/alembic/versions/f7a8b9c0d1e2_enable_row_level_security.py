@@ -36,20 +36,16 @@ _TENANT_MATCH = {
     "payments": "tenant_id = current_setting('app.current_tenant', true)::uuid",
     "uploaded_files": "tenant_id = current_setting('app.current_tenant', true)::uuid",
     "survey_questions": (
-        "survey_id IN (SELECT id FROM surveys WHERE tenant_id = "
-        "current_setting('app.current_tenant', true)::uuid)"
+        "survey_id IN (SELECT id FROM surveys WHERE tenant_id = current_setting('app.current_tenant', true)::uuid)"
     ),
     "survey_responses": (
-        "survey_id IN (SELECT id FROM surveys WHERE tenant_id = "
-        "current_setting('app.current_tenant', true)::uuid)"
+        "survey_id IN (SELECT id FROM surveys WHERE tenant_id = current_setting('app.current_tenant', true)::uuid)"
     ),
     "survey_feedback": (
-        "survey_id IN (SELECT id FROM surveys WHERE tenant_id = "
-        "current_setting('app.current_tenant', true)::uuid)"
+        "survey_id IN (SELECT id FROM surveys WHERE tenant_id = current_setting('app.current_tenant', true)::uuid)"
     ),
     "survey_shares": (
-        "survey_id IN (SELECT id FROM surveys WHERE tenant_id = "
-        "current_setting('app.current_tenant', true)::uuid)"
+        "survey_id IN (SELECT id FROM surveys WHERE tenant_id = current_setting('app.current_tenant', true)::uuid)"
     ),
     "survey_answers": (
         "response_id IN (SELECT id FROM survey_responses WHERE survey_id IN "

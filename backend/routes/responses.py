@@ -69,11 +69,7 @@ def _extract_session_token(request: Request, explicit: str | None = None) -> str
 
     sendBeacon cannot set headers, so the query param is supported too.
     """
-    return (
-        explicit
-        or request.query_params.get("st")
-        or request.headers.get("x-session-token")
-    )
+    return explicit or request.query_params.get("st") or request.headers.get("x-session-token")
 
 
 def _load_owned_response(

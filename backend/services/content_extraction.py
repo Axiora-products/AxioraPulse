@@ -39,7 +39,7 @@ _LINK_MAX_REDIRECTS = 3
 @dataclass
 class ExtractionResult:
     text: str = ""
-    confidence: int = 0           # 0-100
+    confidence: int = 0  # 0-100
     ocr_quality: str | None = None  # 'High' | 'Medium' | 'Low' (images only)
     source: str = ""
     warnings: list = field(default_factory=list)
@@ -71,9 +71,7 @@ def sanitize_extracted(text: str) -> tuple[str, bool]:
     if not text:
         return "", False
     text = unicodedata.normalize("NFKC", text)
-    text = "".join(
-        ch for ch in text if ch in ("\n", "\t") or unicodedata.category(ch)[0] != "C"
-    )
+    text = "".join(ch for ch in text if ch in ("\n", "\t") or unicodedata.category(ch)[0] != "C")
     # Collapse excessive blank lines / spaces.
     lines = [ln.rstrip() for ln in text.splitlines()]
     cleaned = "\n".join(ln for ln in lines if ln.strip() != "" or True).strip()
@@ -116,7 +114,9 @@ def _extract_pdf(data: bytes) -> ExtractionResult:
         r.text = text
         if not text:
             r.confidence = 25
-            r.warnings.append("No selectable text found — this may be a scanned PDF. Consider uploading it as an image for OCR.")
+            r.warnings.append(
+                "No selectable text found — this may be a scanned PDF. Consider uploading it as an image for OCR."
+            )
         else:
             r.confidence = _text_confidence(text)
     except ImportError:
@@ -131,6 +131,7 @@ def _extract_docx(data: bytes) -> ExtractionResult:
     r = ExtractionResult(source="word")
     try:
         import docx
+
         doc = docx.Document(io.BytesIO(data))
         parts = [p.text for p in doc.paragraphs if p.text.strip()]
         for table in doc.tables:
@@ -155,6 +156,7 @@ def _extract_xlsx(data: bytes) -> ExtractionResult:
     r = ExtractionResult(source="spreadsheet")
     try:
         import openpyxl
+
         wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
         parts = []
         for ws in wb.worksheets[:5]:
@@ -248,6 +250,7 @@ def _extract_image_ocr(data: bytes) -> ExtractionResult:
         r.source = f"image ({img.format})"
         try:
             import pytesseract
+
             ocr = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT)
             words, confs = [], []
             for word, conf in zip(ocr.get("text", []), ocr.get("conf", [])):
@@ -267,17 +270,24 @@ def _extract_image_ocr(data: bytes) -> ExtractionResult:
             if not text:
                 r.warnings.append("No readable text was detected in this image.")
             elif avg < CONFIDENCE_REVIEW_THRESHOLD:
-                r.warnings.append("Some text may not have been read accurately. Please review and edit before continuing.")
+                r.warnings.append(
+                    "Some text may not have been read accurately. Please review and edit before continuing."
+                )
         except ImportError:
             r.warnings.append("OCR is not available on the server.")
             r.ocr_quality = "Low"
         except Exception as exc:
             # Most commonly the Tesseract binary is missing.
             logger.warning("OCR failed: %s", type(exc).__name__)
-            r.warnings.append("Text could not be extracted from this image automatically. Please add the context manually.")
+            r.warnings.append(
+                "Text could not be extracted from this image automatically. Please add the context manually."
+            )
             r.ocr_quality = "Low"
         # Attach lightweight metadata note.
-        r.text = (r.text + (f"\n\n[Image metadata: {metadata['format']} {metadata['width']}x{metadata['height']}]" if r.text else "")).strip()
+        r.text = (
+            r.text
+            + (f"\n\n[Image metadata: {metadata['format']} {metadata['width']}x{metadata['height']}]" if r.text else "")
+        ).strip()
     except Exception as exc:
         logger.warning("Image open failed: %s", type(exc).__name__)
         r.warnings.append("We could not process this image. Please review or re-upload.")
@@ -328,8 +338,12 @@ def _assert_safe_url(url: str) -> None:
         except ValueError:
             continue
         if (
-            ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local
-            or ip_obj.is_reserved or ip_obj.is_multicast or ip_obj.is_unspecified
+            ip_obj.is_private
+            or ip_obj.is_loopback
+            or ip_obj.is_link_local
+            or ip_obj.is_reserved
+            or ip_obj.is_multicast
+            or ip_obj.is_unspecified
         ):
             raise ExtractionError("That website link cannot be processed.")
 
@@ -410,7 +424,7 @@ def extract_from_url(url: str) -> ExtractionResult:
     for tag in soup(["script", "style", "noscript", "nav", "footer", "header", "form", "svg"]):
         tag.decompose()
 
-    title = (soup.title.string.strip() if soup.title and soup.title.string else "")
+    title = soup.title.string.strip() if soup.title and soup.title.string else ""
     meta_desc = ""
     md = soup.find("meta", attrs={"name": "description"}) or soup.find("meta", attrs={"property": "og:description"})
     if md and md.get("content"):

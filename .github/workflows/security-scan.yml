@@ -44,7 +44,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: gitleaks
-        uses: gitleaks/gitleaks-action@v2
+      # Use the open-source gitleaks CLI directly. The gitleaks-action@v2 wrapper
+      # requires a paid GITLEAKS_LICENSE for organization repos; the binary (MIT) does not.
+      - name: Install gitleaks
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          GL_VERSION=$(curl -sSL -H "Authorization: Bearer ${GH_TOKEN}" https://api.github.com/repos/gitleaks/gitleaks/releases/latest | grep -oP '"tag_name":\s*"v\K[^"]+')
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GL_VERSION}/gitleaks_${GL_VERSION}_linux_x64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+      - name: gitleaks
+        run: gitleaks detect --source . --redact --verbose --exit-code 1

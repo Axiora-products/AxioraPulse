@@ -76,6 +76,7 @@ def _moderate_ai_context(raw_text: str, *, request, current_user, db):
             detail={"message": exc.user_message, "code": "content_violation", "category": exc.category},
         )
 
+
 router = APIRouter(prefix="/ai", tags=["ai"])
 
 logger = logging.getLogger(__name__)
@@ -859,7 +860,9 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
         return AIInsightsResponse(**result_json)
     except ValidationError as ve:
         # Do not log the raw model output — it can contain respondent PII. (AP-SEC-014)
-        logger.warning("AI insights validation error: %s", ve.error_count() if hasattr(ve, "error_count") else "invalid")
+        logger.warning(
+            "AI insights validation error: %s", ve.error_count() if hasattr(ve, "error_count") else "invalid"
+        )
         raise HTTPException(status_code=500, detail="Pulse engine returned an invalid data structure")
     except HTTPException:
         raise
@@ -879,9 +882,7 @@ async def generate_survey(
     db: Session = Depends(get_db),
 ):
     # ── Content safety: validate & moderate the idea BEFORE any AI call ────
-    clean_context = _moderate_ai_context(
-        body.aiContext, request=request, current_user=current_user, db=db
-    )
+    clean_context = _moderate_ai_context(body.aiContext, request=request, current_user=current_user, db=db)
 
     # AI provider is resolved automatically by call_ai_sync
 
