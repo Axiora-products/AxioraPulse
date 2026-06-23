@@ -42,7 +42,6 @@ from routes.public import router as public_router
 from routes.uploads import router as uploads_router
 from routes.otp import router as otp_router
 from routes.ca_agent import router as ca_agent_router
-from routes.super_admin import router as super_admin_router
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from fastapi.responses import JSONResponse
@@ -164,7 +163,6 @@ app.include_router(demo_router)
 app.include_router(public_router)
 app.include_router(otp_router)
 app.include_router(ca_agent_router)
-app.include_router(super_admin_router)
 
 
 # ── Health ────────────────────────────────────────────────────────────────────

@@ -30,7 +30,6 @@ import AcceptInvite from './pages/AcceptInvite';
 import Pricing from './pages/Pricing';
 import Billing from './pages/Billing';
 import PaymentWall from './components/PaymentWall';
-import SuperAdminDashboard from './pages/SuperAdminDashboard';
 
 import useAuthStore from './hooks/useAuth';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -113,10 +112,10 @@ function AppRoutes() {
         {/* <Route path="/" element={initialized && user ? <Navigate to="/dashboard" replace /> : <LandingPage />} /> */}
         <Route
           path="/"
-          element={isAuth ? <Navigate to={user?.role === 'super_admin' ? '/super-admin' : '/dashboard'} replace /> : <LandingPage />}
+          element={isAuth ? <Navigate to="/dashboard" replace /> : <LandingPage />}
         />
-        <Route path="/login" element={isAuth ? <Navigate to={user?.role === 'super_admin' ? '/super-admin' : '/dashboard'} replace /> : <LoginPage />} />
-        <Route path="/register" element={isAuth ? <Navigate to={user?.role === 'super_admin' ? '/super-admin' : '/dashboard'} replace /> : <RegisterPage />} />
+        <Route path="/login" element={isAuth ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
+        <Route path="/register" element={isAuth ? <Navigate to="/dashboard" replace /> : <RegisterPage />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/update-password" element={<UpdatePassword />} />
         <Route path="/accept-invite" element={<AcceptInvite />} />
@@ -129,8 +128,6 @@ function AppRoutes() {
 
         {/* ── Protected app (all children require auth) ── */}
         <Route element={<ProtectedRoute />}>
-          <Route path="/super-admin" element={<SuperAdminDashboard />} />
-
           <Route element={<DashboardLayout />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/surveys" element={<SurveyList />} />
