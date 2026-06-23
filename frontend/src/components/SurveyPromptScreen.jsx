@@ -417,13 +417,23 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
   return (
     <div className="cp-center">
       {/* Hidden file inputs */}
-      <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.png,.jpg,.jpeg,.webp,image/*" style={{ display: 'none' }} onChange={handleFileUpload} />
+      <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" style={{ display: 'none' }} onChange={handleFileUpload} />
       <input ref={audioInputRef} type="file" accept="audio/*" style={{ display: 'none' }} onChange={handleAudioUpload} />
 
       {/* Decorative blobs */}
       <div className="cp-blob cp-blob-1" />
       <div className="cp-blob cp-blob-2" />
       <div className="cp-blob cp-blob-3" />
+
+      {/* Top bar — skip straight to the manual builder */}
+      <div className="cp-topbar">
+        <button type="button" className="cp-skip-btn" onClick={onSkip}>
+          Skip & build manually
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M5 12h14M12 5l7 7-7 7" />
+          </svg>
+        </button>
+      </div>
 
       {/* Greeting */}
       <div className="cp-greeting">
@@ -889,15 +899,6 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
         </div>
       </div>
 
-      {/* Skip link */}
-      <div className="cp-skip">
-        <button type="button" className="cp-skip-btn" onClick={onSkip}>
-          Skip, build manually
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M5 12h14M12 5l7 7-7 7" />
-          </svg>
-        </button>
-      </div>
       <style>
         {`.chatgpt-wave {
   display: flex;

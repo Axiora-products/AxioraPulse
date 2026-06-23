@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import API from '../api/axios';
+import LocationSelect from '../components/LocationSelect';
 import { useLoading } from '../context/LoadingContext';
 import { useConditionalLogic } from '../hooks/useConditionalLogic';
 import { useResponseTracking } from '../hooks/useResponseTracking';
@@ -480,6 +481,8 @@ useEffect(() => {
   const [demographics, setDemographics] = useState({
     age_range: "",
     gender: "",
+    country: "",
+    state: "",
     city: "",
     occupation: ""
   });
@@ -546,7 +549,16 @@ useEffect(() => {
       } else {
         setStep(-1);
       }
-    } catch (e) { console.error(e); setErr('Failed to load survey'); }
+    } catch (e) {
+      console.error(e);
+      // A 404 here usually means the survey isn't published yet (drafts are hidden
+      // from respondents) or the link is wrong — keep the message friendly + actionable.
+      setErr(
+        e?.response?.status === 404
+          ? "This survey isn’t available yet. It may be unpublished or no longer active."
+          : "Failed to load survey"
+      );
+    }
     finally { stopLoading(); }
   }
 
@@ -933,8 +945,8 @@ useEffect(() => {
             marginTop: 24
           }}
         >
-          {/* CITY */}
-          <div>
+          {/* LOCATION — cascading Country → State → City */}
+          <div style={{ gridColumn: "1 / -1" }}>
             <p
               style={{
                 fontFamily: "Syne,sans-serif",
@@ -946,32 +958,43 @@ useEffect(() => {
                 marginBottom: 12
               }}
             >
-              City
+              Location
             </p>
 
-            <input
-              type="text"
-              placeholder="Hyderabad"
-              value={demographics.city}
-              onChange={(e) =>
+            <LocationSelect
+              value={{ country: demographics.country, state: demographics.state, city: demographics.city }}
+              onChange={(loc) =>
                 setDemographics({
                   ...demographics,
-                  city: e.target.value
+                  country: loc.country || "",
+                  state: loc.state || "",
+                  city: loc.city || ""
                 })
               }
-              style={{
+              labelStyle={{
+                fontFamily: "Syne,sans-serif",
+                fontSize: 9,
+                fontWeight: 700,
+                letterSpacing: "0.12em",
+                textTransform: "uppercase",
+                color: "rgba(237,232,223,0.4)",
+                display: "block",
+                marginBottom: 6
+              }}
+              selectStyle={{
                 width: "100%",
-                height: 58,
-                borderRadius: 18,
+                height: 52,
+                borderRadius: 16,
                 border: "1px solid rgba(237,232,223,0.08)",
                 background: "#F5EFE7",
-                padding: "0 20px",
+                padding: "0 16px",
                 fontFamily: "Fraunces,serif",
-                fontSize: 22,
+                fontSize: 18,
                 color: "#160F08",
                 outline: "none",
                 boxSizing: "border-box"
               }}
+              wrapStyle={{ marginBottom: 12 }}
             />
           </div>
 
@@ -1034,6 +1057,8 @@ useEffect(() => {
                 await API.patch(`/responses/${rId.current}`, {
                   age_range: demographics.age_range,
                   gender: demographics.gender,
+                  country: demographics.country,
+                  state: demographics.state,
                   city: demographics.city,
                   occupation: demographics.occupation
                 });

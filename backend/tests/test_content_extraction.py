@@ -1,8 +1,8 @@
 """Unit tests for services.content_extraction.
 
 Pure, DB-free extraction logic. Real in-memory fixtures are used where a parser is
-available (txt/csv/xlsx/docx/png); pypdf, pytesseract, sockets and requests are
-mocked to exercise the branch logic deterministically and without network/binaries.
+available (txt/csv/xlsx/docx); pypdf, sockets and requests are mocked to exercise
+the branch logic deterministically and without network access. (Image OCR removed.)
 """
 
 import io
@@ -153,61 +153,6 @@ def test_extract_txt_invalid_bytes():
     assert any("could not be decoded" in w for w in r.warnings)
 
 
-# ── Image OCR ────────────────────────────────────────────────────────────────────
-def _png_bytes():
-    Image = pytest.importorskip("PIL.Image", reason="Pillow required")
-    img = Image.new("RGB", (20, 10), color=(255, 255, 255))
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    return buf.getvalue()
-
-
-def test_extract_image_ocr_happy(monkeypatch):
-    import pytesseract
-
-    def fake_image_to_data(img, output_type=None):
-        return {"text": ["Hello", "", "World"], "conf": ["95", "-1", "90"]}
-
-    monkeypatch.setattr(pytesseract, "image_to_data", fake_image_to_data)
-    r = ce._extract_image_ocr(_png_bytes())
-    assert r.text.startswith("Hello World")
-    assert r.confidence > 0
-    assert r.ocr_quality == "High"
-    assert "[Image metadata:" in r.text
-
-
-def test_extract_image_ocr_no_text(monkeypatch):
-    import pytesseract
-
-    monkeypatch.setattr(pytesseract, "image_to_data", lambda img, output_type=None: {"text": [], "conf": []})
-    r = ce._extract_image_ocr(_png_bytes())
-    assert any("No readable text" in w for w in r.warnings)
-    assert r.ocr_quality == "Low"
-
-
-def test_extract_image_ocr_engine_error(monkeypatch):
-    import pytesseract
-
-    def boom(img, output_type=None):
-        raise RuntimeError("tesseract binary missing")
-
-    monkeypatch.setattr(pytesseract, "image_to_data", boom)
-    r = ce._extract_image_ocr(_png_bytes())
-    assert r.ocr_quality == "Low"
-    assert any("Please add the context manually" in w for w in r.warnings)
-
-
-def test_extract_image_open_failure():
-    r = ce._extract_image_ocr(b"not-an-image")
-    assert any("could not process this image" in w for w in r.warnings)
-
-
-def test_ocr_quality_thresholds():
-    assert ce._ocr_quality_from_conf(90) == "High"
-    assert ce._ocr_quality_from_conf(70) == "Medium"
-    assert ce._ocr_quality_from_conf(10) == "Low"
-
-
 # ── Dispatcher ───────────────────────────────────────────────────────────────────
 def test_extract_from_document_dispatch():
     assert ce.extract_from_document(b"text", "text/plain").source == "text"
@@ -231,7 +176,6 @@ def test_dispatch_routes_by_content_type(monkeypatch):
     monkeypatch.setattr(ce, "_extract_pdf", fake("pdf"))
     monkeypatch.setattr(ce, "_extract_docx", fake("word"))
     monkeypatch.setattr(ce, "_extract_xlsx", fake("xlsx"))
-    monkeypatch.setattr(ce, "_extract_image_ocr", fake("image"))
 
     assert ce.extract_from_document(b"", "application/pdf").source == "pdf"
     assert (
@@ -242,7 +186,8 @@ def test_dispatch_routes_by_content_type(monkeypatch):
         ce.extract_from_document(b"", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet").source
         == "xlsx"
     )
-    assert ce.extract_from_document(b"", "image/png").source == "image"
+    # Images are no longer supported (OCR removed) — they fall through to "file".
+    assert ce.extract_from_document(b"\x89PNG\r\n", "image/png", "shot.png").source == "file"
 
 
 # ── SSRF guard ───────────────────────────────────────────────────────────────────

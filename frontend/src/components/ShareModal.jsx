@@ -183,8 +183,28 @@ function ContactFileUploader({ type, fileData, setFileData, isParsing, setIsPars
 }
 
 
-export default function ShareModal({ survey, isOpen, onClose, onSlugChange }) {
+export default function ShareModal({ survey, isOpen, onClose, onSlugChange, onPublished }) {
   const [tab, setTab] = useState('link');
+  // A draft survey's public link 404s (drafts are hidden from respondents), so the
+  // share UI is gated behind publishing. statusOverride flips to 'active' on publish.
+  const [statusOverride, setStatusOverride] = useState(null);
+  const [publishing, setPublishing] = useState(false);
+  const isDraft = ((statusOverride ?? survey?.status) || '').toString().toLowerCase() === 'draft';
+
+  const publishNow = async () => {
+    if (!survey?.id) return;
+    setPublishing(true);
+    try {
+      await API.patch(`/surveys/${survey.id}/status`, { status: 'active' });
+      setStatusOverride('active');
+      onPublished?.();
+      toast.success('Survey published — your share link is now live');
+    } catch (e) {
+      toast.error(getApiErrorMessage(e, 'Add a title and at least 2 questions before publishing.'));
+    } finally {
+      setPublishing(false);
+    }
+  };
   const [copied, setCopied] = useState(false);
   const [currentSlug, setCurrentSlug] = useState(survey?.slug || '');
   const [slugDraft, setSlugDraft] = useState(survey?.slug || '');
@@ -808,6 +828,20 @@ export default function ShareModal({ survey, isOpen, onClose, onSlugChange }) {
                   onMouseEnter={e => e.currentTarget.style.color = 'var(--espresso)'}
                   onMouseLeave={e => e.currentTarget.style.color = 'rgba(22,15,8,0.3)'}>✕</button>
               </div>
+
+              {isDraft ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '8px 8px 12px' }}>
+                  <div style={{ width: 56, height: 56, borderRadius: 16, background: 'rgba(255,184,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, marginBottom: 18 }}>📋</div>
+                  <h3 style={{ fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: 20, color: 'var(--espresso)', margin: '0 0 10px' }}>Publish your survey to share it</h3>
+                  <p style={{ fontFamily: 'Fraunces,serif', fontSize: 14, color: 'rgba(22,15,8,0.55)', lineHeight: 1.6, maxWidth: 360, margin: '0 0 24px' }}>
+                    This survey is still a draft, so its public link isn’t live yet. Publish it to make the shareable link work for respondents.
+                  </p>
+                  <button onClick={publishNow} disabled={publishing}
+                    style={{ padding: '13px 30px', borderRadius: 999, border: 'none', background: 'var(--espresso)', color: 'var(--cream)', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: publishing ? 'wait' : 'pointer', opacity: publishing ? 0.6 : 1 }}>
+                    {publishing ? 'Publishing…' : 'Publish & Share'}
+                  </button>
+                </div>
+              ) : (<>
 
               {/* Tab bar */}
               <div style={{ display: 'flex', gap: 4, padding: 5, background: 'var(--cream-deep)', borderRadius: 999, marginBottom: 28, flexShrink: 0 }}>
@@ -1599,6 +1633,8 @@ export default function ShareModal({ survey, isOpen, onClose, onSlugChange }) {
                   </motion.button>
                 </div>
               )}
+
+              </>)}
 
             </motion.div>
           </motion.div>
