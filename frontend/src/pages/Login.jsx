@@ -25,15 +25,30 @@ function isValidPhone(num) {
 }
 
 
-function friendlyAuthError(msg = '') {
-  const m = msg.toLowerCase();
-  if (m.includes('invalid login') || m.includes('invalid credentials') || m.includes('email not confirmed'))
+function friendlyAuthError(msg = '', code = '') {
+  const m = (msg || '').toLowerCase();
+  const c = (code || '').toLowerCase();
+  if (c === 'usernotconfirmedexception' || m.includes('not confirmed'))
+    return 'Your email isn’t verified yet. Please verify your email to continue.';
+  if (
+    c === 'notauthorizedexception' ||
+    c === 'usernotfoundexception' ||
+    m.includes('incorrect username or password') ||
+    m.includes('invalid login') ||
+    m.includes('invalid credentials') ||
+    m.includes('user does not exist')
+  )
     return 'Incorrect email or password. Please try again.';
-  if (m.includes('expired') || m.includes('otp') || m.includes('token'))
+  if (c === 'expiredcodeexception' || m.includes('expired') || m.includes('otp') || m.includes('token'))
     return 'Your sign-in link has expired. Please log in with your password or request a new link.';
-  if (m.includes('rate limit') || m.includes('too many'))
+  if (
+    c === 'limitexceededexception' ||
+    c === 'toomanyrequestsexception' ||
+    m.includes('rate limit') ||
+    m.includes('too many')
+  )
     return 'Too many attempts — please wait a minute before trying again.';
-  if (m.includes('network') || m.includes('fetch'))
+  if (m.includes('network') || m.includes('fetch') || m.includes('failed to synchronize'))
     return 'Connection error. Please check your internet and try again.';
   // Never surface raw exception text to the user.
   return 'Something went wrong. Please try again.';
@@ -240,11 +255,14 @@ export default function Login() {
       toast.success('Welcome back!');
       window.location.href = consumePostAuthRedirect(storeUser.role === 'super_admin' ? '/super-admin' : '/dashboard');
     } catch (err) {
-      if (err.code === 'UserNotConfirmedException') {
+      // amazon-cognito-identity-js surfaces the error type on `code` in some
+      // versions and `name` in others; check both (plus the message as a fallback).
+      const code = err.code || err.name || '';
+      if (code === 'UserNotConfirmedException' || /not confirmed/i.test(err.message || '')) {
         toast.error('Email not verified. Redirecting to verification...');
         nav('/register', { state: { email, step: 'verify', isUnconfirmed: true } });
       } else {
-        toast.error(friendlyAuthError(err.message || 'Login failed', err.code || ''));
+        toast.error(friendlyAuthError(err.message || 'Login failed', code));
       }
     } finally {
       setBusy(false);
