@@ -79,18 +79,10 @@ def test_validate_magic_accepts_valid_pdf_signature():
     _validate_magic(b"%PDF-1.7 rest of file", "application/pdf")
 
 
-def test_validate_magic_webp_requires_marker():
-    # RIFF header is present so the first check passes, but the WEBP marker at
-    # offset 8 is missing -> the webp-specific branch raises (lines 128-129).
-    riff_without_webp = b"RIFF" + b"\x00\x00\x00\x00" + b"AVI " + b"rest"
-    with pytest.raises(uploads_module.HTTPException) as exc:
-        _validate_magic(riff_without_webp, "image/webp")
-    assert exc.value.status_code == 400
-
-
-def test_validate_magic_accepts_valid_webp():
-    valid_webp = b"RIFF" + b"\x00\x00\x00\x00" + b"WEBP" + b"rest"
-    _validate_magic(valid_webp, "image/webp")
+def test_validate_magic_image_type_no_longer_recognized():
+    # Image types were removed from the allowlist/signatures; _validate_magic now
+    # treats them as unknown (no signature) and returns without raising.
+    _validate_magic(b"RIFF\x00\x00\x00\x00WEBP", "image/webp")
 
 
 # ── upload_file: magic mismatch -> audit + re-raise (lines 456-457, 466) ────────

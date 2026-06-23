@@ -1,6 +1,8 @@
 // frontend/src/pdf/investor_memo_generator.js
 // Axiora Pulse — Premium Investor Ready Report
 
+import toast from 'react-hot-toast';
+
 const val = (field, fallback = '—') => {
   if (!field) return fallback;
   if (typeof field === 'string') return field;
@@ -1285,7 +1287,7 @@ export function generateInvestorReadyPDF(result, editData = null) {
 </html>`;
 
   const w = window.open('', '_blank');
-  if (!w) { alert('Please allow pop-ups to view the PDF.'); return; }
+  if (!w) { toast.error('Please allow pop-ups to view the PDF.'); return; }
   w.document.write(html);
   w.document.close();
   w.focus();

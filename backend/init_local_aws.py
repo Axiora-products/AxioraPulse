@@ -64,7 +64,7 @@ def seed_ssm():
         "SECRET_KEY": secrets.token_urlsafe(48),
         "ENVIRONMENT": "development",
         "FRONTEND_URL": "http://localhost:5173",
-        "DATABASE_URL": "postgresql://postgres:root@pulse-db:5432/nexpulse",
+        "DATABASE_URL": "postgresql://postgres:root@pulse-db:5432/axiorapulse",
         "MIGRATION_LAMBDA_SECRET": "local-migration-secret-token",
         "GEMINI_KEY": "mock-gemini-api-key",
         "ANTHROPIC_KEY": "mock-anthropic-api-key",
@@ -221,7 +221,7 @@ def generate_env_files(pool_id, client_id, ssm_params):
         f.write(f"COGNITO_USER_POOL_ID={pool_id}\n")
         f.write(f"COGNITO_APP_CLIENT_ID={client_id}\n")
         f.write(f"COGNITO_REGION={REGION}\n")
-        f.write("DATABASE_URL=postgresql://postgres:root@pulse-db:5432/nexpulse\n")
+        f.write("DATABASE_URL=postgresql://postgres:root@pulse-db:5432/axiorapulse\n")
         f.write("FRONTEND_URL=http://localhost:5173\n")
         f.write("ENVIRONMENT=development\n")
         f.write("MOCK_COGNITO=false\n")  # Run full Cognito authentication flow using Floci!

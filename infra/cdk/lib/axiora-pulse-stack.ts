@@ -97,7 +97,7 @@ export class AxioraPulseStack extends cdk.Stack {
       vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       securityGroups: [dbSecurityGroup],
-      databaseName: 'nexpulse',
+      databaseName: 'axiorapulse',
       credentials: rds.Credentials.fromSecret(dbSecret),
       removalPolicy: isProd ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
       multiAz: isProd,
@@ -118,7 +118,7 @@ export class AxioraPulseStack extends cdk.Stack {
 
     const dbNameParam = new ssm.StringParameter(this, 'DbNameParam', {
       parameterName: `/axiorapulse/${shortEnv}/DB_NAME`,
-      stringValue: 'nexpulse',
+      stringValue: 'axiorapulse',
     });
 
     const dbSecretArnParam = new ssm.StringParameter(this, 'DbSecretArnParam', {

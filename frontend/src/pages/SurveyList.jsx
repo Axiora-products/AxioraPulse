@@ -245,8 +245,13 @@ export default function SurveyList() {
               whileHover={{ y: -4, boxShadow: '0 24px 60px rgba(22,15,8,0.1)' }}
               style={{ background: 'var(--warm-white)', borderRadius: 20, border: '1px solid rgba(22,15,8,0.07)', overflow: 'visible', position: 'relative', zIndex: menu === sv.id ? 100 : 1 }}>
 
-              {/* Colour accent bar */}
-              <div style={{ height: 3, borderRadius: '20px 20px 0 0', background: sv.theme_color || 'var(--coral)' }} />
+              {/* Colour accent bar — an overlay clipped to the FULL rounded card
+                  shape so the bar follows the corner arc instead of overhanging it.
+                  pointerEvents:none keeps the kebab menu / links clickable, and the
+                  card keeps overflow:visible so the menu can still pop out. */}
+              <div style={{ position: 'absolute', inset: 0, borderRadius: 20, overflow: 'hidden', pointerEvents: 'none' }}>
+                <div style={{ height: 3, background: sv.theme_color || 'var(--coral)' }} />
+              </div>
 
               <div style={{ padding: 24 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
