@@ -1,5 +1,6 @@
 [run]
 omit =
     init_local_aws.py
+    dev_cognito.py
     tests/*
     alembic/*

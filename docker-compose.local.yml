@@ -3,7 +3,7 @@ services:
     image: postgres:17-bookworm
     container_name: pulse-db
     environment:
-      POSTGRES_DB: nexpulse
+      POSTGRES_DB: axiorapulse
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: root
     ports:
@@ -13,7 +13,7 @@ services:
     networks:
       - pulse-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d nexpulse"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d axiorapulse"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -44,7 +44,7 @@ services:
     env_file:
       - ./backend/.env.docker
     environment:
-      - DATABASE_URL=postgresql://postgres:root@pulse-db:5432/nexpulse
+      - DATABASE_URL=postgresql://postgres:root@pulse-db:5432/axiorapulse
       - FRONTEND_URL=http://localhost:5173
       - AWS_ENDPOINT_URL=http://pulse-floci:4566
       - AWS_ACCESS_KEY_ID=mock

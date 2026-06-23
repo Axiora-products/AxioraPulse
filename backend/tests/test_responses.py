@@ -42,11 +42,18 @@ def test_submit_response(auth_headers):
     assert get_by_id.status_code == 200
     assert get_by_id.json()["session_token"] == session_token
 
-    # 4. Update response details
-    update_payload = {"respondent_email": "updated_respondent@example.com"}
+    # 4. Update response details (incl. country/state demographics)
+    update_payload = {
+        "respondent_email": "updated_respondent@example.com",
+        "country": "India",
+        "state": "Telangana",
+    }
     update_resp = client.patch(f"/responses/{response_id}?st={session_token}", json=update_payload)
     assert update_resp.status_code == 200
-    assert update_resp.json()["respondent_email"] == "updated_respondent@example.com"
+    updated = update_resp.json()
+    assert updated["respondent_email"] == "updated_respondent@example.com"
+    assert updated["country"] == "India"
+    assert updated["state"] == "Telangana"
 
     # 5. Submit answers for questions
     answers_payload = [{"question_id": QUESTION_ID, "answer_value": "5"}]

@@ -36,7 +36,7 @@ function optionList(raw) {
  * Designed to run inside an <iframe> on any third-party site.
  *
  * Differences from SurveyRespond:
- *  • No Nexora branding (iframe hosts often have their own)
+ *  • No Axiora branding (iframe hosts often have their own)
  *  • No Axiora branding (iframe hosts often have their own)
  *  • No welcome-screen mesh blobs (too heavy in small iframes)
  *  • Minimal padding — fits compact embeds

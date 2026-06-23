@@ -1,7 +1,7 @@
 """
 db/models.py
 ────────────
-SQLAlchemy ORM models for NexoraPulse.
+SQLAlchemy ORM models for AxioraPulse.
 All tables use UUID primary keys and mirror the Supabase schema exactly
 so the frontend data shapes remain unchanged.
 """
@@ -247,6 +247,8 @@ class SurveyResponse(Base):
     age_range = Column(EncryptedString, nullable=True)
     gender = Column(EncryptedString, nullable=True)
     occupation = Column(EncryptedString, nullable=True)
+    country = Column(EncryptedString, nullable=True)
+    state = Column(EncryptedString, nullable=True)
     city = Column(EncryptedString, nullable=True)
 
     __table_args__ = (UniqueConstraint("session_token", name="uq_survey_response_session_token"),)

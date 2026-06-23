@@ -264,19 +264,19 @@ def _call_anthropic(
 
 
 # ── Provider Registry ─────────────────────────────────────────────────────────
-# Claude (Anthropic) is the primary provider — supports up to 64K output tokens.
-# OpenAI is the fallback.
+# Failover priority is top-to-bottom: the first provider with a configured (non-mock)
+# API key is used, falling back to the next on failure. OpenAI is the primary provider.
 
 _PROVIDERS = [
-    {
-        "name": "gemini",
-        "env_key": "GEMINI_KEY",
-        "caller": _call_gemini,
-    },
     {
         "name": "openai",
         "env_key": "OPENAI_KEY",
         "caller": _call_openai,
+    },
+    {
+        "name": "gemini",
+        "env_key": "GEMINI_KEY",
+        "caller": _call_gemini,
     },
     {
         "name": "anthropic",
