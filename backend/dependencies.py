@@ -10,11 +10,17 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
+from core import config
 from db.database import get_db
 from db.models import UserProfile
 from cognito_utils import verify_cognito_token
 
 bearer_scheme = HTTPBearer(auto_error=False)
+
+
+def _is_super_admin_email(email: str | None) -> bool:
+    """Super-admin grants are config/data-driven, not hardcoded. (AP-SEC-002)"""
+    return bool(email) and email.strip().lower() in config.SUPER_ADMIN_EMAILS
 
 
 def get_current_user(
@@ -126,10 +132,10 @@ def get_current_user(
                 email=email,
                 full_name=name,
                 cognito_sub=cognito_sub,
-                role=RoleEnum.super_admin if email == "roopsai.work8@gmail.com" else RoleEnum.admin,
+                role=RoleEnum.super_admin if _is_super_admin_email(email) else RoleEnum.admin,
                 tenant_id=tenant.id,
                 is_active=True,
-                is_internal=True if email == "roopsai.work8@gmail.com" else False,
+                is_internal=_is_super_admin_email(email),
                 account_status="active",
             )
             db.add(user)
@@ -139,10 +145,12 @@ def get_current_user(
     if user is None or not user.is_active:
         raise credentials_exception
 
-    # Self-healing: downgrade non-internal super_admins to admin, and ensure designated super admin is configured correctly
+    # Self-healing: reconcile super_admin status against the configured allowlist.
+    # Emails in SUPER_ADMIN_EMAILS are promoted; any other super_admin that is not
+    # marked internal is downgraded to admin. (AP-SEC-002)
     from db.models import RoleEnum
 
-    if user.email == "roopsai.work8@gmail.com":
+    if _is_super_admin_email(user.email):
         if user.role != RoleEnum.super_admin or not user.is_internal:
             user.role = RoleEnum.super_admin
             user.is_internal = True
@@ -152,6 +160,13 @@ def get_current_user(
         user.role = RoleEnum.admin
         db.commit()
         db.refresh(user)
+
+    # Defense-in-depth: bind this request's DB session to the user's tenant so
+    # Postgres RLS constrains every query to that tenant. (no-op unless ENABLE_DB_RLS)
+    from db.rls import set_tenant_context, apply_tenant_guc
+
+    set_tenant_context(user.tenant_id)
+    apply_tenant_guc(db)
 
     return user
 
@@ -177,6 +192,7 @@ def get_optional_user(
 
 def get_current_super_admin(
     current_user: UserProfile = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> UserProfile:
     """
     Requires the current user to be a Super Admin.
@@ -188,4 +204,12 @@ def get_current_super_admin(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Super Admin privileges required.",
         )
+
+    # Super admins operate across all tenants — bypass RLS for this request.
+    # (no-op unless ENABLE_DB_RLS)
+    from db.rls import set_bypass_rls, apply_tenant_guc
+
+    set_bypass_rls(True)
+    apply_tenant_guc(db)
+
     return current_user

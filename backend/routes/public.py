@@ -6,17 +6,33 @@ Unauthenticated endpoints called by public-facing survey pages.
 POST /public/send-email  — Send survey share or resume-link email via AWS SES
 """
 
-from fastapi import APIRouter, HTTPException, Depends
+from urllib.parse import urlparse
+
+from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel, EmailStr
 from typing import Literal, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
+from core import config
+from core.rate_limiter import limiter
 from services.email_service import send_email
 from db.database import get_db
 from db.models import WaitlistEntry
 
 router = APIRouter(prefix="/public", tags=["public"])
+
+
+def _assert_trusted_survey_url(survey_url: str) -> None:
+    """Only allow links to our own frontend so this branded email cannot be used
+    as a phishing relay to arbitrary URLs. (AP-SEC-010)"""
+    allowed_hosts = {urlparse(o.strip()).netloc for o in config.FRONTEND_URL.split(",") if o.strip()}
+    # No configured frontend (local dev) → skip host enforcement.
+    if not allowed_hosts:
+        return
+    host = urlparse(survey_url).netloc
+    if host not in allowed_hosts:
+        raise HTTPException(status_code=400, detail="Survey link must point to the application domain")
 
 
 class SendEmailRequest(BaseModel):
@@ -95,7 +111,9 @@ def _build_email_html(to: str, surveyTitle: str, surveyUrl: str, is_resume: bool
 
 
 @router.post("/send-email")
-def send_survey_email(body: SendEmailRequest):
+@limiter.limit("5/minute")
+def send_survey_email(request: Request, body: SendEmailRequest):
+    _assert_trusted_survey_url(body.surveyUrl)
     is_resume = body.type == "resume"
     subject = (
         f"Continue your survey: {body.surveyTitle}"
@@ -112,8 +130,8 @@ def send_survey_email(body: SendEmailRequest):
 
     try:
         send_email(to_email=body.to, subject=subject, body=html)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=502, detail="Failed to send email")
 
     return {"success": True}
 
@@ -170,7 +188,8 @@ def _waitlist_confirmation_html(email: str) -> str:
 
 
 @router.post("/waitlist")
-def join_waitlist(body: WaitlistRequest, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def join_waitlist(request: Request, body: WaitlistRequest, db: Session = Depends(get_db)):
     entry = WaitlistEntry(email=body.email)
     try:
         db.add(entry)

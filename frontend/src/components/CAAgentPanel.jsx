@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { runCAAgent } from '../services/caAgentApi';
 import { generateInvestorReadyPDF } from '../pdf/investor_memo_generator';
+import { getApiErrorMessage } from '../lib/apiError';
 
 
 const v = (field, fallback = '—') => {
@@ -367,7 +368,7 @@ export default function CAAgentPanel({ survey }) {
       toast.success('Investor report prepared successfully!');
     } catch (err) {
       clearInterval(stepTimer);
-      const msg = err.response?.data?.detail || 'Pulse Mentor failed. Please try again.';
+      const msg = getApiErrorMessage(err, 'Pulse Mentor failed. Please try again.');
       setError(msg);
       setStatus('error');
       toast.error(msg);

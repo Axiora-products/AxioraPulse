@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { useLoading } from '../context/LoadingContext';
 import ConfirmModal from '../components/ConfirmModal';
 import useSubscription from '../hooks/useSubscription';
+import { getApiErrorMessage } from '../lib/apiError';
 
 const ROLE_COLORS = { super_admin: 'rgba(139,92,246,0.10)', admin: 'rgba(255,69,0,0.10)', manager: 'rgba(255,184,0,0.12)', creator: 'rgba(30,122,74,0.10)', viewer: 'rgba(22,15,8,0.06)' };
 const ROLE_TEXT = { super_admin: '#7C3AED', admin: 'var(--coral)', manager: '#A07000', creator: 'var(--sage)', viewer: 'rgba(22,15,8,0.38)' };
@@ -127,7 +128,7 @@ export default function TeamManagement() {
       sIE(''); sIN(''); sIR('viewer'); setBulkEmails('');
       load();
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to send invite');
+      toast.error(getApiErrorMessage(err, 'Failed to send invite'));
     } finally {
       setBusy(false);
     }
@@ -141,7 +142,7 @@ export default function TeamManagement() {
     try {
       await API.patch(`/users/${uid}/role`, { role: newRole });
       toast.success('Role updated'); load();
-    } catch (err) { toast.error(err.response?.data?.detail || 'Failed to update role'); }
+    } catch (err) { toast.error(getApiErrorMessage(err, 'Failed to update role')); }
   }
   async function deactivate(uid) {
     if (uid === profile.id) return toast.error("Can't deactivate yourself");
@@ -163,20 +164,20 @@ export default function TeamManagement() {
     try {
       await API.delete(`/users/${deleteTarget}`);
       toast.success('User deleted'); setDeleteTarget(null); load();
-    } catch (err) { toast.error(err.response?.data?.detail || 'Failed to delete user'); }
+    } catch (err) { toast.error(getApiErrorMessage(err, 'Failed to delete user')); }
   }
   async function doDeactivate() {
     try {
       await API.patch(`/users/${deactivateTarget}/status`, { is_active: false });
       toast.success('Member deactivated'); load();
-    } catch (err) { toast.error(err.response?.data?.detail || 'Failed to deactivate'); }
+    } catch (err) { toast.error(getApiErrorMessage(err, 'Failed to deactivate')); }
   }
   async function reactivate(uid) {
     if (uid === profile.id) return;
     try {
       await API.patch(`/users/${uid}/status`, { is_active: true });
       toast.success('Member reactivated'); load();
-    } catch (err) { toast.error(err.response?.data?.detail || 'Failed to reactivate'); }
+    } catch (err) { toast.error(getApiErrorMessage(err, 'Failed to reactivate')); }
   }
 
   async function resendInvite(member) {
@@ -190,7 +191,7 @@ export default function TeamManagement() {
       toast.success(`Resent invitation to ${member.email}`);
       load();
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to resend invite');
+      toast.error(getApiErrorMessage(err, 'Failed to resend invite'));
     } finally {
       setBusy(false);
     }

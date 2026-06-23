@@ -3,8 +3,22 @@ from app.main import app
 import uuid
 import hmac
 import hashlib
+import json
+from core import config
 
 client = TestClient(app)
+
+
+def _post_signed_webhook(payload: dict):
+    """POST a Razorpay webhook with a valid X-Razorpay-Signature (AP-SEC-004).
+    Signs the exact raw body the route will read, using the configured secret."""
+    raw = json.dumps(payload).encode()
+    signature = hmac.new(config.RAZORPAY_WEBHOOK_SECRET.encode(), raw, hashlib.sha256).hexdigest()
+    return client.post(
+        "/payments/webhook",
+        content=raw,
+        headers={"X-Razorpay-Signature": signature, "Content-Type": "application/json"},
+    )
 
 
 def test_get_plans():
@@ -83,7 +97,7 @@ def test_webhook_payment_captured(auth_headers):
             "payment": {"entity": {"id": pay_id, "order_id": order_id, "method": "upi", "error_description": None}}
         },
     }
-    response = client.post("/payments/webhook", json=webhook_payload)
+    response = _post_signed_webhook(webhook_payload)
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
 
@@ -107,7 +121,7 @@ def test_webhook_payment_failed(auth_headers):
             }
         },
     }
-    response = client.post("/payments/webhook", json=webhook_payload)
+    response = _post_signed_webhook(webhook_payload)
     assert response.status_code == 200
 
 

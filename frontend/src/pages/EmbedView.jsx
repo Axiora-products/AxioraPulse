@@ -13,6 +13,7 @@ import EstimatedTime from '../components/EstimatedTime';
 import { useConditionalLogic } from '../hooks/useConditionalLogic';
 import { useResponseTracking } from '../hooks/useResponseTracking';
 import { useExitDetection }    from '../hooks/useExitDetection';
+import { getApiErrorMessage } from '../lib/apiError';
 
 function optionList(raw) {
   if (!raw) return [];
@@ -48,6 +49,8 @@ function getToken(slug) {
   const k = `nx_embed_${slug}`;
   let t = localStorage.getItem(k);
   if (!t) { t = 'e_' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem(k, t); }
+  // Expose active session token for the axios interceptor. (AP-SEC-003)
+  localStorage.setItem('nx_active_session', t);
   return t;
 }
 
@@ -115,7 +118,7 @@ export default function EmbedView() {
       }
     } catch(e) { 
       console.error(e); 
-      setErr(e.response?.data?.detail || 'Failed to load survey'); 
+      setErr(getApiErrorMessage(e, 'Failed to load survey')); 
     }
     finally { setL(false); }
   }

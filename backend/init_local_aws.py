@@ -1,8 +1,19 @@
 import os
+import secrets
 import sys
 import time
 import boto3
 from botocore.exceptions import EndpointConnectionError
+
+# Values core.config rejects as signing secrets (public, ex-hardcoded defaults).
+# Keep in sync with core.config._INSECURE_SECRET_VALUES so local seeding never
+# produces a SECRET_KEY the backend will fail-closed on at startup.
+_INSECURE_SECRET_VALUES = {
+    "otp-secret-key-change-in-production",
+    "mock-secret-key-1234567890",
+    "change-in-production",
+    "local-development-secret-key-1234567890",
+}
 
 # Inside docker network, Floci is available at pulse-floci
 FLOCI_ENDPOINT = os.getenv("FLOCI_ENDPOINT_URL", "http://pulse-floci:4566")
@@ -50,7 +61,7 @@ def seed_ssm():
 
     # Default mock/non-sensitive parameters for local development
     parameters = {
-        "SECRET_KEY": "local-development-secret-key-1234567890",
+        "SECRET_KEY": secrets.token_urlsafe(48),
         "ENVIRONMENT": "development",
         "FRONTEND_URL": "http://localhost:5173",
         "DATABASE_URL": "postgresql://postgres:root@pulse-db:5432/nexpulse",
@@ -107,6 +118,11 @@ def seed_ssm():
             print(f"✅ Created default template file at: {template_path}")
         except Exception as e:
             print(f"⚠️ Failed to write template file: {str(e)}")
+
+    # A pre-existing template may still carry the old public default. The backend
+    # fail-closes on it, so mint a fresh local secret instead. (mirrors core.config)
+    if (parameters.get("SECRET_KEY") or "").strip() in _INSECURE_SECRET_VALUES:
+        parameters["SECRET_KEY"] = secrets.token_urlsafe(48)
 
     for key, val in parameters.items():
         # Exclude variables we generate/override dynamically

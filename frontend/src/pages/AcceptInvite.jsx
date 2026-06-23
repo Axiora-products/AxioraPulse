@@ -6,6 +6,7 @@ import { useLoading } from '../context/LoadingContext';
 import API from '../api/axios';
 import { cognitoSignIn } from '../lib/cognito';
 import useAuthStore from '../hooks/useAuth';
+import { getApiErrorMessage } from '../lib/apiError';
 
 const Logo = ({ dark }) => (
   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 0, lineHeight: 1 }}>
@@ -71,7 +72,7 @@ export default function AcceptInvite() {
   async function handleSubmit(e) {
     e.preventDefault();
     if (!f.fullName.trim()) return toast.error('Please enter your name');
-    if (f.password.length < 6) return toast.error('Password must be at least 6 characters');
+    if (f.password.length < 12) return toast.error('Password must be at least 12 characters');
     if (f.password !== f.confirm) return toast.error('Passwords do not match');
 
     setBusy(true);
@@ -93,7 +94,7 @@ export default function AcceptInvite() {
       toast.success('Account set up! Welcome to Axiora Pulse.');
       nav('/dashboard');
     } catch (err) {
-      const msg = err.response?.data?.detail || err.message || '';
+      const msg = getApiErrorMessage(err, '');
       if (msg.toLowerCase().includes('expired') || msg.toLowerCase().includes('invalid')) {
         setLinkExpired(true);
       } else {

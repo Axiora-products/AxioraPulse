@@ -1,6 +1,6 @@
 import datetime
 from typing import List, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from pydantic import BaseModel, Field
@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from db.database import get_db
 from db.models import UserProfile, Tenant, Survey, SurveyResponse
 from dependencies import get_current_super_admin
+from services.audit import record_audit
 
 router = APIRouter(prefix="/super-admin", tags=["Super Admin"])
 
@@ -181,6 +182,7 @@ def get_tenants(
 def update_tenant_plan(
     tenant_id: str,
     body: TenantPlanUpdate,
+    request: Request,
     current_super_admin: UserProfile = Depends(get_current_super_admin),
     db: Session = Depends(get_db),
 ):
@@ -189,9 +191,20 @@ def update_tenant_plan(
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
+    previous = tenant.plan
     tenant.plan = body.plan_type
     db.commit()
     db.refresh(tenant)
+    record_audit(
+        db,
+        action="superadmin.tenant_plan_changed",
+        actor=current_super_admin,
+        tenant_id=tenant.id,
+        target_type="tenant",
+        target_id=tenant.id,
+        ip_address=request.client.host if request.client else None,
+        detail={"from": previous, "to": body.plan_type},
+    )
     return {
         "message": f"Updated {tenant.name} plan to {body.plan_type}",
         "tenant": {
@@ -207,6 +220,7 @@ def update_tenant_plan(
 def update_tenant_status(
     tenant_id: str,
     body: TenantStatusUpdate,
+    request: Request,
     current_super_admin: UserProfile = Depends(get_current_super_admin),
     db: Session = Depends(get_db),
 ):
@@ -220,6 +234,16 @@ def update_tenant_status(
     db.refresh(tenant)
 
     action = "activated" if body.is_active else "suspended"
+    record_audit(
+        db,
+        action="superadmin.tenant_status_changed",
+        actor=current_super_admin,
+        tenant_id=tenant.id,
+        target_type="tenant",
+        target_id=tenant.id,
+        ip_address=request.client.host if request.client else None,
+        detail={"is_active": body.is_active},
+    )
     return {
         "message": f"Organization {tenant.name} has been {action}",
         "tenant": {

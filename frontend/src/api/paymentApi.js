@@ -1,4 +1,5 @@
 import API from './axios';
+import { getApiErrorMessage } from '../lib/apiError';
 
 export async function getPlans() {
   const res = await API.get('/payments/plans');
@@ -57,7 +58,7 @@ export async function openCheckout({ order, planCode, profile, onSuccess, onErro
         });
         onSuccess();
       } catch (err) {
-        onError(err?.response?.data?.detail || 'Payment verification failed. Contact support.');
+        onError(getApiErrorMessage(err, 'Payment verification failed. Contact support.'));
       }
     },
   });

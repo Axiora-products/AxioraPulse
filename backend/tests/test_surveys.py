@@ -121,6 +121,8 @@ def test_survey_localization_helper_methods(auth_headers):
         "description": "Please help translate this.",
         "welcome_message": "Welcome!",
         "thank_you_message": "Thank you!",
+        # Must be published (active) — public slug endpoint hides drafts (AP-SEC-037).
+        "status": "active",
         "questions": [
             {
                 "question_text": "Matrix question",
@@ -274,11 +276,26 @@ def test_survey_localization_helpers_direct():
     assert _localize_options("plain_string", translations) == "plain_string"
 
 
-def test_get_survey_og():
-    response = client.get("/surveys/og/test-survey")
+def test_get_survey_og(auth_headers):
+    # Self-contained: create an active survey of our own. The shared seeded survey
+    # is mutated to draft by test_update_survey, and the public OG endpoint hides
+    # drafts (AP-SEC-037), so we must not depend on its slug here.
+    payload = {
+        "title": "OG Test Survey",
+        "status": "active",
+        "questions": [
+            {"question_text": "Q1?", "question_type": "yes_no", "sort_order": 1},
+            {"question_text": "Q2?", "question_type": "yes_no", "sort_order": 2},
+        ],
+    }
+    create = client.post("/surveys/", json=payload, headers=auth_headers)
+    assert create.status_code == 201
+    slug = create.json()["slug"]
+
+    response = client.get(f"/surveys/og/{slug}")
     assert response.status_code == 200
     assert "og:title" in response.text
-    assert "test-survey" in response.text
+    assert slug in response.text
 
     response_nf = client.get("/surveys/og/non-existent-slug")
     assert response_nf.status_code == 404

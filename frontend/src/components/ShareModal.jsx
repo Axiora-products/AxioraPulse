@@ -5,6 +5,7 @@ import API from '../api/axios';
 import BulkEmailModal from './BulkEmailModal';
 import BulkWhatsAppModal from './BulkWhatsAppModal';
 import { parseFile } from '../utils/contactParser';
+import { getApiErrorMessage } from '../lib/apiError';
 
 
 
@@ -528,7 +529,7 @@ export default function ShareModal({ survey, isOpen, onClose, onSlugChange }) {
       }
     } catch (err) {
       console.error('Failed to save slug:', err);
-      toast.error(err.response?.data?.detail || 'Failed to update survey link');
+      toast.error(getApiErrorMessage(err, 'Failed to update survey link'));
     } finally {
       setSavingSlug(false);
     }
@@ -592,8 +593,7 @@ export default function ShareModal({ survey, isOpen, onClose, onSlugChange }) {
 
     } catch (error) {
       const msg =
-        error.response?.data?.detail ||
-        "Failed to send survey";
+        getApiErrorMessage(error, "Failed to send survey");
 
       toast.error(msg);
     } finally {
@@ -683,7 +683,7 @@ export default function ShareModal({ survey, isOpen, onClose, onSlugChange }) {
       setWhatsAppView(null);
 
     } catch (error) {
-      const msg = error.response?.data?.detail || "Failed to send WhatsApp broadcast";
+      const msg = getApiErrorMessage(error, "Failed to send WhatsApp broadcast");
       toast.error(msg);
     } finally {
       setSendingWhatsApp(false);
@@ -717,7 +717,7 @@ export default function ShareModal({ survey, isOpen, onClose, onSlugChange }) {
       setTelegramFile(null);
       setTelegramView(null);
     } catch (error) {
-      toast.error(error.response?.data?.detail || "Failed to send Telegram broadcast");
+      toast.error(getApiErrorMessage(error, "Failed to send Telegram broadcast"));
     } finally {
       setSendingTelegram(false);
     }

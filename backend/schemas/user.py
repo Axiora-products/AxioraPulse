@@ -17,7 +17,8 @@ class UserProfileOut(BaseModel):
     is_active: bool
     is_internal: bool = False
     account_status: str
-    invite_token: Optional[str] = None
+    # invite_token is intentionally NOT exposed — it is a bearer secret that
+    # would let any tenant member hijack a pending invite. (AP-SEC-016)
     invite_accepted_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
     phone_number: Optional[str] = None

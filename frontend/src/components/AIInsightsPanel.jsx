@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import API from '../api/axios';
+import { getApiErrorMessage } from '../lib/apiError';
 
 /**
  * AIInsightsPanel — Advanced Analytics Dashboard
@@ -687,7 +688,7 @@ export default function AIInsightsPanel({ survey, analytics, questionAnalytics }
       setState('done');
     } catch (e) {
       console.error('AI insights:', e);
-      setErrMsg(e.response?.data?.detail || 'Could not connect to Pulse — ensure your API key is set on the server.');
+      setErrMsg(getApiErrorMessage(e, 'Could not connect to Pulse — ensure your API key is set on the server.'));
       setState('error');
     }
   }
