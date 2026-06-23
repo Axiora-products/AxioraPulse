@@ -1,0 +1,18 @@
+# gitleaks allowlist — reviewed findings that are NOT live secrets.
+# Each entry is a finding fingerprint (commit:file:rule:line) from historical
+# commits. Full-history scans (fetch-depth: 0) re-detect these every run, so they
+# are allowlisted here after manual review. See .github/workflows/security-scan.yml.
+#
+# Reviewed 2026-06-23:
+#  - tests/*: expired Cognito *ID* tokens used purely as string-equality sentinels
+#    for a monkeypatched verify_cognito_token (see backend/tests/conftest.py).
+#    Not access/refresh tokens, signed by Cognito's key (not held here), already
+#    expired. The current copies have since been replaced with non-secret values;
+#    these entries cover the historical commits only.
+#  - infra/cdk/deployed-template.json: "S3Key" is a CDK content-addressed asset
+#    hash (a Lambda code zip filename), not a credential.
+
+f22338e1b722c4c7fa7768e8e992d8410995fc50:backend/tests/test_auth.py:jwt:6
+f22338e1b722c4c7fa7768e8e992d8410995fc50:backend/tests/test_dependencies.py:jwt:9
+f4797f602d752739ae6532f5dc8e0677c8c2e4b4:infra/cdk/deployed-template.json:generic-api-key:882
+6dc0cadc723eeba533d85d4baea1cefcca177edf:backend/tests/conftest.py:jwt:3

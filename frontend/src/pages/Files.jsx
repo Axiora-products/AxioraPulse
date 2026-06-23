@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import API from '../api/axios';
 import { useLoading } from '../context/LoadingContext';
 import ConfirmModal from '../components/ConfirmModal';
+import { getApiErrorMessage } from '../lib/apiError';
 import {
   FileText,
   FileSpreadsheet,
@@ -184,7 +185,7 @@ export default function Files() {
       if (refreshFiles) refreshFiles();
     } catch (e) {
       console.error('Failed to delete file', e);
-      toast.error(e.response?.data?.detail || 'Failed to delete file');
+      toast.error(getApiErrorMessage(e, 'Failed to delete file'));
     } finally {
       setDeleteTarget(null);
     }

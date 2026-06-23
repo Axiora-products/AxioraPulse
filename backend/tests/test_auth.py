@@ -277,22 +277,30 @@ def test_cleanup_unconfirmed(monkeypatch):
     monkeypatch.setattr(routes.auth, "admin_get_user_status", lambda email: "UNCONFIRMED")
     monkeypatch.setattr(routes.auth, "admin_delete_user", lambda email: True)
 
+    # Hardened (AP-SEC-013): always returns a generic {"ok": True} regardless of
+    # whether a user existed/was deleted, to prevent account enumeration.
     response = client.post("/auth/cleanup-unconfirmed", json={"email": "unconfirmed@example.com"})
     assert response.status_code == 200
-    assert response.json()["deleted"] is True
+    assert response.json()["ok"] is True
 
     monkeypatch.setattr(routes.auth, "admin_get_user_status", lambda email: "CONFIRMED")
     response = client.post("/auth/cleanup-unconfirmed", json={"email": "confirmed@example.com"})
     assert response.status_code == 200
-    assert response.json()["deleted"] is False
+    assert response.json()["ok"] is True
 
 
 def test_mock_login(monkeypatch):
-    monkeypatch.setenv("MOCK_COGNITO", "false")
+    # MOCK_COGNITO / MOCK_COGNITO_SECRET are read from core.config at request time;
+    # patch the config attributes (setenv would not update the imported constants).
+    # A real (non-default) secret is required or _clean_secret nulls it (AP-SEC-029).
+    from core import config
+
+    monkeypatch.setattr(config, "MOCK_COGNITO", False)
     response = client.post("/auth/mock-login", json={"email": "test@example.com"})
     assert response.status_code == 400
 
-    monkeypatch.setenv("MOCK_COGNITO", "true")
+    monkeypatch.setattr(config, "MOCK_COGNITO", True)
+    monkeypatch.setattr(config, "MOCK_COGNITO_SECRET", "a-valid-test-mock-secret")
     response = client.post("/auth/mock-login", json={})
     assert response.status_code == 400
 

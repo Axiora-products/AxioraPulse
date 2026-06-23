@@ -8,6 +8,8 @@ import useAuthStore from '../hooks/useAuth';
 import { QUESTION_TYPES, SHORT_SURVEY_RULES, SURVEY_HEALTH_MINIMUMS, DEFAULT_THANK_YOU_MESSAGE, estimateSurveyMinutes, getFormatDiversityScore, getQuestionWordCount, isQuestionComplete, meetsMinLength, getThankYouCustom, composeThankYou, isExpired, SURVEY_TEXT_RULES, isValidSurveyTitle, isValidSurveyLongText, isValidQuestionText } from '../lib/constants';
 import { Reorder, useDragControls, motion } from 'framer-motion';
 import toast from 'react-hot-toast';
+import { getApiErrorMessage } from '../lib/apiError';
+import { validateAiContext } from '../lib/contentSafety';
 import { useLoading } from '../context/LoadingContext';
 import { consumePendingTemplate } from '../lib/pendingTemplate';
 import { track, ANALYTICS_EVENTS } from '../lib/analytics';
@@ -315,7 +317,9 @@ export default function SurveyCreate() {
   };
 
   const handleAIGenerate = async () => {
-    if (!f.ai_context.trim()) return toast.error('Describe your survey first');
+    // Content-safety validation for instant feedback (backend re-validates).
+    const check = validateAiContext(f.ai_context);
+    if (!check.ok) return toast.error(check.message);
     setAiGenerating(true);
     try {
       const { data } = await API.post('/ai/generate', {
@@ -326,8 +330,7 @@ export default function SurveyCreate() {
       applyAIGeneration(data);
       setTab('questions');
     } catch (e) {
-      toast.error('Failed to generate survey');
-      console.error(e);
+      toast.error(getApiErrorMessage(e, 'Unable to generate the survey. Please try again.'));
     } finally {
       setAiGenerating(false);
     }
@@ -335,6 +338,9 @@ export default function SurveyCreate() {
 
   // ── Prompt Screen Handlers ──
   const handlePromptGenerate = async (promptText, rawPrompt, mode, fileContext, audioContext, customInstruction) => {
+    // Content-safety validation for instant feedback (backend re-validates).
+    const check = validateAiContext(promptText);
+    if (!check.ok) { toast.error(check.message); return; }
     s('ai_context', promptText);
     s('ai_mode', mode || 'conversational');
     s('ai_custom_instruction', customInstruction || '');
@@ -351,8 +357,7 @@ export default function SurveyCreate() {
       setPhase('builder');
       setTab('questions');
     } catch (e) {
-      toast.error('Failed to generate survey');
-      console.error(e);
+      toast.error(getApiErrorMessage(e, 'Unable to generate the survey. Please try again.'));
     } finally {
       setAiGenerating(false);
     }
@@ -402,9 +407,7 @@ export default function SurveyCreate() {
       toast.success(status === 'active' ? 'Survey published!' : 'Draft saved');
       nav(`/surveys/${sv.id}/edit`);
     } catch (e) {
-      console.error(e);
-      const msg = e.response?.data?.detail;
-      toast.error(typeof msg === 'string' ? msg : e.message || 'Failed to save');
+      toast.error(getApiErrorMessage(e, 'Unable to save the survey. Please try again.'));
     }
     finally { setBusy(false); }
   }

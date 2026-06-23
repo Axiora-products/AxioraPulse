@@ -6,6 +6,7 @@ import { useLoading } from '../context/LoadingContext';
 import API from '../api/axios';
 import { sendPhoneLinkOTP, verifyPhoneLinkOTP, removePhone } from '../lib/otp';
 import { cognitoChangePassword } from '../lib/cognito';
+import { getApiErrorMessage } from '../lib/apiError';
 
 const card = { background: 'var(--warm-white)', borderRadius: 20, border: '1px solid rgba(22,15,8,0.07)', padding: '36px 40px', marginBottom: 20 };
 const label = { fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.38)', display: 'block', marginBottom: 10 };
@@ -41,7 +42,7 @@ function ApprovedDomainsCard({ tenant, onSaved }) {
       setDomains(parsed.join(', '));
       toast.success(parsed.length === 0 ? 'Domain restrictions cleared — all email addresses can now be invited' : 'Approved domains saved');
     } catch (err) {
-      toast.error(err.response?.data?.detail || err.message || 'Failed to save domains');
+      toast.error(getApiErrorMessage(err, 'Failed to save domains'));
     } finally {
       setSaving(false);
     }
@@ -137,7 +138,7 @@ export default function Settings() {
       setPhoneStep('otp');
       toast.success('OTP sent to your phone');
     } catch (err) {
-      toast.error(err.response?.data?.detail || err.message || 'Failed to send OTP');
+      toast.error(getApiErrorMessage(err, 'Failed to send OTP'));
     } finally { setPhoneBusy(false); }
   }
 
@@ -153,7 +154,7 @@ export default function Settings() {
       setPhoneForm({ number: '+91 ', otp: '' });
       toast.success('Phone number linked successfully!');
     } catch (err) {
-      toast.error(err.response?.data?.detail || err.message || 'Verification failed');
+      toast.error(getApiErrorMessage(err, 'Verification failed'));
     } finally { setPhoneBusy(false); }
   }
 
@@ -166,7 +167,7 @@ export default function Settings() {
       setRemoveConfirm(false);
       toast.success('Phone number removed');
     } catch (err) {
-      toast.error(err.response?.data?.detail || err.message || 'Failed to remove');
+      toast.error(getApiErrorMessage(err, 'Failed to remove'));
     } finally { setPhoneBusy(false); }
   }
 
@@ -243,8 +244,8 @@ export default function Settings() {
 
   async function saveP(e) {
     e.preventDefault(); sSP(true);
-    try { await updateProfile({ full_name: pF.full_name }); toast.success('Profile saved'); }
-    catch (e) { toast.error(e.message); } finally { sSP(false); }
+    try { await updateProfile({ full_name: pF.full_name }); toast.success('Profile updated successfully.'); }
+    catch (e) { toast.error(getApiErrorMessage(e, 'Unable to update your profile. Please try again.')); } finally { sSP(false); }
   }
 
   async function saveT(e) {
@@ -256,8 +257,8 @@ export default function Settings() {
       // This updates both the DB and the Zustand store in one step, so the nav
       // header reflects the new name immediately without a page refresh.
       await updateTenant({ name: tF.name, primary_color: tF.primary_color });
-      toast.success('Organisation saved');
-    } catch (e) { toast.error(e.message); } finally { sST(false); }
+      toast.success('Changes saved successfully.');
+    } catch (e) { toast.error(getApiErrorMessage(e, 'Unable to save organisation settings. Please try again.')); } finally { sST(false); }
   }
 
   return (
@@ -363,7 +364,7 @@ export default function Settings() {
                         setPhoneStep('otp');
                         toast.success('OTP sent to your phone');
                       } catch (err) {
-                        toast.error(err.response?.data?.detail || err.message || 'Failed to send OTP');
+                        toast.error(getApiErrorMessage(err, 'Failed to send OTP'));
                       } finally { setPhoneBusy(false); }
                     }}
                     style={{ ...btn, fontSize: 10, padding: '10px 20px', opacity: phoneBusy ? 0.5 : 1 }}

@@ -64,6 +64,7 @@ import {
   Filler,
 } from 'chart.js';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
+import { getApiErrorMessage } from '../lib/apiError';
 
 ChartJS.register(
   CategoryScale,
@@ -193,7 +194,7 @@ export default function SuperAdminDashboard() {
       setStats(statsRes.data);
       setUpgradeModalTenant(null);
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to update plan.');
+      toast.error(getApiErrorMessage(err, 'Failed to update plan.'));
     } finally {
       setActionBusy(false);
     }
@@ -212,7 +213,7 @@ export default function SuperAdminDashboard() {
       const statsRes = await API.get('/super-admin/stats');
       setStats(statsRes.data);
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to toggle status.');
+      toast.error(getApiErrorMessage(err, 'Failed to toggle status.'));
     } finally {
       setActionBusy(false);
     }

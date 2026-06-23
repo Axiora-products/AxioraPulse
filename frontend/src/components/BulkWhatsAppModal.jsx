@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 import API from '../api/axios';
+import { getApiErrorMessage } from '../lib/apiError';
 
 export default function BulkWhatsAppModal({ survey, isOpen, onClose, surveyUrl }) {
   const [step, setStep] = useState('input-method'); // input-method, import, compose, preview, sending, report
@@ -184,7 +185,7 @@ export default function BulkWhatsAppModal({ survey, isOpen, onClose, surveyUrl }
               recipient: num,
               status: 'failed',
               timestamp: new Date().toISOString(),
-              reason: err.response?.data?.detail || 'Network error'
+              reason: getApiErrorMessage(err, 'Network error')
             });
           });
           failedCount += batch.length;

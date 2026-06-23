@@ -1,3 +1,14 @@
+import os
+
+# Test-suite secret/config defaults. Set BEFORE any backend module (which reads
+# these at import time via core.config) is imported below. setdefault() respects
+# anything the CI/dev shell already exported. These mirror the security-hardening
+# requirements (AP-SEC-001/002/004): the suite must provide real, non-default
+# secrets and the super-admin allowlist, just like a real deployment would.
+os.environ.setdefault("OTP_JWT_SECRET", "test-otp-jwt-secret-not-a-default-value")
+os.environ.setdefault("RAZORPAY_WEBHOOK_SECRET", "test-razorpay-webhook-secret")
+os.environ.setdefault("SUPER_ADMIN_EMAILS", "roopsai.work8@gmail.com")
+
 import pytest
 import json
 import uuid

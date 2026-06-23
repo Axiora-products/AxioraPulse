@@ -8,3 +8,9 @@ repos:
         args: [ --fix ]
       # Run the formatter.
       - id: ruff-format
+
+  # Secret scanning to prevent committing API keys/tokens. (AP-SEC-006, AP-SEC-024)
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks
