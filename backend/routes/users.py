@@ -27,7 +27,7 @@ from services.email_service import send_email
 from fastapi import Request
 from core.rate_limiter import limiter
 from db.database import get_db
-from db.models import UserProfile, RoleEnum
+from db.models import UserProfile, RoleEnum, BulkSendUsage
 from schemas import (
     UserProfileOut,
     InviteRequest,
@@ -661,6 +661,7 @@ class ShareSurveyRequest(BaseModel):
 
 
 class BulkShareSurveyRequest(BaseModel):
+    survey_id: str
     emails: List[str]
     survey_link: str
     survey_title: str
@@ -669,11 +670,74 @@ class BulkShareSurveyRequest(BaseModel):
 
 
 class BulkShareWhatsAppRequest(BaseModel):
+    survey_id: str
     numbers: List[str]
     survey_link: str
     survey_title: str
     message: Optional[str] = None
     media_url: Optional[str] = None
+
+
+# ── Bulk distribution limits ────────────────────────────────────────────────
+# Per-request caps protect a single send; per-day caps are tracked per survey in
+# UTC calendar days and reset automatically when a new day produces a fresh row.
+BULK_EMAIL_PER_REQUEST = 30
+BULK_EMAIL_PER_DAY = 60
+BULK_WHATSAPP_PER_REQUEST = 20
+BULK_WHATSAPP_PER_DAY = 50
+
+EMAIL_OVER_REQUEST_MSG = "You can send emails to a maximum of 30 recipients at a time."
+EMAIL_OVER_DAY_MSG = "Daily email limit of 60 recipients has been reached."
+WHATSAPP_OVER_REQUEST_MSG = "You can send WhatsApp messages to a maximum of 20 recipients at a time."
+WHATSAPP_OVER_DAY_MSG = "Daily WhatsApp limit of 50 messages has been reached."
+
+
+def _enforce_bulk_limit(db, survey_id, channel, count, per_request, per_day, over_request_msg, over_day_msg):
+    """Validate the per-request cap then atomically reserve ``count`` recipients
+    against today's (UTC) usage row for this survey/channel. Raises HTTPException
+    (400 over per-request, 429 over per-day) and reserves nothing on breach."""
+    from sqlalchemy.exc import IntegrityError
+
+    if count > per_request:
+        raise HTTPException(status_code=400, detail=over_request_msg)
+    if count <= 0:
+        return
+    try:
+        sid = uuid.UUID(str(survey_id))
+    except (ValueError, TypeError, AttributeError):
+        raise HTTPException(status_code=400, detail="A valid survey_id is required.")
+
+    today = datetime.now(timezone.utc).date()
+
+    def _reserve():
+        row = (
+            db.query(BulkSendUsage)
+            .filter(
+                BulkSendUsage.survey_id == sid,
+                BulkSendUsage.channel == channel,
+                BulkSendUsage.usage_date == today,
+            )
+            .with_for_update()
+            .first()
+        )
+        used = row.recipient_count if row else 0
+        if used + count > per_day:
+            raise HTTPException(status_code=429, detail=over_day_msg)
+        if row:
+            row.recipient_count = used + count
+        else:
+            db.add(
+                BulkSendUsage(survey_id=sid, channel=channel, usage_date=today, recipient_count=count)
+            )
+
+    try:
+        _reserve()
+        db.commit()
+    except IntegrityError:
+        # A concurrent send created today's row first — retry as a plain update.
+        db.rollback()
+        _reserve()
+        db.commit()
 
 
 def _send_single_email_task(email: str, subject: str, body: str):
@@ -772,6 +836,7 @@ def bulk_share_survey(
     request: Request,
     body: BulkShareSurveyRequest,
     current_user: UserProfile = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     _require_distributor(current_user)  # (AP-SEC-010)
     _assert_trusted_link(body.survey_link)
@@ -797,6 +862,19 @@ def bulk_share_survey(
 
     # Deduplicate
     valid_emails = list(dict.fromkeys(valid_emails))
+
+    # Enforce per-request and per-survey daily recipient limits (AP-SEC-bulk).
+    # Reserved before sending so frontend bypass cannot exceed the cap.
+    _enforce_bulk_limit(
+        db,
+        body.survey_id,
+        "email",
+        len(valid_emails),
+        BULK_EMAIL_PER_REQUEST,
+        BULK_EMAIL_PER_DAY,
+        EMAIL_OVER_REQUEST_MSG,
+        EMAIL_OVER_DAY_MSG,
+    )
 
     subject = body.subject or f"Invitation to complete survey: {body.survey_title}"
     body_content = (
@@ -836,11 +914,24 @@ def bulk_share_whatsapp(
     request: Request,
     body: BulkShareWhatsAppRequest,
     current_user: UserProfile = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     _require_distributor(current_user)  # (AP-SEC-010)
     _assert_trusted_link(body.survey_link)
     results = []
-    unique_numbers = list(dict.fromkeys(body.numbers))
+    unique_numbers = [n for n in dict.fromkeys(body.numbers) if n and n.strip()]
+
+    # Enforce per-request and per-survey daily message limits (AP-SEC-bulk).
+    _enforce_bulk_limit(
+        db,
+        body.survey_id,
+        "whatsapp",
+        len(unique_numbers),
+        BULK_WHATSAPP_PER_REQUEST,
+        BULK_WHATSAPP_PER_DAY,
+        WHATSAPP_OVER_REQUEST_MSG,
+        WHATSAPP_OVER_DAY_MSG,
+    )
 
     msg = body.message or f"Check this survey: {body.survey_title} - {body.survey_link}"
 
