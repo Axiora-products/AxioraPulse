@@ -38,9 +38,7 @@ def upgrade() -> None:
         sa.Column("recipient_count", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
-        sa.UniqueConstraint(
-            "survey_id", "channel", "usage_date", name="uq_bulk_send_usage_survey_channel_date"
-        ),
+        sa.UniqueConstraint("survey_id", "channel", "usage_date", name="uq_bulk_send_usage_survey_channel_date"),
     )
     op.create_index(op.f("ix_bulk_send_usage_survey_id"), "bulk_send_usage", ["survey_id"])
 
