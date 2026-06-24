@@ -19,6 +19,7 @@ import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as route53 from 'aws-cdk-lib/aws-route53';
 import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import * as route53_targets from 'aws-cdk-lib/aws-route53-targets';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
 
 export interface AxioraPulseStackProps extends cdk.StackProps {
   environment: 'dev' | 'qa' | 'prod' | 'development' | 'production';
@@ -183,6 +184,41 @@ export class AxioraPulseStack extends cdk.Stack {
       frontendRepo = ecr.Repository.fromRepositoryName(this, 'FrontendRepo', 'axiora/pulse-frontend');
     }
 
+    // Pre Sign-up Lambda Trigger to whitelist axioraglobalsolutions.com domain
+    const preSignUpTrigger = new lambda.Function(this, 'PreSignUpTrigger', {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'index.handler',
+      code: lambda.Code.fromInline(`
+        exports.handler = async (event) => {
+          const email = event.request.userAttributes.email;
+          if (email && email.toLowerCase().endsWith('@axioraglobalsolutions.com')) {
+            return event;
+          }
+          throw new Error('Registration is restricted to @axioraglobalsolutions.com email domain.');
+        };
+      `),
+    });
+
+    NagSuppressions.addResourceSuppressions(preSignUpTrigger, [
+      {
+        id: 'AwsSolutions-L1',
+        reason: 'Using stable Node.js 20.x runtime for simple inline validator.'
+      }
+    ]);
+
+    if (preSignUpTrigger.role) {
+      NagSuppressions.addResourceSuppressions(preSignUpTrigger.role, [
+        {
+          id: 'AwsSolutions-IAM4',
+          reason: 'Basic execution role policy is standard and required for Lambda cloudwatch logs.'
+        },
+        {
+          id: 'AwsSolutions-IAM5',
+          reason: 'Basic execution role uses wildcard logs permissions.'
+        }
+      ]);
+    }
+
     // 2. Cognito User Pool and Client
     const userPool = new cognito.UserPool(this, 'UserPool', {
       userPoolName: 'AxioraPulseUserPool-' + envName,
@@ -198,6 +234,9 @@ export class AxioraPulseStack extends cdk.Stack {
         requireDigits: true,
         requireSymbols: true,
       } : undefined,
+      lambdaTriggers: {
+        preSignUp: preSignUpTrigger,
+      },
     });
 
     NagSuppressions.addResourceSuppressions(userPool, [
