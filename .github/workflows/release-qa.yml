@@ -174,6 +174,8 @@ jobs:
         run: |
           BACKEND_TAG="sha-${{ github.sha }}"
           FRONTEND_TAG="sha-${{ github.sha }}"
+          SUPERADMIN_BACKEND_TAG="sha-${{ github.sha }}"
+          SUPERADMIN_FRONTEND_TAG="sha-${{ github.sha }}"
           
           echo "Checking if backend image exists in ECR..."
           if aws ecr describe-images --repository-name axiora/pulse-fastapi-qa --image-ids imageTag=$BACKEND_TAG --region ap-south-1 >/dev/null 2>&1; then
@@ -193,8 +195,26 @@ jobs:
             echo "frontend_needed=true" >> $GITHUB_OUTPUT
           fi
 
+          echo "Checking if superadmin backend image exists in ECR..."
+          if aws ecr describe-images --repository-name axiora/pulse-superadmin-backend-qa --image-ids imageTag=$SUPERADMIN_BACKEND_TAG --region ap-south-1 >/dev/null 2>&1; then
+            echo "Superadmin backend image already exists. Skipping build."
+            echo "superadmin_backend_needed=false" >> $GITHUB_OUTPUT
+          else
+            echo "Superadmin backend image not found. Will build."
+            echo "superadmin_backend_needed=true" >> $GITHUB_OUTPUT
+          fi
+
+          echo "Checking if superadmin frontend image exists in ECR..."
+          if aws ecr describe-images --repository-name axiora/pulse-superadmin-frontend-qa --image-ids imageTag=$SUPERADMIN_FRONTEND_TAG --region ap-south-1 >/dev/null 2>&1; then
+            echo "Superadmin frontend image already exists. Skipping build."
+            echo "superadmin_frontend_needed=false" >> $GITHUB_OUTPUT
+          else
+            echo "Superadmin frontend image not found. Will build."
+            echo "superadmin_frontend_needed=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Set up Docker Buildx
-        if: steps.check-images.outputs.backend_needed == 'true' || steps.check-images.outputs.frontend_needed == 'true'
+        if: steps.check-images.outputs.backend_needed == 'true' || steps.check-images.outputs.frontend_needed == 'true' || steps.check-images.outputs.superadmin_backend_needed == 'true' || steps.check-images.outputs.superadmin_frontend_needed == 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Fetch Frontend Config from SSM
@@ -245,6 +265,36 @@ jobs:
           cache-from: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/axiora/pulse-frontend-qa:buildcache
           cache-to: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/axiora/pulse-frontend-qa:buildcache,mode=max
 
+      - name: Build and Push Superadmin Backend
+        if: steps.check-images.outputs.superadmin_backend_needed == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./super-admin/server/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-superadmin-backend-qa:sha-${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-superadmin-backend-qa:qa
+            ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-superadmin-backend-qa:latest
+          cache-from: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/axiora/pulse-superadmin-backend-qa:buildcache
+          cache-to: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/axiora/pulse-superadmin-backend-qa:buildcache,mode=max
+
+      - name: Build and Push Superadmin Frontend
+        if: steps.check-images.outputs.superadmin_frontend_needed == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: ./super-admin/web
+          file: ./super-admin/web/Dockerfile
+          push: true
+          build-args: |
+            VITE_API_BASE_URL=/api
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-superadmin-frontend-qa:sha-${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-superadmin-frontend-qa:qa
+            ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-superadmin-frontend-qa:latest
+          cache-from: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/axiora/pulse-superadmin-frontend-qa:buildcache
+          cache-to: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/axiora/pulse-superadmin-frontend-qa:buildcache,mode=max
+
   # 4. Deploy to ECS Fargate (runs after ECR images are pushed successfully)
   deploy-ecs:
     name: Deploy to QA ECS
@@ -274,6 +324,12 @@ jobs:
           sed -i 's/${ACCOUNT_ID}/399894608507/g' backend/ecs-task-def.json
           sed -i 's/${ENV}/qa/g' frontend/ecs-task-def.json
           sed -i 's/${ROLE_ARN}/arn:aws:iam::399894608507:role\/GitHubActionsDeployerRole/g' frontend/ecs-task-def.json
+          sed -i "s|\${DB_SECRET_ARN}|$DB_SECRET_ARN|g" super-admin/server/ecs-task-def.json
+          sed -i 's/${ENV}/qa/g' super-admin/server/ecs-task-def.json
+          sed -i 's/${ROLE_ARN}/arn:aws:iam::399894608507:role\/GitHubActionsDeployerRole/g' super-admin/server/ecs-task-def.json
+          sed -i 's/${ACCOUNT_ID}/399894608507/g' super-admin/server/ecs-task-def.json
+          sed -i 's/${ENV}/qa/g' super-admin/web/ecs-task-def.json
+          sed -i 's/${ROLE_ARN}/arn:aws:iam::399894608507:role\/GitHubActionsDeployerRole/g' super-admin/web/ecs-task-def.json
 
       - name: Render Backend Task Definition
         id: render-backend
@@ -304,6 +360,38 @@ jobs:
         with:
           task-definition: ${{ steps.render-frontend.outputs.task-definition }}
           service: pulse-frontend-qa
+          cluster: axiorapulse-qa-cluster
+          wait-for-service-stability: true
+
+      - name: Render Superadmin Backend Task Definition
+        id: render-superadmin-backend
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: super-admin/server/ecs-task-def.json
+          container-name: SuperadminBackendContainer
+          image: ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-superadmin-backend-qa:sha-${{ github.sha }}
+
+      - name: Deploy Superadmin Backend to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render-superadmin-backend.outputs.task-definition }}
+          service: pulse-superadmin-backend-qa
+          cluster: axiorapulse-qa-cluster
+          wait-for-service-stability: true
+
+      - name: Render Superadmin Frontend Task Definition
+        id: render-superadmin-frontend
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: super-admin/web/ecs-task-def.json
+          container-name: FrontendContainer
+          image: ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-superadmin-frontend-qa:sha-${{ github.sha }}
+
+      - name: Deploy Superadmin Frontend to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render-superadmin-frontend.outputs.task-definition }}
+          service: pulse-superadmin-frontend-qa
           cluster: axiorapulse-qa-cluster
           wait-for-service-stability: true
 

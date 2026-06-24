@@ -130,10 +130,14 @@ export class AxioraPulseStack extends cdk.Stack {
     // 1. ECR Repositories
     let backendRepo: ecr.IRepository;
     let frontendRepo: ecr.IRepository;
+    let superadminBackendRepo: ecr.IRepository;
+    let superadminFrontendRepo: ecr.IRepository;
 
     if (shortEnv === 'dev') {
       backendRepo = ecr.Repository.fromRepositoryName(this, 'BackendRepo', `axiora/pulse-fastapi-${envName}`);
       frontendRepo = ecr.Repository.fromRepositoryName(this, 'FrontendRepo', `axiora/pulse-frontend-${envName}`);
+      superadminBackendRepo = ecr.Repository.fromRepositoryName(this, 'SuperadminBackendRepo', `axiora/pulse-superadmin-backend-${envName}`);
+      superadminFrontendRepo = ecr.Repository.fromRepositoryName(this, 'SuperadminFrontendRepo', `axiora/pulse-superadmin-frontend-${envName}`);
     } else if (shortEnv === 'qa') {
       const qaLifecycleRules = [
         {
@@ -165,9 +169,23 @@ export class AxioraPulseStack extends cdk.Stack {
         lifecycleRules: qaLifecycleRules,
       });
 
+      superadminBackendRepo = new ecr.Repository(this, 'SuperadminBackendRepo', {
+        repositoryName: `axiora/pulse-superadmin-backend-${envName}`,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+        emptyOnDelete: true,
+        lifecycleRules: qaLifecycleRules,
+      });
+
+      superadminFrontendRepo = new ecr.Repository(this, 'SuperadminFrontendRepo', {
+        repositoryName: `axiora/pulse-superadmin-frontend-${envName}`,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+        emptyOnDelete: true,
+        lifecycleRules: qaLifecycleRules,
+      });
+
       // Allow Production account to pull from QA repository for promotion
       const prodAccount = '683354427635';
-      [backendRepo, frontendRepo].forEach(repo => {
+      [backendRepo, frontendRepo, superadminBackendRepo, superadminFrontendRepo].forEach(repo => {
         repo.addToResourcePolicy(new iam.PolicyStatement({
           sid: 'AllowProdPull',
           effect: iam.Effect.ALLOW,
@@ -182,6 +200,8 @@ export class AxioraPulseStack extends cdk.Stack {
     } else {
       backendRepo = ecr.Repository.fromRepositoryName(this, 'BackendRepo', 'axiora/pulse-fastapi');
       frontendRepo = ecr.Repository.fromRepositoryName(this, 'FrontendRepo', 'axiora/pulse-frontend');
+      superadminBackendRepo = ecr.Repository.fromRepositoryName(this, 'SuperadminBackendRepo', 'axiora/pulse-superadmin-backend');
+      superadminFrontendRepo = ecr.Repository.fromRepositoryName(this, 'SuperadminFrontendRepo', 'axiora/pulse-superadmin-frontend');
     }
 
     // Pre Sign-up Lambda Trigger to whitelist axioraglobalsolutions.com domain
@@ -219,7 +239,7 @@ export class AxioraPulseStack extends cdk.Stack {
       ]);
     }
 
-    // 2. Cognito User Pool and Client
+    // 2. Cognito User Pool and Client for Customers (Open Sign-up)
     const userPool = new cognito.UserPool(this, 'UserPool', {
       userPoolName: 'AxioraPulseUserPool-' + envName,
       selfSignUpEnabled: true,
@@ -234,8 +254,33 @@ export class AxioraPulseStack extends cdk.Stack {
         requireDigits: true,
         requireSymbols: true,
       } : undefined,
+    });
+
+    // Cognito User Pool for Company Admins (Whitelisted to axioraglobalsolutions.com)
+    const adminUserPool = new cognito.UserPool(this, 'AdminUserPool', {
+      userPoolName: 'AxioraPulseAdminUserPool-' + envName,
+      selfSignUpEnabled: true,
+      signInAliases: { email: true },
+      autoVerify: { email: true },
+      removalPolicy: isProd ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
+      mfa: isProd ? cognito.Mfa.REQUIRED : cognito.Mfa.OFF,
+      passwordPolicy: isProd ? {
+        minLength: 12,
+        requireLowercase: true,
+        requireUppercase: true,
+        requireDigits: true,
+        requireSymbols: true,
+      } : undefined,
       lambdaTriggers: {
         preSignUp: preSignUpTrigger,
+      },
+    });
+
+    const userPoolClient = userPool.addClient('UserPoolClient', {
+      userPoolClientName: 'AxioraPulseClient-' + envName,
+      authFlows: {
+        userPassword: true,
+        userSrp: true,
       },
     });
 
@@ -258,13 +303,32 @@ export class AxioraPulseStack extends cdk.Stack {
       }
     ], true);
 
-    const userPoolClient = userPool.addClient('UserPoolClient', {
-      userPoolClientName: 'AxioraPulseClient-' + envName,
+    const adminUserPoolClient = adminUserPool.addClient('AdminUserPoolClient', {
+      userPoolClientName: 'AxioraPulseAdminClient-' + envName,
       authFlows: {
         userPassword: true,
         userSrp: true,
       },
     });
+
+    NagSuppressions.addResourceSuppressions(adminUserPool, [
+      {
+        id: 'AwsSolutions-COG8',
+        reason: 'QA/Dev Cognito admin user pool does not require advanced security features (plus tier) to manage costs.'
+      },
+      {
+        id: 'AwsSolutions-COG1',
+        reason: 'QA/Dev Cognito admin user pool does not require custom complex password policies.'
+      },
+      {
+        id: 'AwsSolutions-COG2',
+        reason: 'QA/Dev Cognito admin user pool does not require MFA to simplify developer access.'
+      },
+      {
+        id: 'AwsSolutions-IAM5',
+        reason: 'Cognito SMS role requires wildcard permission to publish SMS notifications to any phone number via SNS.'
+      }
+    ], true);
 
     // 3. ECS Task Definitions and Services
     
@@ -277,6 +341,8 @@ export class AxioraPulseStack extends cdk.Stack {
     });
     backendRepo.grantPull(taskExecutionRole);
     frontendRepo.grantPull(taskExecutionRole);
+    superadminBackendRepo.grantPull(taskExecutionRole);
+    superadminFrontendRepo.grantPull(taskExecutionRole);
 
     // Grant permission to read SSM parameters and Secrets Manager secrets
     taskExecutionRole.addToPolicy(new iam.PolicyStatement({
@@ -353,6 +419,8 @@ export class AxioraPulseStack extends cdk.Stack {
 
     let frontendUrl: string = '';
     let frontendService: ecs.FargateService | undefined = undefined;
+    let superadminBackendService: ecs.FargateService | undefined = undefined;
+    let superadminFrontendService: ecs.FargateService | undefined = undefined;
 
     // 4. Application Load Balancer
     const alb = new elbv2.ApplicationLoadBalancer(this, 'Alb', {
@@ -479,7 +547,63 @@ export class AxioraPulseStack extends cdk.Stack {
     }
 
     if (isProd || shortEnv === 'qa') {
-      // Frontend Fargate Service (Production and QA)
+      // 1. Superadmin Backend Fargate Service (Production and QA)
+      const superadminBackendTaskDef = new ecs.FargateTaskDefinition(this, 'SuperadminBackendTaskDef', {
+        memoryLimitMiB: 1024,
+        cpu: 512,
+        executionRole: taskExecutionRole,
+        taskRole: taskRole,
+        family: `pulse-superadmin-backend-${shortEnv}`,
+      });
+
+      superadminBackendTaskDef.addContainer('SuperadminBackendContainer', {
+        image: ecs.ContainerImage.fromRegistry('public.ecr.aws/docker/library/python:3.11-alpine'),
+        command: [
+          "python3",
+          "-c",
+          "import http.server\nclass H(http.server.BaseHTTPRequestHandler):\n    def do_GET(self):\n        self.send_response(200)\n        self.end_headers()\n        self.wfile.write(b'OK')\nhttp.server.HTTPServer(('0.0.0.0', 8001), H).serve_forever()"
+        ],
+        portMappings: [{ containerPort: 8001 }],
+        logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'ecs', logGroup: new cdk.aws_logs.LogGroup(this, 'SuperadminBackendLogGroup', {
+          logGroupName: `/ecs/pulse-superadmin-backend-${shortEnv}`,
+          removalPolicy: cdk.RemovalPolicy.DESTROY,
+        }) }),
+        environment: {
+          'ENVIRONMENT': shortEnv,
+          'COGNITO_REGION': this.region,
+          'SUPER_ADMIN_COGNITO_REGION': this.region,
+          'MOCK_COGNITO': 'false',
+        }
+      });
+
+      NagSuppressions.addResourceSuppressions(superadminBackendTaskDef, [
+        {
+          id: 'AwsSolutions-ECS2',
+          reason: 'Superadmin backend environment variables only contain non-sensitive configuration values.'
+        }
+      ]);
+
+      superadminBackendService = new ecs.FargateService(this, 'SuperadminBackendService', {
+        cluster,
+        taskDefinition: superadminBackendTaskDef,
+        desiredCount: 2,
+        serviceName: `pulse-superadmin-backend-${shortEnv}`,
+        vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+        assignPublicIp: false,
+        cloudMapOptions: {
+          name: 'superadmin-backend',
+        },
+        capacityProviderStrategies: isProd ? undefined : [
+          {
+            capacityProvider: 'FARGATE_SPOT',
+            weight: 1,
+          }
+        ],
+      });
+
+      database.connections.allowFrom(superadminBackendService, ec2.Port.tcp(5432), 'Allow superadmin backend to access database');
+
+      // 2. Frontend Fargate Service (Production and QA)
       const frontendTaskDef = new ecs.FargateTaskDefinition(this, 'FrontendTaskDef', {
         memoryLimitMiB: 512,
         cpu: 256,
@@ -515,6 +639,45 @@ export class AxioraPulseStack extends cdk.Stack {
         vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
         assignPublicIp: false,
       });
+
+      // 3. Superadmin Frontend Fargate Service (Production and QA)
+      const superadminFrontendTaskDef = new ecs.FargateTaskDefinition(this, 'SuperadminFrontendTaskDef', {
+        memoryLimitMiB: 512,
+        cpu: 256,
+        executionRole: taskExecutionRole,
+        taskRole: taskRole,
+        family: `pulse-superadmin-frontend-${shortEnv}`,
+      });
+
+      superadminFrontendTaskDef.addContainer('SuperadminFrontendContainer', {
+        image: ecs.ContainerImage.fromRegistry('public.ecr.aws/nginx/nginx:alpine'),
+        portMappings: [{ containerPort: 80 }],
+        logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'ecs', logGroup: new cdk.aws_logs.LogGroup(this, 'SuperadminFrontendLogGroup', {
+          logGroupName: `/ecs/pulse-superadmin-frontend-${shortEnv}`,
+          removalPolicy: cdk.RemovalPolicy.DESTROY,
+        }) }),
+        environment: {
+          'BACKEND_INTERNAL_URL': `superadmin-backend.${shortEnv}.local:8001`,
+        }
+      });
+
+      NagSuppressions.addResourceSuppressions(superadminFrontendTaskDef, [
+        {
+          id: 'AwsSolutions-ECS2',
+          reason: 'Superadmin frontend environment variables only contain non-sensitive configuration values.'
+        }
+      ]);
+
+      superadminFrontendService = new ecs.FargateService(this, 'SuperadminFrontendService', {
+        cluster,
+        taskDefinition: superadminFrontendTaskDef,
+        desiredCount: 2,
+        serviceName: `pulse-superadmin-frontend-${shortEnv}`,
+        vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+        assignPublicIp: false,
+      });
+
+      superadminBackendService.connections.allowFrom(superadminFrontendService, ec2.Port.tcp(8001), 'Allow internal superadmin frontend to superadmin backend traffic');
     }
 
     if (isProd) {
@@ -551,6 +714,34 @@ export class AxioraPulseStack extends cdk.Stack {
         });
         frontendScaling.scaleOnSchedule('FrontendScaleUpQA', {
           schedule: appscaling.Schedule.cron({ hour: '3', minute: '30', weekDay: 'MON-FRI' }), // 9:00 AM IST / 3:30 AM UTC
+          minCapacity: 2,
+          maxCapacity: 2,
+        });
+      }
+
+      if (superadminBackendService) {
+        const superadminBackendScaling = superadminBackendService.autoScaleTaskCount({ maxCapacity: 2, minCapacity: 0 });
+        superadminBackendScaling.scaleOnSchedule('SuperadminBackendScaleDownQA', {
+          schedule: appscaling.Schedule.cron({ hour: '14', minute: '30', weekDay: 'MON-FRI' }),
+          minCapacity: 0,
+          maxCapacity: 0,
+        });
+        superadminBackendScaling.scaleOnSchedule('SuperadminBackendScaleUpQA', {
+          schedule: appscaling.Schedule.cron({ hour: '3', minute: '30', weekDay: 'MON-FRI' }),
+          minCapacity: 2,
+          maxCapacity: 2,
+        });
+      }
+
+      if (superadminFrontendService) {
+        const superadminFrontendScaling = superadminFrontendService.autoScaleTaskCount({ maxCapacity: 2, minCapacity: 0 });
+        superadminFrontendScaling.scaleOnSchedule('SuperadminFrontendScaleDownQA', {
+          schedule: appscaling.Schedule.cron({ hour: '14', minute: '30', weekDay: 'MON-FRI' }),
+          minCapacity: 0,
+          maxCapacity: 0,
+        });
+        superadminFrontendScaling.scaleOnSchedule('SuperadminFrontendScaleUpQA', {
+          schedule: appscaling.Schedule.cron({ hour: '3', minute: '30', weekDay: 'MON-FRI' }),
           minCapacity: 2,
           maxCapacity: 2,
         });
@@ -606,6 +797,71 @@ export class AxioraPulseStack extends cdk.Stack {
       }
     }
 
+    // Superadmin Listeners (if services are defined)
+    if (superadminFrontendService && superadminBackendService) {
+      if (certificate) {
+        const superadminFrontendListener = alb.addListener('SuperadminFrontendListener', {
+          port: 5175,
+          protocol: elbv2.ApplicationProtocol.HTTPS,
+          certificates: [elbv2.ListenerCertificate.fromArn(certificate.certificateArn)],
+          open: true,
+        });
+
+        superadminFrontendListener.addTargets('SuperadminFrontendTargetHTTPS', {
+          port: 80,
+          targets: [superadminFrontendService],
+          healthCheck: {
+            path: '/',
+          }
+        });
+
+        const superadminBackendListener = alb.addListener('SuperadminBackendListener', {
+          port: 8001,
+          protocol: elbv2.ApplicationProtocol.HTTPS,
+          certificates: [elbv2.ListenerCertificate.fromArn(certificate.certificateArn)],
+          open: true,
+        });
+
+        superadminBackendListener.addTargets('SuperadminBackendTargetHTTPS', {
+          port: 8001,
+          protocol: elbv2.ApplicationProtocol.HTTP,
+          targets: [superadminBackendService],
+          healthCheck: {
+            path: '/docs',
+          }
+        });
+      } else {
+        const superadminFrontendListener = alb.addListener('SuperadminFrontendListener', {
+          port: 5175,
+          protocol: elbv2.ApplicationProtocol.HTTP,
+          open: true,
+        });
+
+        superadminFrontendListener.addTargets('SuperadminFrontendTarget', {
+          port: 80,
+          targets: [superadminFrontendService],
+          healthCheck: {
+            path: '/',
+          }
+        });
+
+        const superadminBackendListener = alb.addListener('SuperadminBackendListener', {
+          port: 8001,
+          protocol: elbv2.ApplicationProtocol.HTTP,
+          open: true,
+        });
+
+        superadminBackendListener.addTargets('SuperadminBackendTarget', {
+          port: 8001,
+          protocol: elbv2.ApplicationProtocol.HTTP,
+          targets: [superadminBackendService],
+          healthCheck: {
+            path: '/docs',
+          }
+        });
+      }
+    }
+
     // Backend Listener
     let backendListener: elbv2.ApplicationListener;
     if (certificate) {
@@ -647,13 +903,30 @@ export class AxioraPulseStack extends cdk.Stack {
       stringValue: userPoolClient.userPoolClientId,
     });
 
+    // Admin Cognito Parameters
+    const adminUserPoolIdParam = new ssm.StringParameter(this, 'AdminUserPoolIdParam', {
+      parameterName: `/axiorapulse/${shortEnv}/SUPER_ADMIN_COGNITO_USER_POOL_ID`,
+      stringValue: adminUserPool.userPoolId,
+    });
+
+    const adminUserPoolClientIdParam = new ssm.StringParameter(this, 'AdminUserPoolClientIdParam', {
+      parameterName: `/axiorapulse/${shortEnv}/SUPER_ADMIN_COGNITO_APP_CLIENT_ID`,
+      stringValue: adminUserPoolClient.userPoolClientId,
+    });
+
     const ecsClusterNameParam = new ssm.StringParameter(this, 'EcsClusterNameParam', {
       parameterName: `/axiorapulse/${shortEnv}/ECS_CLUSTER_NAME`,
       stringValue: cluster.clusterName,
     });
 
     if (isProd || shortEnv === 'qa') {
-      // Keep secure https custom domain url instead of load balancer HTTP dns name
+      const superAdminFrontendUrlParam = new ssm.StringParameter(this, 'SuperAdminFrontendUrlParam', {
+        parameterName: `/axiorapulse/${shortEnv}/SUPER_ADMIN_FRONTEND_URL`,
+        stringValue: `https://${domainName}:5175`,
+      });
+      if (superadminBackendService) {
+        superadminBackendService.node.addDependency(superAdminFrontendUrlParam);
+      }
     }
 
     const frontendUrlParam = new ssm.StringParameter(this, 'FrontendUrlParam', {
@@ -669,12 +942,30 @@ export class AxioraPulseStack extends cdk.Stack {
     backendService.node.addDependency(userPoolClientIdParam);
     backendService.node.addDependency(ecsClusterNameParam);
     backendService.node.addDependency(frontendUrlParam);
+    backendService.node.addDependency(adminUserPoolIdParam);
+    backendService.node.addDependency(adminUserPoolClientIdParam);
+
+    if (superadminBackendService) {
+      superadminBackendService.node.addDependency(dbHostParam);
+      superadminBackendService.node.addDependency(dbPortParam);
+      superadminBackendService.node.addDependency(dbNameParam);
+      superadminBackendService.node.addDependency(dbSecretArnParam);
+      superadminBackendService.node.addDependency(adminUserPoolIdParam);
+      superadminBackendService.node.addDependency(adminUserPoolClientIdParam);
+      superadminBackendService.node.addDependency(ecsClusterNameParam);
+    }
 
     if (frontendService) {
       frontendService.node.addDependency(userPoolIdParam);
       frontendService.node.addDependency(userPoolClientIdParam);
       frontendService.node.addDependency(ecsClusterNameParam);
       frontendService.node.addDependency(frontendUrlParam);
+    }
+
+    if (superadminFrontendService) {
+      superadminFrontendService.node.addDependency(adminUserPoolIdParam);
+      superadminFrontendService.node.addDependency(adminUserPoolClientIdParam);
+      superadminFrontendService.node.addDependency(ecsClusterNameParam);
     }
 
     // CDK-Nag Suppressions
@@ -688,7 +979,7 @@ export class AxioraPulseStack extends cdk.Stack {
     NagSuppressions.addResourceSuppressions(alb.connections.securityGroups[0], [
       {
         id: 'AwsSolutions-EC23',
-        reason: 'ALB is public-facing and must allow inbound HTTP/HTTPS traffic on ports 80, 443, and 8000.'
+        reason: 'ALB is public-facing and must allow inbound HTTP/HTTPS traffic on ports 80, 443, 8000, 8001, and 5175.'
       }
     ]);
 
@@ -760,6 +1051,12 @@ export class AxioraPulseStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'BackendServiceName', { value: backendService.serviceName });
     if (frontendService) {
       new cdk.CfnOutput(this, 'FrontendServiceName', { value: frontendService.serviceName });
+    }
+    if (superadminBackendService) {
+      new cdk.CfnOutput(this, 'SuperadminBackendServiceName', { value: superadminBackendService.serviceName });
+    }
+    if (superadminFrontendService) {
+      new cdk.CfnOutput(this, 'SuperadminFrontendServiceName', { value: superadminFrontendService.serviceName });
     }
     new cdk.CfnOutput(this, 'EcsClusterName', { value: cluster.clusterName });
     new cdk.CfnOutput(this, 'LoadBalancerDNS', { value: alb.loadBalancerDnsName });

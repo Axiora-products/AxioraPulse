@@ -1,0 +1,80 @@
+{
+  "family": "pulse-superadmin-backend-${ENV}",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "${ROLE_ARN}",
+  "taskRoleArn": "${ROLE_ARN}",
+  "containerDefinitions": [
+    {
+      "name": "SuperadminBackendContainer",
+      "image": "SUPERADMIN_BACKEND_IMAGE",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8001,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        { "name": "ENVIRONMENT",                "value": "${ENV}" },
+        { "name": "COGNITO_REGION",             "value": "ap-south-1" },
+        { "name": "SUPER_ADMIN_COGNITO_REGION", "value": "ap-south-1" },
+        { "name": "MOCK_COGNITO",               "value": "false" }
+      ],
+      "secrets": [
+        {
+          "name": "DB_HOST",
+          "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/DB_HOST"
+        },
+        {
+          "name": "DB_PORT",
+          "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/DB_PORT"
+        },
+        {
+          "name": "DB_NAME",
+          "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/DB_NAME"
+        },
+        {
+          "name": "DB_USER",
+          "valueFrom": "${DB_SECRET_ARN}:username::"
+        },
+        {
+          "name": "DB_PASSWORD",
+          "valueFrom": "${DB_SECRET_ARN}:password::"
+        },
+        {
+          "name": "SUPER_ADMIN_COGNITO_USER_POOL_ID",
+          "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/SUPER_ADMIN_COGNITO_USER_POOL_ID"
+        },
+        {
+          "name": "SUPER_ADMIN_COGNITO_APP_CLIENT_ID",
+          "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/SUPER_ADMIN_COGNITO_APP_CLIENT_ID"
+        },
+        {
+          "name": "ADMIN_FRONTEND_URL",
+          "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/SUPER_ADMIN_FRONTEND_URL"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/pulse-superadmin-backend-${ENV}",
+          "awslogs-region": "ap-south-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "healthCheck": {
+        "command": [
+          "CMD-SHELL",
+          "curl -f http://localhost:8001/docs || exit 1"
+        ],
+        "interval": 30,
+        "timeout": 10,
+        "retries": 3,
+        "startPeriod": 40
+      }
+    }
+  ]
+}
