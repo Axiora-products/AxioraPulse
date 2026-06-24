@@ -4,6 +4,21 @@ import toast from 'react-hot-toast';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import API from '../api/axios';
 import LocationSelect from '../components/LocationSelect';
+import SearchableSelect from '../components/SearchableSelect';
+
+// Basic email format check for the (optional) results-email step.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Occupation options for the demographics step (searchable dropdown).
+const OCCUPATION_OPTIONS = [
+  'Non IT Employee',
+  'IT Employee',
+  'Business Owner',
+  'Student',
+  'Homemaker',
+  'Entrepreneur',
+  'Unemployed',
+];
 import { useLoading } from '../context/LoadingContext';
 import { useConditionalLogic } from '../hooks/useConditionalLogic';
 import { useResponseTracking } from '../hooks/useResponseTracking';
@@ -486,6 +501,8 @@ useEffect(() => {
     city: "",
     occupation: ""
   });
+  // Set once the respondent tries to finish so the mandatory occupation error shows.
+  const [demoSubmitAttempted, setDemoSubmitAttempted] = useState(false);
 
 
 
@@ -625,6 +642,10 @@ useEffect(() => {
     for (const q of visibleQuestions) {
       if (q.is_required && !ans[q.id]) { goTo(activeQs.indexOf(q)); return toast.error(ui.pleaseAnswer(textFor(q.question_text, currentLang))); }
     }
+    // Validate the results email format when one is required.
+    if (activeSv?.require_email && !EMAIL_RE.test((email || '').trim())) {
+      return toast.error('Please enter a valid email address.');
+    }
     setBusy(true);
     try {
       const id = await ensureR();
@@ -721,19 +742,20 @@ useEffect(() => {
     <div
       style={{
         minHeight: "100vh",
+        maxHeight: "100vh",
         background: "#0E0501",
         display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
+        flexDirection: "column",
         padding: "20px 16px",
-        overflow: "hidden",
+        overflowY: "auto",
+        WebkitOverflowScrolling: "touch",
         position: "relative"
       }}
     >
       {/* Glow */}
       <div
         style={{
-          position: "absolute",
+          position: "fixed",
           width: 620,
           height: 620,
           background:
@@ -753,6 +775,7 @@ useEffect(() => {
         style={{
           width: "100%",
           maxWidth: 680,
+          margin: "auto",
           position: "relative",
           zIndex: 2
         }}
@@ -800,13 +823,13 @@ useEffect(() => {
               fontFamily: "Fraunces,serif",
               fontWeight: 300,
               fontSize: 15,
-              color: "#FF5A00",
-              lineHeight: 1.5,
+              color: "rgba(237,232,223,0.5)",
+              lineHeight: 1.6,
               maxWidth: 520,
               margin: "0 auto"
             }}
           >
-            These details are optional and used for aggregate analytics.
+            Used only for aggregate analytics.
           </p>
         </div>
 
@@ -962,6 +985,7 @@ useEffect(() => {
             </p>
 
             <LocationSelect
+              dark
               value={{ country: demographics.country, state: demographics.state, city: demographics.city }}
               onChange={(loc) =>
                 setDemographics({
@@ -983,11 +1007,11 @@ useEffect(() => {
               }}
               selectStyle={{
                 width: "100%",
-                height: 52,
+                minHeight: 52,
                 borderRadius: 16,
                 border: "1px solid rgba(237,232,223,0.08)",
                 background: "#F5EFE7",
-                padding: "0 16px",
+                padding: "14px 38px 14px 16px",
                 fontFamily: "Fraunces,serif",
                 fontSize: 18,
                 color: "#160F08",
@@ -998,7 +1022,7 @@ useEffect(() => {
             />
           </div>
 
-          {/* OCCUPATION */}
+          {/* OCCUPATION — mandatory searchable dropdown */}
           <div>
             <p
               style={{
@@ -1011,32 +1035,37 @@ useEffect(() => {
                 marginBottom: 12
               }}
             >
-              Occupation
+              Occupation <span style={{ color: "#FF5A00" }}>*</span>
             </p>
 
-            <input
-              type="text"
-              placeholder="IT Employee"
+            <SearchableSelect
+              dark
+              ariaLabel="Occupation"
+              required
+              clearable={false}
+              options={OCCUPATION_OPTIONS}
               value={demographics.occupation}
-              onChange={(e) =>
-                setDemographics({
-                  ...demographics,
-                  occupation: e.target.value
-                })
-              }
-              style={{
+              placeholder="Search your occupation…"
+              emptyText="No occupation found"
+              onChange={(v) => {
+                setDemographics({ ...demographics, occupation: v });
+                if (v) setDemoSubmitAttempted(false);
+              }}
+              inputStyle={{
                 width: "100%",
-                height: 58,
-                borderRadius: 18,
-                border: "2px solid #FF5A00",
+                minHeight: 52,
+                borderRadius: 16,
+                border:
+                  demoSubmitAttempted && !demographics.occupation
+                    ? "1.5px solid #E5484D"
+                    : "1px solid rgba(237,232,223,0.08)",
                 background: "#F5EFE7",
-                padding: "0 20px",
+                padding: "14px 38px 14px 16px",
                 fontFamily: "Fraunces,serif",
-                fontSize: 22,
+                fontSize: 18,
                 color: "#160F08",
                 outline: "none",
-                boxSizing: "border-box",
-                boxShadow: "0 0 0 4px rgba(255,90,0,0.12)"
+                boxSizing: "border-box"
               }}
             />
           </div>
@@ -1053,6 +1082,12 @@ useEffect(() => {
         >
           <button
             onClick={async () => {
+              // Occupation is mandatory — block completion until it is chosen.
+              if (!demographics.occupation) {
+                setDemoSubmitAttempted(true);
+                toast.error("Please select your occupation.");
+                return;
+              }
               try {
                 await API.patch(`/responses/${rId.current}`, {
                   age_range: demographics.age_range,
@@ -1070,13 +1105,13 @@ useEffect(() => {
               setDone(true);
             }}
             style={{
-              padding: "18px 20px",
+              padding: "18px 44px",
               borderRadius: 999,
               border: "none",
               background: "#FF5A00",
               color: "#fff",
               fontFamily: "Syne,sans-serif",
-              fontWeight: 800,
+              fontWeight: 600,
               fontSize: 12,
               letterSpacing: "0.16em",
               textTransform: "uppercase",
@@ -1085,28 +1120,6 @@ useEffect(() => {
             }}
           >
             {ui.saveContinue}
-          </button>
-
-          <button
-            onClick={() => {
-              setShowDemographics(false);
-              setDone(true);
-            }}
-            style={{
-              padding: "18px 28px",
-              borderRadius: 999,
-              border: "1px solid rgba(237,232,223,0.08)",
-              background: "transparent",
-              color: "rgba(237,232,223,0.28)",
-              fontFamily: "Syne,sans-serif",
-              fontWeight: 800,
-              fontSize: 12,
-              letterSpacing: "0.16em",
-              textTransform: "uppercase",
-              cursor: "pointer"
-            }}
-          >
-            {ui.skip}
           </button>
         </div>
       </motion.div>
@@ -1383,7 +1396,7 @@ useEffect(() => {
           {/* WELCOME */}
           {step === -1 && (
             <motion.div className="np-welcome-stage" key={`welcome-${currentLang}`} custom={dir} variants={variants} initial="enter" animate="show" exit="exit" transition={spring}
-              style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px 40px' }}>
+              style={{ position: 'absolute', inset: 0, display: 'flex', overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch', padding: '32px 40px' }}>
               <div aria-hidden style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
                 {/* Grain texture */}
                 <div style={{ position: 'absolute', inset: 0, backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E")`, backgroundSize: '250px', opacity: 0.04 }} />
@@ -1397,7 +1410,7 @@ useEffect(() => {
                 {/* Ghost watermark */}
                 <div style={{ position: 'absolute', bottom: '-20px', left: '-10px', fontFamily: "'Playfair Display',serif", fontWeight: 900, fontSize: 'clamp(120px,22vw,280px)', color: 'transparent', WebkitTextStroke: '1px rgba(255,69,0,0.04)', letterSpacing: '-8px', lineHeight: 1, userSelect: 'none', pointerEvents: 'none' }}>Pulse</div>
               </div>
-              <div style={{ textAlign: 'center', maxWidth: 560, position: 'relative', zIndex: 1 }}>
+              <div style={{ textAlign: 'center', maxWidth: 560, margin: 'auto', position: 'relative', zIndex: 1, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 14px', borderRadius: 999, border: `1px solid ${tc}2E`, background: `${tc}0D`, marginBottom: 32 }}>
                   <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: tc }}>
@@ -1440,9 +1453,11 @@ useEffect(() => {
           {/* QUESTION */}
           {step >= 0 && step < qs.length && q && (
             <motion.div className="np-question-stage" key={`${q.id}-${currentLang}`} custom={dir} variants={variants} initial="enter" animate="show" exit="exit" transition={spring}
-              style={{ position: 'absolute', inset: 0, overflowY: 'auto', overflowX: 'hidden' }}>
-              <div className="np-question-wrap" style={{ minHeight: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px 40px' }}>
-                <div className="np-question-panel" style={{ width: '100%', maxWidth: 680, position: 'relative' }}>
+              style={{ position: 'absolute', inset: 0, overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch' }}>
+              {/* margin:auto (not align-items:center) keeps the panel — and its Submit
+                  button — fully scrollable when content is taller than the viewport. */}
+              <div className="np-question-wrap" style={{ minHeight: '100%', display: 'flex', justifyContent: 'center', padding: '32px 40px' }}>
+                <div className="np-question-panel" style={{ width: '100%', maxWidth: 680, margin: 'auto 0', position: 'relative', overflowWrap: 'break-word', wordBreak: 'break-word' }}>
                   {/* Ghost question number */}
                   <div aria-hidden style={{ position: 'absolute', right: -8, top: -16, fontFamily: "'Playfair Display',serif", fontWeight: 900, fontSize: 'clamp(80px,13vw,130px)', color: 'rgba(22,15,8,0.032)', lineHeight: 1, letterSpacing: '-5px', userSelect: 'none', pointerEvents: 'none', zIndex: 0 }}>
                     {String(visPos).padStart(2, '0')}
@@ -1526,8 +1541,8 @@ useEffect(() => {
           {/* EMAIL COLLECTION (if required, shown after last question) */}
           {step === activeQs.length && activeSv?.require_email && (
             <motion.div key={`email-gate-${currentLang}`} custom={dir} variants={variants} initial="enter" animate="show" exit="exit" transition={spring}
-              style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px 40px' }}>
-              <div style={{ width: '100%', maxWidth: 520, textAlign: 'center' }}>
+              style={{ position: 'absolute', inset: 0, display: 'flex', overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch', padding: '32px 40px' }}>
+              <div style={{ width: '100%', maxWidth: 520, margin: 'auto', textAlign: 'center', overflowWrap: 'break-word', wordBreak: 'break-word' }}>
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 14px', borderRadius: 999, border: `1px solid ${tc}2E`, background: `${tc}0D`, marginBottom: 28 }}>
                   <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: tc }}>
@@ -1549,7 +1564,7 @@ useEffect(() => {
                      type="email"
                      value={email}
                      onChange={e => setEmail(e.target.value)}
-                     onKeyDown={e => { if (e.key === 'Enter' && email) submit(); }}
+                     onKeyDown={e => { if (e.key === 'Enter') submit(); }}
                      placeholder="you@company.com"
                      autoFocus
                      style={{ width: '100%', boxSizing: 'border-box', padding: '18px 24px', background: 'rgba(22,15,8,0.04)', border: `1.5px solid rgba(22,15,8,0.12)`, borderRadius: 18, fontFamily: 'Fraunces,serif', fontSize: 20, fontWeight: 300, color: fg, outline: 'none', textAlign: 'center', transition: 'border-color 0.2s, box-shadow 0.2s', marginBottom: 20 }}
@@ -1557,11 +1572,16 @@ useEffect(() => {
                      onBlur={e => { e.target.style.borderColor = 'rgba(22,15,8,0.12)'; e.target.style.boxShadow = 'none'; }}
                   />
                   <div style={{ display: 'flex', gap: 12, justifyContent: 'center', alignItems: 'center' }}>
+                    {(() => {
+                      const emailValid = EMAIL_RE.test((email || '').trim());
+                      return (
                     <motion.button id="continue-btn" data-testid="continue-btn" whileHover={{ scale: 1.02, y: -1 }} whileTap={{ scale: 0.97 }}
-                      onClick={submit} disabled={busy || !email}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '15px 44px', borderRadius: 999, border: 'none', background: email ? tc : 'rgba(22,15,8,0.1)', color: email ? '#fff' : sub, fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 12, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: (busy || !email) ? 'not-allowed' : 'pointer', opacity: busy ? 0.65 : 1, transition: 'all 0.25s', boxShadow: email ? `0 8px 32px ${tc}40` : 'none' }}>
+                      onClick={submit} disabled={busy || !emailValid}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '15px 44px', borderRadius: 999, border: 'none', background: emailValid ? tc : 'rgba(22,15,8,0.1)', color: emailValid ? '#fff' : sub, fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 12, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: (busy || !emailValid) ? 'not-allowed' : 'pointer', opacity: busy ? 0.65 : 1, transition: 'all 0.25s', boxShadow: emailValid ? `0 8px 32px ${tc}40` : 'none' }}>
                       {busy ? ui.submitting : <><span>{ui.submit}</span><Icons.Check style={{ color: 'currentColor' }} /></>}
                     </motion.button>
+                      );
+                    })()}
                   </div>
                 </motion.div>
               </div>

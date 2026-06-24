@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
-import useDrivePicker from 'react-google-drive-picker';
 import API from '../api/axios';
 import { getApiErrorMessage } from '../lib/apiError';
 import ExtractedContentReview from './ExtractedContentReview';
@@ -69,7 +68,6 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
   const [myFolderView, setMyFolderView] = useState(false);
   const [libraryPage, setLibraryPage] = useState(0);
 
-  const [openPicker, authResponse] = useDrivePicker();
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribingMic, setIsTranscribingMic] = useState(false);
   const [audioChunks, setAudioChunks] = useState([]);
@@ -142,39 +140,6 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
   const stopRecording = () => {
     mediaRecorderRef.current?.stop();
     setIsRecording(false);
-  };
-  const handleOpenPicker = () => {
-    setUploadOpen(false);
-    openPicker({
-      clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID,
-      developerKey: import.meta.env.VITE_GOOGLE_API_KEY,
-      viewId: "DOCS",
-      showUploadView: true,
-      showUploadFolders: true,
-      supportDrives: true,
-      multiselect: false,
-      callbackFunction: async (data) => {
-        if (data.action === 'picked') {
-          setUploading(true);
-          try {
-            const file = data.docs[0];
-            const res = await API.post('/uploads/drive', {
-              fileId: file.id,
-              accessToken: authResponse.access_token,
-              filename: file.name,
-              mimeType: file.mimeType
-            });
-            setAttachedFiles(prev => [...prev, toSource(res.data, 'file')]);
-            toast.success(`"${file.name}" attached from Drive`);
-          } catch (err) {
-            toast.error(getApiErrorMessage(err, "Drive import failed"));
-            console.error(err);
-          } finally {
-            setUploading(false);
-          }
-        }
-      },
-    });
   };
 
   useEffect(() => {
@@ -668,28 +633,6 @@ export default function SurveyPromptScreen({ onGenerate, onSkip, onLoadTemplate,
                       </motion.div>
                     )}
                   </AnimatePresence>
-
-                  {/* DRIVE */}
-                  <button
-                    type="button"
-                    className="cp-mode-option premium-option"
-                    onClick={handleOpenPicker}
-                  >
-                    <div className="premium-icon drive-icon">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                        <path
-                          d="M7 3h10l4 7-5 8H6L1 10l6-7z"
-                          stroke="currentColor"
-                          strokeWidth="1.8"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    </div>
-
-                    <div className="cp-mode-option-text">
-                      <div>From drive</div>
-                    </div>
-                  </button>
 
                   {/* LOCAL */}
                   <button

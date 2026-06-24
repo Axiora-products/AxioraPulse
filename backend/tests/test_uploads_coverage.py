@@ -153,26 +153,6 @@ def test_extract_link_unexpected_error_returns_502(auth_headers, monkeypatch):
     assert "boom internal detail" not in response.json()["detail"]
 
 
-# ── upload_from_drive: outer except -> 502 (lines 670, 672-673) ─────────────────
-def test_upload_from_drive_failure_returns_502(auth_headers, monkeypatch):
-    # Make the Drive client build raise so the outer except masks it as a 502.
-    def boom_build(*args, **kwargs):
-        raise RuntimeError("drive upstream failure detail")
-
-    monkeypatch.setattr(uploads_module, "build", boom_build)
-
-    payload = {
-        "accessToken": "mock-access-token",
-        "fileId": "mock-file-id-123",
-        "filename": "doc.pdf",
-        "mimeType": "application/pdf",
-    }
-    response = client.post("/uploads/drive", json=payload, headers=auth_headers)
-    assert response.status_code == 502
-    assert "Failed to import file from Google Drive" in response.json()["detail"]
-    assert "drive upstream failure detail" not in response.json()["detail"]
-
-
 # ── download_file: token rejection branch (line 880) ────────────────────────────
 def test_download_missing_token_is_rejected(auth_headers):
     # Valid UUID format but no token -> 403 (the `not token` half of line 879).

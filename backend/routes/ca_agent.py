@@ -8,6 +8,7 @@ with confidence levels and cross-validated estimates.
 import json
 import re
 from collections import Counter
+from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
@@ -18,6 +19,7 @@ from db.database import get_db
 from db.models import UserProfile, Survey, SurveyQuestion, SurveyResponse, SurveyAnswer
 from dependencies import get_current_user
 from core.rate_limiter import limiter
+from core import config
 from services.ai_provider import call_ai_sync
 from services.survey_intelligence import extract_survey_intelligence, FounderContext
 
@@ -532,6 +534,23 @@ async def run_ca_agent(
     survey = db.query(Survey).filter(Survey.id == survey_id).first()
     if not survey:
         raise HTTPException(status_code=404, detail="Survey not found.")
+
+    # ── 1a. Execute unlocks only when the survey reaches its expiry date ────────
+    #         (cannot be bypassed from the frontend). Surveys with no expiry set
+    #         are not gated.
+    if not (config.DISABLE_PAYMENTS or getattr(current_user, "is_internal", False)) and survey.expires_at:
+        exp = survey.expires_at
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        now = datetime.now(timezone.utc)
+        if now < exp:
+            delta = exp - now
+            remaining = max(1, delta.days + (1 if delta.seconds else 0))
+            raise HTTPException(
+                status_code=403,
+                detail="Execute unlocks when the survey reaches its expiry date. "
+                f"Please try again in {remaining} day(s).",
+            )
 
     # ── 2. Fetch questions ────────────────────────────────────────────────────
     questions = (

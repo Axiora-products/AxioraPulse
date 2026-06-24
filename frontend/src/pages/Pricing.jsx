@@ -5,6 +5,7 @@ import { createOrder, openCheckout } from '../api/paymentApi';
 import useAuthStore from '../hooks/useAuth';
 import useSubscription from '../hooks/useSubscription';
 import { getApiErrorMessage } from '../lib/apiError';
+import { openSupportEmail } from '../lib/constants';
 
 const PLANS = [
   {
@@ -84,7 +85,7 @@ export default function Pricing() {
 
   async function handleCta(plan) {
     if (plan.code === 'enterprise') {
-      window.location.href = 'mailto:hello@axioralabs.com?subject=Enterprise Plan';
+      openSupportEmail();
       return;
     }
     if (plan.code === 'free') {

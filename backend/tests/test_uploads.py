@@ -28,7 +28,8 @@ def test_upload_invalid_file_type(auth_headers):
     assert response.status_code == 400
 
 
-def test_upload_from_drive(auth_headers):
+def test_upload_from_drive_route_removed(auth_headers):
+    # The "Upload from Drive" feature was removed; the endpoint must no longer exist.
     payload = {
         "accessToken": "mock-access-token",
         "fileId": "mock-file-id-123",
@@ -36,10 +37,7 @@ def test_upload_from_drive(auth_headers):
         "mimeType": "application/pdf",
     }
     response = client.post("/uploads/drive", json=payload, headers=auth_headers)
-    assert response.status_code == 200
-    data = response.json()
-    assert data["filename"] == "GoogleDocFeedback.pdf"
-    assert "id" in data
+    assert response.status_code in (404, 405)
 
 
 def test_upload_audio(auth_headers):
