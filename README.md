@@ -52,7 +52,8 @@ This orchestrator starts the database, spins up the mock AWS environment (Floci)
 │   ├── services/        # Business logic services (Cognito, Email, Payments)
 │   └── tests/           # Pytest suite with 81% test coverage
 ├── frontend/            # React + Vite application
-└── infra/               # Infrastructure as Code (AWS CDK in TypeScript)
+├── infra/               # Infrastructure as Code (AWS CDK in TypeScript)
+└── super-admin/         # Independent Super Admin Console (FastAPI server + React web client)
 ```
 
 ---
