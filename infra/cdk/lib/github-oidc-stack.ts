@@ -111,6 +111,20 @@ export class GitHubOidcStack extends cdk.Stack {
       ],
     }));
 
+    // 5b. Add Permissions for CloudFormation orchestration (cancel stuck updates, describe stacks)
+    githubDeployerRole.addToPolicy(new iam.PolicyStatement({
+      actions: [
+        'cloudformation:DescribeStacks',
+        'cloudformation:DescribeStackEvents',
+        'cloudformation:CancelUpdateStack',
+      ],
+      resources: [
+        `arn:aws:cloudformation:${this.region}:${this.account}:stack/AxioraPulseStackQa/*`,
+        `arn:aws:cloudformation:${this.region}:${this.account}:stack/AxioraPulseStackProd/*`,
+      ],
+    }));
+
+
     // 6. Add Secrets Manager permissions (required since this role is reused as ECS Task/Execution Role)
     githubDeployerRole.addToPolicy(new iam.PolicyStatement({
       actions: ['secretsmanager:GetSecretValue'],

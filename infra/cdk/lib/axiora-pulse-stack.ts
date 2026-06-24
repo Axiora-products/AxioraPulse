@@ -650,7 +650,12 @@ export class AxioraPulseStack extends cdk.Stack {
       });
 
       superadminFrontendTaskDef.addContainer('SuperadminFrontendContainer', {
-        image: ecs.ContainerImage.fromRegistry('public.ecr.aws/nginx/nginx:alpine'),
+        image: ecs.ContainerImage.fromRegistry('public.ecr.aws/docker/library/python:3.11-alpine'),
+        command: [
+          "python3",
+          "-c",
+          "import http.server\nclass H(http.server.BaseHTTPRequestHandler):\n    def do_GET(self):\n        self.send_response(200)\n        self.end_headers()\n        self.wfile.write(b'OK')\nhttp.server.HTTPServer(('0.0.0.0', 80), H).serve_forever()"
+        ],
         portMappings: [{ containerPort: 80 }],
         logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'ecs', logGroup: new cdk.aws_logs.LogGroup(this, 'SuperadminFrontendLogGroup', {
           logGroupName: `/ecs/pulse-superadmin-frontend-${shortEnv}`,
