@@ -27,6 +27,7 @@ app = FastAPI(
     title="Axiora Pulse Super Admin API",
     description="Super Admin Console backend for Axiora Pulse",
     version="1.0.0",
+    root_path=os.getenv("ROOT_PATH", ""),
 )
 
 # ── CORS Middleware ──

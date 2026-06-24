@@ -21,7 +21,8 @@
         { "name": "ENVIRONMENT",                "value": "${ENV}" },
         { "name": "COGNITO_REGION",             "value": "ap-south-1" },
         { "name": "SUPER_ADMIN_COGNITO_REGION", "value": "ap-south-1" },
-        { "name": "MOCK_COGNITO",               "value": "false" }
+        { "name": "MOCK_COGNITO",               "value": "false" },
+        { "name": "ROOT_PATH",                  "value": "/super-admin-api" }
       ],
       "secrets": [
         {

@@ -20,9 +20,9 @@ server {
         proxy_read_timeout 60s;
     }
 
-    # React SPA — route all paths to index.html
+    # React SPA — route all paths to /super-admin/index.html
     location / {
-        try_files $uri $uri/ /index.html;
+        try_files $uri $uri/ /super-admin/index.html;
     }
 
     # Cache static assets aggressively

@@ -16,7 +16,7 @@ RUN npm run build
 # Stage 2: Serve with nginx
 FROM nginx:1.27-alpine
 
-COPY --from=builder /app/dist /usr/share/nginx/html
+COPY --from=builder /app/dist /usr/share/nginx/html/super-admin
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 
 EXPOSE 80

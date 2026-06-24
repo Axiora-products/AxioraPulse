@@ -767,6 +767,33 @@ export class AxioraPulseStack extends cdk.Stack {
           }
         });
 
+        if (superadminFrontendService && superadminBackendService) {
+          httpsListener.addTargets('SuperadminFrontendTargetHTTPS', {
+            port: 80,
+            targets: [superadminFrontendService],
+            priority: 10,
+            conditions: [
+              elbv2.ListenerCondition.pathPatterns(['/super-admin', '/super-admin/*'])
+            ],
+            healthCheck: {
+              path: '/super-admin/',
+            }
+          });
+
+          httpsListener.addTargets('SuperadminBackendTargetHTTPS', {
+            port: 8001,
+            protocol: elbv2.ApplicationProtocol.HTTP,
+            targets: [superadminBackendService],
+            priority: 20,
+            conditions: [
+              elbv2.ListenerCondition.pathPatterns(['/super-admin-api', '/super-admin-api/*'])
+            ],
+            healthCheck: {
+              path: '/docs',
+            }
+          });
+        }
+
         // Reuse the existing port 80 listener when enabling HTTPS so CloudFormation
         // updates it in place instead of creating a second listener on the same port.
         alb.addListener('FrontendListener', {
@@ -794,71 +821,33 @@ export class AxioraPulseStack extends cdk.Stack {
             path: '/',
           }
         });
-      }
-    }
 
-    // Superadmin Listeners (if services are defined)
-    if (superadminFrontendService && superadminBackendService) {
-      if (certificate) {
-        const superadminFrontendListener = alb.addListener('SuperadminFrontendListener', {
-          port: 5175,
-          protocol: elbv2.ApplicationProtocol.HTTPS,
-          certificates: [elbv2.ListenerCertificate.fromArn(certificate.certificateArn)],
-          open: true,
-        });
+        if (superadminFrontendService && superadminBackendService) {
+          frontendListener.addTargets('SuperadminFrontendTarget', {
+            port: 80,
+            targets: [superadminFrontendService],
+            priority: 10,
+            conditions: [
+              elbv2.ListenerCondition.pathPatterns(['/super-admin', '/super-admin/*'])
+            ],
+            healthCheck: {
+              path: '/super-admin/',
+            }
+          });
 
-        superadminFrontendListener.addTargets('SuperadminFrontendTargetHTTPS', {
-          port: 80,
-          targets: [superadminFrontendService],
-          healthCheck: {
-            path: '/',
-          }
-        });
-
-        const superadminBackendListener = alb.addListener('SuperadminBackendListener', {
-          port: 8001,
-          protocol: elbv2.ApplicationProtocol.HTTPS,
-          certificates: [elbv2.ListenerCertificate.fromArn(certificate.certificateArn)],
-          open: true,
-        });
-
-        superadminBackendListener.addTargets('SuperadminBackendTargetHTTPS', {
-          port: 8001,
-          protocol: elbv2.ApplicationProtocol.HTTP,
-          targets: [superadminBackendService],
-          healthCheck: {
-            path: '/docs',
-          }
-        });
-      } else {
-        const superadminFrontendListener = alb.addListener('SuperadminFrontendListener', {
-          port: 5175,
-          protocol: elbv2.ApplicationProtocol.HTTP,
-          open: true,
-        });
-
-        superadminFrontendListener.addTargets('SuperadminFrontendTarget', {
-          port: 80,
-          targets: [superadminFrontendService],
-          healthCheck: {
-            path: '/',
-          }
-        });
-
-        const superadminBackendListener = alb.addListener('SuperadminBackendListener', {
-          port: 8001,
-          protocol: elbv2.ApplicationProtocol.HTTP,
-          open: true,
-        });
-
-        superadminBackendListener.addTargets('SuperadminBackendTarget', {
-          port: 8001,
-          protocol: elbv2.ApplicationProtocol.HTTP,
-          targets: [superadminBackendService],
-          healthCheck: {
-            path: '/docs',
-          }
-        });
+          frontendListener.addTargets('SuperadminBackendTarget', {
+            port: 8001,
+            protocol: elbv2.ApplicationProtocol.HTTP,
+            targets: [superadminBackendService],
+            priority: 20,
+            conditions: [
+              elbv2.ListenerCondition.pathPatterns(['/super-admin-api', '/super-admin-api/*'])
+            ],
+            healthCheck: {
+              path: '/docs',
+            }
+          });
+        }
       }
     }
 
@@ -922,7 +911,7 @@ export class AxioraPulseStack extends cdk.Stack {
     if (isProd || shortEnv === 'qa') {
       const superAdminFrontendUrlParam = new ssm.StringParameter(this, 'SuperAdminFrontendUrlParam', {
         parameterName: `/axiorapulse/${shortEnv}/SUPER_ADMIN_FRONTEND_URL`,
-        stringValue: `https://${domainName}:5175`,
+        stringValue: `https://${domainName}/super-admin/`,
       });
       if (superadminBackendService) {
         superadminBackendService.node.addDependency(superAdminFrontendUrlParam);
@@ -979,7 +968,7 @@ export class AxioraPulseStack extends cdk.Stack {
     NagSuppressions.addResourceSuppressions(alb.connections.securityGroups[0], [
       {
         id: 'AwsSolutions-EC23',
-        reason: 'ALB is public-facing and must allow inbound HTTP/HTTPS traffic on ports 80, 443, 8000, 8001, and 5175.'
+        reason: 'ALB is public-facing and must allow inbound HTTP/HTTPS traffic on ports 80, 443, and 8000.'
       }
     ]);
 
