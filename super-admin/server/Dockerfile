@@ -3,7 +3,7 @@ FROM python:3.12-slim as builder
 
 WORKDIR /app
 
-COPY requirements.txt .
+COPY super-admin/server/requirements.txt .
 
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
@@ -23,7 +23,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy backend for database models and super-admin server code
 COPY backend /backend
-COPY . /app
+COPY super-admin/server /app
 
 EXPOSE 8001
 
