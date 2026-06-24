@@ -229,14 +229,14 @@ export default function Login() {
       const storeUser = useAuthStore.getState().user;
       if (!storeUser) throw new Error('Failed to sync session');
       toast.success('Welcome back!');
-      window.location.href = consumePostAuthRedirect(storeUser.role === 'super_admin' ? '/super-admin' : '/dashboard');
+      window.location.href = consumePostAuthRedirect('/dashboard');
     } catch (err) {
       toast.error(getApiErrorMessage(err, 'Verification failed'));
     } finally { setOtpBusy(false); }
   };
 
   if (initialized && user) {
-    return <Navigate to={user.role === 'super_admin' ? '/super-admin' : '/dashboard'} replace />;
+    return <Navigate to="/dashboard" replace />;
   }
   const go = async (e) => {
     e.preventDefault();
@@ -253,7 +253,7 @@ export default function Login() {
         throw new Error('Failed to synchronize user session with the backend. Please try again.');
       }
       toast.success('Welcome back!');
-      window.location.href = consumePostAuthRedirect(storeUser.role === 'super_admin' ? '/super-admin' : '/dashboard');
+      window.location.href = consumePostAuthRedirect('/dashboard');
     } catch (err) {
       // amazon-cognito-identity-js surfaces the error type on `code` in some
       // versions and `name` in others; check both (plus the message as a fallback).

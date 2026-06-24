@@ -106,6 +106,17 @@ fi
 if [ "$DOWN" = "true" ]; then
   echo "🛑 Stopping and tearing down the container stack..."
   $DOCKER_CMD compose -f docker-compose.local.yml down
+  
+  echo "🛑 Stopping Super Admin Console processes..."
+  ADMIN_API_PID=$(lsof -t -i :8001 2>/dev/null || true)
+  if [ -n "$ADMIN_API_PID" ]; then
+    kill $ADMIN_API_PID 2>/dev/null || true
+  fi
+  ADMIN_WEB_PID=$(lsof -t -i :5175 2>/dev/null || true)
+  if [ -n "$ADMIN_WEB_PID" ]; then
+    kill $ADMIN_WEB_PID 2>/dev/null || true
+  fi
+  
   echo "✨ System stopped."
   exit 0
 fi
@@ -207,8 +218,25 @@ echo "========================================================================"
 # --- Generate Dummy Environment Files (to prevent Docker Compose startup error) ---
 echo "⚙️  Preparing local environment files..."
 mkdir -p backend frontend
-touch backend/.env.docker
-touch frontend/.env.local
+
+# The backend fail-closes on a missing/insecure SECRET_KEY at import time, so an
+# empty .env.docker would crash it before init_local_aws.py can generate the real
+# one. Seed a valid bootstrap secret on first run to break that chicken-and-egg.
+if [ ! -f backend/.env.docker ] || [ ! -s backend/.env.docker ]; then
+  boot_secret=$(openssl rand -base64 48 2>/dev/null | tr -dc 'a-zA-Z0-9' | head -c 48)
+  if [ -z "$boot_secret" ]; then
+    boot_secret="bootstrap-secret-key-for-local-development-purposes"
+  fi
+  cat << EOF > backend/.env.docker
+# Bootstrap env for first container start. Overwritten by init_local_aws.py.
+SECRET_KEY=$boot_secret
+ENVIRONMENT=development
+EOF
+fi
+
+if [ ! -f frontend/.env.local ]; then
+  touch frontend/.env.local
+fi
 
 # --- Startup Services (Unified) ---
 echo "🌐 Spin up the local development/test container stack..."
@@ -467,18 +495,40 @@ else
   echo "⚠️ Backend did not become healthy in time. Skipping Cognito user seeding."
 fi
 
+# --- Boot Super Admin Console (FastAPI and Vite) ---
+echo "🚀 Starting Super Admin Console..."
+cd super-admin/server
+if [ ! -d "venv" ]; then
+  echo "🔧 Creating python virtual environment for Super Admin API..."
+  python3 -m venv venv
+fi
+source venv/bin/activate
+pip install --disable-pip-version-check -r requirements.txt >/dev/null 2>&1
+python3 main.py > api.log 2>&1 &
+cd ../..
+
+cd super-admin/web
+if [ ! -d "node_modules" ]; then
+  echo "📥 Installing frontend packages for Super Admin Web..."
+  npm install >/dev/null 2>&1
+fi
+npm run dev > web.log 2>&1 &
+cd ../..
+
 echo "========================================================================"
 echo "✅ AxioraPulse container stack is up and active!"
 echo "========================================================================"
-echo "   🖥️  Frontend UI:    http://localhost:5173"
-echo "   ⚙️  Backend API:    http://localhost:8000"
-echo "   📖 API Swagger Docs: http://localhost:8000/docs"
-echo "   🗄️  Local DB Port:  5432 (Persistent)"
+echo "   🖥️  Frontend UI:          http://localhost:5173"
+echo "   ⚙️  Backend API:          http://localhost:8000"
+echo "   📖 API Swagger Docs:      http://localhost:8000/docs"
+echo "   🖥️  Super Admin Console:  http://localhost:5175"
+echo "   ⚙️  Super Admin API Docs: http://localhost:8001/docs"
+echo "   🗄️  Local DB Port:        5432 (Persistent)"
 echo "========================================================================"
 echo "💡 To monitor container logs, run:"
 echo "   $DOCKER_CMD compose -f docker-compose.local.yml logs -f"
 echo ""
-echo "💡 To shutdown the container network, run:"
+echo "💡 To shutdown the container network and admin console, run:"
 echo "   ./run-local.sh --down"
 echo "========================================================================"
 
