@@ -726,9 +726,7 @@ def _enforce_bulk_limit(db, survey_id, channel, count, per_request, per_day, ove
         if row:
             row.recipient_count = used + count
         else:
-            db.add(
-                BulkSendUsage(survey_id=sid, channel=channel, usage_date=today, recipient_count=count)
-            )
+            db.add(BulkSendUsage(survey_id=sid, channel=channel, usage_date=today, recipient_count=count))
 
     try:
         _reserve()

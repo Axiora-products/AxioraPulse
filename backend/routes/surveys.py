@@ -96,9 +96,7 @@ def _effective_survey_limit(db: Session, user: UserProfile):
     if config.DISABLE_PAYMENTS or getattr(user, "is_internal", False):
         return None
     sub = (
-        db.query(Subscription)
-        .filter(Subscription.tenant_id == user.tenant_id, Subscription.status == "active")
-        .first()
+        db.query(Subscription).filter(Subscription.tenant_id == user.tenant_id, Subscription.status == "active").first()
     )
     plan = sub.plan if sub else None
     if plan is not None:
