@@ -155,53 +155,6 @@ def mock_whisper(monkeypatch):
     monkeypatch.setattr(subprocess, "run", mock_subprocess_run)
 
 
-# --- Mock Google Drive SDK ---
-class MockDriveFiles:
-    def export_media(self, fileId, mimeType):
-        class RequestMock:
-            def execute(self):
-                return b"mock file content"
-
-        return RequestMock()
-
-    def get_media(self, fileId):
-        class RequestMock:
-            def execute(self):
-                return b"mock file content"
-
-        return RequestMock()
-
-
-class MockDriveService:
-    def files(self):
-        return MockDriveFiles()
-
-
-@pytest.fixture(autouse=True)
-def mock_google_drive(monkeypatch):
-    import routes.uploads
-
-    class DummyCredentials:
-        def __init__(self, token):
-            self.token = token
-
-    def mock_build(serviceName, version, credentials=None):
-        return MockDriveService()
-
-    class MockMediaIoBaseDownload:
-        def __init__(self, fh, request):
-            self.fh = fh
-            self.fh.write(b"mock drive download content")
-
-        def next_chunk(self):
-            return None, True
-
-    # Monkeypatch where these are used inside routes.uploads
-    monkeypatch.setattr(routes.uploads, "Credentials", DummyCredentials)
-    monkeypatch.setattr(routes.uploads, "build", mock_build)
-    monkeypatch.setattr(routes.uploads, "MediaIoBaseDownload", MockMediaIoBaseDownload)
-
-
 # --- Mock Razorpay Client ---
 class MockRazorpayOrder:
     def create(self, data):

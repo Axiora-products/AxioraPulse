@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import useSubscription from '../hooks/useSubscription';
 import useAuthStore from '../hooks/useAuth';
+import { openSupportEmail } from '../lib/constants';
 
 const card = { background: 'var(--warm-white)', borderRadius: 20, border: '1px solid rgba(22,15,8,0.07)', padding: '24px 32px', marginBottom: 12 };
 const secH = { fontFamily: 'Syne, sans-serif', fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.35)', marginBottom: 14 };
@@ -37,7 +37,6 @@ export default function Billing() {
   const { subscription, loading, loaded, load } = useSubscription();
   const { tenant } = useAuthStore();
   const isPersonal = tenant?.account_type === 'personal';
-  const navigate = useNavigate();
 
   useEffect(() => { if (!loaded) load(); }, [loaded]);
 
@@ -78,7 +77,7 @@ export default function Billing() {
               </span>
             </div>
             <button
-              onClick={() => navigate('/pricing')}
+              onClick={() => openSupportEmail()}
               style={{ padding: '13px 28px', borderRadius: 999, border: 'none', background: 'var(--coral)', color: '#fff', fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}
             >
               Upgrade plan
@@ -123,7 +122,7 @@ export default function Billing() {
             {plan.code !== 'enterprise' && (
               <div style={{ marginTop: 16 }}>
                 <button
-                  onClick={() => navigate('/pricing')}
+                  onClick={() => openSupportEmail()}
                   style={{ padding: '13px 28px', borderRadius: 999, border: 'none', background: 'var(--espresso)', color: 'var(--cream)', fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}
                 >
                   Change plan

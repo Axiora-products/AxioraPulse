@@ -15,10 +15,8 @@ import {
   Archive,
   FileJson,
   Mic,
-  ImageIcon,
   Files as FilesIcon,
   Music2,
-  Images,
   Search,
   Download,
   Trash2,
@@ -45,13 +43,6 @@ const FILE_TYPES = [
     icon: Music2,
     color: '#C026D3',
     bg: 'rgba(192,38,211,0.10)',
-  },
-  {
-    id: 'image',
-    label: 'Images',
-    icon: Images,
-    color: '#CA8A04',
-    bg: 'rgba(202,138,4,0.10)',
   },
 ];
 
@@ -114,13 +105,6 @@ const getFileIcon = (type, name = '') => {
     n.endsWith('.mp4')
   ) {
     return <FileVideo {...commonProps} color="#DC2626" />;
-  }
-
-  if (
-    t.includes('image') ||
-    ['.png', '.jpg', '.jpeg', '.webp'].some(ext => n.endsWith(ext))
-  ) {
-    return <ImageIcon {...commonProps} color="#CA8A04" />;
   }
 
   if (
@@ -194,11 +178,7 @@ export default function Files() {
   const filteredFiles = files.filter(f => {
     // Apply Category Filter
     if (filter !== 'all') {
-      if (filter === 'image') {
-        if (!f.content_type?.startsWith('image/')) return false;
-      } else {
-        if (f.upload_type !== filter) return false;
-      }
+      if (f.upload_type !== filter) return false;
     }
     // Apply Search
     if (search.trim()) {

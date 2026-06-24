@@ -351,8 +351,13 @@ def test_share_survey_email(auth_headers):
     assert response.status_code == 200
 
 
+# Survey seeded by conftest; used for per-survey bulk usage tracking.
+SEED_SURVEY_ID = "e0cd2144-b592-4e3a-92a4-9e78eccbe9e9"
+
+
 def test_bulk_share_survey_email(auth_headers):
     payload = {
+        "survey_id": SEED_SURVEY_ID,
         "emails": ["client1@example.com", "client2@example.com", "invalid-email"],
         "survey_title": "Product Feedback",
         "survey_link": "http://localhost:5173/survey/product",
@@ -367,8 +372,21 @@ def test_bulk_share_survey_email(auth_headers):
     assert data["failed"] == 1
 
 
+def test_bulk_share_survey_email_over_request_limit(auth_headers):
+    payload = {
+        "survey_id": SEED_SURVEY_ID,
+        "emails": [f"user{i}@example.com" for i in range(31)],  # > 30
+        "survey_title": "Product Feedback",
+        "survey_link": "http://localhost:5173/survey/product",
+    }
+    response = client.post("/users/bulk-share-survey", json=payload, headers=auth_headers)
+    assert response.status_code == 400
+    assert "maximum of 30" in response.json()["detail"]
+
+
 def test_bulk_share_whatsapp(auth_headers):
     payload = {
+        "survey_id": SEED_SURVEY_ID,
         "numbers": ["+1234567890", "+9876543210"],
         "survey_title": "Mobile App Experience",
         "survey_link": "http://localhost:5173/survey/app",
@@ -379,3 +397,15 @@ def test_bulk_share_whatsapp(auth_headers):
     data = response.json()
     assert data["total"] == 2
     assert data["sent"] == 2
+
+
+def test_bulk_share_whatsapp_over_request_limit(auth_headers):
+    payload = {
+        "survey_id": SEED_SURVEY_ID,
+        "numbers": [f"+1000000{i:04d}" for i in range(21)],  # > 20
+        "survey_title": "Mobile App Experience",
+        "survey_link": "http://localhost:5173/survey/app",
+    }
+    response = client.post("/users/bulk-share-whatsapp", json=payload, headers=auth_headers)
+    assert response.status_code == 400
+    assert "maximum of 20" in response.json()["detail"]
