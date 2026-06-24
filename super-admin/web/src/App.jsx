@@ -16,7 +16,20 @@ import {
   ExternalLink,
   ShieldCheck,
   UserCheck,
-  Zap
+  Zap,
+  Sun,
+  Moon,
+  ShoppingCart,
+  Bell,
+  Mail,
+  ChevronDown,
+  TrendingUp,
+  MoreVertical,
+  Globe,
+  Calendar,
+  Sparkles,
+  Lock,
+  ArrowRight
 } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
@@ -44,23 +57,50 @@ export default function App() {
 
   // Authentication states
   const [emailInput, setEmailInput] = useState('');
-  const [nameInput, setNameInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
+  const [nameInput, setNameInput] = useState(''); // Used as display name fallback in mock mode
   const [adminProfile, setAdminProfile] = useState(null);
+
+  // Dynamic Auth configuration fetched from backend
+  const [authConfig, setAuthConfig] = useState({
+    cognito_client_id: '',
+    cognito_region: 'ap-south-1',
+    mock_cognito: false
+  });
 
   // Modal control states
   const [editingTenant, setEditingTenant] = useState(null);
   const [newPlan, setNewPlan] = useState('');
   const [viewingLogDetail, setViewingLogDetail] = useState(null);
 
+  // Fetch Cognito auth config on mount
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/admin/auth/config`)
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to retrieve server auth config');
+        return res.json();
+      })
+      .then(data => setAuthConfig(data))
+      .catch(err => {
+        console.error("Auth configuration fetch failed:", err);
+        // Fallback defaults
+        setAuthConfig({
+          cognito_client_id: '',
+          cognito_region: 'ap-south-1',
+          mock_cognito: false
+        });
+      });
+  }, []);
+
   useEffect(() => {
     if (token) {
-      // Basic token parsing to get name/email for display
+      // Basic token decoding to get user metadata for display
       try {
         const payloadStr = token.split('.')[1];
         const payload = JSON.parse(atob(payloadStr));
         setAdminProfile({
           email: payload.email,
-          name: payload.name || payload.email.split('@')[0],
+          name: payload.name || payload.email.split('@')[0].toUpperCase(),
           role: 'Super Admin'
         });
         fetchSectionData(currentSection);
@@ -81,38 +121,80 @@ export default function App() {
     localStorage.removeItem('admin_token');
     setToken('');
     setAdminProfile(null);
+    setError('');
   };
 
-  const handleMockLogin = async (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
     
-    if (!emailInput.endsWith('@axioraglobalsolutions.com')) {
+    const emailClean = emailInput.trim().lower();
+    if (!emailClean.endsWith('@axioraglobalsolutions.com')) {
       setError('Forbidden: Only @axioraglobalsolutions.com emails can access the Super Admin Console.');
       setLoading(false);
       return;
     }
 
-    try {
-      const res = await fetch(`${API_BASE_URL}/admin/auth/mock-login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: emailInput, name: nameInput })
-      });
+    if (authConfig.mock_cognito) {
+      // Mock Login Flow
+      try {
+        const res = await fetch(`${API_BASE_URL}/admin/auth/mock-login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: emailClean, name: nameInput })
+        });
 
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.detail || 'Login failed');
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.detail || 'Login failed');
+        }
+
+        const data = await res.json();
+        localStorage.setItem('admin_token', data.id_token);
+        setToken(data.id_token);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
       }
+    } else {
+      // Real Cognito login via direct AWS Cognito API
+      try {
+        if (!passwordInput) {
+          throw new Error('Password is required for Cognito authentication.');
+        }
 
-      const data = await res.json();
-      localStorage.setItem('admin_token', data.id_token);
-      setToken(data.id_token);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
+        const res = await fetch(`https://cognito-idp.${authConfig.cognito_region}.amazonaws.com/`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-amz-json-1.1',
+            'X-Amz-Target': 'AWSCognitoIdentityProviderService.InitiateAuth'
+          },
+          body: JSON.stringify({
+            AuthFlow: 'USER_PASSWORD_AUTH',
+            ClientId: authConfig.cognito_client_id,
+            AuthParameters: {
+              USERNAME: emailClean,
+              PASSWORD: passwordInput
+            }
+          })
+        });
+
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.message || errData.__type || 'Authentication failed');
+        }
+
+        const data = await res.json();
+        const idToken = data.AuthenticationResult.IdToken;
+        localStorage.setItem('admin_token', idToken);
+        setToken(idToken);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -331,17 +413,20 @@ export default function App() {
         <div className="login-card">
           <div className="login-logo">
             <div className="login-logo-symbol">
-              <ShieldCheck size={26} color="white" />
+              <ShieldCheck size={20} />
             </div>
-            <span className="logo-text">Axiora Pulse</span>
-            <span className="logo-badge">Console</span>
+            <span className="logo-text">shadcnspace<span className="logo-dot">.</span></span>
           </div>
           <h2 className="login-title">Super Admin Login</h2>
-          <p className="login-subtitle">Access restricted to authorized personnel</p>
+          <p className="login-subtitle">
+            {authConfig.mock_cognito 
+              ? 'Local Sandbox Environment (Bypass password)' 
+              : 'Real QA Environment (AWS Cognito Authentication)'}
+          </p>
 
           {error && <div className="login-error">{error}</div>}
 
-          <form className="login-form" onSubmit={handleMockLogin}>
+          <form className="login-form" onSubmit={handleLogin}>
             <div className="form-group">
               <label className="form-label">Admin Email</label>
               <input 
@@ -353,16 +438,32 @@ export default function App() {
                 onChange={e => setEmailInput(e.target.value)}
               />
             </div>
-            <div className="form-group">
-              <label className="form-label">Display Name (Optional)</label>
-              <input 
-                type="text" 
-                className="form-input" 
-                placeholder="Admin User"
-                value={nameInput}
-                onChange={e => setNameInput(e.target.value)}
-              />
-            </div>
+            
+            {authConfig.mock_cognito ? (
+              <div className="form-group">
+                <label className="form-label">Display Name (Optional)</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  placeholder="Admin User"
+                  value={nameInput}
+                  onChange={e => setNameInput(e.target.value)}
+                />
+              </div>
+            ) : (
+              <div className="form-group">
+                <label className="form-label">Password</label>
+                <input 
+                  type="password" 
+                  required 
+                  className="form-input" 
+                  placeholder="••••••••"
+                  value={passwordInput}
+                  onChange={e => setPasswordInput(e.target.value)}
+                />
+              </div>
+            )}
+
             <button type="submit" className="login-btn" disabled={loading}>
               {loading ? 'Authenticating...' : 'Sign in as Administrator'}
             </button>
@@ -372,41 +473,82 @@ export default function App() {
     );
   }
 
-  // Navigation Items matching the DB tables
-  const navItems = [
-    { id: 'dashboard', label: 'Overview', icon: <LayoutDashboard size={18} /> },
-    { id: 'tenants', label: 'Tenants (Organizations)', icon: <Building size={18} /> },
-    { id: 'users', label: 'Users (Profiles)', icon: <Users size={18} /> },
-    { id: 'surveys', label: 'Surveys (Questions)', icon: <FileQuestion size={18} /> },
-    { id: 'subscriptions', label: 'Billing & Payments', icon: <CreditCard size={18} /> },
-    { id: 'demos', label: 'Leads & Demos', icon: <CalendarClock size={18} /> },
-    { id: 'audit-logs', label: 'Audit Trail Logs', icon: <ShieldAlert size={18} /> },
+  // Sidebar sections matching screenshot layout
+  const dashboardItems = [
+    { id: 'dashboard', label: 'Analytics', icon: <LayoutDashboard size={16} /> },
+    { id: 'ecommerce_mock', label: 'eCommerce', icon: <CreditCard size={16} />, disabled: true },
+    { id: 'crm_mock', label: 'CRM Dashboard', icon: <Users size={16} />, disabled: true },
   ];
+
+  const appItems = [
+    { id: 'tenants', label: 'Tenants (Orgs)', icon: <Building size={16} /> },
+    { id: 'users', label: 'Users (Profiles)', icon: <Users size={16} /> },
+    { id: 'surveys', label: 'Surveys (Questions)', icon: <FileQuestion size={16} /> },
+    { id: 'subscriptions', label: 'Billing & Transactions', icon: <CreditCard size={16} /> },
+    { id: 'demos', label: 'Demos & Waitlist', icon: <CalendarClock size={16} /> },
+    { id: 'audit-logs', label: 'Audit Trail Logs', icon: <ShieldAlert size={16} /> },
+  ];
+
+  // Max value calculators for drawing charts
+  const maxRevenueVal = analytics?.daily_revenue?.length
+    ? Math.max(...analytics.daily_revenue.map(d => Math.max(d.earnings, d.expense)), 100)
+    : 100;
+
+  const maxMonthlyVal = analytics?.monthly_earnings?.length
+    ? Math.max(...analytics.monthly_earnings.map(m => m.earnings), 1000)
+    : 1000;
 
   return (
     <div className="app-container">
       {/* ── Left Navigation Sidebar ── */}
       <aside className="sidebar">
         <div className="sidebar-logo">
-          <div className="login-logo-symbol" style={{width: 32, height: 32, borderRadius: 6}}>
-            <ShieldCheck size={18} color="white" />
+          <div className="login-logo-symbol" style={{width: 24, height: 24, borderRadius: 5}}>
+            <ShieldCheck size={14} />
           </div>
-          <span className="logo-text" style={{fontSize: 16}}>Axiora Admin</span>
-          <span className="logo-badge" style={{fontSize: 8}}>Internal</span>
+          <span className="logo-text" style={{fontSize: 16}}>shadcnspace<span className="logo-dot">.</span></span>
         </div>
 
+        <div className="sidebar-section-title">Dashboard</div>
         <nav className="sidebar-nav">
-          {navItems.map(item => (
+          {dashboardItems.map(item => (
+            <div 
+              key={item.id} 
+              className={`nav-item ${currentSection === item.id ? 'active' : ''} ${item.disabled ? 'disabled-nav' : ''}`}
+              onClick={() => !item.disabled && setCurrentSection(item.id)}
+              style={item.disabled ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+            >
+              <div className="nav-item-left">
+                {item.icon}
+                <span>{item.label}</span>
+              </div>
+            </div>
+          ))}
+        </nav>
+
+        <div className="sidebar-section-title">Apps</div>
+        <nav className="sidebar-nav">
+          {appItems.map(item => (
             <div 
               key={item.id} 
               className={`nav-item ${currentSection === item.id ? 'active' : ''}`}
               onClick={() => setCurrentSection(item.id)}
             >
-              {item.icon}
-              <span>{item.label}</span>
+              <div className="nav-item-left">
+                {item.icon}
+                <span>{item.label}</span>
+              </div>
             </div>
           ))}
         </nav>
+
+        {/* ── Grab Pro Now Promo Widget (From Screenshot) ── */}
+        <div className="promo-card">
+          <img src="/cats_box.jpg" alt="Promo illustration" className="promo-image" />
+          <span className="promo-title">Grab Pro Now</span>
+          <span className="promo-desc">Customize your admin dashboard controls</span>
+          <button className="btn-promo">Get Premium</button>
+        </div>
 
         <div className="sidebar-footer">
           {adminProfile && (
@@ -421,7 +563,7 @@ export default function App() {
             </div>
           )}
           <button className="btn-logout" onClick={handleLogout}>
-            <LogOut size={14} />
+            <LogOut size={12} />
             <span>Sign out</span>
           </button>
         </div>
@@ -430,110 +572,292 @@ export default function App() {
       {/* ── Main Content Area ── */}
       <main className="main-content">
         <header className="header">
-          <div className="header-title">
-            <h1 style={{textTransform: 'capitalize'}}>{currentSection.replace('-', ' ')} Control</h1>
+          <div className="header-search-container">
+            <Search size={14} color="var(--text-muted)" />
+            <input 
+              type="text" 
+              className="header-search-input" 
+              placeholder="Search components or actions..." 
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+            />
           </div>
+          
           <div className="header-actions">
-            {success && <span style={{color: 'var(--accent-emerald)', fontSize: 13, fontWeight: 600}}>{success}</span>}
-            <button className="btn-secondary" onClick={() => fetchSectionData(currentSection)} disabled={loading}>
+            {success && <span style={{color: 'var(--accent-emerald)', fontSize: 12, fontWeight: 600}}>{success}</span>}
+            
+            <button className="header-icon-btn">
+              <Sun size={18} />
+            </button>
+            <button className="header-icon-btn">
+              <Globe size={18} />
+            </button>
+            <button className="header-icon-btn">
+              <ShoppingCart size={18} />
+              <span className="badge-number">11</span>
+            </button>
+            <button className="header-icon-btn">
+              <Bell size={18} />
+              <span className="badge-dot"></span>
+            </button>
+            <button className="header-icon-btn">
+              <Mail size={18} />
+            </button>
+            
+            <button className="header-icon-btn" onClick={() => fetchSectionData(currentSection)} disabled={loading}>
               <RefreshCw size={14} className={loading ? 'spin' : ''} />
             </button>
+
+            <div style={{width: 1, height: 20, backgroundColor: 'var(--border-color)'}} />
+            
+            <div className="header-avatar">
+              <div style={{width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: 10, backgroundColor: '#f1f5f9'}}>SA</div>
+            </div>
           </div>
         </header>
 
         <div className="workspace-area">
           {error && <div className="login-error" style={{marginBottom: 20}}>{error}</div>}
 
-          {/* ── Render Sections ── */}
-
-          {/* 1. Dashboard/Overview */}
+          {/* ── 1. DASHBOARD OVERVIEW ── */}
           {currentSection === 'dashboard' && analytics && (
             <div>
-              <div className="card-grid">
-                <div className="kpi-card">
-                  <div className="kpi-info">
-                    <span className="kpi-title">Total Tenants</span>
-                    <span className="kpi-value">{analytics.kpis.total_tenants}</span>
+              {/* Top Row: Banner and Small KPI Cards */}
+              <div className="kpi-grid">
+                {/* 1a. Banner Card (Analytics Dashboard) */}
+                <div className="banner-card">
+                  <div className="banner-left">
+                    <span className="banner-title">Analytics Dashboard</span>
+                    <span className="banner-subtitle">Check all system-wide telemetry</span>
+                    <div className="banner-stats">
+                      <div className="banner-stat-item">
+                        <span className="banner-stat-label">Total Revenue</span>
+                        <span className="banner-stat-value">₹{analytics.kpis.total_revenue.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                      </div>
+                      <div className="banner-stat-item">
+                        <span className="banner-stat-label">Total Tenants</span>
+                        <span className="banner-stat-value">{analytics.kpis.total_tenants}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="kpi-icon-wrapper"><Building size={20} /></div>
+                  {/* Decorative modern vector art matching screenshot style */}
+                  <div className="banner-illustration-container">
+                    <svg viewBox="0 0 100 80" width="120" height="100">
+                      <rect x="15" y="45" width="70" height="35" rx="4" fill="#f1f5f9" stroke="#e2e8f0" strokeWidth="1" />
+                      <circle cx="50" cy="28" r="14" fill="#e2e8f0" />
+                      <path d="M 38 42 L 62 42 L 56 22 L 44 22 Z" fill="#475569" />
+                      <rect x="35" y="48" width="30" height="4" rx="1" fill="#0f172a" />
+                      <circle cx="42" cy="26" r="2" fill="#fff" />
+                      <circle cx="58" cy="26" r="2" fill="#fff" />
+                      <path d="M 46 34 Q 50 36 54 34" stroke="#fff" strokeWidth="1" fill="none" />
+                      <rect x="25" y="58" width="50" height="2" fill="#cbd5e1" />
+                    </svg>
+                  </div>
                 </div>
-                <div className="kpi-card">
-                  <div className="kpi-info">
-                    <span className="kpi-title">Total Users</span>
-                    <span className="kpi-value">{analytics.kpis.total_users}</span>
+
+                {/* 1b. Weekly Sales Card */}
+                <div className="stat-card">
+                  <div className="stat-card-header">
+                    <span className="stat-card-title">Weekly Sales</span>
+                    <div className="stat-card-icon">
+                      <Calendar size={14} />
+                    </div>
                   </div>
-                  <div className="kpi-icon-wrapper"><Users size={20} /></div>
+                  <div className="stat-card-body">
+                    <div className="stat-card-value-container">
+                      <span className="stat-card-value">₹{analytics.kpis.weekly_sales.toLocaleString('en-IN', {maximumFractionDigits: 0})}</span>
+                      <span className={analytics.kpis.weekly_sales_change >= 0 ? "pill-growth" : "pill-negative"}>
+                        {analytics.kpis.weekly_sales_change >= 0 ? '+' : ''}{analytics.kpis.weekly_sales_change}%
+                      </span>
+                    </div>
+                    <span className="stat-card-link">See Report <ArrowRight size={10} /></span>
+                  </div>
                 </div>
-                <div className="kpi-card">
-                  <div className="kpi-info">
-                    <span className="kpi-title">Total Surveys</span>
-                    <span className="kpi-value">{analytics.kpis.total_surveys}</span>
+
+                {/* 1c. Purchase Orders Card */}
+                <div className="stat-card">
+                  <div className="stat-card-header">
+                    <span className="stat-card-title">Purchase Orders</span>
+                    <div className="stat-card-icon">
+                      <CreditCard size={14} />
+                    </div>
                   </div>
-                  <div className="kpi-icon-wrapper"><FileQuestion size={20} /></div>
-                </div>
-                <div className="kpi-card">
-                  <div className="kpi-info">
-                    <span className="kpi-title">Total Responses</span>
-                    <span className="kpi-value">{analytics.kpis.total_responses}</span>
+                  <div className="stat-card-body">
+                    <div className="stat-card-value-container">
+                      <span className="stat-card-value">{analytics.kpis.weekly_orders}</span>
+                      <span className={analytics.kpis.weekly_orders_change >= 0 ? "pill-growth" : "pill-negative"}>
+                        {analytics.kpis.weekly_orders_change >= 0 ? '+' : ''}{analytics.kpis.weekly_orders_change}%
+                      </span>
+                    </div>
+                    <span className="stat-card-link">See Report <ArrowRight size={10} /></span>
                   </div>
-                  <div className="kpi-icon-wrapper"><Zap size={20} /></div>
-                </div>
-                <div className="kpi-card">
-                  <div className="kpi-info">
-                    <span className="kpi-title">Revenue (INR)</span>
-                    <span className="kpi-value">₹{analytics.kpis.total_revenue.toFixed(2)}</span>
-                  </div>
-                  <div className="kpi-icon-wrapper"><CreditCard size={20} /></div>
-                </div>
-                <div className="kpi-card">
-                  <div className="kpi-info">
-                    <span className="kpi-title">Active Subs</span>
-                    <span className="kpi-value">{analytics.kpis.total_subscriptions}</span>
-                  </div>
-                  <div className="kpi-icon-wrapper"><UserCheck size={20} /></div>
                 </div>
               </div>
 
-              <div className="split-grid">
+              {/* Middle Row: Revenue Updates (Bar Chart) & Monthly Earnings (Area Line) */}
+              <div className="panel-grid">
+                {/* 2a. Revenue Updates Double Bar Chart */}
                 <div className="panel-card">
-                  <h3 className="panel-title">Recent Payments</h3>
-                  <div className="trend-list">
-                    {analytics.recent_payments.map(p => (
-                      <div className="trend-item" key={p.id}>
-                        <div className="trend-info">
-                          <span className="trend-name">{p.tenant_name}</span>
-                          <span className="trend-desc">{new Date(p.created_at).toLocaleDateString()}</span>
+                  <div className="panel-card-header">
+                    <span className="panel-title">Revenue Updates</span>
+                    <select className="select-styled">
+                      <option>Year 2026</option>
+                    </select>
+                  </div>
+                  
+                  {/* CSS/SVG Bar Chart */}
+                  <div className="chart-container-revenue">
+                    {analytics.daily_revenue.map((d, index) => {
+                      const hEarnings = (d.earnings / maxRevenueVal) * 140;
+                      const hExpense = (d.expense / maxRevenueVal) * 140;
+                      return (
+                        <div className="chart-bar-group" key={index}>
+                          <div className="chart-bars">
+                            <div 
+                              className="chart-bar-earnings" 
+                              style={{ height: `${Math.max(hEarnings, 10)}px` }} 
+                              title={`Earnings: ₹${d.earnings}`}
+                            />
+                            <div 
+                              className="chart-bar-expense" 
+                              style={{ height: `${Math.max(hExpense, 5)}px` }} 
+                              title={`Expense: ₹${d.expense}`}
+                            />
+                          </div>
+                          <span className="chart-label">{d.label}</span>
                         </div>
-                        <div style={{display: 'flex', alignItems: 'center', gap: 12}}>
-                          <span className="trend-value">₹{p.amount.toFixed(2)}</span>
-                          <span className={`badge ${p.status === 'paid' ? 'badge-emerald' : 'badge-amber'}`}>{p.status}</span>
-                        </div>
-                      </div>
-                    ))}
-                    {analytics.recent_payments.length === 0 && <p style={{color: 'var(--text-muted)'}}>No payments logged yet.</p>}
+                      );
+                    })}
+                  </div>
+
+                  <div className="chart-legend">
+                    <div className="legend-item">
+                      <span className="legend-color-black" />
+                      <span>Earnings this month</span>
+                    </div>
+                    <div className="legend-item">
+                      <span className="legend-color-gray" />
+                      <span>Expense this month</span>
+                    </div>
                   </div>
                 </div>
 
+                {/* 2b. Monthly Earnings Card */}
                 <div className="panel-card">
-                  <h3 className="panel-title">Recent System Audits</h3>
-                  <div className="trend-list">
-                    {analytics.recent_logs.map(l => (
-                      <div className="trend-item" key={l.id}>
-                        <div className="trend-info">
-                          <span className="trend-name">{l.action}</span>
-                          <span className="trend-desc">{l.actor_email}</span>
+                  <div className="panel-card-header">
+                    <span className="panel-title">Monthly earnings</span>
+                    <div className="stat-card-icon" style={{width: 24, height: 24}}>
+                      <TrendingUp size={12} />
+                    </div>
+                  </div>
+                  <div style={{display: 'flex', flexDirection: 'column', gap: 4}}>
+                    <span style={{fontSize: 22, fontWeight: 800}}>₹6,820</span>
+                    <span style={{fontSize: 10, color: 'var(--accent-rose)', fontWeight: 700}}>-9% <span style={{color: 'var(--text-muted)', fontWeight: 500}}>than last year</span></span>
+                  </div>
+                  
+                  {/* Monthly line area chart inline SVG */}
+                  <div className="line-chart-visual">
+                    <svg width="100%" height="80" viewBox="0 0 200 80" preserveAspectRatio="none">
+                      <defs>
+                        <linearGradient id="gradient-line" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#0f172a" stopOpacity="0.15" />
+                          <stop offset="100%" stopColor="#0f172a" stopOpacity="0.0" />
+                        </linearGradient>
+                      </defs>
+                      {/* Gradient Fill */}
+                      <path 
+                        d={`M 0 80 Q 30 20, 60 50 T 120 30 T 180 40 T 200 35 L 200 80 Z`} 
+                        fill="url(#gradient-line)" 
+                      />
+                      {/* Smooth Curve */}
+                      <path 
+                        d={`M 0 80 Q 30 20, 60 50 T 120 30 T 180 40 T 200 35`} 
+                        fill="none" 
+                        stroke="#0f172a" 
+                        strokeWidth="2" 
+                      />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom Row: Donut Chart & Recent Transactions */}
+              <div className="panel-grid" style={{gridTemplateColumns: '1fr 1fr'}}>
+                {/* 3a. Yearly Backup Donut Chart */}
+                <div className="panel-card">
+                  <div className="panel-card-header">
+                    <span className="panel-title">Yearly Backup</span>
+                    <MoreVertical size={16} color="var(--text-muted)" style={{cursor: 'pointer'}} />
+                  </div>
+                  <div className="donut-container">
+                    <svg width="110" height="110" viewBox="0 0 36 36">
+                      <circle cx="18" cy="18" r="15.915" fill="transparent" stroke="#f1f5f9" strokeWidth="3.5" />
+                      {/* Segment 2024 (Emerald) */}
+                      <circle cx="18" cy="18" r="15.915" fill="transparent" stroke="var(--accent-cyan)" strokeWidth="3.5" 
+                        strokeDasharray="65 35" strokeDashoffset="25" />
+                      {/* Segment 2025 (Amber) */}
+                      <circle cx="18" cy="18" r="15.915" fill="transparent" stroke="var(--accent-amber)" strokeWidth="3.5" 
+                        strokeDasharray="35 65" strokeDashoffset="90" />
+                      
+                      <g className="donut-text">
+                        <text x="50%" y="45%" dominantBaseline="middle" textAnchor="middle" fontSize="6" fontWeight="800" fill="var(--text-primary)">
+                          ₹36,358
+                        </text>
+                        <text x="50%" y="62%" dominantBaseline="middle" textAnchor="middle" fontSize="3" fontWeight="600" fill="var(--accent-emerald)">
+                          +9% Last Year
+                        </text>
+                      </g>
+                    </svg>
+                    
+                    <div className="donut-legend">
+                      <div className="donut-legend-item">
+                        <span style={{width: 8, height: 8, borderRadius: '50%', backgroundColor: 'var(--accent-cyan)'}} />
+                        <span>2024 (65%)</span>
+                      </div>
+                      <div className="donut-legend-item">
+                        <span style={{width: 8, height: 8, borderRadius: '50%', backgroundColor: 'var(--accent-amber)'}} />
+                        <span>2025 (35%)</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3b. Recent Transactions */}
+                <div className="panel-card">
+                  <div className="panel-card-header">
+                    <span className="panel-title">Recent Transactions</span>
+                    <MoreVertical size={16} color="var(--text-muted)" style={{cursor: 'pointer'}} />
+                  </div>
+                  <div className="transactions-list">
+                    {analytics.recent_payments.map(p => (
+                      <div className="transaction-item" key={p.id}>
+                        <div className="transaction-left">
+                          <div className="transaction-logo">
+                            {p.tenant_name.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="transaction-details">
+                            <span className="transaction-title">{p.tenant_name}</span>
+                            <span className="transaction-date">{new Date(p.created_at).toLocaleDateString()}</span>
+                          </div>
                         </div>
-                        <span className="trend-value" style={{fontSize: 12}}>{new Date(l.created_at).toLocaleTimeString()}</span>
+                        <div className="transaction-right">
+                          <span className={p.status === 'paid' ? "transaction-amount-positive" : "transaction-amount-negative"}>
+                            ₹{p.amount.toLocaleString('en-IN', {minimumFractionDigits: 2})}
+                          </span>
+                          <span className={`badge ${p.status === 'paid' ? 'badge-emerald' : 'badge-amber'}`} style={{fontSize: 8, padding: '1px 4px'}}>
+                            {p.status}
+                          </span>
+                        </div>
                       </div>
                     ))}
-                    {analytics.recent_logs.length === 0 && <p style={{color: 'var(--text-muted)'}}>No audit records found.</p>}
+                    {analytics.recent_payments.length === 0 && <p style={{color: 'var(--text-muted)', fontSize: 12}}>No recent payments found.</p>}
                   </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* 2. Tenants Table */}
+          {/* ── 2. TENANTS TABLE ── */}
           {currentSection === 'tenants' && (
             <div className="table-container">
               <div className="table-header">
@@ -611,7 +935,7 @@ export default function App() {
             </div>
           )}
 
-          {/* 3. Users Table */}
+          {/* ── 3. USERS TABLE ── */}
           {currentSection === 'users' && (
             <div className="table-container">
               <div className="table-header">
@@ -650,7 +974,7 @@ export default function App() {
                             value={u.role} 
                             onChange={e => handleUpdateUser(u.id, { role: e.target.value })}
                             className="form-input"
-                            style={{padding: '4px 8px', fontSize: 12, backgroundColor: 'var(--bg-tertiary)'}}
+                            style={{padding: '4px 8px', fontSize: 12, backgroundColor: 'var(--bg-secondary)'}}
                           >
                             <option value="super_admin">Super Admin</option>
                             <option value="admin">Admin</option>
@@ -696,7 +1020,7 @@ export default function App() {
             </div>
           )}
 
-          {/* 4. Surveys Table */}
+          {/* ── 4. SURVEYS TABLE ── */}
           {currentSection === 'surveys' && (
             <div className="table-container">
               <div className="table-header">
@@ -751,9 +1075,9 @@ export default function App() {
             </div>
           )}
 
-          {/* 5. Subscriptions & Payments */}
+          {/* ── 5. BILLING & TRANSACTIONS ── */}
           {currentSection === 'subscriptions' && (
-            <div style={{display: 'flex', flexDirection: 'column', gap: 32}}>
+            <div style={{display: 'flex', flexDirection: 'column', gap: 24}}>
               <div className="table-container">
                 <div className="table-header">
                   <h3 className="table-title">Active Subscriptions</h3>
@@ -813,7 +1137,7 @@ export default function App() {
                         <td><code>{p.id.substring(0, 8)}...</code></td>
                         <td style={{fontWeight: 600}}>{p.tenant_name}</td>
                         <td>{p.plan_name}</td>
-                        <td>₹{p.amount.toFixed(2)}</td>
+                        <td>₹{p.amount.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
                         <td><span style={{textTransform: 'uppercase', fontSize: 11}}>{p.method || 'N/A'}</span></td>
                         <td><code>{p.razorpay_payment_id || 'N/A'}</code></td>
                         <td>{p.paid_at ? new Date(p.paid_at).toLocaleString() : 'N/A'}</td>
@@ -830,9 +1154,9 @@ export default function App() {
             </div>
           )}
 
-          {/* 6. Leand & Demos */}
+          {/* ── 6. LEADS & BOOKINGS ── */}
           {currentSection === 'demos' && (
-            <div style={{display: 'flex', flexDirection: 'column', gap: 32}}>
+            <div style={{display: 'flex', flexDirection: 'column', gap: 24}}>
               <div className="table-container">
                 <div className="table-header">
                   <h3 className="table-title">Scheduled Demo Bookings</h3>
@@ -881,7 +1205,7 @@ export default function App() {
                     ))}
                     {demos.length === 0 && (
                       <tr>
-                        <td colSpan="7" style={{textAlign: 'center', color: 'var(--text-muted)', padding: 32}}>
+                        <td colSpan="7" style={{textAlign: 'center', color: 'var(--text-muted)', padding: 24}}>
                           No demo calls booked.
                         </td>
                       </tr>
@@ -917,7 +1241,7 @@ export default function App() {
                     ))}
                     {waitlist.length === 0 && (
                       <tr>
-                        <td colSpan="2" style={{textAlign: 'center', color: 'var(--text-muted)', padding: 32}}>
+                        <td colSpan="2" style={{textAlign: 'center', color: 'var(--text-muted)', padding: 24}}>
                           Waitlist is empty.
                         </td>
                       </tr>
@@ -928,7 +1252,7 @@ export default function App() {
             </div>
           )}
 
-          {/* 7. Audit Trail */}
+          {/* ── 7. SECURITY AUDIT TRAIL ── */}
           {currentSection === 'audit-logs' && (
             <div className="table-container">
               <div className="table-header">
@@ -1037,11 +1361,11 @@ export default function App() {
               <div style={{display: 'flex', flexDirection: 'column', gap: 12}}>
                 <div>
                   <span className="form-label">Event Timestamp:</span>
-                  <p style={{fontSize: 14, color: 'var(--text-primary)', marginTop: 4}}>{new Date(viewingLogDetail.created_at).toLocaleString()}</p>
+                  <p style={{fontSize: 13, color: 'var(--text-primary)', marginTop: 4}}>{new Date(viewingLogDetail.created_at).toLocaleString()}</p>
                 </div>
                 <div>
                   <span className="form-label">Event Name:</span>
-                  <p style={{fontSize: 14, color: 'var(--text-primary)', marginTop: 4, fontFamily: 'monospace'}}>{viewingLogDetail.action}</p>
+                  <p style={{fontSize: 13, color: 'var(--text-primary)', marginTop: 4, fontFamily: 'monospace'}}>{viewingLogDetail.action}</p>
                 </div>
                 <div>
                   <span className="form-label">Modified State Detail Payload:</span>
@@ -1050,11 +1374,11 @@ export default function App() {
                     padding: 12,
                     backgroundColor: 'var(--bg-primary)',
                     borderRadius: 6,
-                    border: '1px solid var(--border-glass)',
-                    fontSize: 12,
+                    border: '1px solid var(--border-color)',
+                    fontSize: 11,
                     fontFamily: 'monospace',
                     overflowX: 'auto',
-                    color: '#818cf8'
+                    color: 'var(--accent-indigo)'
                   }}>
                     {JSON.stringify(viewingLogDetail.detail, null, 2)}
                   </pre>
