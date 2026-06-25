@@ -92,7 +92,7 @@ def get_current_user(
             # Parse email domain
             email_clean = email.strip().lower() if email else ""
             domain = email_clean.split("@")[1].split(".")[0] if "@" in email_clean else ""
-            
+
             # Check for common personal/public domains to classify account type
             public_domains = {"gmail", "yahoo", "hotmail", "outlook", "live", "aol", "icloud", "zoho", "mail"}
             is_personal = not domain or domain in public_domains

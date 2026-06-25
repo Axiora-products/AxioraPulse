@@ -194,20 +194,20 @@ def run_db_cleanup():
     dummy 'Gmail' or un-styled 'Axioraglobalsolutions' tenant names."""
     from db.database import SessionLocal
     from db.models import Tenant, UserProfile
-    
+
     db = SessionLocal()
     try:
         # 1. Update Axioraglobalsolutions names
         axiora_tenants = db.query(Tenant).filter(Tenant.name.ilike("axioraglobalsolutions%")).all()
         for t in axiora_tenants:
             t.name = "Axiora Global Solutions"
-            
+
         # 2. Update Gmail/Yahoo/etc. personal tenants
         public_slugs = ["gmail", "yahoo", "hotmail", "outlook", "live", "aol", "icloud", "zoho", "mail"]
         for slug in public_slugs:
-            gmail_tenants = db.query(Tenant).filter(
-                (Tenant.slug.ilike(f"{slug}%")) & (Tenant.account_type == "organization")
-            ).all()
+            gmail_tenants = (
+                db.query(Tenant).filter((Tenant.slug.ilike(f"{slug}%")) & (Tenant.account_type == "organization")).all()
+            )
             for t in gmail_tenants:
                 t.account_type = "personal"
                 # Rename the tenant to User's Workspace
@@ -216,7 +216,7 @@ def run_db_cleanup():
                     t.name = f"{first_user.full_name}'s Workspace"
                 else:
                     t.name = "Personal Workspace"
-                    
+
         db.commit()
     except Exception as exc:
         logging.getLogger(__name__).error("Failed to run db cleanup on startup: %s", str(exc))
