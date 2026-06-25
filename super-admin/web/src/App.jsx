@@ -152,7 +152,7 @@ export default function App() {
     setLoading(true);
     setError('');
     
-    const emailClean = emailInput.trim().lower();
+    const emailClean = emailInput.trim().toLowerCase();
     if (!emailClean.endsWith('@axioraglobalsolutions.com')) {
       setError('Forbidden: Only @axioraglobalsolutions.com emails can access the Super Admin Console.');
       setLoading(false);
