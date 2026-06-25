@@ -14,6 +14,7 @@ from sqlalchemy import (
     DateTime,
     Integer,
     Text,
+    Date,
     ForeignKey,
     Enum as SAEnum,
     UniqueConstraint,
@@ -469,3 +470,27 @@ class UploadedFile(Base):
     tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
     created_by = Column(UUID(as_uuid=True), ForeignKey("user_profiles.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class BulkSendUsage(Base):
+    """
+    Per-survey, per-day usage counter for bulk distribution channels (email /
+    WhatsApp). One row per (survey, channel, calendar day in UTC); the running
+    ``recipient_count`` is what daily limits are enforced against. Because rows
+    are keyed by ``usage_date``, limits reset automatically every 24h (00:00 UTC)
+    simply by a new day producing a fresh row.
+    """
+
+    __tablename__ = "bulk_send_usage"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    survey_id = Column(UUID(as_uuid=True), ForeignKey("surveys.id", ondelete="CASCADE"), index=True, nullable=False)
+    channel = Column(String(20), nullable=False)  # 'email' | 'whatsapp'
+    usage_date = Column(Date, nullable=False)
+    recipient_count = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("survey_id", "channel", "usage_date", name="uq_bulk_send_usage_survey_channel_date"),
+    )

@@ -73,6 +73,12 @@ export default function SurveyEdit() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  // Ticking clock so the Execute countdown stays live without a manual reload.
+  const [nowTs, setNowTs] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNowTs(Date.now()), 30000);
+    return () => clearInterval(id);
+  }, []);
 
   // AI-powered intelligence for Guidance + Roadmap tabs
   const [aiIntel, setAiIntel] = useState(null);
@@ -97,7 +103,7 @@ export default function SurveyEdit() {
 
   const generatePDF = () => {
     if (!aiIntel) {
-      toast.error('Please visit the Roadmap tab first to generate Pulse intelligence before downloading.');
+      toast.error('Please visit the Guidance tab first to generate Pulse intelligence before downloading.');
       return;
     }
     const html = `<!DOCTYPE html>
@@ -404,12 +410,21 @@ export default function SurveyEdit() {
   const conciseQuestionCount = realQuestions.filter(q => getQuestionWordCount(q) <= SHORT_SURVEY_RULES.maxHighSignalWords).length;
   const hasAdaptiveFormats = getFormatDiversityScore(realQuestions) >= 3;
   const statusStyle = STATUS_COLORS[sv.status] || STATUS_COLORS.draft;
+
+  // Execute unlocks when the survey reaches its expiry date. The countdown is
+  // driven by `expires_at` and re-evaluates as the date is edited or time passes
+  // (via nowTs). Surveys with no expiry are not gated. (Backend enforces the same.)
+  const expiresAtMs = sv.expires_at ? new Date(sv.expires_at).getTime() : null;
+  const executeLocked = expiresAtMs != null && !Number.isNaN(expiresAtMs) && nowTs < expiresAtMs;
+  const executeRemainingDays = executeLocked ? Math.max(1, Math.ceil((expiresAtMs - nowTs) / 86400000)) : 0;
+
   const TABS = [
     { id: 'details', n: '01', label: 'Details' },
     { id: 'questions', n: '02', label: 'Questions', count: qs.length },
-    { id: 'roadmap', n: '03', label: 'Roadmap' },
-    { id: 'execute', n: '04', label: 'Execute' },
-    { id: 'settings', n: '05', label: '⚙️' }
+    { id: 'guidance', n: '03', label: 'Guidance' },
+    { id: 'roadmap', n: '04', label: 'Roadmap' },
+    { id: 'execute', n: '05', label: 'Execute' },
+    { id: 'settings', n: '06', label: '⚙️' }
   ];
   const curSection = getPreviewSection(previewStep, qs.length);
 
@@ -582,8 +597,13 @@ export default function SurveyEdit() {
         .opt-input { background:none; border:none; outline:none; font-family:'Fraunces',serif; font-size:14px; color:var(--espresso); padding:7px 0; flex:1; }
         .opt-row:hover { background:rgba(255,255,255,0.9) !important; border-color:rgba(22,15,8,0.16) !important; }
         .se-tab-btn { position:relative; }
-        .se-tab-btn::after { content:''; position:absolute; bottom:-1px; left:0; right:0; height:2px; border-radius:1px; background:var(--coral); transform:scaleX(0); transition:transform 0.3s cubic-bezier(0.16,1,0.3,1); transform-origin:left; }
+        .se-tab-btn::after { content:''; position:absolute; bottom:0; left:0; right:0; height:2px; border-radius:1px; background:var(--coral); transform:scaleX(0); transition:transform 0.3s cubic-bezier(0.16,1,0.3,1); transform-origin:left; }
         .se-tab-btn.active::after { transform:scaleX(1); }
+        /* Tab row is a full-width band above the workspace, so all tabs stay
+           visible and clickable (never under the sidebar). On a tight viewport
+           they wrap to a second line instead of scrolling/hiding. */
+        .tabs-scroll { min-width:0; }
+        .tabs-inner { max-width:100%; flex-wrap:wrap; row-gap:2px; position:relative; z-index:2; }
         @media (max-width: 1040px) { .se-sidebar { position: static !important; } }
         @media (max-width: 768px) {
           .se-grid { grid-template-columns: 1fr !important; }
@@ -824,19 +844,9 @@ export default function SurveyEdit() {
         </div>
       </div>
 
-      {/* ── TWO-COLUMN WORKSPACE ── */}
-      <div className="se-grid np-grid-responsive" style={{
-        display: 'grid',
-        gridTemplateColumns: 'minmax(0,1fr) 320px',
-        gap: '32px',
-        alignItems: 'start',
-        width: '100%'
-      }}>
-
-        {/* LEFT — Editor */}
-        <div className="tabs-scroll">
-          {/* ── EDITORIAL TAB NAVIGATION ── */}
-          <div className="tabs-inner" style={{ display: 'flex', gap: 0, marginBottom: 40, borderBottom: '1px solid rgba(22,15,8,0.07)' }}>
+      {/* ── EDITORIAL TAB NAVIGATION — full-width row above the workspace so every
+           tab stays on one line, fully visible and clickable (not under the sidebar) ── */}
+      <div className="tabs-inner" style={{ display: 'flex', gap: 0, marginBottom: 28, borderBottom: '1px solid rgba(22,15,8,0.07)' }}>
             {TABS.map(t => {
               const isSettings = t.id === 'settings';
               return (
@@ -850,13 +860,28 @@ export default function SurveyEdit() {
                     </>
                   )}
                   {t.label}
+                  {t.id === 'execute' && executeLocked && (
+                    <span title={`Execute activates ${executeRemainingDays} day${executeRemainingDays === 1 ? '' : 's'} after creation`} style={{ fontSize: 11, lineHeight: 1 }}>🔒</span>
+                  )}
                   {t.count !== undefined && (
                     <span style={{ minWidth: 18, height: 18, borderRadius: 999, background: tab === t.id ? `${tc}15` : 'rgba(22,15,8,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px', fontSize: 9, fontFamily: "'Syne',sans-serif", fontWeight: 700, color: tab === t.id ? tc : 'rgba(22,15,8,0.35)' }}>{t.count}</span>
                   )}
                 </button>
               );
             })}
-          </div>
+      </div>
+
+      {/* ── TWO-COLUMN WORKSPACE ── */}
+      <div className="se-grid np-grid-responsive" style={{
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0,1fr) 320px',
+        gap: '32px',
+        alignItems: 'start',
+        width: '100%'
+      }}>
+
+        {/* LEFT — Editor */}
+        <div className="tabs-scroll">
 
           {/* ── DETAILS TAB ── */}
           {tab === 'details' && (
@@ -979,7 +1004,25 @@ export default function SurveyEdit() {
           )}
 
           {/* ── EXECUTE TAB ── */}
-          {tab === 'execute' && (
+          {tab === 'execute' && executeLocked && (
+            <div style={{ background: 'var(--warm-white)', borderRadius: 22, border: '1.5px solid rgba(22,15,8,0.07)', padding: 40, textAlign: 'center', boxShadow: '0 8px 32px rgba(22,15,8,0.03)' }}>
+              <div style={{ width: 56, height: 56, borderRadius: 16, background: 'rgba(255,184,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 22px', fontSize: 24 }}>🔒</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 10 }}>
+                <h2 style={{ fontFamily: "'Playfair Display',serif", fontWeight: 700, fontSize: 24, color: 'var(--espresso)', margin: 0 }}>Execute unlocks soon</h2>
+                <HelpTip text="The Execute workspace (Investor Readiness Report + mentor outreach) opens once the survey reaches its expiry date, so it analyses a complete set of responses." position="bottom" />
+              </div>
+              <p style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 15, color: 'rgba(22,15,8,0.55)', lineHeight: 1.6, maxWidth: 440, margin: '0 auto 20px' }}>
+                Survey execution becomes available once the survey reaches its expiry date
+                {sv.expires_at ? ` (${new Date(sv.expires_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })})` : ''}.
+              </p>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', borderRadius: 999, background: 'rgba(255,184,0,0.12)', border: '1px solid rgba(255,184,0,0.25)' }}>
+                <span style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#A07000' }}>
+                  Execute feature will be activated in {executeRemainingDays} day{executeRemainingDays === 1 ? '' : 's'}
+                </span>
+              </div>
+            </div>
+          )}
+          {tab === 'execute' && !executeLocked && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
               {/* CA Agent — Content Analysis Agent */}
               <CAAgentPanel survey={sv} />
@@ -1130,7 +1173,7 @@ export default function SurveyEdit() {
           )}
 
           {/* ── GUIDANCE TAB ── */}
-          {false && (() => {
+          {tab === 'guidance' && (() => {
             const Skel = ({ w = '100%', h = 14, mb = 8 }) => <div style={{ width: w, height: h, borderRadius: 8, background: 'rgba(22,15,8,0.06)', marginBottom: mb, animation: 'pulse 1.5s ease-in-out infinite' }} />;
 
             if (!locationSubmitted) {
@@ -1361,8 +1404,12 @@ export default function SurveyEdit() {
                         <div style={{ position: 'absolute', left: -24, top: 32, width: 16, height: 16, borderRadius: '50%', background: '#fff', border: `3px solid ${tc}`, boxShadow: `0 0 0 3px ${tc}20`, zIndex: 2 }} />
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(22,15,8,0.06)', paddingBottom: 12, marginBottom: 14 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                            <span style={{ fontFamily: "'Syne',sans-serif", fontSize: 10, fontWeight: 800, color: tc, background: `${tc}12`, padding: '4px 10px', borderRadius: 8 }}>Phase {idx + 1}</span>
-                            <h3 style={{ fontFamily: "'Playfair Display',serif", fontWeight: 700, fontSize: 18, color: 'var(--espresso)' }}>{step.name.split(': ')[1] || step.name}</h3>
+                            <span style={{ fontFamily: "'Syne',sans-serif", fontSize: 12, fontWeight: 700, color: tc, background: `${tc}12`, padding: '4px 10px', borderRadius: 8 }}>Phase {idx + 1}</span>
+                            {/* Rendered as a div (not <h3>) so it uses the clean UI font (Syne),
+                                matching the "Phase N" badge and the rest of the UI, instead of
+                                being forced to Playfair Display by the global h2,h3 override in
+                                app-overrides.css. */}
+                            <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 16, color: 'var(--espresso)', lineHeight: 1.3, letterSpacing: '-0.01em' }}>{step.name.split(': ')[1] || step.name}</div>
                           </div>
                           <span style={{ fontFamily: "'Syne',sans-serif", fontSize: 10, fontWeight: 700, color: 'rgba(22,15,8,0.4)' }}>⏱️ {step.timeline}</span>
                         </div>
@@ -1413,6 +1460,19 @@ export default function SurveyEdit() {
                   </div>
                 ))}
               </div>
+
+              {/* Execute countdown — visible from any tab while locked */}
+              {executeLocked && (
+                <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid rgba(255,251,244,0.08)', display: 'flex', alignItems: 'center', gap: 9 }}>
+                  <span style={{ fontSize: 13 }}>🔒</span>
+                  <div style={{ lineHeight: 1.25 }}>
+                    <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(255,251,244,0.35)' }}>Execute unlocks in</div>
+                    <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--saffron)' }}>
+                      {executeRemainingDays} day{executeRemainingDays === 1 ? '' : 's'}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1476,6 +1536,29 @@ export default function SurveyEdit() {
                 {busy ? 'Saving…' : <>Save Changes <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg></>}
               </button>
             )}
+          </div>
+
+          {/* Guidance — best practices for effective surveys */}
+          <div style={{ background: 'var(--warm-white)', borderRadius: 22, border: '1.5px solid rgba(22,15,8,0.08)', padding: '22px 22px 8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+              <span style={{ fontSize: 14 }}>💡</span>
+              <span style={{ fontFamily: "'Syne',sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.4)' }}>Guidance</span>
+            </div>
+            <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {[
+                'Complete all survey details before publishing.',
+                'Share with the appropriate target audience.',
+                'Use multiple distribution channels for better response rates.',
+                'Monitor survey responses regularly.',
+                'Review insights before making business decisions.',
+                'Keep questions clear, unbiased, and easy to understand.',
+              ].map((tip, i) => (
+                <li key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', paddingBottom: 12, borderBottom: i === 5 ? 'none' : '1px solid rgba(22,15,8,0.05)' }}>
+                  <span aria-hidden style={{ flexShrink: 0, marginTop: 5, width: 5, height: 5, borderRadius: '50%', background: tc }} />
+                  <span style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 13, lineHeight: 1.5, color: 'rgba(22,15,8,0.62)' }}>{tip}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>{/* end sidebar */}
       </div>
@@ -1556,7 +1639,7 @@ body {
   top: 24px;
 
   align-self: start;
-  padding-top: 72px;
+  padding-top: 0;
 }
 
 .se-sidebar .survey-preview-card {

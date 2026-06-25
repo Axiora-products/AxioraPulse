@@ -51,6 +51,14 @@ RAZORPAY_WEBHOOK_SECRET = os.getenv("RAZORPAY_WEBHOOK_SECRET", "")  # (AP-SEC-00
 
 DISABLE_PAYMENTS = os.getenv("DISABLE_PAYMENTS", "false").lower() == "true"
 
+# Free-plan ceiling for non-draft (active/paused/expired/closed) surveys. Drafts
+# are unlimited and never counted. Applies when a tenant has no paid plan whose
+# own max_surveys overrides this.
+FREE_PLAN_MAX_SURVEYS = int(os.getenv("FREE_PLAN_MAX_SURVEYS", "3"))
+
+# Days after creation before the Execute feature unlocks for a survey.
+EXECUTE_UNLOCK_DAYS = int(os.getenv("EXECUTE_UNLOCK_DAYS", "30"))
+
 # ── Auth secrets (fail-closed: no insecure defaults) ───────────────────────────
 # OTP login mints HS256 tokens with this secret; the verifier only accepts such
 # tokens when the secret is explicitly configured. Unset => OTP tokens rejected.

@@ -5,6 +5,10 @@ import * as XLSX from 'xlsx';
 import API from '../api/axios';
 import { getApiErrorMessage } from '../lib/apiError';
 
+// Per-request recipient cap (also enforced on the backend per survey/day).
+const MAX_RECIPIENTS_PER_REQUEST = 30;
+const OVER_LIMIT_MSG = 'You can send emails to a maximum of 30 recipients at a time.';
+
 export default function BulkEmailModal({ survey, isOpen, onClose, surveyUrl }) {
   const [step, setStep] = useState('input-method'); // input-method, import, compose, preview, sending, report
   const [method, setMethod] = useState(''); // 'file' or 'manual'
@@ -144,6 +148,10 @@ export default function BulkEmailModal({ survey, isOpen, onClose, surveyUrl }) {
       return;
     }
     setEmails(extracted);
+    if (extracted.length > MAX_RECIPIENTS_PER_REQUEST) {
+      toast.error(OVER_LIMIT_MSG);
+      return;
+    }
     toast.success(`Validated ${extracted.length} email(s)`);
     setStep('compose');
   };
@@ -172,56 +180,32 @@ export default function BulkEmailModal({ survey, isOpen, onClose, surveyUrl }) {
       </div>
     `;
 
+    const totalRecipients = emails.length;
     try {
-      // Simulate live sending batches (for responsive animation)
-      const batchSize = 10;
-      const totalRecipients = emails.length;
-      let sentCount = 0;
-      let failedCount = 0;
-      let resultsList = [];
-
-      for (let i = 0; i < totalRecipients; i += batchSize) {
-        const batch = emails.slice(i, i + batchSize);
-        
-        try {
-          const res = await API.post('/users/bulk-share-survey', {
-            emails: batch,
-            survey_link: surveyUrl,
-            survey_title: survey?.title,
-            subject: subject,
-            body: HTML_Body
-          });
-
-          resultsList = [...resultsList, ...(res.data.results || [])];
-          sentCount += res.data.sent;
-          failedCount += res.data.failed;
-        } catch (err) {
-          // If a whole batch request fails
-          batch.forEach(email => {
-            resultsList.push({
-              recipient: email,
-              status: 'failed',
-              timestamp: new Date().toISOString(),
-              reason: getApiErrorMessage(err, 'Network error')
-            });
-          });
-          failedCount += batch.length;
-        }
-
-        const percentage = Math.min(Math.round(((i + batch.length) / totalRecipients) * 100), 100);
-        setSendProgress(percentage);
-      }
+      setSendProgress(35);
+      // Single request: the per-request (30) and per-survey daily (60) caps are
+      // enforced server-side, so the whole list goes in one call.
+      const res = await API.post('/users/bulk-share-survey', {
+        survey_id: survey?.id,
+        emails,
+        survey_link: surveyUrl,
+        survey_title: survey?.title,
+        subject: subject,
+        body: HTML_Body
+      });
+      setSendProgress(100);
 
       setSendingResults({
-        total: totalRecipients,
-        sent: sentCount,
-        failed: failedCount,
-        results: resultsList
+        total: res.data.total ?? totalRecipients,
+        sent: res.data.sent ?? 0,
+        failed: res.data.failed ?? 0,
+        results: res.data.results || []
       });
       toast.success('Bulk sharing campaign finished!');
       setStep('report');
-    } catch (e) {
-      toast.error('Campaign failed to send');
+    } catch (err) {
+      // Surface backend validation/limit messages (e.g. daily limit reached).
+      toast.error(getApiErrorMessage(err, 'Campaign failed to send'));
       setStep('compose');
     } finally {
       setIsSending(false);
@@ -341,11 +325,20 @@ export default function BulkEmailModal({ survey, isOpen, onClose, surveyUrl }) {
 
                 {parsing && <div style={{ fontSize: 12, color: 'var(--coral)', fontFamily: 'Syne,sans-serif', textAlign: 'center' }}>🔄 Reading and extracting emails...</div>}
                 
-                {emails.length > 0 && (
+                {emails.length > 0 && emails.length <= MAX_RECIPIENTS_PER_REQUEST && (
                   <div style={{ background: 'rgba(37,211,102,0.06)', border: '1px solid rgba(37,211,102,0.2)', padding: 14, borderRadius: 12 }}>
                     <div style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 12, color: 'var(--espresso)', marginBottom: 4 }}>✅ Extraction Successful!</div>
                     <div style={{ fontFamily: 'Fraunces,serif', fontSize: 13, color: 'rgba(22,15,8,0.6)' }}>
                       Found <strong>{emails.length}</strong> unique, properly-formatted email address(es).
+                    </div>
+                  </div>
+                )}
+
+                {emails.length > MAX_RECIPIENTS_PER_REQUEST && (
+                  <div style={{ background: 'rgba(214,59,31,0.06)', border: '1px solid rgba(214,59,31,0.25)', padding: 14, borderRadius: 12 }}>
+                    <div style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 12, color: 'var(--terracotta)', marginBottom: 4 }}>⚠ Too many recipients</div>
+                    <div style={{ fontFamily: 'Fraunces,serif', fontSize: 13, color: 'rgba(22,15,8,0.6)' }}>
+                      {OVER_LIMIT_MSG} Found <strong>{emails.length}</strong>.
                     </div>
                   </div>
                 )}
@@ -372,9 +365,9 @@ export default function BulkEmailModal({ survey, isOpen, onClose, surveyUrl }) {
               <div style={{ display: 'flex', gap: 12 }}>
                 <button style={btnSecondary} onClick={() => { resetState(); onClose(); }}>Cancel</button>
                 {method === 'file' ? (
-                  <button 
-                    style={btnPrimary(emails.length === 0)} 
-                    disabled={emails.length === 0} 
+                  <button
+                    style={btnPrimary(emails.length === 0 || emails.length > MAX_RECIPIENTS_PER_REQUEST)}
+                    disabled={emails.length === 0 || emails.length > MAX_RECIPIENTS_PER_REQUEST}
                     onClick={() => setStep('compose')}
                   >
                     Next: Compose
@@ -430,9 +423,9 @@ export default function BulkEmailModal({ survey, isOpen, onClose, surveyUrl }) {
               <button style={btnSecondary} onClick={() => setStep('import')}>Back</button>
               <div style={{ display: 'flex', gap: 12 }}>
                 <button style={btnSecondary} onClick={() => { resetState(); onClose(); }}>Cancel</button>
-                <button 
-                  style={btnPrimary(!subject.trim() || !bodyText.trim())} 
-                  disabled={!subject.trim() || !bodyText.trim()} 
+                <button
+                  style={btnPrimary(!subject.trim() || !bodyText.trim() || emails.length > MAX_RECIPIENTS_PER_REQUEST)}
+                  disabled={!subject.trim() || !bodyText.trim() || emails.length > MAX_RECIPIENTS_PER_REQUEST}
                   onClick={() => setStep('preview')}
                 >
                   Preview & Confirm

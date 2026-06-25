@@ -31,11 +31,13 @@ def dashboard_stats(
     """
     tid = current_user.tenant_id
 
+    # KPI counts exclude drafts — only active/paused/expired/closed surveys count.
     total_surveys = (
         db.query(func.count(Survey.id))
         .filter(
             Survey.tenant_id == tid,
             Survey.created_by == current_user.id,
+            Survey.status != SurveyStatusEnum.draft,
         )
         .scalar()
         or 0

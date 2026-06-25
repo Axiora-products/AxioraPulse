@@ -49,7 +49,9 @@ from db.models import (
     SurveyResponse,
     SurveyAnswer,
     SurveyFeedback,
+    Subscription,
 )
+from core import config
 from schemas import (
     SurveyCreate,
     SurveyUpdate,
@@ -65,7 +67,6 @@ from schemas import (
     FeedbackOut,
 )
 from dependencies import get_current_user
-from services.feature_gate import require_feature
 
 
 router = APIRouter(prefix="/surveys", tags=["surveys"])
@@ -79,6 +80,47 @@ def _require_creator(user: UserProfile):
     role_val = user.role.value if hasattr(user.role, "value") else str(user.role)
     if role_val not in CREATOR_ROLES:
         raise HTTPException(status_code=403, detail="Insufficient permissions to modify surveys")
+
+
+# Free-trial limit message (kept in sync with the frontend upgrade modal).
+SURVEY_LIMIT_DETAIL = (
+    "You have reached the maximum limit of 3 surveys available under the free plan. "
+    "Upgrade your plan to create additional surveys."
+)
+
+
+def _effective_survey_limit(db: Session, user: UserProfile):
+    """Max non-draft surveys allowed for this tenant. A paid plan's own
+    ``max_surveys`` wins; tenants with no paid plan fall back to the free
+    ceiling. Returns ``None`` when unlimited (or limits are bypassed)."""
+    if config.DISABLE_PAYMENTS or getattr(user, "is_internal", False):
+        return None
+    sub = (
+        db.query(Subscription).filter(Subscription.tenant_id == user.tenant_id, Subscription.status == "active").first()
+    )
+    plan = sub.plan if sub else None
+    if plan is not None:
+        return plan.max_surveys  # may be None => unlimited
+    return config.FREE_PLAN_MAX_SURVEYS
+
+
+def _assert_within_survey_limit(db: Session, user: UserProfile, exclude_id=None) -> None:
+    """Block when the tenant already has the maximum number of non-draft
+    (active/paused/expired/closed) surveys. Drafts are never counted. Called
+    before creating an active survey or publishing/activating an existing one.
+    """
+    limit = _effective_survey_limit(db, user)
+    if limit is None:
+        return
+    q = db.query(Survey).filter(
+        Survey.tenant_id == user.tenant_id,
+        Survey.status != SurveyStatusEnum.draft,
+    )
+    if exclude_id is not None:
+        q = q.filter(Survey.id != exclude_id)
+    non_draft_count = q.count()
+    if non_draft_count >= limit:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=SURVEY_LIMIT_DETAIL)
 
 
 # Org-level managers may administer any survey in their tenant.
@@ -592,7 +634,6 @@ def create_survey(
     body: SurveyCreate,
     current_user: UserProfile = Depends(get_current_user),
     db: Session = Depends(get_db),
-    _gate: None = Depends(require_feature("create_survey")),
 ):
     _require_creator(current_user)
 
@@ -604,6 +645,10 @@ def create_survey(
         sv_status = SurveyStatusEnum(body.status)
     except ValueError:
         sv_status = SurveyStatusEnum.draft
+
+    # Free-plan limit applies to non-draft surveys only; drafts are unlimited.
+    if sv_status != SurveyStatusEnum.draft:
+        _assert_within_survey_limit(db, current_user)
 
     if sv_status == SurveyStatusEnum.active and (not body.questions or len(body.questions) < 2):
         raise HTTPException(status_code=400, detail="At least 2 questions are required to publish")
@@ -692,6 +737,9 @@ def update_survey(
         try:
             new_status = SurveyStatusEnum(update_data["status"])
             if new_status == SurveyStatusEnum.active:
+                # Publishing/activating counts toward the free-plan limit.
+                if survey.status == SurveyStatusEnum.draft:
+                    _assert_within_survey_limit(db, current_user, exclude_id=survey_id)
                 q_count = db.query(SurveyQuestion).filter(SurveyQuestion.survey_id == survey_id).count()
                 if q_count < 2:
                     raise HTTPException(status_code=400, detail="At least 2 questions are required to publish")
@@ -746,6 +794,9 @@ def update_survey_status(
     try:
         new_status = SurveyStatusEnum(body.status)
         if new_status == SurveyStatusEnum.active:
+            # Publishing/activating a draft counts toward the free-plan limit.
+            if survey.status == SurveyStatusEnum.draft:
+                _assert_within_survey_limit(db, current_user, exclude_id=survey_id)
             q_count = db.query(SurveyQuestion).filter(SurveyQuestion.survey_id == survey_id).count()
             if q_count < 2:
                 raise HTTPException(status_code=400, detail="At least 2 questions are required to publish")

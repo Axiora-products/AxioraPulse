@@ -234,3 +234,15 @@ export function isExpired(expiresAt) {
   if (!expiresAt) return false;
   return new Date(expiresAt) < new Date();
 }
+
+// ── Support / billing contact ────────────────────────────────────────────────
+// Billing CTAs open the user's default mail client (Gmail web, Outlook, Apple
+// Mail, etc.) composing to this address via a standard mailto: link.
+export const SUPPORT_EMAIL = 'support@axioraglobalsolutions.com';
+
+// Max non-draft surveys on the free plan (mirrors backend FREE_PLAN_MAX_SURVEYS).
+export const FREE_PLAN_MAX_SURVEYS = 3;
+
+export function openSupportEmail(subject = 'Plan Upgrade Inquiry') {
+  window.location.href = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}`;
+}

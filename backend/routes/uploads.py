@@ -3,7 +3,6 @@ routes/uploads.py
 Whisper-only file and audio upload endpoints.
 """
 
-import io
 import asyncio
 import logging
 import os
@@ -35,9 +34,6 @@ from services.content_extraction import (
 )
 
 import openai
-from google.oauth2.credentials import Credentials
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseDownload
 
 router = APIRouter(prefix="/uploads", tags=["uploads"])
 logger = logging.getLogger(__name__)
@@ -565,101 +561,6 @@ async def extract_link(
         "needs_review": payload["needs_review"],
         "source": url,
     }
-
-
-class DriveUploadRequest(BaseModel):
-    fileId: str
-    accessToken: str
-    filename: str
-    mimeType: str
-
-
-@router.post("/drive")
-@limiter.limit("10/minute")
-async def upload_from_drive(
-    request: Request,
-    body: DriveUploadRequest,
-    db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(get_current_user),
-):
-    """
-    Downloads a file from Google Drive and processes it like a normal upload.
-    """
-    try:
-        creds = Credentials(token=body.accessToken)
-        service = build("drive", "v3", credentials=creds)
-
-        # Handle Google Docs formats by exporting them as PDF
-        is_google_doc = body.mimeType.startswith("application/vnd.google-apps.")
-
-        file_id = str(uuid.uuid4())
-        ext = os.path.splitext(body.filename)[1]
-
-        # If it's a Google Doc (Doc, Sheet, Slide), export as PDF
-        content_type = body.mimeType
-        if is_google_doc:
-            if "spreadsheet" in body.mimeType:
-                export_mime = "application/pdf"
-            elif "presentation" in body.mimeType:
-                export_mime = "application/pdf"
-            else:
-                export_mime = "application/pdf"
-
-            drive_request = service.files().export_media(fileId=body.fileId, mimeType=export_mime)
-            ext = ".pdf"
-            content_type = "application/pdf"
-        else:
-            drive_request = service.files().get_media(fileId=body.fileId)
-
-        stored_name = f"{file_id}{ext}"
-        filepath = os.path.join(UPLOAD_DIR, stored_name)
-
-        fh = io.BytesIO()
-        downloader = MediaIoBaseDownload(fh, drive_request)
-        done = False
-        while done is False:
-            status, done = downloader.next_chunk()
-
-        contents = fh.getvalue()
-        if len(contents) > 15 * 1024 * 1024:  # 15 MB limit for Drive
-            raise HTTPException(status_code=400, detail="File too large (max 15 MB)")
-
-        with open(filepath, "wb") as f:
-            f.write(contents)
-
-        # Extract text using existing logic
-        extracted = _extract_text_from_file(filepath, content_type)
-
-        # Save to DB
-        db_file = UploadedFile(
-            id=uuid.UUID(file_id),
-            filename=body.filename,
-            content_type=content_type,
-            file_size=len(contents),
-            extracted_text=extracted,
-            upload_type="file",
-            tenant_id=current_user.tenant_id,
-            created_by=current_user.id,
-        )
-        db.add(db_file)
-        db.commit()
-        db.refresh(db_file)
-
-        base_url = str(request.base_url).rstrip("/")
-        return {
-            "id": str(db_file.id),
-            "filename": db_file.filename,
-            "content_type": db_file.content_type,
-            "file_size": db_file.file_size,
-            "extracted_text": extracted,
-            "upload_type": "file",
-            "file_url": _signed_download_url(base_url, db_file.id),
-        }
-
-    except Exception as exc:
-        # Don't leak raw upstream error detail to the client. (AP-SEC-038)
-        logger.error("Google Drive import failed: %s", type(exc).__name__)
-        raise HTTPException(status_code=502, detail="Failed to import file from Google Drive")
 
 
 @router.post("/audio")

@@ -5,6 +5,10 @@ import * as XLSX from 'xlsx';
 import API from '../api/axios';
 import { getApiErrorMessage } from '../lib/apiError';
 
+// Per-request recipient cap (also enforced on the backend per survey/day).
+const MAX_RECIPIENTS_PER_REQUEST = 20;
+const OVER_LIMIT_MSG = 'You can send WhatsApp messages to a maximum of 20 recipients at a time.';
+
 export default function BulkWhatsAppModal({ survey, isOpen, onClose, surveyUrl }) {
   const [step, setStep] = useState('input-method'); // input-method, import, compose, preview, sending, report
   const [method, setMethod] = useState(''); // 'file' or 'manual'
@@ -147,6 +151,10 @@ export default function BulkWhatsAppModal({ survey, isOpen, onClose, surveyUrl }
       return;
     }
     setNumbers(extracted);
+    if (extracted.length > MAX_RECIPIENTS_PER_REQUEST) {
+      toast.error(OVER_LIMIT_MSG);
+      return;
+    }
     toast.success(`Validated ${extracted.length} phone number(s)`);
     setStep('compose');
   };
@@ -157,54 +165,32 @@ export default function BulkWhatsAppModal({ survey, isOpen, onClose, surveyUrl }
     setIsSending(true);
     setSendProgress(0);
 
+    const totalRecipients = numbers.length;
     try {
-      const batchSize = 15;
-      const totalRecipients = numbers.length;
-      let sentCount = 0;
-      let failedCount = 0;
-      let resultsList = [];
-
-      for (let i = 0; i < totalRecipients; i += batchSize) {
-        const batch = numbers.slice(i, i + batchSize);
-        
-        try {
-          const res = await API.post('/users/bulk-share-whatsapp', {
-            numbers: batch,
-            survey_link: surveyUrl,
-            survey_title: survey?.title,
-            message: message,
-            media_url: mediaUrl || null
-          });
-
-          resultsList = [...resultsList, ...(res.data.results || [])];
-          sentCount += res.data.sent;
-          failedCount += res.data.failed;
-        } catch (err) {
-          batch.forEach(num => {
-            resultsList.push({
-              recipient: num,
-              status: 'failed',
-              timestamp: new Date().toISOString(),
-              reason: getApiErrorMessage(err, 'Network error')
-            });
-          });
-          failedCount += batch.length;
-        }
-
-        const percentage = Math.min(Math.round(((i + batch.length) / totalRecipients) * 100), 100);
-        setSendProgress(percentage);
-      }
+      setSendProgress(35);
+      // Single request: the per-request (20) and per-survey daily (50) caps are
+      // enforced server-side, so the whole list goes in one call.
+      const res = await API.post('/users/bulk-share-whatsapp', {
+        survey_id: survey?.id,
+        numbers,
+        survey_link: surveyUrl,
+        survey_title: survey?.title,
+        message: message,
+        media_url: mediaUrl || null
+      });
+      setSendProgress(100);
 
       setSendingResults({
-        total: totalRecipients,
-        sent: sentCount,
-        failed: failedCount,
-        results: resultsList
+        total: res.data.total ?? totalRecipients,
+        sent: res.data.sent ?? 0,
+        failed: res.data.failed ?? 0,
+        results: res.data.results || []
       });
       toast.success('WhatsApp broadcast finished!');
       setStep('report');
-    } catch (e) {
-      toast.error('WhatsApp campaign failed to send');
+    } catch (err) {
+      // Surface backend validation/limit messages (e.g. daily limit reached).
+      toast.error(getApiErrorMessage(err, 'WhatsApp campaign failed to send'));
       setStep('compose');
     } finally {
       setIsSending(false);
@@ -324,11 +310,20 @@ export default function BulkWhatsAppModal({ survey, isOpen, onClose, surveyUrl }
 
                 {parsing && <div style={{ fontSize: 12, color: '#25D366', fontFamily: 'Syne,sans-serif', textAlign: 'center' }}>🔄 Extracting mobile numbers...</div>}
                 
-                {numbers.length > 0 && (
+                {numbers.length > 0 && numbers.length <= MAX_RECIPIENTS_PER_REQUEST && (
                   <div style={{ background: 'rgba(37,211,102,0.06)', border: '1px solid rgba(37,211,102,0.2)', padding: 14, borderRadius: 12 }}>
                     <div style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 12, color: 'var(--espresso)', marginBottom: 4 }}>✅ Ingestion Successful!</div>
                     <div style={{ fontFamily: 'Fraunces,serif', fontSize: 13, color: 'rgba(22,15,8,0.6)' }}>
                       Identified <strong>{numbers.length}</strong> unique, valid phone numbers.
+                    </div>
+                  </div>
+                )}
+
+                {numbers.length > MAX_RECIPIENTS_PER_REQUEST && (
+                  <div style={{ background: 'rgba(214,59,31,0.06)', border: '1px solid rgba(214,59,31,0.25)', padding: 14, borderRadius: 12 }}>
+                    <div style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 12, color: 'var(--terracotta)', marginBottom: 4 }}>⚠ Too many recipients</div>
+                    <div style={{ fontFamily: 'Fraunces,serif', fontSize: 13, color: 'rgba(22,15,8,0.6)' }}>
+                      {OVER_LIMIT_MSG} Identified <strong>{numbers.length}</strong>.
                     </div>
                   </div>
                 )}
@@ -355,9 +350,9 @@ export default function BulkWhatsAppModal({ survey, isOpen, onClose, surveyUrl }
               <div style={{ display: 'flex', gap: 12 }}>
                 <button style={btnSecondary} onClick={() => { resetState(); onClose(); }}>Cancel</button>
                 {method === 'file' ? (
-                  <button 
-                    style={btnPrimary(numbers.length === 0)} 
-                    disabled={numbers.length === 0} 
+                  <button
+                    style={btnPrimary(numbers.length === 0 || numbers.length > MAX_RECIPIENTS_PER_REQUEST)}
+                    disabled={numbers.length === 0 || numbers.length > MAX_RECIPIENTS_PER_REQUEST}
                     onClick={() => setStep('compose')}
                   >
                     Next: Compose
@@ -411,9 +406,9 @@ export default function BulkWhatsAppModal({ survey, isOpen, onClose, surveyUrl }
               <button style={btnSecondary} onClick={() => setStep('import')}>Back</button>
               <div style={{ display: 'flex', gap: 12 }}>
                 <button style={btnSecondary} onClick={() => { resetState(); onClose(); }}>Cancel</button>
-                <button 
-                  style={btnPrimary(!message.trim())} 
-                  disabled={!message.trim()} 
+                <button
+                  style={btnPrimary(!message.trim() || numbers.length > MAX_RECIPIENTS_PER_REQUEST)}
+                  disabled={!message.trim() || numbers.length > MAX_RECIPIENTS_PER_REQUEST}
                   onClick={() => setStep('preview')}
                 >
                   Preview & Confirm
