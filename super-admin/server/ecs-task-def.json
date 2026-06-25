@@ -56,6 +56,10 @@
         {
           "name": "ADMIN_FRONTEND_URL",
           "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/SUPER_ADMIN_FRONTEND_URL"
+        },
+        {
+          "name": "SECRET_KEY",
+          "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/SECRET_KEY"
         }
       ],
       "logConfiguration": {

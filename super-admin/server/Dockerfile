@@ -25,9 +25,14 @@ ENV PATH="/opt/venv/bin:$PATH"
 COPY backend /backend
 COPY super-admin/server /app
 
+# Normalize Windows line endings and keep the entrypoint outside mounted source
+RUN sed -i 's/\r$//' entrypoint.sh \
+    && cp entrypoint.sh /usr/local/bin/superadmin-entrypoint.sh \
+    && chmod +x /usr/local/bin/superadmin-entrypoint.sh
+
 EXPOSE 8001
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
     CMD curl -f http://localhost:8001/docs || exit 1
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
+ENTRYPOINT ["/usr/local/bin/superadmin-entrypoint.sh"]
