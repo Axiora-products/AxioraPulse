@@ -228,17 +228,31 @@ export default function App() {
     
     const headers = { 'Authorization': `Bearer ${token}` };
     
+    const checkResponse = async (res, defaultMsg) => {
+      if (res.status === 401) {
+        handleLogout();
+        throw new Error('Session expired (401). Please log in again.');
+      }
+      if (!res.ok) throw new Error(defaultMsg);
+      return res.json();
+    };
+    
     try {
       if (section === 'dashboard') {
         const res = await fetch(`${API_BASE_URL}/admin/analytics`, { headers });
-        if (!res.ok) throw new Error('Failed to load dashboard data');
-        const data = await res.json();
+        const data = await checkResponse(res, 'Failed to load dashboard data');
         setAnalytics(data);
       } 
       else if (section === 'organizations' || section === 'personal-accounts') {
         const tenantsRes = await fetch(`${API_BASE_URL}/admin/tenants`, { headers });
         const usersRes = await fetch(`${API_BASE_URL}/admin/users`, { headers });
+        
+        if (tenantsRes.status === 401 || usersRes.status === 401) {
+          handleLogout();
+          throw new Error('Session expired (401). Please log in again.');
+        }
         if (!tenantsRes.ok || !usersRes.ok) throw new Error('Failed to load workspaces and profiles');
+        
         const tenantsData = await tenantsRes.json();
         const usersData = await usersRes.json();
         setTenants(tenantsData);
@@ -246,14 +260,19 @@ export default function App() {
       } 
       else if (section === 'surveys') {
         const res = await fetch(`${API_BASE_URL}/admin/surveys`, { headers });
-        if (!res.ok) throw new Error('Failed to load surveys');
-        const data = await res.json();
+        const data = await checkResponse(res, 'Failed to load surveys');
         setSurveys(data);
       } 
       else if (section === 'subscriptions') {
         const resSub = await fetch(`${API_BASE_URL}/admin/subscriptions`, { headers });
         const resPay = await fetch(`${API_BASE_URL}/admin/payments`, { headers });
+        
+        if (resSub.status === 401 || resPay.status === 401) {
+          handleLogout();
+          throw new Error('Session expired (401). Please log in again.');
+        }
         if (!resSub.ok || !resPay.ok) throw new Error('Failed to load billing records');
+        
         const dataSub = await resSub.json();
         const dataPay = await resPay.json();
         setSubscriptions(dataSub);
@@ -262,7 +281,13 @@ export default function App() {
       else if (section === 'demos') {
         const resDemo = await fetch(`${API_BASE_URL}/admin/demos`, { headers });
         const resWait = await fetch(`${API_BASE_URL}/admin/waitlist`, { headers });
+        
+        if (resDemo.status === 401 || resWait.status === 401) {
+          handleLogout();
+          throw new Error('Session expired (401). Please log in again.');
+        }
         if (!resDemo.ok || !resWait.ok) throw new Error('Failed to load leads data');
+        
         const dataDemo = await resDemo.json();
         const dataWait = await resWait.json();
         setDemos(dataDemo);
@@ -270,13 +295,12 @@ export default function App() {
       } 
       else if (section === 'audit-logs') {
         const res = await fetch(`${API_BASE_URL}/admin/audit-logs`, { headers });
-        if (!res.ok) throw new Error('Failed to load audit logs');
-        const data = await res.json();
+        const data = await checkResponse(res, 'Failed to load audit logs');
         setAuditLogs(data);
       }
     } catch (err) {
       setError(err.message);
-      if (err.message.includes('validate credentials') || err.message.includes('401')) {
+      if (err.message.includes('401') || err.message.includes('expired')) {
         handleLogout();
       }
     } finally {
