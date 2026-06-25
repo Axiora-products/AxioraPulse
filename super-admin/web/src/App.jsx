@@ -944,25 +944,27 @@ export default function App() {
                   <div className="panel-card-header">
                     <span className="panel-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       Security & Failures
-                      <button 
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          await reportLoginFailure('simulate-test@axioraglobalsolutions.com');
-                          fetchSectionData('dashboard');
-                        }}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: 'var(--text-muted)',
-                          fontSize: 10,
-                          cursor: 'pointer',
-                          textDecoration: 'underline',
-                          padding: 0
-                        }}
-                        title="Simulate a failed login attempt to test telemetry"
-                      >
-                        (Simulate Failure)
-                      </button>
+                      {authConfig.mock_cognito && (
+                        <button 
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            await reportLoginFailure('simulate-test@axioraglobalsolutions.com');
+                            fetchSectionData('dashboard');
+                          }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--text-muted)',
+                            fontSize: 10,
+                            cursor: 'pointer',
+                            textDecoration: 'underline',
+                            padding: 0
+                          }}
+                          title="Simulate a failed login attempt to test telemetry"
+                        >
+                          (Simulate Failure)
+                        </button>
+                      )}
                     </span>
                     <div className="stat-card-icon" style={{width: 24, height: 24}}>
                       <ShieldAlert size={12} />
