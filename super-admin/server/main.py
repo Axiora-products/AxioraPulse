@@ -122,15 +122,24 @@ def report_login_failure(body: LoginFailureReport, db: Session = Depends(get_db)
     """
     Logs a client-side login failure to the AuditLog table.
     """
-    log_admin_action(
-        db=db,
-        actor_user_id=None,
-        actor_email=body.email,
-        action="auth.login_failed",
-        target_type="auth",
-        detail={"error": "Failed login attempt"}
-    )
-    return {"status": "logged"}
+    try:
+        log_entry = AuditLog(
+            actor_user_id=None,
+            actor_email=body.email,
+            action="auth.login_failed",
+            target_type="auth",
+            detail={"error": "Failed login attempt"}
+        )
+        db.add(log_entry)
+        db.commit()
+        db.refresh(log_entry)
+        return {"status": "logged"}
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Database logging failed: {type(exc).__name__} - {str(exc)}"
+        )
 
 
 # ── Dashboard/Analytics ──
