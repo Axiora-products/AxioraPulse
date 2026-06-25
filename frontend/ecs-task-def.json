@@ -1,7 +1,9 @@
 {
   "family": "pulse-frontend-${ENV}",
   "networkMode": "awsvpc",
-  "requiresCompatibilities": ["FARGATE"],
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
   "cpu": "256",
   "memory": "512",
   "executionRoleArn": "${ROLE_ARN}",
@@ -18,7 +20,14 @@
         }
       ],
       "environment": [
-        { "name": "BACKEND_INTERNAL_URL", "value": "backend.${ENV}.local:8000" }
+        {
+          "name": "BACKEND_INTERNAL_URL",
+          "value": "backend.${ENV}.local:8000"
+        },
+        {
+          "name": "VITE_APP_ENV",
+          "value": "${ENV}"
+        }
       ],
       "logConfiguration": {
         "logDriver": "awslogs",
@@ -37,7 +46,21 @@
         "timeout": 5,
         "retries": 3,
         "startPeriod": 10
-      }
+      },
+      "secrets": [
+        {
+          "name": "VITE_SENTRY_DSN",
+          "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/VITE_SENTRY_DSN"
+        },
+        {
+          "name": "VITE_SENTRY_TRACES_SAMPLE_RATE",
+          "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/VITE_SENTRY_TRACES_SAMPLE_RATE"
+        },
+        {
+          "name": "VITE_SENTRY_PROFILES_SAMPLE_RATE",
+          "valueFrom": "arn:aws:ssm:ap-south-1:${ACCOUNT_ID}:parameter/axiorapulse/${ENV}/VITE_SENTRY_PROFILES_SAMPLE_RATE"
+        }
+      ]
     }
   ]
 }

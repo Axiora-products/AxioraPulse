@@ -49,26 +49,13 @@ from sqlalchemy import text
 from core import config
 from core.rate_limiter import limiter
 from core.logging_config import configure_logging
+from core.sentry import init_sentry
 
 # ── Logging & error tracking ───────────────────────────────────────────────────
 # (AP-SEC-027) Configure structured, secret-redacting logging before anything else,
 # and wire Sentry when a DSN is provided.
 configure_logging()
-
-SENTRY_DSN = os.getenv("SENTRY_DSN")
-if SENTRY_DSN:
-    try:
-        import sentry_sdk
-
-        sentry_sdk.init(
-            dsn=SENTRY_DSN,
-            environment=config.ENVIRONMENT,
-            traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1")),
-            send_default_pii=False,
-        )
-    except Exception:
-        logging.getLogger(__name__).warning("Sentry SDK init failed; continuing without it")
-
+init_sentry()
 
 # ── Create tables ─────────────────────────────────────────────────────────────
 # In production, replace this with Alembic migrations.
@@ -87,6 +74,14 @@ app = FastAPI(
     openapi_url="/openapi.json" if _docs_enabled else None,
     root_path="/api",
 )
+
+if os.getenv("SENTRY_DEBUG_ROUTE_ENABLED", "").lower() == "true":
+
+    @app.get("/debug-sentry")
+    async def debug_sentry():
+        raise RuntimeError("Backend Sentry smoke test")
+
+
 # ── Rate Limiter ─────────────────────────────────────────────────────────────
 app.state.limiter = limiter
 app.add_middleware(SlowAPIMiddleware)

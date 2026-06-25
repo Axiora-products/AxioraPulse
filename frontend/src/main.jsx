@@ -8,9 +8,14 @@ import './index.css';                 // Tailwind base + design tokens
 import './styles/index.css';          // App component styles
 import './styles/app-overrides.css';  // Axiora Pulse visual overrides
 
+import { captureSentrySmokeTest, initSentry } from './lib/sentry';
+
 window.global = window;
 window.Buffer = Buffer;
 window.process = process;
+
+initSentry();
+captureSentrySmokeTest();
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
@@ -19,4 +24,3 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     </BrowserRouter>
   </React.StrictMode>
 );
-

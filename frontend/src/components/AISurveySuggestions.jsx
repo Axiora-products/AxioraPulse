@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import API from '../api/axios';
+import { logTechnicalError } from '../lib/apiError';
 
 /**
  * AISurveySuggestions
@@ -86,6 +87,7 @@ export default function AISurveySuggestions({ survey, questions = [], onAdd, tc 
       }
     } catch (e) {
       console.error('AI suggestions:', e);
+      logTechnicalError(e, 'AI suggestions');
       setState('error');
     } finally {
       isLoading.current = false;

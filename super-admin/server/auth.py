@@ -18,6 +18,7 @@ from db.models import UserProfile, RoleEnum
 logger = logging.getLogger(__name__)
 bearer_scheme = HTTPBearer(auto_error=False)
 
+
 @lru_cache(maxsize=1)
 def _get_jwks(pool_id: str, region: str) -> list:
     """Fetches the JWKS (JSON Web Key Set) for Cognito token verification."""
@@ -27,7 +28,7 @@ def _get_jwks(pool_id: str, region: str) -> list:
         url = f"{endpoint_url.rstrip('/')}/{pool_id}/.well-known/jwks.json"
     else:
         url = f"https://cognito-idp.{region}.amazonaws.com/{pool_id}/.well-known/jwks.json"
-    
+
     try:
         resp = requests.get(url, timeout=5)
         resp.raise_for_status()
@@ -35,6 +36,7 @@ def _get_jwks(pool_id: str, region: str) -> list:
     except Exception as exc:
         logger.error("Failed to fetch Cognito JWKS from %s: %s", url, str(exc))
         return []
+
 
 def verify_cognito_token(token: str) -> dict | None:
     """Verifies the Cognito ID token and returns its decoded payload."""
@@ -48,12 +50,7 @@ def verify_cognito_token(token: str) -> dict | None:
     # ── Mock Mode ──
     if admin_config.MOCK_COGNITO:
         try:
-            payload = jwt.decode(
-                token, 
-                admin_config.MOCK_COGNITO_SECRET, 
-                algorithms=["HS256"], 
-                audience=client_id
-            )
+            payload = jwt.decode(token, admin_config.MOCK_COGNITO_SECRET, algorithms=["HS256"], audience=client_id)
             return payload if payload.get("token_use") == "id" else None
         except Exception as exc:
             logger.warning("Mock admin token verification failed: %s", type(exc).__name__)
@@ -79,9 +76,9 @@ def verify_cognito_token(token: str) -> dict | None:
         logger.info("Admin Cognito token verification failed: %s", type(exc).__name__)
         return None
 
+
 def get_current_admin(
-    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
-    db: Session = Depends(get_db)
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme), db: Session = Depends(get_db)
 ) -> UserProfile:
     """
     Dependency that extracts the Bearer token, verifies it against the separate admin
@@ -111,14 +108,16 @@ def get_current_admin(
         logger.warning("Access denied: Non-whitelisted email domain %s tried to access admin", email)
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Forbidden: Only axioraglobalsolutions.com emails are authorized."
+            detail="Forbidden: Only axioraglobalsolutions.com emails are authorized.",
         )
 
     # Resolve admin user in our shared database
     cognito_sub = payload.get("sub")
-    user = db.query(UserProfile).filter(
-        (UserProfile.cognito_sub == cognito_sub) | (UserProfile.email == email_clean)
-    ).first()
+    user = (
+        db.query(UserProfile)
+        .filter((UserProfile.cognito_sub == cognito_sub) | (UserProfile.email == email_clean))
+        .first()
+    )
 
     if user is None:
         # Auto-provision whitelisted admins
@@ -130,7 +129,7 @@ def get_current_admin(
             is_internal=True,
             full_name=payload.get("name", email_clean.split("@")[0].title()),
             is_active=True,
-            account_status="active"
+            account_status="active",
         )
         db.add(user)
         db.commit()
@@ -157,6 +156,7 @@ def get_current_admin(
 
     # Bypass Postgres RLS constraints since admins query across all tenants (AP-SEC-002)
     from db.rls import set_bypass_rls, apply_tenant_guc
+
     set_bypass_rls(True)
     apply_tenant_guc(db)
 

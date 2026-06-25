@@ -1,6 +1,7 @@
 import os
 import re
 import uuid
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
@@ -9,7 +10,7 @@ from pydantic import BaseModel, Field
 from core import config
 from core.rate_limiter import limiter
 from db.database import get_db
-from db.models import Tenant, UserProfile, RoleEnum
+from db.models import Tenant, UserProfile, RoleEnum, AuditLog
 from schemas import (
     MeResponse,
     UserProfileOut,
@@ -38,6 +39,25 @@ class ChangePasswordRequest(BaseModel):
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+class LoginFailureReport(BaseModel):
+    email: str
+    reason: Optional[str] = None
+
+
+def _log_app_login_failure(db: Session, email: str, reason: str = "Failed login attempt") -> None:
+    db.add(
+        AuditLog(
+            actor_user_id=None,
+            actor_email=(email or "").strip().lower(),
+            action="auth.login_failed",
+            target_type="app_auth",
+            detail={"error": reason},
+        )
+    )
+    db.commit()
+
 
 MIGRATION_LAMBDA_SECRET = os.getenv("MIGRATION_LAMBDA_SECRET", "")
 
@@ -380,6 +400,17 @@ def mock_login(body: dict, db: Session = Depends(get_db)):
     token = jwt.encode(payload, config.MOCK_COGNITO_SECRET, algorithm="HS256")
 
     return {"id_token": token}
+
+
+@router.post("/report-login-failure")
+def report_login_failure(body: LoginFailureReport, db: Session = Depends(get_db)):
+    """Record client-side Cognito login failures for superadmin security monitoring."""
+    try:
+        _log_app_login_failure(db, body.email, body.reason or "Failed login attempt")
+        return {"status": "logged"}
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to log login failure")
 
 
 @router.get("/config")

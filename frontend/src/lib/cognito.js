@@ -8,6 +8,20 @@ import {
 let _userPool = null;
 let _config = null;
 
+const getApiBaseUrl = () => import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+
+const reportLoginFailure = async (email, reason = 'Failed login attempt') => {
+  try {
+    await fetch(`${getApiBaseUrl()}/auth/report-login-failure`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, reason })
+    });
+  } catch (err) {
+    console.error('Failed to report login failure:', err);
+  }
+};
+
 export function setAuthConfig(config) {
   _config = config;
   _userPool = null;
@@ -40,7 +54,7 @@ function getUserPool() {
 
 export async function cognitoSignIn(email, password) {
   if (isMockAuth()) {
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+    const baseUrl = getApiBaseUrl();
     const name = localStorage.getItem(`mock_name_${email}`) || undefined;
 
     const response = await fetch(`${baseUrl}/auth/mock-login`, {
@@ -51,7 +65,9 @@ export async function cognitoSignIn(email, password) {
 
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.detail || 'Mock login failed');
+      const message = errData.detail || 'Mock login failed';
+      await reportLoginFailure(email, message);
+      throw new Error(message);
     }
 
     const data = await response.json();
@@ -73,7 +89,10 @@ export async function cognitoSignIn(email, password) {
     cognitoUser.setAuthenticationFlowType('USER_PASSWORD_AUTH');
     cognitoUser.authenticateUser(authDetails, {
       onSuccess: resolve,
-      onFailure: reject,
+      onFailure: async (err) => {
+        await reportLoginFailure(email, err?.message || err?.name || 'Cognito login failed');
+        reject(err);
+      },
     });
   });
 }

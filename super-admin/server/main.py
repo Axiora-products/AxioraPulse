@@ -61,6 +61,7 @@ class MockLoginRequest(BaseModel):
 
 class LoginFailureReport(BaseModel):
     email: str
+    reason: Optional[str] = None
 
 
 class UserUpdateSchema(BaseModel):
@@ -92,7 +93,7 @@ def mock_login(body: MockLoginRequest, db: Session = Depends(get_db)):
             actor_email=email,
             action="auth.login_failed",
             target_type="auth",
-            detail={"error": "Mock Login failed: Invalid email domain"}
+            detail={"error": "Mock Login failed: Invalid email domain"},
         )
         raise HTTPException(
             status_code=403, detail="Mock Login failed: Only @axioraglobalsolutions.com email domain allowed."
@@ -123,12 +124,13 @@ def report_login_failure(body: LoginFailureReport, db: Session = Depends(get_db)
     Logs a client-side login failure to the AuditLog table.
     """
     try:
+        email = body.email.strip().lower()
         log_entry = AuditLog(
             actor_user_id=None,
-            actor_email=body.email,
+            actor_email=email,
             action="auth.login_failed",
             target_type="auth",
-            detail={"error": "Failed login attempt"}
+            detail={"error": body.reason or "Failed login attempt"},
         )
         db.add(log_entry)
         db.commit()
@@ -136,10 +138,7 @@ def report_login_failure(body: LoginFailureReport, db: Session = Depends(get_db)
         return {"status": "logged"}
     except Exception as exc:
         db.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail=f"Database logging failed: {type(exc).__name__} - {str(exc)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Database logging failed: {type(exc).__name__} - {str(exc)}")
 
 
 # ── Dashboard/Analytics ──
@@ -304,33 +303,38 @@ def get_analytics(current_admin: UserProfile = Depends(get_current_admin), db: S
         .count()
     )
 
-    # Calculate login fails and user validation errors from AuditLog
-    user_errors = (
-        db.query(AuditLog).filter((AuditLog.action.ilike("%rejected%")) | (AuditLog.action.ilike("%failed%"))).count()
-    )
+    # Calculate security failures from explicit audit events only.
     login_fails = db.query(AuditLog).filter(AuditLog.action == "auth.login_failed").count()
+    user_errors = (
+        db.query(AuditLog)
+        .filter(
+            AuditLog.action.in_(
+                [
+                    "auth.user_validation_failed",
+                    "auth.user_validation_error",
+                    "user.validation_failed",
+                    "user.validation_error",
+                ]
+            )
+        )
+        .count()
+    )
 
-    # Fallback to deterministic values for local/dev databases if empty to show realistic graphs
-    if login_fails == 0:
-        login_fails = (total_users * 3) % 17 + 2
-    if user_errors == 0:
-        user_errors = (total_surveys * 5) % 23 + 4
-
-    # Calculate section heatmap percentages dynamically based on DB activity stats
-    surveys_weight = 40 + (total_surveys % 15)
-    analytics_weight = 20 + (total_responses % 25)
-    dashboard_weight = 15 + (total_users % 10)
-    settings_weight = 10
-    billing_weight = 5 + (total_subscriptions % 10)
-
-    total_weight = surveys_weight + analytics_weight + dashboard_weight + settings_weight + billing_weight
-
+    # App section heatmap is based on recorded domain activity, not sample weights.
+    section_counts = [
+        ("Surveys & Creator", total_surveys),
+        ("Analytics & Reports", total_responses),
+        ("Dashboard Overview", total_users + total_tenants),
+        ("Settings & Profile", inactive_users),
+        ("Billing & Transactions", total_subscriptions + db.query(Payment).count()),
+    ]
+    total_section_activity = sum(count for _, count in section_counts)
     heatmap = [
-        {"section": "Surveys & Creator", "percentage": round((surveys_weight / total_weight) * 100, 1)},
-        {"section": "Analytics & Reports", "percentage": round((analytics_weight / total_weight) * 100, 1)},
-        {"section": "Dashboard Overview", "percentage": round((dashboard_weight / total_weight) * 100, 1)},
-        {"section": "Settings & Profile", "percentage": round((settings_weight / total_weight) * 100, 1)},
-        {"section": "Billing & Transactions", "percentage": round((billing_weight / total_weight) * 100, 1)},
+        {
+            "section": section,
+            "percentage": round((count / total_section_activity) * 100, 1) if total_section_activity else 0,
+        }
+        for section, count in section_counts
     ]
 
     return {

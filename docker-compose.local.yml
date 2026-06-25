@@ -46,6 +46,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:root@pulse-db:5432/axiorapulse
       - FRONTEND_URL=http://localhost:5173
+      - APP_ENV=local
       - AWS_ENDPOINT_URL=http://pulse-floci:4566
       - AWS_ACCESS_KEY_ID=mock
       - AWS_SECRET_ACCESS_KEY=mock
@@ -72,6 +73,10 @@ services:
       - ./frontend/.env.local
     environment:
       - VITE_API_BASE_URL=http://localhost:8000
+      - VITE_APP_ENV=local
+      - VITE_SENTRY_DSN=${VITE_SENTRY_DSN:-}
+      - VITE_SENTRY_TRACES_SAMPLE_RATE=${VITE_SENTRY_TRACES_SAMPLE_RATE:-1.0}
+      - VITE_SENTRY_PROFILES_SAMPLE_RATE=${VITE_SENTRY_PROFILES_SAMPLE_RATE:-0}
     volumes:
       - ./frontend:/app
       - /app/node_modules

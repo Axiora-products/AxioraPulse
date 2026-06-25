@@ -88,3 +88,7 @@ scripts/
 # --- App Specific ---
 coverage/
 backend/uploaded_files_store/
+
+# --- Local Agent State ---
+.serena/
+

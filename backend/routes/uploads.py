@@ -398,7 +398,7 @@ def _transcribe_with_whisper(audio_path: str) -> dict:
         raise ValueError("Audio is too long (max 10 minutes)")
 
     # Use OpenAI API if key is available (QA/Prod)
-    if OPENAI_KEY and not OPENAI_KEY.startswith("mock-"):
+    if OPENAI_KEY:
         try:
             logger.info("Using OpenAI API for transcription")
             return _transcribe_via_api(audio_path)

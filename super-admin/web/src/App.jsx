@@ -185,13 +185,23 @@ export default function App() {
     setError('');
   };
 
-  const reportLoginFailure = async (email) => {
+  const reportLoginFailure = async (email, reason = 'Failed login attempt') => {
     try {
-      await fetch(`${API_BASE_URL}/admin/auth/report-failure`, {
+      const res = await fetch(`${API_BASE_URL}/admin/auth/report-failure`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email })
+        body: JSON.stringify({ email, reason })
       });
+      if (!res.ok) {
+        let detail = 'Unable to audit login failure';
+        try {
+          const data = await res.json();
+          detail = data.detail || detail;
+        } catch {
+          // Keep the original audit failure message when the response is not JSON.
+        }
+        throw new Error(detail);
+      }
     } catch (err) {
       console.error("Failed to report login failure:", err);
     }
@@ -206,7 +216,7 @@ export default function App() {
     if (!emailClean.endsWith('@axioraglobalsolutions.com')) {
       setError('Forbidden: Only @axioraglobalsolutions.com emails can access the Super Admin Console.');
       setLoading(false);
-      reportLoginFailure(emailClean);
+      await reportLoginFailure(emailClean, 'Invalid super-admin email domain');
       return;
     }
 
@@ -229,7 +239,7 @@ export default function App() {
         setToken(data.id_token);
       } catch (err) {
         setError(err.message);
-        reportLoginFailure(emailClean);
+        await reportLoginFailure(emailClean, err.message);
       } finally {
         setLoading(false);
       }
@@ -267,7 +277,7 @@ export default function App() {
         setToken(idToken);
       } catch (err) {
         setError(err.message);
-        reportLoginFailure(emailClean);
+        await reportLoginFailure(emailClean, err.message);
       } finally {
         setLoading(false);
       }
@@ -517,7 +527,7 @@ export default function App() {
           <h2 className="login-title">Super Admin Login</h2>
           <p className="login-subtitle">
             {authConfig.mock_cognito 
-              ? 'Local Sandbox Environment (Bypass password)' 
+              ? 'Local Sandbox Environment (Bypass password)'
               : 'Real QA Environment (AWS Cognito Authentication)'}
           </p>
 

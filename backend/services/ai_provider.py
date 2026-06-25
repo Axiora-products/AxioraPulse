@@ -20,6 +20,7 @@ from typing import Optional
 import requests
 import anthropic
 import openai
+import sentry_sdk
 
 from fastapi import HTTPException
 
@@ -351,7 +352,7 @@ def call_ai_sync(
 
     for provider in _PROVIDERS:
         api_key = os.getenv(provider["env_key"], "").strip()
-        if not api_key or api_key.startswith("mock-"):
+        if not api_key:
             continue
 
         provider_name = provider["name"]
@@ -410,14 +411,18 @@ def call_ai_sync(
                 break  # Move to next provider
 
     if attempted == 0:
+        exc = RuntimeError("No AI provider API key is configured on the server")
+        sentry_sdk.capture_exception(exc)
         raise HTTPException(
             status_code=500,
             detail="No AI provider API key is configured on the server",
-        )
+        ) from exc
 
     error_summary = " | ".join(errors)
     logger.error("[AI] All providers failed: %s", error_summary)
+    exc = RuntimeError(f"All AI providers failed: {error_summary}")
+    sentry_sdk.capture_exception(exc)
     raise HTTPException(
         status_code=503,
         detail="All AI providers are currently unavailable. Please try again shortly.",
-    )
+    ) from exc

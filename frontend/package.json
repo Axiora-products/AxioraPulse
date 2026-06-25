@@ -13,6 +13,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@sentry/react": "^10.60.0",
     "amazon-cognito-identity-js": "^6.3.16",
     "axios": "^1.15.0",
     "buffer": "^6.0.3",
