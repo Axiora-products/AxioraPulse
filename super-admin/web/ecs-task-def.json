@@ -8,7 +8,7 @@
   "taskRoleArn": "${ROLE_ARN}",
   "containerDefinitions": [
     {
-      "name": "FrontendContainer",
+      "name": "SuperadminFrontendContainer",
       "image": "SUPERADMIN_FRONTEND_IMAGE",
       "essential": true,
       "portMappings": [

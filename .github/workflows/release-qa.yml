@@ -398,7 +398,7 @@ jobs:
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
           task-definition: super-admin/web/ecs-task-def.json
-          container-name: FrontendContainer
+          container-name: SuperadminFrontendContainer
           image: ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-superadmin-frontend-qa:sha-${{ github.sha }}
 
       - name: Deploy Superadmin Frontend to ECS
