@@ -499,7 +499,7 @@ try:
             db.commit()
             print(f"Explicitly promoted existing UserProfile to Super Admin: {sa_email}")
 
-        # Seed a mock personal user and workspace if they don't exist
+        # Seed a mock personal user and workspace if they do not exist
         personal_email = "john.doe@gmail.com"
         personal_usr = db.query(UserProfile).filter(UserProfile.email == personal_email).first()
         if not personal_usr:
