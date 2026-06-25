@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
   Building, 
+  Settings,
   Users, 
   FileQuestion, 
   CreditCard, 
@@ -76,6 +77,15 @@ export default function App() {
   const [viewingLogDetail, setViewingLogDetail] = useState(null);
   const [expandedTenants, setExpandedTenants] = useState({});
 
+  // Customizer States
+  const [customizerOpen, setCustomizerOpen] = useState(false);
+  const [themeDirection, setThemeDirection] = useState(localStorage.getItem('admin_theme_direction') || 'ltr');
+  const [primaryColor, setPrimaryColor] = useState(localStorage.getItem('admin_primary_color') || '#0f172a');
+  const [secondaryColor, setSecondaryColor] = useState(localStorage.getItem('admin_secondary_color') || '#64748b');
+  const [layoutType, setLayoutType] = useState(localStorage.getItem('admin_layout_type') || 'vertical');
+  const [containerOption, setContainerOption] = useState(localStorage.getItem('admin_container_option') || 'full');
+  const [cardWith, setCardWith] = useState(localStorage.getItem('admin_card_with') || 'border');
+
   const toggleTenantExpanded = (tenantId) => {
     setExpandedTenants(prev => ({
       ...prev,
@@ -114,6 +124,34 @@ export default function App() {
   const toggleTheme = () => {
     setTheme(prev => prev === 'light' ? 'dark' : 'light');
   };
+
+  useEffect(() => {
+    document.documentElement.dir = themeDirection;
+    localStorage.setItem('admin_theme_direction', themeDirection);
+  }, [themeDirection]);
+
+  useEffect(() => {
+    document.documentElement.style.setProperty('--border-focus', primaryColor);
+    document.documentElement.style.setProperty('--text-primary', primaryColor);
+    localStorage.setItem('admin_primary_color', primaryColor);
+  }, [primaryColor]);
+
+  useEffect(() => {
+    document.documentElement.style.setProperty('--text-secondary', secondaryColor);
+    localStorage.setItem('admin_secondary_color', secondaryColor);
+  }, [secondaryColor]);
+
+  useEffect(() => {
+    localStorage.setItem('admin_layout_type', layoutType);
+  }, [layoutType]);
+
+  useEffect(() => {
+    localStorage.setItem('admin_container_option', containerOption);
+  }, [containerOption]);
+
+  useEffect(() => {
+    localStorage.setItem('admin_card_with', cardWith);
+  }, [cardWith]);
 
   useEffect(() => {
     if (token) {
@@ -580,7 +618,7 @@ export default function App() {
   }
 
   return (
-    <div className="app-container">
+    <div className={`app-container ${layoutType === 'horizontal' ? 'layout-horizontal' : ''} ${cardWith === 'shadow' ? 'card-shadow-style' : ''}`}>
       {/* ── Left Navigation Sidebar ── */}
       <aside className="sidebar">
         <div className="sidebar-logo">
@@ -644,7 +682,7 @@ export default function App() {
       </aside>
 
       {/* ── Main Content Area ── */}
-      <main className="main-content">
+      <main className={`main-content ${containerOption === 'boxed' ? 'container-boxed' : ''}`}>
         <header className="header">
           <div className="header-search-container">
             <Search size={14} color="var(--text-muted)" />
@@ -1587,6 +1625,187 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* ── Customizer Floating Button ── */}
+      <button 
+        className="floating-customizer-btn" 
+        onClick={() => setCustomizerOpen(true)}
+        aria-label="Open customizer"
+      >
+        <Settings size={22} />
+      </button>
+
+      {/* ── Customizer Backdrop ── */}
+      <div 
+        className={`customizer-backdrop ${customizerOpen ? 'visible' : ''}`} 
+        onClick={() => setCustomizerOpen(false)}
+      />
+
+      {/* ── Customizer Slide-out Drawer ── */}
+      <div className={`customizer-drawer ${customizerOpen ? 'open' : ''}`}>
+        <div className="customizer-header">
+          <div>
+            <h3 className="customizer-header-title">Customizer</h3>
+            <p className="customizer-header-subtitle">Make changes to your customizer here.</p>
+          </div>
+          <button className="btn-close" onClick={() => setCustomizerOpen(false)}>
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="customizer-body">
+          {/* Theme Option */}
+          <div>
+            <h4 className="customizer-section-title">Theme Option</h4>
+            <div className="customizer-buttons">
+              <button 
+                className={`customizer-btn ${theme === 'light' ? 'active' : ''}`}
+                onClick={() => setTheme('light')}
+              >
+                <Sun size={14} />
+                <span>Light</span>
+              </button>
+              <button 
+                className={`customizer-btn ${theme === 'dark' ? 'active' : ''}`}
+                onClick={() => setTheme('dark')}
+              >
+                <Moon size={14} />
+                <span>Dark</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Theme Direction */}
+          <div>
+            <h4 className="customizer-section-title">Theme Direction</h4>
+            <div className="customizer-buttons">
+              <button 
+                className={`customizer-btn ${themeDirection === 'ltr' ? 'active' : ''}`}
+                onClick={() => setThemeDirection('ltr')}
+              >
+                <span style={{ fontSize: '13px', fontWeight: 'bold' }}>¶</span>
+                <span>LTR</span>
+              </button>
+              <button 
+                className={`customizer-btn ${themeDirection === 'rtl' ? 'active' : ''}`}
+                onClick={() => setThemeDirection('rtl')}
+              >
+                <span style={{ fontSize: '13px', fontWeight: 'bold', transform: 'scaleX(-1)', display: 'inline-block' }}>¶</span>
+                <span>RTL</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Choose Your Theme Colors */}
+          <div>
+            <h4 className="customizer-section-title">Choose Your Theme Colors</h4>
+            <div className="customizer-colors">
+              <label className="customizer-color-card" htmlFor="primary-color-picker">
+                <div className="color-circle" style={{ backgroundColor: primaryColor }} />
+                <span style={{ fontSize: '13px' }}>✎</span>
+                <input 
+                  type="color" 
+                  id="primary-color-picker" 
+                  value={primaryColor} 
+                  onChange={e => setPrimaryColor(e.target.value)} 
+                  style={{ display: 'none' }} 
+                />
+              </label>
+              <label className="customizer-color-card" htmlFor="secondary-color-picker">
+                <div className="color-circle" style={{ backgroundColor: secondaryColor }} />
+                <span style={{ fontSize: '13px' }}>✎</span>
+                <input 
+                  type="color" 
+                  id="secondary-color-picker" 
+                  value={secondaryColor} 
+                  onChange={e => setSecondaryColor(e.target.value)} 
+                  style={{ display: 'none' }} 
+                />
+              </label>
+            </div>
+          </div>
+
+          {/* Layout Type */}
+          <div>
+            <h4 className="customizer-section-title">Layout Type</h4>
+            <div className="customizer-buttons">
+              <button 
+                className={`customizer-btn ${layoutType === 'vertical' ? 'active' : ''}`}
+                onClick={() => setLayoutType('vertical')}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <line x1="9" y1="3" x2="9" y2="21" />
+                </svg>
+                <span>Vertical</span>
+              </button>
+              <button 
+                className={`customizer-btn ${layoutType === 'horizontal' ? 'active' : ''}`}
+                onClick={() => setLayoutType('horizontal')}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <line x1="3" y1="9" x2="21" y2="9" />
+                </svg>
+                <span>Horizontal</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Container Option */}
+          <div>
+            <h4 className="customizer-section-title">Container Option</h4>
+            <div className="customizer-buttons">
+              <button 
+                className={`customizer-btn ${containerOption === 'boxed' ? 'active' : ''}`}
+                onClick={() => setContainerOption('boxed')}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <line x1="7" y1="3" x2="7" y2="21" />
+                  <line x1="17" y1="3" x2="17" y2="21" />
+                </svg>
+                <span>Boxed</span>
+              </button>
+              <button 
+                className={`customizer-btn ${containerOption === 'full' ? 'active' : ''}`}
+                onClick={() => setContainerOption('full')}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                </svg>
+                <span>Full</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Card With */}
+          <div>
+            <h4 className="customizer-section-title">Card With</h4>
+            <div className="customizer-buttons">
+              <button 
+                className={`customizer-btn ${cardWith === 'border' ? 'active' : ''}`}
+                onClick={() => setCardWith('border')}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="4" y="4" width="16" height="16" rx="2" />
+                </svg>
+                <span>Border</span>
+              </button>
+              <button 
+                className={`customizer-btn ${cardWith === 'shadow' ? 'active' : ''}`}
+                onClick={() => setCardWith('shadow')}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="4" y="4" width="14" height="14" rx="2" />
+                  <path d="M20 8v12H8" strokeDasharray="2 2" />
+                </svg>
+                <span>Shadow</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
