@@ -817,6 +817,124 @@ export default function App() {
                 </div>
               </div>
 
+              {/* Telemetry Row: User Activity, Security/Failures, Section Heatmap */}
+              <div className="panel-grid three-columns" style={{ marginTop: 24 }}>
+                {/* 3a. Active vs Inactive Users */}
+                <div className="panel-card">
+                  <div className="panel-card-header">
+                    <span className="panel-title">User Activity</span>
+                    <div className="stat-card-icon" style={{width: 24, height: 24}}>
+                      <Users size={12} />
+                    </div>
+                  </div>
+                  <div style={{ padding: '8px 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ fontSize: 24, fontWeight: 800 }}>{analytics.kpis.active_users}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Active Users</div>
+                      </div>
+                      <div style={{ width: 1, height: 40, backgroundColor: 'var(--border-color)' }} />
+                      <div>
+                        <div style={{ fontSize: 24, fontWeight: 800 }}>{analytics.kpis.inactive_users}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Inactive / Invited</div>
+                      </div>
+                    </div>
+                    {/* Activity ratio progress bar */}
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 6 }}>
+                        <span>Activity Ratio</span>
+                        <span style={{ fontWeight: 700 }}>
+                          {analytics.kpis.active_users + analytics.kpis.inactive_users > 0 
+                            ? Math.round((analytics.kpis.active_users / (analytics.kpis.active_users + analytics.kpis.inactive_users)) * 100) 
+                            : 0}%
+                        </span>
+                      </div>
+                      <div style={{ height: 8, width: '100%', backgroundColor: 'var(--border-color)', borderRadius: 4, overflow: 'hidden', display: 'flex' }}>
+                        <div style={{ 
+                          height: '100%', 
+                          width: `${analytics.kpis.active_users + analytics.kpis.inactive_users > 0 
+                            ? (analytics.kpis.active_users / (analytics.kpis.active_users + analytics.kpis.inactive_users)) * 100 
+                            : 0}%`, 
+                          backgroundColor: 'var(--accent-emerald)' 
+                        }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3b. Security & Login Telemetry */}
+                <div className="panel-card">
+                  <div className="panel-card-header">
+                    <span className="panel-title">Security & Failures</span>
+                    <div className="stat-card-icon" style={{width: 24, height: 24}}>
+                      <ShieldAlert size={12} />
+                    </div>
+                  </div>
+                  <div style={{ padding: '8px 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--accent-rose)' }}>{analytics.kpis.login_fails}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Login Failures</div>
+                      </div>
+                      <div style={{ width: 1, height: 40, backgroundColor: 'var(--border-color)' }} />
+                      <div>
+                        <div style={{ fontSize: 24, fontWeight: 800, color: '#d97706' }}>{analytics.kpis.user_errors}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>User Validation Errors</div>
+                      </div>
+                    </div>
+                    {/* Error status indicator */}
+                    <div style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: 8, 
+                      padding: '10px 12px', 
+                      backgroundColor: 'rgba(239, 68, 68, 0.05)', 
+                      borderRadius: 8, 
+                      border: '1px solid rgba(239, 68, 68, 0.1)',
+                      fontSize: 11,
+                      color: 'var(--accent-rose)',
+                      lineHeight: 1
+                    }}>
+                      <span style={{ 
+                        display: 'inline-block', 
+                        width: 6, 
+                        height: 6, 
+                        borderRadius: '50%', 
+                        backgroundColor: 'var(--accent-rose)', 
+                        animation: 'pulse-dot 2s infinite' 
+                      }} />
+                      <span>Telemetry: {analytics.kpis.login_fails > 25 ? 'Abnormal failures reported' : 'System status healthy'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3c. User Heatmap */}
+                <div className="panel-card">
+                  <div className="panel-card-header">
+                    <span className="panel-title">App Section Heatmap</span>
+                    <div className="stat-card-icon" style={{width: 24, height: 24}}>
+                      <Sparkles size={12} />
+                    </div>
+                  </div>
+                  <div style={{ padding: '4px 0', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {analytics.heatmap && analytics.heatmap.map((item, index) => (
+                      <div key={index}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 4, fontWeight: 500 }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>{item.section}</span>
+                          <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{item.percentage}%</span>
+                        </div>
+                        <div style={{ height: 6, width: '100%', backgroundColor: 'var(--border-color)', borderRadius: 3, overflow: 'hidden' }}>
+                          <div style={{ 
+                            height: '100%', 
+                            width: `${item.percentage}%`, 
+                            backgroundColor: index === 0 ? '#3b82f6' : index === 1 ? '#8b5cf6' : index === 2 ? '#ec4899' : index === 3 ? '#f59e0b' : '#10b981' 
+                          }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
 
             </div>
           )}

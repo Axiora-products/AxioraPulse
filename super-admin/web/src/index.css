@@ -1143,3 +1143,30 @@ body {
   background-color: var(--bg-primary) !important;
 }
 
+/* ── Three Column Grid for Telemetry Cards ── */
+.panel-grid.three-columns {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 1024px) {
+  .panel-grid.three-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Pulse animation for security status */
+@keyframes pulse-dot {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 6px rgba(239, 68, 68, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+
