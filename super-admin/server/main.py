@@ -145,9 +145,8 @@ def get_analytics(
     weekly_sales_change = 0.0
     if prev_weekly_sales > 0:
         weekly_sales_change = round(((weekly_sales - prev_weekly_sales) / prev_weekly_sales) * 100.0, 1)
-    else:
-        # Give a small realistic positive baseline if no historical data is available
-        weekly_sales_change = 18.0
+    elif weekly_sales > 0:
+        weekly_sales_change = 100.0
 
     # ── Purchase Orders count (paid payments) ──
     weekly_orders = db.query(Payment)\
@@ -158,14 +157,8 @@ def get_analytics(
     weekly_orders_change = 0.0
     if prev_weekly_orders > 0:
         weekly_orders_change = round(((weekly_orders - prev_weekly_orders) / prev_weekly_orders) * 100.0, 1)
-    else:
-        weekly_orders_change = 18.0
-
-    if weekly_orders == 0:
-        weekly_orders = 230  # Fallback baseline matching screenshot
-
-    if weekly_sales == 0:
-        weekly_sales = 4587.00  # Fallback baseline matching screenshot
+    elif weekly_orders > 0:
+        weekly_orders_change = 100.0
 
     # ── Daily Revenue Updates (last 7 days) ──
     daily_revenue = []
@@ -177,11 +170,6 @@ def get_analytics(
         day_earnings_raw = db.query(func.sum(Payment.amount_paise))\
             .filter(Payment.status == "paid", Payment.created_at >= day_start, Payment.created_at <= day_end).scalar() or 0
         day_earnings = day_earnings_raw / 100.0
-        
-        # Fallback trend
-        if day_earnings == 0:
-            day_earnings = round((1000 + (day.day % 7) * 350 + (day.month % 3) * 200), 2)
-            
         day_expense = round(day_earnings * 0.35, 2)
         
         daily_revenue.append({
@@ -211,9 +199,6 @@ def get_analytics(
             .filter(Payment.status == "paid", Payment.created_at >= month_start, Payment.created_at <= month_end).scalar() or 0
         month_earnings = month_earnings_raw / 100.0
         
-        if month_earnings == 0:
-            month_earnings = round(5000 + (month % 5) * 800 + (year % 2) * 500, 2)
-            
         monthly_earnings.append({
             "month": month_start.strftime("%b"),
             "earnings": month_earnings
