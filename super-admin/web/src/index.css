@@ -1202,7 +1202,7 @@ body {
 }
 
 .floating-customizer-btn svg {
-  animation: spin-gear 12s linear infinite;
+  animation: spin-gear 3s linear infinite;
 }
 
 @keyframes spin-gear {
