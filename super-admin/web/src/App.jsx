@@ -185,6 +185,18 @@ export default function App() {
     setError('');
   };
 
+  const reportLoginFailure = async (email) => {
+    try {
+      await fetch(`${API_BASE_URL}/admin/auth/report-failure`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+    } catch (err) {
+      console.error("Failed to report login failure:", err);
+    }
+  };
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -194,6 +206,7 @@ export default function App() {
     if (!emailClean.endsWith('@axioraglobalsolutions.com')) {
       setError('Forbidden: Only @axioraglobalsolutions.com emails can access the Super Admin Console.');
       setLoading(false);
+      reportLoginFailure(emailClean);
       return;
     }
 
@@ -216,6 +229,7 @@ export default function App() {
         setToken(data.id_token);
       } catch (err) {
         setError(err.message);
+        reportLoginFailure(emailClean);
       } finally {
         setLoading(false);
       }
@@ -253,6 +267,7 @@ export default function App() {
         setToken(idToken);
       } catch (err) {
         setError(err.message);
+        reportLoginFailure(emailClean);
       } finally {
         setLoading(false);
       }

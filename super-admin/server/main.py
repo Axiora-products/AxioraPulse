@@ -59,6 +59,10 @@ class MockLoginRequest(BaseModel):
     name: Optional[str] = None
 
 
+class LoginFailureReport(BaseModel):
+    email: str
+
+
 class UserUpdateSchema(BaseModel):
     role: Optional[RoleEnum] = None
     is_active: Optional[bool] = None
@@ -72,7 +76,7 @@ class TenantUpdateSchema(BaseModel):
 
 # ── Mock Cognito Auth Endpoint (Local Dev only) ──
 @app.post("/admin/auth/mock-login")
-def mock_login(body: MockLoginRequest):
+def mock_login(body: MockLoginRequest, db: Session = Depends(get_db)):
     """
     Local-only helper to generate a mock Cognito ID token for testing the admin panel.
     Only active when MOCK_COGNITO=true.
@@ -82,6 +86,14 @@ def mock_login(body: MockLoginRequest):
 
     email = body.email.strip().lower()
     if not email.endswith("@axioraglobalsolutions.com"):
+        log_admin_action(
+            db=db,
+            actor_user_id=None,
+            actor_email=email,
+            action="auth.login_failed",
+            target_type="auth",
+            detail={"error": "Mock Login failed: Invalid email domain"}
+        )
         raise HTTPException(
             status_code=403, detail="Mock Login failed: Only @axioraglobalsolutions.com email domain allowed."
         )
@@ -102,6 +114,23 @@ def mock_login(body: MockLoginRequest):
 
     token = jwt.encode(payload, admin_config.MOCK_COGNITO_SECRET, algorithm="HS256")
     return {"id_token": token}
+
+
+# ── Client-side Login Failure Logging Endpoint ──
+@app.post("/admin/auth/report-failure")
+def report_login_failure(body: LoginFailureReport, db: Session = Depends(get_db)):
+    """
+    Logs a client-side login failure to the AuditLog table.
+    """
+    log_admin_action(
+        db=db,
+        actor_user_id=None,
+        actor_email=body.email,
+        action="auth.login_failed",
+        target_type="auth",
+        detail={"error": "Failed login attempt"}
+    )
+    return {"status": "logged"}
 
 
 # ── Dashboard/Analytics ──
