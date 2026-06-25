@@ -768,7 +768,7 @@ export default function App() {
                         {analytics.kpis.weekly_sales_change >= 0 ? '+' : ''}{analytics.kpis.weekly_sales_change}%
                       </span>
                     </div>
-                    <span className="stat-card-link">See Report <ArrowRight size={10} /></span>
+                    <span className="stat-card-link" onClick={() => setCurrentSection('subscriptions')}>See Report <ArrowRight size={10} /></span>
                   </div>
                 </div>
 
@@ -787,7 +787,7 @@ export default function App() {
                         {analytics.kpis.weekly_orders_change >= 0 ? '+' : ''}{analytics.kpis.weekly_orders_change}%
                       </span>
                     </div>
-                    <span className="stat-card-link">See Report <ArrowRight size={10} /></span>
+                    <span className="stat-card-link" onClick={() => setCurrentSection('subscriptions')}>See Report <ArrowRight size={10} /></span>
                   </div>
                 </div>
               </div>
