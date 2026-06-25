@@ -327,6 +327,8 @@ def update_user(
 
     changes = {}
     if body.role is not None:
+        if body.role == RoleEnum.super_admin and not user.email.endswith("@axioraglobalsolutions.com"):
+            raise HTTPException(400, "You can't set superadmin role to customers")
         old_role = user.role
         user.role = body.role
         changes["role"] = {"old": old_role, "new": body.role}

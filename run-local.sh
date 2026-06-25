@@ -255,19 +255,34 @@ fi
 # --- Wait for Backend to be Healthy ---
 echo "⏳ Waiting for backend container to be healthy and start server..."
 attempts=0
-max_attempts=30
+max_attempts=120
 backend_ready=false
 while [ $attempts -lt $max_attempts ]; do
+  # Check if backend container is still running
+  if ! $DOCKER_CMD ps --filter "name=pulse-backend" --filter "status=running" --format "{{.Names}}" | grep -q "pulse-backend"; then
+    echo "❌ Error: Backend container 'pulse-backend' is no longer running."
+    echo "📢 Backend container logs:"
+    $DOCKER_CMD logs pulse-backend
+    $DOCKER_CMD compose -f docker-compose.local.yml down
+    exit 1
+  fi
+
   if curl -s http://localhost:8000/health >/dev/null 2>&1; then
     backend_ready=true
     break
   fi
-  sleep 1
+  
   attempts=$((attempts+1))
+  if [ $((attempts % 10)) -eq 0 ]; then
+    echo "   Waiting for backend... (${attempts}/${max_attempts}s)"
+  fi
+  sleep 1
 done
 
 if [ "$backend_ready" != "true" ]; then
-  echo "❌ Error: Backend container did not become healthy in time."
+  echo "❌ Error: Backend container did not become healthy in time (timeout after ${max_attempts}s)."
+  echo "📢 Backend container logs:"
+  $DOCKER_CMD logs pulse-backend
   $DOCKER_CMD compose -f docker-compose.local.yml down
   exit 1
 fi
@@ -483,6 +498,232 @@ try:
         if updated:
             db.commit()
             print(f"Explicitly promoted existing UserProfile to Super Admin: {sa_email}")
+
+        # Seed a mock personal user and workspace if they don't exist
+        personal_email = "john.doe@gmail.com"
+        personal_usr = db.query(UserProfile).filter(UserProfile.email == personal_email).first()
+        if not personal_usr:
+            pt = Tenant(
+                id=uuid.uuid4(),
+                name="John Doe Personal Workspace",
+                slug="johndoe",
+                plan="free",
+                account_type="personal"
+            )
+            db.add(pt)
+            db.commit()
+            db.refresh(pt)
+            
+            personal_usr = UserProfile(
+                id=uuid.uuid4(),
+                email=personal_email,
+                full_name="John Doe",
+                cognito_sub=None,
+                role=RoleEnum.creator,
+                tenant_id=pt.id,
+                is_active=True,
+                is_internal=False,
+                account_status="active"
+            )
+            db.add(personal_usr)
+            db.commit()
+            print("Seeded mock personal user and tenant.")
+
+    # Idempotently seed mock plans, surveys, subscriptions, payments, demos, and waitlist
+    from db.models import Plan, Survey, SurveyStatusEnum, Subscription, Payment, DemoSchedule, WaitlistEntry
+    import datetime as dt
+
+    # 1. Seed/Update Plans
+    plans_to_seed = [
+        {
+            "id": uuid.UUID("3c7b3b3a-33c3-448c-9c76-f3b610c3b0f5"),
+            "code": "basic",
+            "name": "Basic",
+            "price_paise": 290000,
+            "billing_period": "monthly"
+        },
+        {
+            "id": uuid.UUID("3c7b3b3a-33c3-448c-9c76-f3b610c3b0f6"),
+            "code": "pro",
+            "name": "Pro",
+            "price_paise": 790000,
+            "billing_period": "monthly"
+        },
+        {
+            "id": uuid.UUID("3c7b3b3a-33c3-448c-9c76-f3b610c3b0f7"),
+            "code": "enterprise",
+            "name": "Enterprise",
+            "price_paise": 4990000,
+            "billing_period": "monthly"
+        }
+    ]
+    plan_map = {}
+    for p in plans_to_seed:
+        existing = db.query(Plan).filter((Plan.id == p["id"]) | (Plan.code == p["code"])).first()
+        if not existing:
+            plan = Plan(
+                id=p["id"],
+                code=p["code"],
+                name=p["name"],
+                price_paise=p["price_paise"],
+                billing_period=p["billing_period"],
+                is_active=True
+            )
+            db.add(plan)
+            db.commit()
+            db.refresh(plan)
+            plan_map[p["code"]] = plan
+        else:
+            existing.price_paise = p["price_paise"]
+            db.commit()
+            plan_map[p["code"]] = existing
+
+    # 2. Seed mock surveys, subscriptions, payments for tenants
+    all_tenants = db.query(Tenant).all()
+    now = dt.datetime.now(dt.timezone.utc)
+    for t in all_tenants:
+        admin_user = db.query(UserProfile).filter(UserProfile.tenant_id == t.id).first()
+        creator_id = admin_user.id if admin_user else None
+
+        # Surveys
+        s_count = db.query(Survey).filter(Survey.tenant_id == t.id).count()
+        if s_count == 0:
+            mock_surveys = [
+                {
+                    "title": f"{t.name} Customer Satisfaction",
+                    "slug": f"{t.slug}-csat",
+                },
+                {
+                    "title": f"{t.name} Product Feedback",
+                    "slug": f"{t.slug}-feedback",
+                }
+            ]
+            for ms in mock_surveys:
+                survey = Survey(
+                    id=uuid.uuid4(),
+                    title=ms["title"],
+                    slug=ms["slug"],
+                    status=SurveyStatusEnum.active,
+                    tenant_id=t.id,
+                    created_by=creator_id
+                )
+                db.add(survey)
+            db.commit()
+
+        # Subscription
+        plan_code = "pro"
+        if "enterprise" in t.plan or t.slug == "axiorapulse":
+            plan_code = "enterprise"
+        elif t.slug == "axioraadmin":
+            plan_code = "basic"
+        plan = plan_map[plan_code]
+
+        sub = db.query(Subscription).filter(Subscription.tenant_id == t.id).first()
+        if not sub:
+            sub = Subscription(
+                id=uuid.uuid4(),
+                tenant_id=t.id,
+                plan_id=plan.id,
+                status="active",
+                razorpay_subscription_id=f"sub_mock_{uuid.uuid4().hex[:12]}",
+                current_period_start=now - dt.timedelta(days=15),
+                current_period_end=now + dt.timedelta(days=15),
+                cancel_at_period_end=False
+            )
+            db.add(sub)
+            db.commit()
+            db.refresh(sub)
+        else:
+            sub.plan_id = plan.id
+            db.commit()
+
+        # Payments
+        pay_count = db.query(Payment).filter(Payment.tenant_id == t.id).count()
+        if pay_count == 0:
+            p1 = Payment(
+                id=uuid.uuid4(),
+                tenant_id=t.id,
+                subscription_id=sub.id,
+                plan_id=plan.id,
+                razorpay_order_id=f"order_mock_{uuid.uuid4().hex[:12]}",
+                razorpay_payment_id=f"pay_mock_{uuid.uuid4().hex[:12]}",
+                amount_paise=plan.price_paise,
+                currency="INR",
+                status="paid",
+                method="card",
+                paid_at=now - dt.timedelta(days=2),
+                created_at=now - dt.timedelta(days=2)
+            )
+            db.add(p1)
+            
+            p2 = Payment(
+                id=uuid.uuid4(),
+                tenant_id=t.id,
+                subscription_id=sub.id,
+                plan_id=plan.id,
+                razorpay_order_id=f"order_mock_{uuid.uuid4().hex[:12]}",
+                razorpay_payment_id=f"pay_mock_{uuid.uuid4().hex[:12]}",
+                amount_paise=plan.price_paise,
+                currency="INR",
+                status="paid",
+                method="upi",
+                paid_at=now - dt.timedelta(days=10),
+                created_at=now - dt.timedelta(days=10)
+            )
+            db.add(p2)
+
+            for i in range(1, 6):
+                pm = Payment(
+                    id=uuid.uuid4(),
+                    tenant_id=t.id,
+                    subscription_id=sub.id,
+                    plan_id=plan.id,
+                    razorpay_order_id=f"order_mock_{uuid.uuid4().hex[:12]}",
+                    razorpay_payment_id=f"pay_mock_{uuid.uuid4().hex[:12]}",
+                    amount_paise=plan.price_paise,
+                    currency="INR",
+                    status="paid",
+                    method="netbanking",
+                    paid_at=now - dt.timedelta(days=30 * i),
+                    created_at=now - dt.timedelta(days=30 * i)
+                )
+                db.add(pm)
+            db.commit()
+
+    # 3. Seed Demo Schedules
+    demo_count = db.query(DemoSchedule).count()
+    if demo_count == 0:
+        demos = [
+            {"name": "Arjun Sharma", "email": "arjun.sharma@gmail.com", "date": (now + dt.timedelta(days=2)).strftime("%Y-%m-%d"), "time": "10:00 AM - 10:30 AM", "status": "scheduled"},
+            {"name": "Priya Patel", "email": "priya.patel@techsolutions.in", "date": (now + dt.timedelta(days=3)).strftime("%Y-%m-%d"), "time": "2:30 PM - 3:00 PM", "status": "scheduled"},
+            {"name": "John Doe", "email": "john.doe@enterprise.com", "date": (now - dt.timedelta(days=1)).strftime("%Y-%m-%d"), "time": "11:30 AM - 12:00 PM", "status": "completed"}
+        ]
+        for idx, d in enumerate(demos):
+            ds = DemoSchedule(
+                id=str(uuid.uuid4()),
+                name=d["name"],
+                email=d["email"],
+                demo_date=d["date"],
+                time_slot=d["time"],
+                meeting_link=f"https://meet.google.com/abc-mock-link-{idx}",
+                status=d["status"],
+                created_at=now - dt.timedelta(days=idx+1)
+            )
+            db.add(ds)
+        db.commit()
+
+    # 4. Seed Waitlist
+    waitlist_count = db.query(WaitlistEntry).count()
+    if waitlist_count == 0:
+        emails = ["rajesh.kumar@infotech.in", "sarah.connor@skyline.org", "vikram.singh@solutions.co.in", "amit.gupta@startup.io", "elizabeth.swann@caribbean.com"]
+        for idx, email in enumerate(emails):
+            we = WaitlistEntry(
+                id=str(uuid.uuid4()),
+                email=email,
+                created_at=now - dt.timedelta(days=idx)
+            )
+            db.add(we)
+        db.commit()
 
     print("🎉 Idempotent Cognito user seeding complete!")
 except Exception as e:

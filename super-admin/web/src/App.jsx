@@ -23,6 +23,7 @@ import {
   Bell,
   Mail,
   ChevronDown,
+  ChevronRight,
   TrendingUp,
   MoreVertical,
   Globe,
@@ -36,6 +37,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001
 
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem('admin_token') || '');
+  const [theme, setTheme] = useState(localStorage.getItem('admin_theme') || 'light');
   const [currentSection, setCurrentSection] = useState('dashboard');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -72,6 +74,14 @@ export default function App() {
   const [editingTenant, setEditingTenant] = useState(null);
   const [newPlan, setNewPlan] = useState('');
   const [viewingLogDetail, setViewingLogDetail] = useState(null);
+  const [expandedTenants, setExpandedTenants] = useState({});
+
+  const toggleTenantExpanded = (tenantId) => {
+    setExpandedTenants(prev => ({
+      ...prev,
+      [tenantId]: !prev[tenantId]
+    }));
+  };
 
   // Fetch Cognito auth config on mount
   useEffect(() => {
@@ -91,6 +101,19 @@ export default function App() {
         });
       });
   }, []);
+
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.body.classList.add('dark-theme');
+    } else {
+      document.body.classList.remove('dark-theme');
+    }
+    localStorage.setItem('admin_theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'light' ? 'dark' : 'light');
+  };
 
   useEffect(() => {
     if (token) {
@@ -212,17 +235,14 @@ export default function App() {
         const data = await res.json();
         setAnalytics(data);
       } 
-      else if (section === 'tenants') {
-        const res = await fetch(`${API_BASE_URL}/admin/tenants`, { headers });
-        if (!res.ok) throw new Error('Failed to load tenants');
-        const data = await res.json();
-        setTenants(data);
-      } 
-      else if (section === 'users') {
-        const res = await fetch(`${API_BASE_URL}/admin/users`, { headers });
-        if (!res.ok) throw new Error('Failed to load users');
-        const data = await res.json();
-        setUsers(data);
+      else if (section === 'organizations' || section === 'personal-accounts') {
+        const tenantsRes = await fetch(`${API_BASE_URL}/admin/tenants`, { headers });
+        const usersRes = await fetch(`${API_BASE_URL}/admin/users`, { headers });
+        if (!tenantsRes.ok || !usersRes.ok) throw new Error('Failed to load workspaces and profiles');
+        const tenantsData = await tenantsRes.json();
+        const usersData = await usersRes.json();
+        setTenants(tenantsData);
+        setUsers(usersData);
       } 
       else if (section === 'surveys') {
         const res = await fetch(`${API_BASE_URL}/admin/surveys`, { headers });
@@ -281,7 +301,7 @@ export default function App() {
       }
       setSuccess('User updated successfully');
       setTimeout(() => setSuccess(''), 3000);
-      fetchSectionData('users');
+      fetchSectionData(currentSection);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -300,7 +320,7 @@ export default function App() {
       if (!res.ok) throw new Error('Failed to delete user');
       setSuccess('User deleted successfully');
       setTimeout(() => setSuccess(''), 3000);
-      fetchSectionData('users');
+      fetchSectionData(currentSection);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -323,7 +343,7 @@ export default function App() {
       setSuccess('Tenant updated successfully');
       setEditingTenant(null);
       setTimeout(() => setSuccess(''), 3000);
-      fetchSectionData('tenants');
+      fetchSectionData(currentSection);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -342,7 +362,7 @@ export default function App() {
       if (!res.ok) throw new Error('Failed to delete tenant');
       setSuccess('Tenant organization deleted successfully');
       setTimeout(() => setSuccess(''), 3000);
-      fetchSectionData('tenants');
+      fetchSectionData(currentSection);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -415,7 +435,7 @@ export default function App() {
             <div className="login-logo-symbol">
               <ShieldCheck size={20} />
             </div>
-            <span className="logo-text">shadcnspace<span className="logo-dot">.</span></span>
+            <span className="logo-text">AxioraPulse<span className="logo-dot">.</span></span>
           </div>
           <h2 className="login-title">Super Admin Login</h2>
           <p className="login-subtitle">
@@ -475,15 +495,12 @@ export default function App() {
 
   // Sidebar sections matching screenshot layout
   const dashboardItems = [
-    { id: 'dashboard', label: 'Analytics', icon: <LayoutDashboard size={16} /> },
-    { id: 'ecommerce_mock', label: 'eCommerce', icon: <CreditCard size={16} />, disabled: true },
-    { id: 'crm_mock', label: 'CRM Dashboard', icon: <Users size={16} />, disabled: true },
+    { id: 'dashboard', label: 'Analytics', icon: <LayoutDashboard size={16} /> }
   ];
 
   const appItems = [
-    { id: 'tenants', label: 'Tenants (Orgs)', icon: <Building size={16} /> },
-    { id: 'users', label: 'Users (Profiles)', icon: <Users size={16} /> },
-    { id: 'surveys', label: 'Surveys (Questions)', icon: <FileQuestion size={16} /> },
+    { id: 'organizations', label: 'Organizations & Teams', icon: <Building size={16} /> },
+    { id: 'personal-accounts', label: 'Personal Users', icon: <Users size={16} /> },
     { id: 'subscriptions', label: 'Billing & Transactions', icon: <CreditCard size={16} /> },
     { id: 'demos', label: 'Demos & Waitlist', icon: <CalendarClock size={16} /> },
     { id: 'audit-logs', label: 'Audit Trail Logs', icon: <ShieldAlert size={16} /> },
@@ -498,6 +515,46 @@ export default function App() {
     ? Math.max(...analytics.monthly_earnings.map(m => m.earnings), 1000)
     : 1000;
 
+  let currentMonthEarnings = 6820;
+  let monthlyChangeText = "-9% than last month";
+  let changeColor = "var(--accent-rose)";
+  let monthlyPath = "M 0 60 Q 30 40, 60 50 T 120 30 T 180 40 T 200 35";
+  let monthlyAreaPath = "M 0 60 Q 30 40, 60 50 T 120 30 T 180 40 T 200 35 L 200 80 L 0 80 Z";
+
+  if (analytics?.monthly_earnings?.length > 0) {
+    const current = analytics.monthly_earnings[analytics.monthly_earnings.length - 1].earnings;
+    currentMonthEarnings = current;
+    
+    if (analytics.monthly_earnings.length >= 2) {
+      const prev = analytics.monthly_earnings[analytics.monthly_earnings.length - 2].earnings;
+      if (prev > 0) {
+        const change = ((current - prev) / prev) * 100;
+        const sign = change >= 0 ? '+' : '';
+        monthlyChangeText = `${sign}${change.toFixed(0)}% than last month`;
+        changeColor = change >= 0 ? "var(--accent-emerald)" : "var(--accent-rose)";
+      } else {
+        monthlyChangeText = "+100% than last month";
+        changeColor = "var(--accent-emerald)";
+      }
+    } else {
+      monthlyChangeText = "+100% than last month";
+      changeColor = "var(--accent-emerald)";
+    }
+
+    const points = analytics.monthly_earnings.map((m, idx) => {
+      const x = (idx / (analytics.monthly_earnings.length - 1)) * 200;
+      const y = 75 - (m.earnings / maxMonthlyVal) * 55;
+      return { x, y };
+    });
+    
+    let pathD = `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
+    for (let i = 1; i < points.length; i++) {
+      pathD += ` L ${points[i].x.toFixed(1)} ${points[i].y.toFixed(1)}`;
+    }
+    monthlyPath = pathD;
+    monthlyAreaPath = `${pathD} L 200 80 L 0 80 Z`;
+  }
+
   return (
     <div className="app-container">
       {/* ── Left Navigation Sidebar ── */}
@@ -506,7 +563,7 @@ export default function App() {
           <div className="login-logo-symbol" style={{width: 24, height: 24, borderRadius: 5}}>
             <ShieldCheck size={14} />
           </div>
-          <span className="logo-text" style={{fontSize: 16}}>shadcnspace<span className="logo-dot">.</span></span>
+          <span className="logo-text" style={{fontSize: 16}}>AxioraPulse<span className="logo-dot">.</span></span>
         </div>
 
         <div className="sidebar-section-title">Dashboard</div>
@@ -542,13 +599,6 @@ export default function App() {
           ))}
         </nav>
 
-        {/* ── Grab Pro Now Promo Widget (From Screenshot) ── */}
-        <div className="promo-card">
-          <img src="/cats_box.jpg" alt="Promo illustration" className="promo-image" />
-          <span className="promo-title">Grab Pro Now</span>
-          <span className="promo-desc">Customize your admin dashboard controls</span>
-          <button className="btn-promo">Get Premium</button>
-        </div>
 
         <div className="sidebar-footer">
           {adminProfile && (
@@ -586,22 +636,8 @@ export default function App() {
           <div className="header-actions">
             {success && <span style={{color: 'var(--accent-emerald)', fontSize: 12, fontWeight: 600}}>{success}</span>}
             
-            <button className="header-icon-btn">
-              <Sun size={18} />
-            </button>
-            <button className="header-icon-btn">
-              <Globe size={18} />
-            </button>
-            <button className="header-icon-btn">
-              <ShoppingCart size={18} />
-              <span className="badge-number">11</span>
-            </button>
-            <button className="header-icon-btn">
-              <Bell size={18} />
-              <span className="badge-dot"></span>
-            </button>
-            <button className="header-icon-btn">
-              <Mail size={18} />
+            <button className="header-icon-btn" onClick={toggleTheme} title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}>
+              {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
             </button>
             
             <button className="header-icon-btn" onClick={() => fetchSectionData(currentSection)} disabled={loading}>
@@ -751,8 +787,8 @@ export default function App() {
                     </div>
                   </div>
                   <div style={{display: 'flex', flexDirection: 'column', gap: 4}}>
-                    <span style={{fontSize: 22, fontWeight: 800}}>₹6,820</span>
-                    <span style={{fontSize: 10, color: 'var(--accent-rose)', fontWeight: 700}}>-9% <span style={{color: 'var(--text-muted)', fontWeight: 500}}>than last year</span></span>
+                    <span style={{fontSize: 22, fontWeight: 800}}>₹{currentMonthEarnings.toLocaleString('en-IN')}</span>
+                    <span style={{fontSize: 10, color: changeColor, fontWeight: 700}}>{monthlyChangeText}</span>
                   </div>
                   
                   {/* Monthly line area chart inline SVG */}
@@ -766,12 +802,12 @@ export default function App() {
                       </defs>
                       {/* Gradient Fill */}
                       <path 
-                        d={`M 0 80 Q 30 20, 60 50 T 120 30 T 180 40 T 200 35 L 200 80 Z`} 
+                        d={monthlyAreaPath} 
                         fill="url(#gradient-line)" 
                       />
                       {/* Smooth Curve */}
                       <path 
-                        d={`M 0 80 Q 30 20, 60 50 T 120 30 T 180 40 T 200 35`} 
+                        d={monthlyPath} 
                         fill="none" 
                         stroke="#0f172a" 
                         strokeWidth="2" 
@@ -781,91 +817,19 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Bottom Row: Donut Chart & Recent Transactions */}
-              <div className="panel-grid" style={{gridTemplateColumns: '1fr 1fr'}}>
-                {/* 3a. Yearly Backup Donut Chart */}
-                <div className="panel-card">
-                  <div className="panel-card-header">
-                    <span className="panel-title">Yearly Backup</span>
-                    <MoreVertical size={16} color="var(--text-muted)" style={{cursor: 'pointer'}} />
-                  </div>
-                  <div className="donut-container">
-                    <svg width="110" height="110" viewBox="0 0 36 36">
-                      <circle cx="18" cy="18" r="15.915" fill="transparent" stroke="#f1f5f9" strokeWidth="3.5" />
-                      {/* Segment 2024 (Emerald) */}
-                      <circle cx="18" cy="18" r="15.915" fill="transparent" stroke="var(--accent-cyan)" strokeWidth="3.5" 
-                        strokeDasharray="65 35" strokeDashoffset="25" />
-                      {/* Segment 2025 (Amber) */}
-                      <circle cx="18" cy="18" r="15.915" fill="transparent" stroke="var(--accent-amber)" strokeWidth="3.5" 
-                        strokeDasharray="35 65" strokeDashoffset="90" />
-                      
-                      <g className="donut-text">
-                        <text x="50%" y="45%" dominantBaseline="middle" textAnchor="middle" fontSize="6" fontWeight="800" fill="var(--text-primary)">
-                          ₹36,358
-                        </text>
-                        <text x="50%" y="62%" dominantBaseline="middle" textAnchor="middle" fontSize="3" fontWeight="600" fill="var(--accent-emerald)">
-                          +9% Last Year
-                        </text>
-                      </g>
-                    </svg>
-                    
-                    <div className="donut-legend">
-                      <div className="donut-legend-item">
-                        <span style={{width: 8, height: 8, borderRadius: '50%', backgroundColor: 'var(--accent-cyan)'}} />
-                        <span>2024 (65%)</span>
-                      </div>
-                      <div className="donut-legend-item">
-                        <span style={{width: 8, height: 8, borderRadius: '50%', backgroundColor: 'var(--accent-amber)'}} />
-                        <span>2025 (35%)</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
 
-                {/* 3b. Recent Transactions */}
-                <div className="panel-card">
-                  <div className="panel-card-header">
-                    <span className="panel-title">Recent Transactions</span>
-                    <MoreVertical size={16} color="var(--text-muted)" style={{cursor: 'pointer'}} />
-                  </div>
-                  <div className="transactions-list">
-                    {analytics.recent_payments.map(p => (
-                      <div className="transaction-item" key={p.id}>
-                        <div className="transaction-left">
-                          <div className="transaction-logo">
-                            {p.tenant_name.charAt(0).toUpperCase()}
-                          </div>
-                          <div className="transaction-details">
-                            <span className="transaction-title">{p.tenant_name}</span>
-                            <span className="transaction-date">{new Date(p.created_at).toLocaleDateString()}</span>
-                          </div>
-                        </div>
-                        <div className="transaction-right">
-                          <span className={p.status === 'paid' ? "transaction-amount-positive" : "transaction-amount-negative"}>
-                            ₹{p.amount.toLocaleString('en-IN', {minimumFractionDigits: 2})}
-                          </span>
-                          <span className={`badge ${p.status === 'paid' ? 'badge-emerald' : 'badge-amber'}`} style={{fontSize: 8, padding: '1px 4px'}}>
-                            {p.status}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                    {analytics.recent_payments.length === 0 && <p style={{color: 'var(--text-muted)', fontSize: 12}}>No recent payments found.</p>}
-                  </div>
-                </div>
-              </div>
             </div>
           )}
 
-          {/* ── 2. TENANTS TABLE ── */}
-          {currentSection === 'tenants' && (
+          {/* ── 2. ORGANIZATIONS & TEAMS TABLE ── */}
+          {currentSection === 'organizations' && (
             <div className="table-container">
               <div className="table-header">
-                <h3 className="table-title">Registered Organizations (Tenants)</h3>
+                <h3 className="table-title">Registered Organizations & Teams</h3>
                 <input 
                   type="text" 
                   className="table-search" 
-                  placeholder="Search by name or slug..." 
+                  placeholder="Search organizations..." 
                   value={searchTerm}
                   onChange={e => setSearchTerm(e.target.value)}
                 />
@@ -873,10 +837,11 @@ export default function App() {
               <table className="admin-table">
                 <thead>
                   <tr>
+                    <th style={{ width: '40px' }}></th>
                     <th>Organization Info</th>
                     <th>Slug</th>
                     <th>Plan Level</th>
-                    <th>Users</th>
+                    <th>Team Members</th>
                     <th>Surveys</th>
                     <th>Status</th>
                     <th>Registered At</th>
@@ -885,65 +850,158 @@ export default function App() {
                 </thead>
                 <tbody>
                   {tenants
-                    .filter(t => t.name.toLowerCase().includes(searchTerm.toLowerCase()) || t.slug.toLowerCase().includes(searchTerm.toLowerCase()))
-                    .map(t => (
-                      <tr key={t.id}>
-                        <td>
-                          <div style={{fontWeight: 600, color: 'var(--text-primary)'}}>{t.name}</div>
-                          <div style={{fontSize: 11, color: 'var(--text-muted)'}}>{t.id}</div>
-                        </td>
-                        <td><code>{t.slug}</code></td>
-                        <td>
-                          <span className={`badge ${t.plan === 'free' ? 'badge-gray' : t.plan === 'pro' ? 'badge-blue' : 'badge-indigo'}`}>
-                            {t.plan}
-                          </span>
-                        </td>
-                        <td>{t.user_count}</td>
-                        <td>{t.survey_count}</td>
-                        <td>
-                          <button 
-                            className={`badge ${t.is_active ? 'badge-emerald' : 'badge-rose'}`}
-                            onClick={() => handleUpdateTenant(t.id, { is_active: !t.is_active })}
-                            style={{cursor: 'pointer', border: 'none', outline: 'none'}}
-                          >
-                            {t.is_active ? 'Active' : 'Suspended'}
-                          </button>
-                        </td>
-                        <td>{new Date(t.created_at).toLocaleDateString()}</td>
-                        <td>
-                          <button 
-                            className="btn-primary" 
-                            style={{padding: '4px 8px', fontSize: 11, marginRight: 8}}
-                            onClick={() => {
-                              setEditingTenant(t);
-                              setNewPlan(t.plan);
-                            }}
-                          >
-                            Edit Plan
-                          </button>
-                          <button 
-                            className="btn-action btn-action-delete"
-                            onClick={() => handleDeleteTenant(t.id)}
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    .filter(t => (!t.account_type || t.account_type === 'organization') && (t.name.toLowerCase().includes(searchTerm.toLowerCase()) || t.slug.toLowerCase().includes(searchTerm.toLowerCase())))
+                    .map(t => {
+                      const isExpanded = !!expandedTenants[t.id];
+                      const orgUsers = users.filter(u => u.tenant_id === t.id);
+                      return (
+                        <React.Fragment key={t.id}>
+                          <tr style={{ cursor: 'pointer' }} onClick={() => toggleTenantExpanded(t.id)}>
+                            <td style={{ textAlign: 'center' }}>
+                              {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                            </td>
+                            <td>
+                              <div style={{fontWeight: 600, color: 'var(--text-primary)'}}>{t.name}</div>
+                            </td>
+                            <td><code>{t.slug}</code></td>
+                            <td>
+                              <span className={`badge ${t.plan === 'free' ? 'badge-gray' : t.plan === 'pro' ? 'badge-blue' : 'badge-indigo'}`}>
+                                {t.plan}
+                              </span>
+                            </td>
+                            <td>
+                              <span style={{ fontWeight: 600 }}>{orgUsers.length}</span> members
+                            </td>
+                            <td>{t.survey_count}</td>
+                            <td>
+                              <button 
+                                className={`badge ${t.is_active ? 'badge-emerald' : 'badge-rose'}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleUpdateTenant(t.id, { is_active: !t.is_active });
+                                }}
+                                style={{cursor: 'pointer', border: 'none', outline: 'none'}}
+                              >
+                                {t.is_active ? 'Active' : 'Suspended'}
+                              </button>
+                            </td>
+                            <td>{new Date(t.created_at).toLocaleDateString()}</td>
+                            <td>
+                              <button 
+                                className="btn-primary" 
+                                style={{padding: '4px 8px', fontSize: 11, marginRight: 8}}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingTenant(t);
+                                  setNewPlan(t.plan);
+                                }}
+                              >
+                                Edit Plan
+                              </button>
+                              <button 
+                                className="btn-action btn-action-delete"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteTenant(t.id);
+                                }}
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </td>
+                          </tr>
+                          {isExpanded && (
+                            <tr className="nested-row">
+                              <td colSpan="9" style={{ padding: '16px 24px' }}>
+                                <div style={{ fontWeight: 700, marginBottom: 12, color: 'var(--text-primary)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <Users size={14} color="var(--accent-indigo)" />
+                                  <span>Team Members of {t.name} ({orgUsers.length})</span>
+                                </div>
+                                {orgUsers.length === 0 ? (
+                                  <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: '8px 0' }}>No registered team members in this organization.</p>
+                                ) : (
+                                  <table className="admin-table nested-table">
+                                    <thead>
+                                      <tr>
+                                        <th>Name & Email</th>
+                                        <th>Role Designation</th>
+                                        <th>Account Type</th>
+                                        <th>Active</th>
+                                        <th>Registered At</th>
+                                        <th>Remove</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {orgUsers.map(u => (
+                                        <tr key={u.id}>
+                                          <td>
+                                            <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{u.full_name || 'No Name'}</div>
+                                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{u.email}</div>
+                                          </td>
+                                          <td>
+                                            <select 
+                                              value={u.role} 
+                                              onChange={e => handleUpdateUser(u.id, { role: e.target.value })}
+                                              className="form-input"
+                                              style={{padding: '4px 8px', fontSize: 12, backgroundColor: 'var(--bg-primary)'}}
+                                            >
+                                              <option value="super_admin">Super Admin</option>
+                                              <option value="admin">Admin</option>
+                                              <option value="manager">Manager</option>
+                                              <option value="creator">Creator</option>
+                                              <option value="viewer">Viewer</option>
+                                            </select>
+                                          </td>
+                                          <td>
+                                            <label style={{display: 'flex', alignItems: 'center', gap: 6, fontSize: 12}}>
+                                              <input 
+                                                type="checkbox" 
+                                                checked={u.is_internal} 
+                                                onChange={e => handleUpdateUser(u.id, { is_internal: e.target.checked })}
+                                              />
+                                              <span>Internal Staff</span>
+                                            </label>
+                                          </td>
+                                          <td>
+                                            <input 
+                                              type="checkbox" 
+                                              checked={u.is_active} 
+                                              onChange={e => handleUpdateUser(u.id, { is_active: e.target.checked })}
+                                            />
+                                          </td>
+                                          <td>{new Date(u.created_at).toLocaleDateString()}</td>
+                                          <td>
+                                            <button 
+                                              className="btn-action btn-action-delete"
+                                              onClick={() => handleDeleteUser(u.id)}
+                                            >
+                                              <Trash2 size={13} />
+                                            </button>
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                )}
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
                 </tbody>
               </table>
             </div>
           )}
 
-          {/* ── 3. USERS TABLE ── */}
-          {currentSection === 'users' && (
+          {/* ── 3. PERSONAL ACCOUNTS TABLE ── */}
+          {currentSection === 'personal-accounts' && (
             <div className="table-container">
               <div className="table-header">
-                <h3 className="table-title">Platform Users (UserProfile)</h3>
+                <h3 className="table-title">Registered Personal Accounts</h3>
                 <input 
                   type="text" 
                   className="table-search" 
-                  placeholder="Search email or name..." 
+                  placeholder="Search personal accounts..." 
                   value={searchTerm}
                   onChange={e => setSearchTerm(e.target.value)}
                 />
@@ -952,69 +1010,72 @@ export default function App() {
                 <thead>
                   <tr>
                     <th>User Details</th>
-                    <th>Role Designation</th>
-                    <th>Workspace</th>
-                    <th>Account Type</th>
+                    <th>Personal Workspace Slug</th>
+                    <th>Plan Level</th>
+                    <th>Surveys</th>
                     <th>Active</th>
                     <th>Registered At</th>
-                    <th>Delete</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {users
-                    .filter(u => u.email.toLowerCase().includes(searchTerm.toLowerCase()) || (u.full_name && u.full_name.toLowerCase().includes(searchTerm.toLowerCase())))
-                    .map(u => (
-                      <tr key={u.id}>
-                        <td>
-                          <div style={{fontWeight: 600, color: 'var(--text-primary)'}}>{u.full_name || 'No Name'}</div>
-                          <div style={{fontSize: 12, color: 'var(--text-muted)'}}>{u.email}</div>
-                        </td>
-                        <td>
-                          <select 
-                            value={u.role} 
-                            onChange={e => handleUpdateUser(u.id, { role: e.target.value })}
-                            className="form-input"
-                            style={{padding: '4px 8px', fontSize: 12, backgroundColor: 'var(--bg-secondary)'}}
-                          >
-                            <option value="super_admin">Super Admin</option>
-                            <option value="admin">Admin</option>
-                            <option value="manager">Manager</option>
-                            <option value="creator">Creator</option>
-                            <option value="viewer">Viewer</option>
-                          </select>
-                        </td>
-                        <td>
-                          <div style={{fontWeight: 500}}>{u.tenant_name}</div>
-                          <div style={{fontSize: 11, color: 'var(--text-muted)'}}><code>{u.tenant_slug}</code></div>
-                        </td>
-                        <td>
-                          <label style={{display: 'flex', alignItems: 'center', gap: 6, fontSize: 12}}>
+                  {tenants
+                    .filter(t => t.account_type === 'personal')
+                    .filter(t => {
+                      const personalUser = users.find(u => u.tenant_id === t.id);
+                      const searchLower = searchTerm.toLowerCase();
+                      const matchTenant = t.name.toLowerCase().includes(searchLower) || t.slug.toLowerCase().includes(searchLower);
+                      const matchUser = personalUser && (
+                        personalUser.email.toLowerCase().includes(searchLower) || 
+                        (personalUser.full_name && personalUser.full_name.toLowerCase().includes(searchLower))
+                      );
+                      return matchTenant || matchUser;
+                    })
+                    .map(t => {
+                      const personalUser = users.find(u => u.tenant_id === t.id);
+                      if (!personalUser) return null;
+                      return (
+                        <tr key={personalUser.id}>
+                          <td>
+                            <div style={{fontWeight: 600, color: 'var(--text-primary)'}}>{personalUser.full_name || 'No Name'}</div>
+                            <div style={{fontSize: 12, color: 'var(--text-muted)'}}>{personalUser.email}</div>
+                          </td>
+                          <td><code>{t.slug}</code></td>
+                          <td>
+                            <span className={`badge ${t.plan === 'free' ? 'badge-gray' : t.plan === 'pro' ? 'badge-blue' : 'badge-indigo'}`}>
+                              {t.plan}
+                            </span>
+                          </td>
+                          <td>{t.survey_count}</td>
+                          <td>
                             <input 
                               type="checkbox" 
-                              checked={u.is_internal} 
-                              onChange={e => handleUpdateUser(u.id, { is_internal: e.target.checked })}
+                              checked={personalUser.is_active} 
+                              onChange={e => handleUpdateUser(personalUser.id, { is_active: e.target.checked })}
                             />
-                            <span>Internal Staff</span>
-                          </label>
-                        </td>
-                        <td>
-                          <input 
-                            type="checkbox" 
-                            checked={u.is_active} 
-                            onChange={e => handleUpdateUser(u.id, { is_active: e.target.checked })}
-                          />
-                        </td>
-                        <td>{new Date(u.created_at).toLocaleDateString()}</td>
-                        <td>
-                          <button 
-                            className="btn-action btn-action-delete"
-                            onClick={() => handleDeleteUser(u.id)}
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td>{new Date(personalUser.created_at).toLocaleDateString()}</td>
+                          <td>
+                            <button 
+                              className="btn-primary" 
+                              style={{padding: '4px 8px', fontSize: 11, marginRight: 8}}
+                              onClick={() => {
+                                setEditingTenant(t);
+                                setNewPlan(t.plan);
+                              }}
+                            >
+                              Edit Plan
+                            </button>
+                            <button 
+                              className="btn-action btn-action-delete"
+                              onClick={() => handleDeleteUser(personalUser.id)}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                 </tbody>
               </table>
             </div>
@@ -1036,7 +1097,6 @@ export default function App() {
               <table className="admin-table">
                 <thead>
                   <tr>
-                    <th>Survey ID</th>
                     <th>Survey Title</th>
                     <th>Owning Organization</th>
                     <th>Publish Status</th>
@@ -1050,7 +1110,6 @@ export default function App() {
                     .filter(s => s.title.toLowerCase().includes(searchTerm.toLowerCase()) || s.tenant_name.toLowerCase().includes(searchTerm.toLowerCase()))
                     .map(s => (
                       <tr key={s.id}>
-                        <td><code>{s.id.substring(0, 8)}...</code></td>
                         <td style={{fontWeight: 600, color: 'var(--text-primary)'}}>{s.title}</td>
                         <td>{s.tenant_name}</td>
                         <td>
@@ -1121,20 +1180,18 @@ export default function App() {
                 <table className="admin-table">
                   <thead>
                     <tr>
-                      <th>Transaction ID</th>
-                      <th>Workspace</th>
-                      <th>Product</th>
-                      <th>Amount Paid</th>
-                      <th>Payment Mode</th>
-                      <th>Provider Reference</th>
-                      <th>Paid At</th>
-                      <th>Status</th>
-                    </tr>
+                    <th>Workspace</th>
+                    <th>Product</th>
+                    <th>Amount Paid</th>
+                    <th>Payment Mode</th>
+                    <th>Provider Reference</th>
+                    <th>Paid At</th>
+                    <th>Status</th>
+                  </tr>
                   </thead>
                   <tbody>
                     {payments.map(p => (
                       <tr key={p.id}>
-                        <td><code>{p.id.substring(0, 8)}...</code></td>
                         <td style={{fontWeight: 600}}>{p.tenant_name}</td>
                         <td>{p.plan_name}</td>
                         <td>₹{p.amount.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
@@ -1218,7 +1275,7 @@ export default function App() {
                 <div className="table-header">
                   <h3 className="table-title">Waitlist Subscriptions</h3>
                 </div>
-                <table className="admin-table" style={{maxWidth: 600}}>
+                <table className="admin-table">
                   <thead>
                     <tr>
                       <th>Waitlist Entry Email</th>
@@ -1272,7 +1329,6 @@ export default function App() {
                     <th>Authorized Actor</th>
                     <th>Action</th>
                     <th>Modified Target</th>
-                    <th>Target ID Reference</th>
                     <th>IP Address</th>
                     <th>Audit Details</th>
                   </tr>
@@ -1285,11 +1341,9 @@ export default function App() {
                         <td>{new Date(l.created_at).toLocaleString()}</td>
                         <td>
                           <div style={{fontWeight: 600, color: 'var(--text-primary)'}}>{l.actor_email}</div>
-                          <div style={{fontSize: 11, color: 'var(--text-muted)'}}>{l.actor_user_id}</div>
                         </td>
                         <td><span className="badge badge-indigo" style={{fontFamily: 'monospace'}}>{l.action}</span></td>
                         <td>{l.target_type || 'N/A'}</td>
-                        <td><code>{l.target_id || 'N/A'}</code></td>
                         <td><code>{l.ip_address || 'Localhost'}</code></td>
                         <td>
                           <button 

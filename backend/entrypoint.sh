@@ -29,17 +29,44 @@ if db_url and '://' in db_url:
         protocol = protocol.split('+')[0]
     db_url = f'{protocol}://{rest}'
 
+db_name = 'axiorapulse'
+default_db_url = db_url
+try:
+    parts = db_url.rsplit('/', 1)
+    if len(parts) == 2:
+        base, db_name = parts
+        default_db_url = f'{base}/postgres'
+except Exception:
+    pass
+
 attempts = 0
-max_attempts = 30
+max_attempts = 60
 while attempts < max_attempts:
     try:
         conn = psycopg2.connect(db_url, connect_timeout=5)
         conn.close()
         print('Database is ready!')
         sys.exit(0)
+    except psycopg2.OperationalError as exc:
+        err_msg = str(exc)
+        if 'does not exist' in err_msg:
+            print(f'Database \"{db_name}\" does not exist. Attempting to auto-create it...')
+            try:
+                conn = psycopg2.connect(default_db_url, connect_timeout=5)
+                conn.autocommit = True
+                with conn.cursor() as cur:
+                    cur.execute(f'CREATE DATABASE {db_name};')
+                conn.close()
+                print(f'Database \"{db_name}\" created successfully!')
+                continue
+            except Exception as create_exc:
+                print(f'Failed to auto-create database: {create_exc}')
+        attempts += 1
+        if attempts % 5 == 1:
+            print(f'Waiting for database... ({attempts}/{max_attempts})')
+        time.sleep(2)
     except Exception:
         attempts += 1
-        # Only print the error every few attempts to keep logs clean
         if attempts % 5 == 1:
             print(f'Waiting for database... ({attempts}/{max_attempts})')
         time.sleep(2)

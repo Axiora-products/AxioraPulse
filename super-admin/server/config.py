@@ -11,7 +11,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 
 if not DATABASE_URL:
     # Fallback to local postgres if unset
-    DATABASE_URL = "postgresql://postgres:root@localhost:5432/nexpulse"
+    DATABASE_URL = "postgresql://postgres:root@localhost:5432/axiorapulse"
 
 ADMIN_FRONTEND_URL = os.getenv("ADMIN_FRONTEND_URL", "http://localhost:5175")
 
