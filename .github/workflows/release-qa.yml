@@ -235,15 +235,21 @@ jobs:
         id: fetch-ssm
         if: steps.check-images.outputs.frontend_needed == 'true'
         run: |
-          echo "Fetching Cognito and URL configurations from SSM..."
+          echo "Fetching Cognito, URL and Sentry configurations from SSM..."
           USER_POOL_ID=$(aws ssm get-parameter --name "/axiorapulse/qa/COGNITO_USER_POOL_ID" --region ap-south-1 --query "Parameter.Value" --output text)
           APP_CLIENT_ID=$(aws ssm get-parameter --name "/axiorapulse/qa/COGNITO_APP_CLIENT_ID" --region ap-south-1 --query "Parameter.Value" --output text)
           FRONTEND_URL=$(aws ssm get-parameter --name "/axiorapulse/qa/FRONTEND_URL" --region ap-south-1 --query "Parameter.Value" --output text)
+          VITE_SENTRY_DSN=$(aws ssm get-parameter --name "/axiorapulse/qa/VITE_SENTRY_DSN" --region ap-south-1 --query "Parameter.Value" --output text)
+          VITE_SENTRY_TRACES_SAMPLE_RATE=$(aws ssm get-parameter --name "/axiorapulse/qa/VITE_SENTRY_TRACES_SAMPLE_RATE" --region ap-south-1 --query "Parameter.Value" --output text)
+          VITE_SENTRY_PROFILES_SAMPLE_RATE=$(aws ssm get-parameter --name "/axiorapulse/qa/VITE_SENTRY_PROFILES_SAMPLE_RATE" --region ap-south-1 --query "Parameter.Value" --output text)
           API_BASE_URL="/api"
 
           echo "USER_POOL_ID=$USER_POOL_ID" >> $GITHUB_OUTPUT
           echo "APP_CLIENT_ID=$APP_CLIENT_ID" >> $GITHUB_OUTPUT
           echo "FRONTEND_URL=$FRONTEND_URL" >> $GITHUB_OUTPUT
+          echo "VITE_SENTRY_DSN=$VITE_SENTRY_DSN" >> $GITHUB_OUTPUT
+          echo "VITE_SENTRY_TRACES_SAMPLE_RATE=$VITE_SENTRY_TRACES_SAMPLE_RATE" >> $GITHUB_OUTPUT
+          echo "VITE_SENTRY_PROFILES_SAMPLE_RATE=$VITE_SENTRY_PROFILES_SAMPLE_RATE" >> $GITHUB_OUTPUT
           echo "API_BASE_URL=$API_BASE_URL" >> $GITHUB_OUTPUT
 
       - name: Build and Push Backend
@@ -272,6 +278,10 @@ jobs:
             VITE_COGNITO_APP_CLIENT_ID=${{ steps.fetch-ssm.outputs.APP_CLIENT_ID }}
             VITE_FRONTEND_URL=${{ steps.fetch-ssm.outputs.FRONTEND_URL }}
             VITE_API_BASE_URL=${{ steps.fetch-ssm.outputs.API_BASE_URL }}
+            VITE_APP_ENV=qa
+            VITE_SENTRY_DSN=${{ steps.fetch-ssm.outputs.VITE_SENTRY_DSN }}
+            VITE_SENTRY_TRACES_SAMPLE_RATE=${{ steps.fetch-ssm.outputs.VITE_SENTRY_TRACES_SAMPLE_RATE }}
+            VITE_SENTRY_PROFILES_SAMPLE_RATE=${{ steps.fetch-ssm.outputs.VITE_SENTRY_PROFILES_SAMPLE_RATE }}
           tags: |
             ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-frontend-qa:sha-${{ github.sha }}
             ${{ steps.login-ecr.outputs.registry }}/axiora/pulse-frontend-qa:qa
