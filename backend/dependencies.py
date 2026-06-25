@@ -89,8 +89,26 @@ def get_current_user(
                 text = re.sub(r"[\s_-]+", "-", text)
                 return text.strip("-") or "org"
 
-            derived_tenant_name = email.split("@")[1].split(".")[0].title() if email else "My Organisation"
-            derived_tenant_slug = _slugify(derived_tenant_name)
+            # Parse email domain
+            email_clean = email.strip().lower() if email else ""
+            domain = email_clean.split("@")[1].split(".")[0] if "@" in email_clean else ""
+            
+            # Check for common personal/public domains to classify account type
+            public_domains = {"gmail", "yahoo", "hotmail", "outlook", "live", "aol", "icloud", "zoho", "mail"}
+            is_personal = not domain or domain in public_domains
+
+            if is_personal:
+                clean_name = name.strip() if name else ""
+                derived_tenant_name = f"{clean_name}'s Workspace" if clean_name else "Personal Workspace"
+                derived_tenant_slug = _slugify(derived_tenant_name)
+                account_type = "personal"
+            else:
+                if domain == "axioraglobalsolutions":
+                    derived_tenant_name = "Axiora Global Solutions"
+                else:
+                    derived_tenant_name = domain.title()
+                derived_tenant_slug = _slugify(derived_tenant_name)
+                account_type = "organization"
 
             # Ensure the tenant slug is unique for brand new users to prevent placing different users in the same tenant
             base_slug = derived_tenant_slug
@@ -104,6 +122,7 @@ def get_current_user(
                     id=uuid.uuid4(),
                     name=derived_tenant_name,
                     slug=derived_tenant_slug,
+                    account_type=account_type,
                 )
                 db.add(tenant)
                 db.flush()

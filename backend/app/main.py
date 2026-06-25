@@ -186,3 +186,40 @@ def health():
 @app.get("/", tags=["health"])
 def root():
     return {"message": "Axiora Pulse API is running. Visit /docs for the interactive API explorer."}
+
+
+@app.on_event("startup")
+def run_db_cleanup():
+    """Runs a database data correction/migration script to clean up existing
+    dummy 'Gmail' or un-styled 'Axioraglobalsolutions' tenant names."""
+    from db.database import SessionLocal
+    from db.models import Tenant, UserProfile
+    
+    db = SessionLocal()
+    try:
+        # 1. Update Axioraglobalsolutions names
+        axiora_tenants = db.query(Tenant).filter(Tenant.name.ilike("axioraglobalsolutions%")).all()
+        for t in axiora_tenants:
+            t.name = "Axiora Global Solutions"
+            
+        # 2. Update Gmail/Yahoo/etc. personal tenants
+        public_slugs = ["gmail", "yahoo", "hotmail", "outlook", "live", "aol", "icloud", "zoho", "mail"]
+        for slug in public_slugs:
+            gmail_tenants = db.query(Tenant).filter(
+                (Tenant.slug.ilike(f"{slug}%")) & (Tenant.account_type == "organization")
+            ).all()
+            for t in gmail_tenants:
+                t.account_type = "personal"
+                # Rename the tenant to User's Workspace
+                first_user = db.query(UserProfile).filter(UserProfile.tenant_id == t.id).first()
+                if first_user and first_user.full_name:
+                    t.name = f"{first_user.full_name}'s Workspace"
+                else:
+                    t.name = "Personal Workspace"
+                    
+        db.commit()
+    except Exception as exc:
+        logging.getLogger(__name__).error("Failed to run db cleanup on startup: %s", str(exc))
+        db.rollback()
+    finally:
+        db.close()
