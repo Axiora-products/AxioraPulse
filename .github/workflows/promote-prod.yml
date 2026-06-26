@@ -96,6 +96,7 @@ jobs:
           sed -i 's/${ACCOUNT_ID}/683354427635/g' backend/ecs-task-def.json
           sed -i 's/${ENV}/prod/g' frontend/ecs-task-def.json
           sed -i 's/${ROLE_ARN}/arn:aws:iam::683354427635:role\/GitHubActionsDeployerRole/g' frontend/ecs-task-def.json
+          sed -i 's/${ACCOUNT_ID}/683354427635/g' frontend/ecs-task-def.json
 
       - name: Render Backend Task Definition
         id: render-backend

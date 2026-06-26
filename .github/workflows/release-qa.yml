@@ -348,6 +348,7 @@ jobs:
           sed -i 's/${ACCOUNT_ID}/399894608507/g' backend/ecs-task-def.json
           sed -i 's/${ENV}/qa/g' frontend/ecs-task-def.json
           sed -i 's/${ROLE_ARN}/arn:aws:iam::399894608507:role\/GitHubActionsDeployerRole/g' frontend/ecs-task-def.json
+          sed -i 's/${ACCOUNT_ID}/399894608507/g' frontend/ecs-task-def.json
           sed -i "s|\${DB_SECRET_ARN}|$DB_SECRET_ARN|g" super-admin/server/ecs-task-def.json
           sed -i 's/${ENV}/qa/g' super-admin/server/ecs-task-def.json
           sed -i 's/${ROLE_ARN}/arn:aws:iam::399894608507:role\/GitHubActionsDeployerRole/g' super-admin/server/ecs-task-def.json
