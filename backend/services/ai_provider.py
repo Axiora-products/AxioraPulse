@@ -352,7 +352,7 @@ def call_ai_sync(
 
     for provider in _PROVIDERS:
         api_key = os.getenv(provider["env_key"], "").strip()
-        if not api_key:
+        if not api_key or api_key.startswith("mock-"):
             continue
 
         provider_name = provider["name"]
