@@ -179,8 +179,16 @@ export class AxioraPulseStack extends cdk.Stack {
         }));
       });
     } else {
-      backendRepo = ecr.Repository.fromRepositoryName(this, 'BackendRepo', 'axiora/pulse-fastapi');
-      frontendRepo = ecr.Repository.fromRepositoryName(this, 'FrontendRepo', 'axiora/pulse-frontend');
+      backendRepo = new ecr.Repository(this, 'BackendRepo', {
+        repositoryName: 'axiora/pulse-fastapi',
+        removalPolicy: cdk.RemovalPolicy.RETAIN,
+        imageScanOnPush: true,
+      });
+      frontendRepo = new ecr.Repository(this, 'FrontendRepo', {
+        repositoryName: 'axiora/pulse-frontend',
+        removalPolicy: cdk.RemovalPolicy.RETAIN,
+        imageScanOnPush: true,
+      });
     }
 
     // 2. Cognito User Pool and Client

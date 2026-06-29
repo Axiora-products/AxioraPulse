@@ -34,6 +34,13 @@ jobs:
         with:
           registries: "399894608507"
 
+      - name: Deploy Prod Infrastructure
+        run: |
+          npm install --prefix infra/cdk
+          cd infra/cdk
+          export CDK_PROD_ENABLED=true
+          npx cdk deploy AxioraPulseStackProd --require-approval never
+
       - name: Promote Backend Image
         run: |
           QA_IMAGE=399894608507.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-fastapi-qa:sha-${{ github.sha }}
@@ -79,13 +86,6 @@ jobs:
             ${{ steps.login-ecr-prod.outputs.registry }}/axiora/pulse-frontend:prod
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      - name: Deploy Prod Infrastructure
-        run: |
-          npm install --prefix infra/cdk
-          cd infra/cdk
-          export CDK_PROD_ENABLED=true
-          npx cdk deploy AxioraPulseStackProd --require-approval never
 
       - name: Prepare Prod Task Definitions
         run: |
