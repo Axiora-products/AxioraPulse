@@ -335,30 +335,30 @@ export class AxioraPulseStack extends cdk.Stack {
     const hostedZoneName = shortEnv === 'qa' ? domainName : zoneName;
     let certificate: acm.ICertificate | undefined = undefined;
 
-    if (shortEnv === 'qa' || isProd) {
-      // 1. Look up or create Hosted Zone
-      const hostedZone = isProd
-        ? new route53.PublicHostedZone(this, 'HostedZone', {
-            zoneName: hostedZoneName,
-          })
-        : route53.HostedZone.fromLookup(this, 'HostedZone', {
-            domainName: hostedZoneName,
-          });
-
+    if (shortEnv === 'qa') {
+      // 1. Look up Hosted Zone
+      const hostedZone = route53.HostedZone.fromLookup(this, 'HostedZone', {
+        domainName: hostedZoneName,
+      });
+ 
       // 2. Request Certificate
       certificate = new acm.Certificate(this, 'Certificate', {
         domainName: domainName,
         validation: acm.CertificateValidation.fromDns(hostedZone),
       });
-
+ 
       // 3. Create Route 53 A record pointing to the load balancer
       new route53.ARecord(this, 'AliasRecord', {
         zone: hostedZone,
         recordName: domainName,
         target: route53.RecordTarget.fromAlias(new route53_targets.LoadBalancerTarget(alb)),
       });
-
+ 
       // Set frontend URL
+      frontendUrl = `https://${domainName}`;
+    } else if (isProd) {
+      // Production uses the custom domain, but Route 53 / ACM are managed manually
+      // because the hosted zone is in the QA account.
       frontendUrl = `https://${domainName}`;
     }
 
