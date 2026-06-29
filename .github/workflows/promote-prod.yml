@@ -37,6 +37,36 @@ jobs:
       - name: Deploy Prod Infrastructure
         run: |
           npm install --prefix infra/cdk
+          
+          echo "Checking and cleaning up any stuck CloudFormation stack..."
+          CDK_ROLE_ARN="arn:aws:iam::683354427635:role/cdk-hnb659fds-deploy-role-683354427635-ap-south-1"
+          ASSUME_ROLE_OUTPUT=$(aws sts assume-role --role-arn "$CDK_ROLE_ARN" --role-session-name "StackCleanup" --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" --output text 2>/dev/null || echo "")
+          
+          if [ -n "$ASSUME_ROLE_OUTPUT" ]; then
+            export AWS_ACCESS_KEY_ID=$(echo "$ASSUME_ROLE_OUTPUT" | awk '{print $1}')
+            export AWS_SECRET_ACCESS_KEY=$(echo "$ASSUME_ROLE_OUTPUT" | awk '{print $2}')
+            export AWS_SESSION_TOKEN=$(echo "$ASSUME_ROLE_OUTPUT" | awk '{print $3}')
+            echo "Successfully assumed CDK deploy role"
+            
+            STACK_STATUS=$(aws cloudformation describe-stacks --stack-name AxioraPulseStackProd --region ap-south-1 --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "NOT_EXISTS")
+            echo "Current Stack Status: $STACK_STATUS"
+            
+            if [ "$STACK_STATUS" = "CREATE_IN_PROGRESS" ] || [ "$STACK_STATUS" = "ROLLBACK_IN_PROGRESS" ]; then
+              echo "Stack is stuck in $STACK_STATUS. Deleting stack..."
+              aws cloudformation delete-stack --stack-name AxioraPulseStackProd --region ap-south-1
+              echo "Waiting for stack deletion to complete..."
+              aws cloudformation wait stack-delete-complete --stack-name AxioraPulseStackProd --region ap-south-1
+              echo "Stack deleted successfully."
+            elif [ "$STACK_STATUS" = "UPDATE_IN_PROGRESS" ] || [ "$STACK_STATUS" = "UPDATE_ROLLBACK_IN_PROGRESS" ]; then
+              echo "Stack is in update progress. Canceling update..."
+              aws cloudformation cancel-update-stack --stack-name AxioraPulseStackProd --region ap-south-1 || echo "Cancel failed"
+              echo "Waiting for stack update cancel/rollback to stabilize..."
+              sleep 60
+            fi
+          else
+            echo "Failed to assume CDK deploy role"
+          fi
+
           cd infra/cdk
           export CDK_PROD_ENABLED=true
           npx cdk deploy AxioraPulseStackProd --require-approval never
