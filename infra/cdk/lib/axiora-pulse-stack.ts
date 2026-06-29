@@ -336,10 +336,14 @@ export class AxioraPulseStack extends cdk.Stack {
     let certificate: acm.ICertificate | undefined = undefined;
 
     if (shortEnv === 'qa' || isProd) {
-      // 1. Look up Hosted Zone
-      const hostedZone = route53.HostedZone.fromLookup(this, 'HostedZone', {
-        domainName: hostedZoneName,
-      });
+      // 1. Look up or create Hosted Zone
+      const hostedZone = isProd
+        ? new route53.PublicHostedZone(this, 'HostedZone', {
+            zoneName: hostedZoneName,
+          })
+        : route53.HostedZone.fromLookup(this, 'HostedZone', {
+            domainName: hostedZoneName,
+          });
 
       // 2. Request Certificate
       certificate = new acm.Certificate(this, 'Certificate', {
