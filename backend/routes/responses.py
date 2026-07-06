@@ -327,7 +327,7 @@ def upsert_answers(
 def submit_response(
     request: Request,
     response_id: uuid.UUID,
-    body: SubmitResponse,
+    body: SubmitResponse = SubmitResponse(),
     db: Session = Depends(get_db),
 ):
     """

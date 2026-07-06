@@ -1,14 +1,17 @@
 import requests
-from core.config import RESEND_API_KEY, EMAIL_FROM
+from core import config
 
 RESEND_API_URL = "https://api.resend.com/emails"
 
 
 def send_email(to_email: str, subject: str, body: str):
+    api_key = config.RESEND_API_KEY
+    email_from = config.EMAIL_FROM
+
     # Fallback to local stdout logging if API key is missing or mocked
-    if not RESEND_API_KEY or RESEND_API_KEY.startswith("mock") or RESEND_API_KEY == "dummy":
+    if not api_key or api_key.startswith("mock") or api_key == "dummy":
         print("\n=== [LOCAL EMAIL SIMULATION] ===")
-        print(f"From: {EMAIL_FROM}")
+        print(f"From: {email_from}")
         print(f"To: {to_email}")
         print(f"Subject: {subject}")
         print(f"Body: {body[:300]}...")
@@ -17,11 +20,11 @@ def send_email(to_email: str, subject: str, body: str):
 
     # Send using Resend REST API
     headers = {
-        "Authorization": f"Bearer {RESEND_API_KEY}",
+        "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
     payload = {
-        "from": EMAIL_FROM,
+        "from": email_from,
         "to": [to_email],
         "subject": subject,
         "html": body,
