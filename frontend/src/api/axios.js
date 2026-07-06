@@ -1,9 +1,13 @@
 import axios from "axios";
-
 import { getApiErrorMessage } from "../lib/apiError";
 
+const rawBaseURL = import.meta.env.VITE_API_BASE_URL;
+// If the API URL points to an AWS Load Balancer, we proxy requests through Nginx (/api)
+// to avoid SSL/TLS certificate validation errors on the browser.
+const baseURL = (rawBaseURL && !rawBaseURL.includes("elb.amazonaws.com")) ? rawBaseURL : "/api";
+
 const API = axios.create({
-    baseURL: import.meta.env.VITE_API_BASE_URL || "/api",
+    baseURL,
 });
 
 // Attach Bearer token to every request

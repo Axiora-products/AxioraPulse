@@ -32,6 +32,28 @@ function optionList(raw) {
   return Array.isArray(parsed) ? parsed : [];
 }
 
+function isValidEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
+}
+
+function describeApiError(error, fallback = 'Submission failed. Your answers are saved; please try again.') {
+  if (!error.response) return 'Network error. Please check your connection and try again.';
+
+  const status = error.response.status;
+  const detail = error.response.data?.detail;
+  const message = Array.isArray(detail)
+    ? detail.map(d => d.msg || d.message).filter(Boolean).join(', ')
+    : detail;
+
+  if (status === 400) return message || 'Validation failed. Please review your answers and try again.';
+  if (status === 409) return message || 'This survey response has already been submitted.';
+  if (status === 422) return message || 'Validation failed. Please check the email and required answers.';
+  if (status === 429) return 'Too many attempts. Please wait a moment and try again.';
+  if (status >= 500) return 'Server unavailable. Your answers are saved; please try again shortly.';
+
+  return message || fallback;
+}
+
 // ─── Inline SVG icons — no emojis, no icon libraries ─────────────────────────
 const Icons = {
   Arrow: ({ d = 'M5 12h14M12 5l7 7-7 7', ...p }) => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" {...p}><path d={d} /></svg>,
@@ -505,6 +527,20 @@ useEffect(() => {
       if (s.tenant_name) setOrgName(s.tenant_name);
       const q = (s.questions || []).slice().sort((a, b) => a.sort_order - b.sort_order);
       setQs(q);
+
+      // Load local draft answers if present
+      let localDraft = {};
+      if (s.id) {
+        try {
+          const raw = localStorage.getItem(`surveyAnswers_${s.id}`);
+          if (raw) {
+            localDraft = JSON.parse(raw) || {};
+          }
+        } catch (e) {
+          console.warn('Failed to parse local draft:', e);
+        }
+      }
+
       // Resume previous in-progress session
       const sessionRes = await API.get(`/responses/session/${token.current}`);
       const ex = sessionRes.data;
@@ -520,34 +556,38 @@ useEffect(() => {
           r[a.question_id] = a.answer_json ?? a.answer_value ?? '';
         });
 
-        console.log("Backend answers:", r);
-
         const cachedAnswers = localStorage.getItem(
           `survey_answers_${slug}`
         );
-        console.log("Backend answers:", r);
-        console.log("Local cache:", cachedAnswers);
 
-        if (Object.keys(r).length > 0) {
-          setAns(r);
-        } else if (cachedAnswers) {
-          setAns(JSON.parse(cachedAnswers));
+        let parsedCached = {};
+        if (cachedAnswers) {
+          try { parsedCached = JSON.parse(cachedAnswers) || {}; } catch {}
         }
 
-        const cachedStep = localStorage.getItem(
-            `survey_step_${slug}`
-          );
+        const combined = { ...r, ...localDraft, ...parsedCached };
+        setAns(combined);
 
-          if (cachedStep !== null) {
-            setStep(parseInt(cachedStep, 10));
-          } else {
-            const first = q.findIndex(x => !r[x.id]);
-            setStep(first >= 0 ? first : 0);
-          }
+        const cachedStep = localStorage.getItem(
+          `survey_step_${slug}`
+        );
+
+        if (cachedStep !== null) {
+          setStep(parseInt(cachedStep, 10));
+        } else {
+          const first = q.findIndex(x => !combined[x.id]);
+          setStep(first >= 0 ? first : 0);
+        }
         setSaved(ex.last_saved_at);
 
       } else {
-        setStep(-1);
+        if (Object.keys(localDraft).length > 0) {
+          setAns(localDraft);
+          const first = q.findIndex(x => !localDraft[x.id]);
+          setStep(first >= 0 ? first : 0);
+        } else {
+          setStep(-1);
+        }
       }
     } catch (e) {
       console.error(e);
@@ -574,14 +614,17 @@ useEffect(() => {
 
     insertPending.current = (async () => {
       // POST /responses/ handles dedup via session_token server-side
-      const res = await API.post('/responses/', {
+      const payload = {
         survey_id: sv.id,
         session_token: token.current,
         respondent_email: email || null,
         source: sourceRef.current || null,
         language: currentLang || 'en',
         status: 'in_progress',
-      });
+      };
+      console.debug('[survey-submit] create response request', { surveyId: sv.id, sessionToken: token.current });
+      const res = await API.post('/responses/', payload);
+      console.debug('[survey-submit] create response success', { responseId: res.data.id });
       rId.current = res.data.id;
       return res.data.id;
     })();
@@ -594,7 +637,7 @@ useEffect(() => {
   }
 
   // ── Auto-save (via Netlify function) ─────────────────────────────────────
-  const autoSave = useCallback(async (a, id) => {
+  const autoSave = useCallback(async (a, id, { silent = true } = {}) => {
     if (!id) return;
     try {
       const answers = Object.entries(a).map(([qId, v]) => {
@@ -605,9 +648,19 @@ useEffect(() => {
           answer_json: isObj ? v : null,
         };
       });
+      console.debug('[survey-submit] save answers request', { responseId: id, answerCount: answers.length });
       await API.post(`/responses/${id}/answers`, answers);
+      console.debug('[survey-submit] save answers success', { responseId: id, answerCount: answers.length });
       setSaved(new Date().toISOString());
-    } catch (e) { console.warn('Auto-save silently failed:', e.message); }
+    } catch (e) {
+      console.warn('[survey-submit] save answers failed', {
+        responseId: id,
+        status: e.response?.status,
+        detail: e.response?.data?.detail,
+        message: e.message,
+      });
+      if (!silent) throw e;
+    }
   }, []);
 
   // ── Answer setter ─────────────────────────────────────────────────────────
@@ -615,6 +668,16 @@ useEffect(() => {
     const next = { ...ans, [qId]: val };
     setAns(next);
     tracker.onEdit(qId);
+
+    // Save to localStorage immediately
+    if (sv?.id) {
+      try {
+        localStorage.setItem(`surveyAnswers_${sv.id}`, JSON.stringify(next));
+      } catch (e) {
+        console.warn('Failed to save draft to localStorage:', e);
+      }
+    }
+
     const id = await ensureR();
     clearTimeout(timer.current);
     timer.current = setTimeout(() => { autoSave(next, id); tracker.flush(); }, 3000);
@@ -625,21 +688,38 @@ useEffect(() => {
     for (const q of visibleQuestions) {
       if (q.is_required && !ans[q.id]) { goTo(activeQs.indexOf(q)); return toast.error(ui.pleaseAnswer(textFor(q.question_text, currentLang))); }
     }
+    const cleanEmail = email.trim();
+    if (sv?.require_email && !isValidEmail(cleanEmail)) {
+      return toast.error('Invalid email. Please enter a valid email address.');
+    }
     setBusy(true);
     try {
+      console.debug('[survey-submit] final submit started', { surveyId: sv?.id, slug, requiresEmail: !!sv?.require_email });
       const id = await ensureR();
       const quality = await tracker.onSubmit(ans, activeQs);
       await autoSave(ans, id);
       // Update email if collected at end
-      if (activeSv?.require_email && email) {
-        await API.patch(`/responses/${id}`, { respondent_email: email });
+      if (activeSv?.require_email && cleanEmail) {
+        console.debug('[survey-submit] update email request', { responseId: id });
+        await API.patch(`/responses/${id}`, { respondent_email: cleanEmail });
+        console.debug('[survey-submit] update email success', { responseId: id });
       }
+      console.debug('[survey-submit] submit response request', { responseId: id, qualityScore: quality });
       await API.post(`/responses/${id}/submit`, { metadata: { quality_score: quality } });
+      console.debug('[survey-submit] submit response success', { responseId: id });
       setShowDemographics(true);
       localStorage.removeItem(`nx_${slug}`);
       localStorage.removeItem(`survey_answers_${slug}`);
       localStorage.removeItem(`survey_step_${slug}`);
-    } catch (e) { toast.error(ui.submitFailed); }
+    } catch (e) {
+      console.error('[survey-submit] final submit failed', {
+        responseId: rId.current,
+        status: e.response?.status,
+        detail: e.response?.data?.detail,
+        message: e.message,
+      });
+      toast.error(describeApiError(e));
+    }
     finally { setBusy(false); }
   }
 

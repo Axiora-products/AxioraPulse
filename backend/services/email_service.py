@@ -1,15 +1,14 @@
-import os
 import requests
+from core.config import RESEND_API_KEY, EMAIL_FROM
+
+RESEND_API_URL = "https://api.resend.com/emails"
 
 
 def send_email(to_email: str, subject: str, body: str):
-    email_from = os.getenv("EMAIL_FROM", "Axiora Pulse <noreply@axiorapulse.com>")
-    api_key = os.getenv("RESEND_API_KEY")
-
     # Fallback to local stdout logging if API key is missing or mocked
-    if not api_key or api_key.startswith("mock") or api_key == "dummy":
+    if not RESEND_API_KEY or RESEND_API_KEY.startswith("mock") or RESEND_API_KEY == "dummy":
         print("\n=== [LOCAL EMAIL SIMULATION] ===")
-        print(f"From: {email_from}")
+        print(f"From: {EMAIL_FROM}")
         print(f"To: {to_email}")
         print(f"Subject: {subject}")
         print(f"Body: {body[:300]}...")
@@ -17,20 +16,19 @@ def send_email(to_email: str, subject: str, body: str):
         return
 
     # Send using Resend REST API
-    url = "https://api.resend.com/emails"
     headers = {
-        "Authorization": f"Bearer {api_key}",
+        "Authorization": f"Bearer {RESEND_API_KEY}",
         "Content-Type": "application/json",
     }
     payload = {
-        "from": email_from,
+        "from": EMAIL_FROM,
         "to": [to_email],
         "subject": subject,
         "html": body,
     }
 
     try:
-        response = requests.post(url, json=payload, headers=headers, timeout=10)
+        response = requests.post(RESEND_API_URL, json=payload, headers=headers, timeout=10)
         response.raise_for_status()
     except requests.exceptions.RequestException as e:
         try:
