@@ -11,7 +11,7 @@ def get_ssm_parameter(name: str):
     try:
         ssm = boto3.client("ssm", region_name="ap-south-1")
         return ssm.get_parameter(Name=name, WithDecryption=True)["Parameter"]["Value"]
-    except Exception as e:
+    except Exception:
         # Fallback to None if SSM fails or parameter doesn't exist
         return None
 

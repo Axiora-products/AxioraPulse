@@ -1,3 +1,4 @@
+# ruff: noqa: F401
 """age_range 
 
 Revision ID: 296048710623
