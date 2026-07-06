@@ -1,3 +1,4 @@
+import os
 import requests
 from core import config
 
@@ -5,8 +6,8 @@ RESEND_API_URL = "https://api.resend.com/emails"
 
 
 def send_email(to_email: str, subject: str, body: str):
-    api_key = config.RESEND_API_KEY
-    email_from = config.EMAIL_FROM
+    api_key = os.getenv("RESEND_API_KEY") or config.RESEND_API_KEY
+    email_from = os.getenv("EMAIL_FROM") or config.EMAIL_FROM
 
     # Fallback to local stdout logging if API key is missing or mocked
     if not api_key or api_key.startswith("mock") or api_key == "dummy":
