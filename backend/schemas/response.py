@@ -75,5 +75,5 @@ class ResponseOut(BaseModel):
 
 class SubmitResponse(BaseModel):
     action: str = "submit"
-    response_id: UUID
+    response_id: Optional[UUID] = None
     metadata: Optional[Dict[str, Any]] = None
