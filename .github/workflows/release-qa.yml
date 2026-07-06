@@ -287,7 +287,7 @@ jobs:
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.render-backend.outputs.task-definition }}
-          service: pulse-backend-qa
+          service: pulse-backend-qa-v2
           cluster: axiorapulse-qa-cluster
           wait-for-service-stability: true
 
@@ -303,7 +303,7 @@ jobs:
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.render-frontend.outputs.task-definition }}
-          service: pulse-frontend-qa
+          service: pulse-frontend-qa-v2
           cluster: axiorapulse-qa-cluster
           wait-for-service-stability: true
 
