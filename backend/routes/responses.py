@@ -113,31 +113,23 @@ def create_response(request: Request, body: ResponseCreate, db: Session = Depend
     if body.session_token:
         existing = db.query(SurveyResponse).filter(SurveyResponse.session_token == body.session_token).first()
         if existing:
-<<<<<<< HEAD
             if body.language:
                 existing.language = _response_language(body.language)
                 db.commit()
                 db.refresh(existing)
-=======
             logger.info(
                 "response_create_existing",
                 extra={"response_id": str(existing.id), "survey_id": str(existing.survey_id)},
             )
->>>>>>> origin/main
             return ResponseOut.model_validate(existing)
 
     row = SurveyResponse(
         id=uuid.uuid4(),
         survey_id=body.survey_id,
-<<<<<<< HEAD
         session_token=body.session_token or str(uuid.uuid4()),
         respondent_email=body.respondent_email,
         source=_normalize_source(body.source),
         language=_response_language(body.language),
-=======
-        session_token=body.session_token,
-        respondent_email=str(body.respondent_email) if body.respondent_email else None,
->>>>>>> origin/main
         age_range=body.age_range,
         gender=body.gender,
         occupation=body.occupation,
@@ -233,13 +225,9 @@ def update_response(
     )
 
     if body.respondent_email is not None:
-<<<<<<< HEAD
         r.respondent_email = body.respondent_email
     if body.language is not None:
         r.language = _response_language(body.language)
-=======
-        r.respondent_email = str(body.respondent_email)
->>>>>>> origin/main
     if body.status is not None:
         try:
             r.status = ResponseStatusEnum(body.status)
@@ -257,16 +245,11 @@ def update_response(
 
     if body.occupation is not None:
         r.occupation = body.occupation
-<<<<<<< HEAD
-
     if body.country is not None:
         r.country = body.country
 
     if body.state is not None:
         r.state = body.state
-
-=======
->>>>>>> origin/main
     if body.city is not None:
         r.city = body.city
 
