@@ -12,6 +12,7 @@ POST   /responses/{id}/answers  — upsert answers (auto-save)
 POST   /responses/{id}/submit   — mark as completed (replaces Netlify respond fn)
 GET    /responses/session/{token} — find in-progress response by session_token
 """
+
 import re
 import uuid
 import secrets
@@ -143,11 +144,7 @@ def create_response(request: Request, body: ResponseCreate, db: Session = Depend
     except IntegrityError as exc:
         db.rollback()
         if body.session_token:
-            existing = (
-                db.query(SurveyResponse)
-                .filter(SurveyResponse.session_token == body.session_token)
-                .first()
-            )
+            existing = db.query(SurveyResponse).filter(SurveyResponse.session_token == body.session_token).first()
             if existing:
                 logger.warning(
                     "response_create_duplicate_session_recovered",

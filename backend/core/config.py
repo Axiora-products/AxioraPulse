@@ -5,6 +5,7 @@ from functools import lru_cache
 
 load_dotenv()
 
+
 @lru_cache(maxsize=None)
 def get_ssm_parameter(name: str):
     """Fetch a parameter from AWS SSM Parameter Store."""
@@ -14,6 +15,7 @@ def get_ssm_parameter(name: str):
     except Exception:
         # Fallback to None if SSM fails or parameter doesn't exist
         return None
+
 
 # ── Environment ────────────────────────────────────────────────────────────────
 # NOTE: defaults to "development". Production MUST set ENVIRONMENT=production
@@ -88,7 +90,11 @@ ENABLE_DB_RLS = os.getenv("ENABLE_DB_RLS", "false").strip().lower() == "true"
 
 # Email / Resend Configuration
 RESEND_API_KEY = os.getenv("RESEND_API_KEY") or get_ssm_parameter("/axiorapulse/production/RESEND_API_KEY")
-EMAIL_FROM = os.getenv("EMAIL_FROM") or get_ssm_parameter("/axiorapulse/production/EMAIL_FROM") or "Axiora Pulse <noreply@axiorapulse.com>"
+EMAIL_FROM = (
+    os.getenv("EMAIL_FROM")
+    or get_ssm_parameter("/axiorapulse/production/EMAIL_FROM")
+    or "Axiora Pulse <noreply@axiorapulse.com>"
+)
 
 if not DATABASE_URL:
     raise Exception("DATABASE_URL is missing")

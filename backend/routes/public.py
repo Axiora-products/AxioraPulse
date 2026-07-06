@@ -561,6 +561,7 @@ color:#6f665d;
 </html>
 """
 
+
 @router.post("/waitlist")
 @limiter.limit("5/minute")
 def join_waitlist(request: Request, body: WaitlistRequest, db: Session = Depends(get_db)):
