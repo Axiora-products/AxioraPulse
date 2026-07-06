@@ -12,7 +12,10 @@ GET  /payments/subscription        — current tenant subscription
 
 import hashlib
 import hmac
+import json
 import logging
+import uuid
+from datetime import datetime
 from typing import List
 
 import razorpay
@@ -23,6 +26,7 @@ from core import config
 from db.database import get_db
 from db.models import Payment, Plan, Subscription, Tenant, UserProfile
 from dependencies import get_current_user
+from services.audit import record_audit
 from schemas.payment import (
     CreateOrderRequest,
     CreateOrderResponse,
@@ -47,14 +51,16 @@ def _razorpay_client() -> razorpay.Client:
 
 # ── Plans ─────────────────────────────────────────────────────────────────────
 
+
 @router.get("/plans", response_model=List[PlanOut])
 def list_plans(db: Session = Depends(get_db)):
     """Return all active plans. Used by the pricing page (no auth required)."""
-    plans = db.query(Plan).filter(Plan.is_active == True).order_by(Plan.price_paise).all()
+    plans = db.query(Plan).filter(Plan.is_active).order_by(Plan.price_paise).all()
     return [PlanOut.model_validate(p) for p in plans]
 
 
 # ── Create order ──────────────────────────────────────────────────────────────
+
 
 @router.post("/create-order", response_model=CreateOrderResponse)
 def create_order(
@@ -66,7 +72,7 @@ def create_order(
     Create a Razorpay order for the requested plan.
     Returns the order_id and key_id needed by the frontend Razorpay checkout widget.
     """
-    plan = db.query(Plan).filter(Plan.code == body.plan_code, Plan.is_active == True).first()
+    plan = db.query(Plan).filter(Plan.code == body.plan_code, Plan.is_active).first()
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
 
@@ -110,6 +116,7 @@ def create_order(
 
 # ── Verify payment ────────────────────────────────────────────────────────────
 
+
 @router.post("/verify")
 def verify_payment(
     body: VerifyPaymentRequest,
@@ -142,20 +149,23 @@ def verify_payment(
     if not payment:
         raise HTTPException(status_code=404, detail="Payment record not found")
 
-    plan = db.query(Plan).filter(Plan.code == body.plan_code, Plan.is_active == True).first()
+    # Resolve the plan from the ORDER, never from the client-supplied plan_code.
+    # Otherwise a user could pay for a cheap plan and verify with an expensive
+    # plan_code to get the expensive plan for the cheap price. (AP-SEC-005)
+    plan = db.query(Plan).filter(Plan.id == payment.plan_id, Plan.is_active).first()
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
+
+    # Integrity: the amount captured must match the plan's price.
+    if payment.amount_paise != plan.price_paise:
+        raise HTTPException(status_code=400, detail="Payment amount does not match plan price")
 
     # 3. Update payment row
     payment.razorpay_payment_id = body.razorpay_payment_id
     payment.status = "paid"
 
     # 4. Upsert subscription
-    sub = (
-        db.query(Subscription)
-        .filter(Subscription.tenant_id == current_user.tenant_id)
-        .first()
-    )
+    sub = db.query(Subscription).filter(Subscription.tenant_id == current_user.tenant_id).first()
     if sub:
         sub.plan_id = plan.id
         sub.status = "active"
@@ -178,19 +188,45 @@ def verify_payment(
         tenant.plan = plan.code
 
     db.commit()
+    record_audit(
+        db,
+        action="payment.verified",
+        actor=current_user,
+        tenant_id=current_user.tenant_id,
+        target_type="payment",
+        target_id=payment.id,
+        detail={"plan": plan.code, "amount_paise": payment.amount_paise, "order_id": body.razorpay_order_id},
+    )
     return {"success": True, "plan": plan.code}
 
 
 # ── Webhook ───────────────────────────────────────────────────────────────────
 
+
 @router.post("/webhook", status_code=200)
 async def razorpay_webhook(request: Request, db: Session = Depends(get_db)):
     """
     Receive Razorpay webhook events.
-    Validates the X-Razorpay-Signature header before processing.
+    Verifies the X-Razorpay-Signature header (HMAC-SHA256 over the raw body)
+    before processing. Fail-closed: disabled until RAZORPAY_WEBHOOK_SECRET is set.
+    (AP-SEC-004)
     """
+    if not config.RAZORPAY_WEBHOOK_SECRET:
+        logger.error("Razorpay webhook received but RAZORPAY_WEBHOOK_SECRET is not configured")
+        raise HTTPException(status_code=503, detail="Webhook not configured")
+
+    raw_body = await request.body()
+    signature = request.headers.get("X-Razorpay-Signature", "")
+    expected = hmac.new(
+        config.RAZORPAY_WEBHOOK_SECRET.encode(),
+        raw_body,
+        hashlib.sha256,
+    ).hexdigest()
+    if not signature or not hmac.compare_digest(expected, signature):
+        raise HTTPException(status_code=400, detail="Invalid webhook signature")
+
     try:
-        payload = await request.json()
+        payload = json.loads(raw_body)
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
 
@@ -224,9 +260,7 @@ async def razorpay_webhook(request: Request, db: Session = Depends(get_db)):
     elif event == "subscription.cancelled":
         rzp_sub_id = payload.get("payload", {}).get("subscription", {}).get("entity", {}).get("id")
         if rzp_sub_id:
-            sub = db.query(Subscription).filter(
-                Subscription.razorpay_subscription_id == rzp_sub_id
-            ).first()
+            sub = db.query(Subscription).filter(Subscription.razorpay_subscription_id == rzp_sub_id).first()
             if sub:
                 sub.status = "cancelled"
                 db.commit()
@@ -237,12 +271,42 @@ async def razorpay_webhook(request: Request, db: Session = Depends(get_db)):
 
 # ── Current subscription ───────────────────────────────────────────────────────
 
+
 @router.get("/subscription", response_model=SubscriptionOut)
 def get_subscription(
     current_user: UserProfile = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Return the current tenant's active subscription (or 404 if on free plan)."""
+    if config.DISABLE_PAYMENTS:
+        # Return a mock Pro subscription if payments are disabled
+        pro_plan = db.query(Plan).filter(Plan.code == "pro").first()
+        if not pro_plan:
+            # Fallback if DB isn't seeded yet
+            pro_plan = Plan(
+                id=uuid.uuid4(),
+                code="pro",
+                name="Pro Plan (Mock)",
+                price_paise=249900,
+                currency="INR",
+                billing_period="monthly",
+                ai_insights_enabled=True,
+                is_active=True,
+            )
+
+        return SubscriptionOut(
+            id=uuid.uuid4(),
+            tenant_id=current_user.tenant_id,
+            plan=PlanOut.model_validate(pro_plan),
+            status="active",
+            razorpay_subscription_id=None,
+            current_period_start=None,
+            current_period_end=None,
+            cancel_at_period_end=False,
+            cancelled_at=None,
+            created_at=datetime.utcnow(),
+        )
+
     sub = (
         db.query(Subscription)
         .options(joinedload(Subscription.plan))

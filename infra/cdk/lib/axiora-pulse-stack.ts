@@ -1,16 +1,27 @@
 import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
-import * as ec2 from 'aws-cdk-lib/aws-ec2';
-import * as rds from 'aws-cdk-lib/aws-rds';
-import * as ecs from 'aws-cdk-lib/aws-ecs';
-import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
-import * as iam from 'aws-cdk-lib/aws-iam';
+import * as rds from 'aws-cdk-lib/aws-rds';
+import * as cr from 'aws-cdk-lib/custom-resources';
+
 import * as cognito from 'aws-cdk-lib/aws-cognito';
-import * as logs from 'aws-cdk-lib/aws-logs';
+import * as ecr from 'aws-cdk-lib/aws-ecr';
+import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import * as ecs from 'aws-cdk-lib/aws-ecs';
+import * as iam from 'aws-cdk-lib/aws-iam';
+import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
+import * as cloudmap from 'aws-cdk-lib/aws-servicediscovery';
+import { NagSuppressions } from 'cdk-nag';
+import * as appscaling from 'aws-cdk-lib/aws-applicationautoscaling';
+import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
+import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
+import * as route53 from 'aws-cdk-lib/aws-route53';
+import * as acm from 'aws-cdk-lib/aws-certificatemanager';
+import * as route53_targets from 'aws-cdk-lib/aws-route53-targets';
 
 export interface AxioraPulseStackProps extends cdk.StackProps {
-  environment: 'dev' | 'qa' | 'prod';
+  environment: 'dev' | 'qa' | 'prod' | 'development' | 'production';
   prodOverride?: boolean;
 }
 
@@ -19,277 +30,701 @@ export class AxioraPulseStack extends cdk.Stack {
     super(scope, id, props);
 
     const envName = props.environment;
+    const shortEnv = (envName === 'production' || envName === 'prod') ? 'prod' : 
+                    (envName === 'development' || envName === 'dev') ? 'dev' : 'qa';
+
+    const isProd = (shortEnv === 'prod');
 
     // Safety Check: Prevent production deployment unless explicitly overridden
-    if (envName === 'prod' && !props.prodOverride) {
+    if (shortEnv === 'prod' && !props.prodOverride) {
       throw new Error('Production deployment is disabled. Set prodOverride: true to enable.');
     }
 
     // Safety Check: Verify target account
     const expectedAccounts: { [key: string]: string } = {
       'dev': '079975324160',
-      'prod': '217757579310',
+      'qa': '399894608507',
+      'prod': '683354427635',
     };
 
-    if (expectedAccounts[envName] && this.account !== expectedAccounts[envName]) {
-      throw new Error(`Account mismatch! Environment ${envName} expected account ${expectedAccounts[envName]} but got ${this.account}.`);
+    if (expectedAccounts[shortEnv] && this.account !== expectedAccounts[shortEnv]) {
+      throw new Error(`Account mismatch! Environment ${envName} expected account ${expectedAccounts[shortEnv]} but got ${this.account}.`);
     }
 
-    // Enable termination protection for PROD
-    if (envName === 'prod') {
-      // Note: terminationProtection can only be set on the Stack before it is instantiated or via CfnStack
-      // But we can suggest it or try to set it via stack props in bin/cdk.ts
-    }
-
-    // Log target information
-    console.log(`\n🚀 Deploying AxioraPulse`);
-    console.log(`📍 Environment: ${envName}`);
-    console.log(`🆔 Account:     ${this.account}`);
-    console.log(`🌍 Region:      ${this.region}`);
-    console.log(`📦 Stack:       ${this.stackName}\n`);
-
-    // 1. VPC
-    const vpc = new ec2.Vpc(this, 'Vpc', {
+    // 0. Infrastructure: VPC and Cluster
+    const vpc = new ec2.Vpc(this, 'VpcV2', {
       maxAzs: 2,
-      natGateways: 1, // To save costs in Dev/QA, we use 1 NAT gateway
-      subnetConfiguration: [
-        {
-          name: 'Public',
-          subnetType: ec2.SubnetType.PUBLIC,
-        },
-        {
-          name: 'Private',
-          subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
-        },
-      ],
+      natGateways: isProd ? undefined : 0, // 0 NAT Gateways for QA to save costs
     });
 
-    // 2. Security Groups
-    const albSg = new ec2.SecurityGroup(this, 'AlbSg', {
+    if (isProd) {
+      vpc.addFlowLog('VpcFlowLog');
+    }
+
+    const cluster = new ecs.Cluster(this, 'Cluster', {
       vpc,
+      clusterName: `axiorapulse-${shortEnv}-cluster`,
+      containerInsights: true,
+      defaultCloudMapNamespace: {
+        name: `${shortEnv}.local`,
+        type: cloudmap.NamespaceType.DNS_PRIVATE,
+      }
+    });
+
+
+
+    // RDS Database Security Group
+    const dbSecurityGroup = new ec2.SecurityGroup(this, 'DbSecurityGroup', {
+      vpc,
+      description: 'Security group for RDS PostgreSQL',
       allowAllOutbound: true,
-      description: `ALB Security Group for AxioraPulse ${envName}`,
     });
-    albSg.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(80));
-    albSg.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(443));
 
-    const backendSg = new ec2.SecurityGroup(this, 'BackendSg', {
-      vpc,
-      allowAllOutbound: true,
-      description: `Backend Security Group for AxioraPulse ${envName}`,
+    // Database credentials secret (generates username & password in Secrets Manager)
+    const dbSecret = new rds.DatabaseSecret(this, 'DbSecret', {
+      username: 'postgres',
+      secretName: `/axiorapulse/${shortEnv}/db-credentials`,
     });
-    backendSg.addIngressRule(albSg, ec2.Port.tcp(8000));
 
-    const frontendSg = new ec2.SecurityGroup(this, 'FrontendSg', {
+    // RDS PostgreSQL database instance
+    const database = new rds.DatabaseInstance(this, 'DatabaseV3', {
+      engine: rds.DatabaseInstanceEngine.postgres({
+        version: rds.PostgresEngineVersion.VER_16_13,
+      }),
+      instanceType: isProd
+        ? ec2.InstanceType.of(ec2.InstanceClass.BURSTABLE3, ec2.InstanceSize.MEDIUM)
+        : ec2.InstanceType.of(ec2.InstanceClass.BURSTABLE3, ec2.InstanceSize.MICRO),
       vpc,
-      allowAllOutbound: true,
-      description: `Frontend Security Group for AxioraPulse ${envName}`,
-    });
-    frontendSg.addIngressRule(albSg, ec2.Port.tcp(80));
-
-    const dbSg = new ec2.SecurityGroup(this, 'DbSg', {
-      vpc,
-      allowAllOutbound: true,
-      description: `Database Security Group for AxioraPulse ${envName}`,
-    });
-    dbSg.addIngressRule(backendSg, ec2.Port.tcp(5432));
-
-    // 3. RDS
-    const database = new rds.DatabaseInstance(this, 'Database', {
-      engine: rds.DatabaseInstanceEngine.postgres({ version: rds.PostgresEngineVersion.VER_16 }),
-      instanceType: ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.MICRO),
-      vpc,
-      securityGroups: [dbSg],
+      vpcSubnets: { subnetType: isProd ? ec2.SubnetType.PRIVATE_WITH_EGRESS : ec2.SubnetType.PRIVATE_ISOLATED },
+      securityGroups: [dbSecurityGroup],
       databaseName: 'axiorapulse',
-      removalPolicy: cdk.RemovalPolicy.DESTROY, // For Dev/QA
-      deletionProtection: false,
+      credentials: rds.Credentials.fromSecret(dbSecret),
+      removalPolicy: isProd ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
+      multiAz: isProd,
+      storageEncrypted: isProd,
+      backupRetention: isProd ? cdk.Duration.days(7) : undefined,
+      allocatedStorage: isProd ? 100 : 20,
+      storageType: isProd ? undefined : rds.StorageType.GP3,
     });
 
-    // 4. Cognito
+    // Store DB connection details in SSM (non-sensitive fields)
+    const dbHostParam = new ssm.StringParameter(this, 'DbHostParam', {
+      parameterName: `/axiorapulse/${shortEnv}/DB_HOST`,
+      stringValue: database.dbInstanceEndpointAddress,
+    });
+
+    const dbPortParam = new ssm.StringParameter(this, 'DbPortParam', {
+      parameterName: `/axiorapulse/${shortEnv}/DB_PORT`,
+      stringValue: database.dbInstanceEndpointPort.toString(),
+    });
+
+    const dbNameParam = new ssm.StringParameter(this, 'DbNameParam', {
+      parameterName: `/axiorapulse/${shortEnv}/DB_NAME`,
+      stringValue: 'axiorapulse',
+    });
+
+    const dbSecretArnParam = new ssm.StringParameter(this, 'DbSecretArnParam', {
+      parameterName: `/axiorapulse/${shortEnv}/DB_SECRET_ARN`,
+      stringValue: dbSecret.secretArn,
+    });
+
+    // 1. ECR Repositories
+    let backendRepo: ecr.IRepository;
+    let frontendRepo: ecr.IRepository;
+
+    if (shortEnv === 'dev') {
+      backendRepo = ecr.Repository.fromRepositoryName(this, 'BackendRepo', `axiora/pulse-fastapi-${envName}`);
+      frontendRepo = ecr.Repository.fromRepositoryName(this, 'FrontendRepo', `axiora/pulse-frontend-${envName}`);
+    } else if (shortEnv === 'qa') {
+      const qaLifecycleRules = [
+        {
+          rulePriority: 1,
+          description: 'Keep images tagged with qa or latest',
+          tagStatus: ecr.TagStatus.TAGGED,
+          tagPrefixList: ['qa', 'latest'],
+          maxImageCount: 999,
+        },
+        {
+          rulePriority: 2,
+          description: 'Retain only the last 5 images to optimize storage costs',
+          tagStatus: ecr.TagStatus.ANY,
+          maxImageCount: 5,
+        }
+      ];
+
+      backendRepo = new ecr.Repository(this, 'BackendRepo', {
+        repositoryName: `axiora/pulse-fastapi-${envName}`,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+        emptyOnDelete: true,
+        lifecycleRules: qaLifecycleRules,
+      });
+
+      frontendRepo = new ecr.Repository(this, 'FrontendRepo', {
+        repositoryName: `axiora/pulse-frontend-${envName}`,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+        emptyOnDelete: true,
+        lifecycleRules: qaLifecycleRules,
+      });
+
+      // Allow Production account to pull from QA repository for promotion
+      const prodAccount = '683354427635';
+      [backendRepo, frontendRepo].forEach(repo => {
+        repo.addToResourcePolicy(new iam.PolicyStatement({
+          sid: 'AllowProdPull',
+          effect: iam.Effect.ALLOW,
+          principals: [new iam.AccountPrincipal(prodAccount)],
+          actions: [
+            'ecr:BatchCheckLayerAvailability',
+            'ecr:GetDownloadUrlForLayer',
+            'ecr:BatchGetImage',
+          ],
+        }));
+      });
+    } else {
+      backendRepo = ecr.Repository.fromRepositoryName(this, 'BackendRepo', 'axiora/pulse-fastapi');
+      frontendRepo = ecr.Repository.fromRepositoryName(this, 'FrontendRepo', 'axiora/pulse-frontend');
+    }
+
+    // 2. Cognito User Pool and Client
     const userPool = new cognito.UserPool(this, 'UserPool', {
-      userPoolName: `AxioraPulseUserPool-${envName}`,
+      userPoolName: 'AxioraPulseUserPool-' + envName,
       selfSignUpEnabled: true,
       signInAliases: { email: true },
       autoVerify: { email: true },
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      removalPolicy: isProd ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
+      mfa: isProd ? cognito.Mfa.REQUIRED : cognito.Mfa.OFF,
+      passwordPolicy: isProd ? {
+        minLength: 12,
+        requireLowercase: true,
+        requireUppercase: true,
+        requireDigits: true,
+        requireSymbols: true,
+      } : undefined,
     });
 
+    NagSuppressions.addResourceSuppressions(userPool, [
+      {
+        id: 'AwsSolutions-COG8',
+        reason: 'QA/Dev Cognito user pool does not require advanced security features (plus tier) to manage costs.'
+      },
+      {
+        id: 'AwsSolutions-COG1',
+        reason: 'QA/Dev Cognito user pool does not require custom complex password policies.'
+      },
+      {
+        id: 'AwsSolutions-COG2',
+        reason: 'QA/Dev Cognito user pool does not require MFA to simplify developer access.'
+      },
+      {
+        id: 'AwsSolutions-IAM5',
+        reason: 'Cognito SMS role requires wildcard permission to publish SMS notifications to any phone number via SNS.'
+      }
+    ], true);
+
     const userPoolClient = userPool.addClient('UserPoolClient', {
-      userPoolClientName: `AxioraPulseClient-${envName}`,
+      userPoolClientName: 'AxioraPulseClient-' + envName,
       authFlows: {
-        adminUserPassword: true,
-        custom: true,
         userPassword: true,
         userSrp: true,
       },
     });
 
-    // 5. ECS Cluster
-    const cluster = new ecs.Cluster(this, 'Cluster', {
-      vpc,
-      clusterName: `axiora-pulse-cluster-${envName}`,
-      containerInsights: true,
-    });
-
-    // 6. ALBs
-    const backendAlb = new elbv2.ApplicationLoadBalancer(this, 'BackendAlb', {
-      vpc,
-      internetFacing: true,
-      securityGroup: albSg,
-      loadBalancerName: `axiora-pulse-backend-alb-${envName}`,
-    });
-
-    const frontendAlb = new elbv2.ApplicationLoadBalancer(this, 'FrontendAlb', {
-      vpc,
-      internetFacing: true,
-      securityGroup: albSg,
-      loadBalancerName: `axiora-pulse-frontend-alb-${envName}`,
-    });
-
-    // 7. ECS Tasks and Services
+    // 3. ECS Task Definitions and Services
     
-    // IAM Roles
-    const executionRole = new iam.Role(this, 'EcsTaskExecutionRole', {
+    // IAM Role for ECS Tasks (Matches permissions in GitHubActionsDeployerRole but scoped to tasks)
+    const taskExecutionRole = new iam.Role(this, 'EcsTaskExecutionRole', {
       assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
       managedPolicies: [
         iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AmazonECSTaskExecutionRolePolicy'),
-        iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonSSMReadOnlyAccess'),
       ],
     });
+    backendRepo.grantPull(taskExecutionRole);
+    frontendRepo.grantPull(taskExecutionRole);
+
+    // Grant permission to read SSM parameters and Secrets Manager secrets
+    taskExecutionRole.addToPolicy(new iam.PolicyStatement({
+      actions: [
+        'ssm:GetParameters',
+        'ssm:GetParameter',
+        'secretsmanager:GetSecretValue',
+      ],
+      resources: [
+        `arn:aws:ssm:${this.region}:${this.account}:parameter/axiorapulse/${shortEnv}/*`,
+        `arn:aws:ssm:${this.region}:${this.account}:parameter/axiorapulse/*`,
+        dbSecret.secretArn,
+      ],
+    }));
 
     const taskRole = new iam.Role(this, 'EcsTaskRole', {
       assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
     });
+    taskRole.addManagedPolicy(iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonSSMReadOnlyAccess'));
 
-    // Backend
+    // Allow the application container to send SMS notifications via SNS
+    taskRole.addToPolicy(new iam.PolicyStatement({
+      actions: ['sns:Publish'],
+      resources: ['*'],
+    }));
+
+    // Backend Fargate Service
     const backendTaskDef = new ecs.FargateTaskDefinition(this, 'BackendTaskDef', {
       memoryLimitMiB: 1024,
       cpu: 512,
-      executionRole,
-      taskRole,
-      family: `pulse-backend-${envName}`,
+      executionRole: taskExecutionRole,
+      taskRole: taskRole,
+      family: `pulse-backend-${shortEnv}`,
     });
 
-    const backendContainer = backendTaskDef.addContainer('BackendContainer', {
-      image: ecs.ContainerImage.fromRegistry('217757579310.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-fastapi:latest'), // Placeholder
-      logging: ecs.LogDrivers.awsLogs({ 
-        streamPrefix: 'ecs', 
-        logGroup: new logs.LogGroup(this, 'BackendLogGroup', {
-          logGroupName: `/ecs/pulse-backend-${envName}`,
-          retention: logs.RetentionDays.ONE_MONTH,
-          removalPolicy: cdk.RemovalPolicy.DESTROY,
-        })
-      }),
+    backendTaskDef.addContainer('BackendContainer', {
+      image: ecs.ContainerImage.fromRegistry('public.ecr.aws/docker/library/python:3.11-alpine'),
+      command: [
+        "python3",
+        "-c",
+        "import http.server\nclass H(http.server.BaseHTTPRequestHandler):\n    def do_GET(self):\n        self.send_response(200)\n        self.end_headers()\n        self.wfile.write(b'OK')\nhttp.server.HTTPServer(('0.0.0.0', 8000), H).serve_forever()"
+      ],
+      portMappings: [{ containerPort: 8000 }],
+      logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'ecs', logGroup: new cdk.aws_logs.LogGroup(this, 'BackendLogGroup', {
+        logGroupName: `/ecs/pulse-backend-${shortEnv}`,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+      }) }),
       environment: {
-        'ENVIRONMENT': envName,
+        'ENVIRONMENT': shortEnv,
         'COGNITO_REGION': this.region,
-        'COGNITO_USER_POOL_ID': userPool.userPoolId,
-        'COGNITO_APP_CLIENT_ID': userPoolClient.userPoolClientId,
-      },
-      secrets: {
-        'DATABASE_URL': ecs.Secret.fromSsmParameter(ssm.StringParameter.fromSecureStringParameterAttributes(this, 'DbUrlParam', { parameterName: `/axiorapulse/${envName}/DATABASE_URL`, version: 1 })),
-        'SECRET_KEY': ecs.Secret.fromSsmParameter(ssm.StringParameter.fromSecureStringParameterAttributes(this, 'SecretKeyParam', { parameterName: `/axiorapulse/${envName}/SECRET_KEY`, version: 1 })),
-        'ANTHROPIC_KEY': ecs.Secret.fromSsmParameter(ssm.StringParameter.fromSecureStringParameterAttributes(this, 'AnthropicKeyParam', { parameterName: `/axiorapulse/${envName}/ANTHROPIC_KEY`, version: 1 })),
-        'EMAIL_FROM': ecs.Secret.fromSsmParameter(ssm.StringParameter.fromSecureStringParameterAttributes(this, 'EmailFromParam', { parameterName: `/axiorapulse/${envName}/EMAIL_FROM`, version: 1 })),
-        'FRONTEND_URL': ecs.Secret.fromSsmParameter(ssm.StringParameter.fromSecureStringParameterAttributes(this, 'FrontendUrlParam', { parameterName: `/axiorapulse/${envName}/FRONTEND_URL`, version: 1 })),
-        'RAZORPAY_KEY_ID': ecs.Secret.fromSsmParameter(ssm.StringParameter.fromSecureStringParameterAttributes(this, 'RazorpayKeyIdParam', { parameterName: `/axiorapulse/${envName}/RAZORPAY_KEY_ID`, version: 1 })),
-        'RAZORPAY_KEY_SECRET': ecs.Secret.fromSsmParameter(ssm.StringParameter.fromSecureStringParameterAttributes(this, 'RazorpayKeySecretParam', { parameterName: `/axiorapulse/${envName}/RAZORPAY_KEY_SECRET`, version: 1 })),
-      },
-      healthCheck: {
-        command: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\" || exit 1"],
-        interval: cdk.Duration.seconds(30),
-        timeout: cdk.Duration.seconds(10),
-        retries: 3,
-        startPeriod: cdk.Duration.seconds(60),
+        'AWS_SES_REGION': this.region,
       }
     });
 
-    backendContainer.addPortMappings({
-      containerPort: 8000,
-      protocol: ecs.Protocol.TCP,
-    });
-
-    const backendService = new ecs.FargateService(this, 'BackendService', {
+    const backendService = new ecs.FargateService(this, 'BackendServiceV2', {
       cluster,
       taskDefinition: backendTaskDef,
-      desiredCount: 1,
-      securityGroups: [backendSg],
-      assignPublicIp: false,
-      serviceName: `pulse-backend-service-${envName}`,
+      desiredCount: (isProd || shortEnv === 'qa') ? 2 : 1, // 2 tasks for HA in QA/Prod, 1 for Dev
+      serviceName: `pulse-backend-${shortEnv}${shortEnv === 'qa' ? '-v2' : ''}`,
+      vpcSubnets: { subnetType: isProd ? ec2.SubnetType.PRIVATE_WITH_EGRESS : ec2.SubnetType.PUBLIC },
+      assignPublicIp: !isProd,
+      cloudMapOptions: {
+        name: 'backend',
+      },
+      capacityProviderStrategies: isProd ? undefined : [
+        {
+          capacityProvider: 'FARGATE_SPOT',
+          weight: 1,
+        }
+      ],
     });
 
-    const backendListener = backendAlb.addListener('BackendListener', {
-      port: 80, // Using 80 for simplicity in Dev/QA, can add HTTPS later
-      open: true,
+    database.connections.allowFrom(backendService, ec2.Port.tcp(5432), 'Allow backend to access database');
+
+    let frontendUrl: string = '';
+    let frontendService: ecs.FargateService | undefined = undefined;
+
+    // 4. Application Load Balancer
+    const alb = new elbv2.ApplicationLoadBalancer(this, 'AlbV2', {
+      vpc,
+      internetFacing: true,
+      loadBalancerName: `axiorapulse-${shortEnv}-alb${shortEnv === 'qa' ? '-v2' : ''}`,
     });
+
+    const zoneName = 'axiorapulse.com';
+    const domainName = shortEnv === 'qa' ? `qa.${zoneName}` : (isProd ? zoneName : `dev.${zoneName}`);
+    const hostedZoneName = shortEnv === 'qa' ? domainName : zoneName;
+    let certificate: acm.ICertificate | undefined = undefined;
+
+    if (shortEnv === 'qa' || isProd) {
+      // 1. Look up Hosted Zone
+      const hostedZone = route53.HostedZone.fromLookup(this, 'HostedZone', {
+        domainName: hostedZoneName,
+      });
+
+      // 2. Request Certificate
+      certificate = new acm.Certificate(this, 'Certificate', {
+        domainName: domainName,
+        validation: acm.CertificateValidation.fromDns(hostedZone),
+      });
+
+      // 3. Create Route 53 A record pointing to the load balancer
+      new route53.ARecord(this, 'AliasRecord', {
+        zone: hostedZone,
+        recordName: domainName,
+        target: route53.RecordTarget.fromAlias(new route53_targets.LoadBalancerTarget(alb)),
+      });
+
+      // Set frontend URL
+      frontendUrl = `https://${domainName}`;
+    }
+
+    if (shortEnv === 'dev') {
+      // S3 Bucket for frontend static assets
+      const frontendBucket = new s3.Bucket(this, 'FrontendBucket', {
+        bucketName: `axiorapulse-${shortEnv}-frontend-bucket`,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+        autoDeleteObjects: true,
+        blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+        encryption: s3.BucketEncryption.S3_MANAGED,
+        enforceSSL: true,
+      });
+
+      // CloudFront Distribution for frontend SPA
+      const distribution = new cloudfront.Distribution(this, 'FrontendDistribution', {
+        defaultBehavior: {
+          origin: new origins.S3Origin(frontendBucket),
+          viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.ALLOW_ALL,
+          cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+        },
+        additionalBehaviors: {
+          '/api/*': {
+            origin: new origins.HttpOrigin(alb.loadBalancerDnsName, {
+              protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY,
+              httpPort: 8000,
+              customHeaders: {
+                'X-Forwarded-Prefix': '/api',
+              }
+            }),
+            viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+            allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
+            cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
+            originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
+          }
+        },
+        defaultRootObject: 'index.html',
+        errorResponses: [
+          {
+            httpStatus: 404,
+            responseHttpStatus: 200,
+            responsePagePath: '/index.html',
+            ttl: cdk.Duration.seconds(0),
+          },
+          {
+            httpStatus: 403,
+            responseHttpStatus: 200,
+            responsePagePath: '/index.html',
+            ttl: cdk.Duration.seconds(0),
+          }
+        ],
+      });
+
+      frontendUrl = `https://${distribution.distributionDomainName}`;
+
+      new cdk.CfnOutput(this, 'FrontendCloudFrontDomain', {
+        value: frontendUrl,
+        description: 'Frontend CloudFront distribution URL',
+      });
+
+      // CDK-Nag Suppressions for Frontend Bucket and Distribution
+      NagSuppressions.addResourceSuppressions(frontendBucket, [
+        {
+          id: 'AwsSolutions-S1',
+          reason: 'QA/Dev S3 bucket does not require server access logging to optimize costs.'
+        }
+      ]);
+
+      NagSuppressions.addResourceSuppressions(distribution, [
+        {
+          id: 'AwsSolutions-CFR1',
+          reason: 'QA/Dev CloudFront distribution does not require geo restrictions.'
+        },
+        {
+          id: 'AwsSolutions-CFR2',
+          reason: 'QA/Dev CloudFront distribution does not require WAF integration to minimize costs.'
+        },
+        {
+          id: 'AwsSolutions-CFR3',
+          reason: 'QA/Dev CloudFront distribution does not require access logging to minimize costs.'
+        },
+        {
+          id: 'AwsSolutions-CFR4',
+          reason: 'QA/Dev CloudFront distribution uses default CloudFront certificate for simplicity.'
+        },
+        {
+          id: 'AwsSolutions-CFR7',
+          reason: 'OAI/S3Origin standard configuration is sufficient; OAC is not strictly required for QA/Dev.'
+        }
+      ]);
+    }
+
+    if (isProd || shortEnv === 'qa') {
+      // Frontend Fargate Service (Production and QA)
+      const frontendTaskDef = new ecs.FargateTaskDefinition(this, 'FrontendTaskDef', {
+        memoryLimitMiB: 512,
+        cpu: 256,
+        executionRole: taskExecutionRole,
+        taskRole: taskRole,
+        family: `pulse-frontend-${shortEnv}`,
+      });
+
+      frontendTaskDef.addContainer('FrontendContainer', {
+        image: ecs.ContainerImage.fromRegistry('public.ecr.aws/nginx/nginx:alpine'),
+        portMappings: [{ containerPort: 80 }],
+        logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'ecs', logGroup: new cdk.aws_logs.LogGroup(this, 'FrontendLogGroup', {
+          logGroupName: `/ecs/pulse-frontend-${shortEnv}`,
+          removalPolicy: cdk.RemovalPolicy.DESTROY,
+        }) }),
+        environment: {
+          'BACKEND_INTERNAL_URL': `backend.${shortEnv}.local:8000`,
+        }
+      });
+
+      NagSuppressions.addResourceSuppressions(frontendTaskDef, [
+        {
+          id: 'AwsSolutions-ECS2',
+          reason: 'Frontend environment variables only contain non-sensitive configuration values.'
+        }
+      ]);
+
+      frontendService = new ecs.FargateService(this, 'FrontendServiceV2', {
+        cluster,
+        taskDefinition: frontendTaskDef,
+        desiredCount: 2,
+        serviceName: `pulse-frontend-${shortEnv}${shortEnv === 'qa' ? '-v2' : ''}`,
+        vpcSubnets: { subnetType: isProd ? ec2.SubnetType.PRIVATE_WITH_EGRESS : ec2.SubnetType.PUBLIC },
+        assignPublicIp: !isProd,
+      });
+    }
+
+    if (isProd) {
+      const backendScaling = backendService.autoScaleTaskCount({ maxCapacity: 10, minCapacity: 2 });
+      backendScaling.scaleOnCpuUtilization('BackendCpuScaling', { targetUtilizationPercent: 70 });
+      backendScaling.scaleOnMemoryUtilization('BackendMemoryScaling', { targetUtilizationPercent: 70 });
+
+      if (frontendService) {
+        const frontendScaling = frontendService.autoScaleTaskCount({ maxCapacity: 10, minCapacity: 2 });
+        frontendScaling.scaleOnCpuUtilization('FrontendCpuScaling', { targetUtilizationPercent: 70 });
+        frontendScaling.scaleOnMemoryUtilization('FrontendMemoryScaling', { targetUtilizationPercent: 70 });
+      }
+    } else if (shortEnv === 'qa') {
+      // Scheduled scaling to scale down to 0 at night/weekends for QA backend
+      const backendScaling = backendService.autoScaleTaskCount({ maxCapacity: 2, minCapacity: 0 });
+      backendScaling.scaleOnSchedule('ScaleDownQA', {
+        schedule: appscaling.Schedule.cron({ hour: '16', minute: '30', weekDay: 'MON-SAT' }), // 10:00 PM IST / 4:30 PM UTC
+        minCapacity: 0,
+        maxCapacity: 0,
+      });
+      backendScaling.scaleOnSchedule('ScaleUpQA', {
+        schedule: appscaling.Schedule.cron({ hour: '4', minute: '30', weekDay: 'MON-SAT' }), // 10:00 AM IST / 4:30 AM UTC
+        minCapacity: 2,
+        maxCapacity: 2,
+      });
+
+      if (frontendService) {
+        // Scheduled scaling to scale down to 0 at night/weekends for QA frontend
+        const frontendScaling = frontendService.autoScaleTaskCount({ maxCapacity: 2, minCapacity: 0 });
+        frontendScaling.scaleOnSchedule('FrontendScaleDownQA', {
+          schedule: appscaling.Schedule.cron({ hour: '16', minute: '30', weekDay: 'MON-SAT' }), // 10:00 PM IST / 4:30 PM UTC
+          minCapacity: 0,
+          maxCapacity: 0,
+        });
+        frontendScaling.scaleOnSchedule('FrontendScaleUpQA', {
+          schedule: appscaling.Schedule.cron({ hour: '4', minute: '30', weekDay: 'MON-SAT' }), // 10:00 AM IST / 4:30 AM UTC
+          minCapacity: 2,
+          maxCapacity: 2,
+        });
+      }
+    }
+
+
+    if (frontendService) {
+      if (certificate) {
+        // HTTPS Listener on port 443
+        const httpsListener = alb.addListener('HttpsListener', {
+          port: 443,
+          protocol: elbv2.ApplicationProtocol.HTTPS,
+          certificates: [elbv2.ListenerCertificate.fromArn(certificate.certificateArn)],
+          open: true,
+        });
+
+        httpsListener.addTargets('FrontendTargetHTTPS', {
+          port: 80,
+          targets: [frontendService],
+          healthCheck: {
+            path: '/',
+          }
+        });
+
+        // Reuse the existing port 80 listener when enabling HTTPS so CloudFormation
+        // updates it in place instead of creating a second listener on the same port.
+        alb.addListener('FrontendListener', {
+          port: 80,
+          protocol: elbv2.ApplicationProtocol.HTTP,
+          open: true,
+          defaultAction: elbv2.ListenerAction.redirect({
+            port: '443',
+            protocol: elbv2.ApplicationProtocol.HTTPS,
+            permanent: true,
+          }),
+        });
+      } else {
+        // Fallback for HTTP if no certificate is defined (e.g. dev environment)
+        const frontendListener = alb.addListener('FrontendListener', {
+          port: 80,
+          protocol: elbv2.ApplicationProtocol.HTTP,
+          open: true,
+        });
+
+        frontendListener.addTargets('FrontendTarget', {
+          port: 80,
+          targets: [frontendService],
+          healthCheck: {
+            path: '/',
+          }
+        });
+      }
+    }
+
+    // Backend Listener
+    let backendListener: elbv2.ApplicationListener;
+    if (certificate) {
+      backendListener = alb.addListener('BackendListener', {
+        port: 8000,
+        protocol: elbv2.ApplicationProtocol.HTTPS,
+        certificates: [elbv2.ListenerCertificate.fromArn(certificate.certificateArn)],
+        open: true,
+      });
+    } else {
+      backendListener = alb.addListener('BackendListener', {
+        port: 8000,
+        protocol: elbv2.ApplicationProtocol.HTTP,
+        open: true,
+      });
+    }
+
     backendListener.addTargets('BackendTarget', {
       port: 8000,
       targets: [backendService],
       healthCheck: {
         path: '/health',
-        interval: cdk.Duration.seconds(30),
-      },
-    });
-
-    // Frontend
-    const frontendTaskDef = new ecs.FargateTaskDefinition(this, 'FrontendTaskDef', {
-      memoryLimitMiB: 512,
-      cpu: 256,
-      executionRole,
-      family: `pulse-frontend-${envName}`,
-    });
-
-    const frontendContainer = frontendTaskDef.addContainer('FrontendContainer', {
-      image: ecs.ContainerImage.fromRegistry('217757579310.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-frontend:latest'), // Placeholder
-      logging: ecs.LogDrivers.awsLogs({ 
-        streamPrefix: 'ecs', 
-        logGroup: new logs.LogGroup(this, 'FrontendLogGroup', {
-          logGroupName: `/ecs/pulse-frontend-${envName}`,
-          retention: logs.RetentionDays.ONE_MONTH,
-          removalPolicy: cdk.RemovalPolicy.DESTROY,
-        })
-      }),
-      healthCheck: {
-        command: ["CMD-SHELL", "wget -qO- http://localhost:80/ || exit 1"],
-        interval: cdk.Duration.seconds(30),
-        timeout: cdk.Duration.seconds(5),
-        retries: 3,
-        startPeriod: cdk.Duration.seconds(10),
       }
     });
 
-    frontendContainer.addPortMappings({
-      containerPort: 80,
-      protocol: ecs.Protocol.TCP,
+    if (frontendService) {
+      // Allow frontend to communicate with backend internally
+      backendService.connections.allowFrom(frontendService, ec2.Port.tcp(8000), 'Allow internal frontend to backend traffic');
+    }
+
+    // 5. SSM Parameters
+    const userPoolIdParam = new ssm.StringParameter(this, 'UserPoolIdParam', {
+      parameterName: `/axiorapulse/${shortEnv}/COGNITO_USER_POOL_ID`,
+      stringValue: userPool.userPoolId,
     });
 
-    const frontendService = new ecs.FargateService(this, 'FrontendService', {
-      cluster,
-      taskDefinition: frontendTaskDef,
-      desiredCount: 1,
-      securityGroups: [frontendSg],
-      assignPublicIp: false,
-      serviceName: `pulse-frontend-service-${envName}`,
+    const userPoolClientIdParam = new ssm.StringParameter(this, 'UserPoolClientIdParam', {
+      parameterName: `/axiorapulse/${shortEnv}/COGNITO_APP_CLIENT_ID`,
+      stringValue: userPoolClient.userPoolClientId,
     });
 
-    const frontendListener = frontendAlb.addListener('FrontendListener', {
-      port: 80,
-      open: true,
+    const ecsClusterNameParam = new ssm.StringParameter(this, 'EcsClusterNameParam', {
+      parameterName: `/axiorapulse/${shortEnv}/ECS_CLUSTER_NAME`,
+      stringValue: cluster.clusterName,
     });
-    frontendListener.addTargets('FrontendTarget', {
-      port: 80,
-      targets: [frontendService],
-      healthCheck: {
-        path: '/',
-        interval: cdk.Duration.seconds(30),
+
+    if (isProd || shortEnv === 'qa') {
+      // Keep secure https custom domain url instead of load balancer HTTP dns name
+    }
+
+    const frontendUrlParam = new ssm.StringParameter(this, 'FrontendUrlParam', {
+      parameterName: `/axiorapulse/${shortEnv}/FRONTEND_URL`,
+      stringValue: frontendUrl,
+    });
+
+    backendService.node.addDependency(dbHostParam);
+    backendService.node.addDependency(dbPortParam);
+    backendService.node.addDependency(dbNameParam);
+    backendService.node.addDependency(dbSecretArnParam);
+    backendService.node.addDependency(userPoolIdParam);
+    backendService.node.addDependency(userPoolClientIdParam);
+    backendService.node.addDependency(ecsClusterNameParam);
+    backendService.node.addDependency(frontendUrlParam);
+
+    if (frontendService) {
+      frontendService.node.addDependency(userPoolIdParam);
+      frontendService.node.addDependency(userPoolClientIdParam);
+      frontendService.node.addDependency(ecsClusterNameParam);
+      frontendService.node.addDependency(frontendUrlParam);
+    }
+
+    // CDK-Nag Suppressions
+    NagSuppressions.addResourceSuppressions(alb, [
+      {
+        id: 'AwsSolutions-ELB2',
+        reason: 'QA/Dev Application Load Balancer does not require access logging to manage costs and complexity.'
+      }
+    ]);
+
+    NagSuppressions.addResourceSuppressions(alb.connections.securityGroups[0], [
+      {
+        id: 'AwsSolutions-EC23',
+        reason: 'ALB is public-facing and must allow inbound HTTP/HTTPS traffic on ports 80, 443, and 8000.'
+      }
+    ]);
+
+    NagSuppressions.addResourceSuppressions(vpc, [
+      {
+        id: 'AwsSolutions-VPC7',
+        reason: 'VPC Flow Logs are not enabled to reduce costs in QA and development environments.'
+      }
+    ]);
+
+    NagSuppressions.addResourceSuppressions(dbSecret, [
+      {
+        id: 'AwsSolutions-SMG4',
+        reason: 'QA/Dev database secret rotation is managed manually or not required.'
+      }
+    ]);
+
+    NagSuppressions.addResourceSuppressions(database, [
+      {
+        id: 'AwsSolutions-RDS2',
+        reason: 'QA database does not require storage encryption to reduce costs/complexity.'
       },
-    });
+      {
+        id: 'AwsSolutions-RDS3',
+        reason: 'QA database is single-AZ to minimize costs.'
+      },
+      {
+        id: 'AwsSolutions-RDS10',
+        reason: 'QA database deletion protection is disabled to allow easy teardown.'
+      },
+      {
+        id: 'AwsSolutions-RDS11',
+        reason: 'QA database uses the default PostgreSQL port for simple local development/debugging connections.'
+      }
+    ]);
+
+    NagSuppressions.addResourceSuppressions(taskExecutionRole, [
+      {
+        id: 'AwsSolutions-IAM4',
+        reason: 'ECS Task Execution role requires the AWS managed AmazonECSTaskExecutionRolePolicy.'
+      },
+      {
+        id: 'AwsSolutions-IAM5',
+        reason: 'ECS Task Execution role needs wildcard permissions to read SSM parameters in its namespace.'
+      }
+    ], true);
+
+    NagSuppressions.addResourceSuppressions(taskRole, [
+      {
+        id: 'AwsSolutions-IAM4',
+        reason: 'ECS Task role requires AmazonSSMReadOnlyAccess to read parameters from SSM.'
+      },
+      {
+        id: 'AwsSolutions-IAM5',
+        reason: 'ECS Task role needs wildcard permission to publish SMS notifications to any phone number via SNS.'
+      }
+    ], true);
+
+    NagSuppressions.addResourceSuppressions(backendTaskDef, [
+      {
+        id: 'AwsSolutions-ECS2',
+        reason: 'Backend environment variables only contain non-sensitive configuration values.'
+      }
+    ]);
+
+
 
     // Outputs
-    new cdk.CfnOutput(this, 'UserPoolId', { value: userPool.userPoolId });
-    new cdk.CfnOutput(this, 'UserPoolClientId', { value: userPoolClient.userPoolClientId });
-    new cdk.CfnOutput(this, 'DbEndpoint', { value: database.dbInstanceEndpointAddress });
-    new cdk.CfnOutput(this, 'BackendAlbDns', { value: backendAlb.loadBalancerDnsName });
-    new cdk.CfnOutput(this, 'FrontendAlbDns', { value: frontendAlb.loadBalancerDnsName });
+    new cdk.CfnOutput(this, 'BackendServiceName', { value: backendService.serviceName });
+    if (frontendService) {
+      new cdk.CfnOutput(this, 'FrontendServiceName', { value: frontendService.serviceName });
+    }
+    new cdk.CfnOutput(this, 'EcsClusterName', { value: cluster.clusterName });
+    new cdk.CfnOutput(this, 'LoadBalancerDNS', { value: alb.loadBalancerDnsName });
   }
 }

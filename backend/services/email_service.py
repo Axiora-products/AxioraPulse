@@ -1,32 +1,42 @@
+import os
 import requests
-from core.config import RESEND_API_KEY, EMAIL_FROM
+from core import config
 
 RESEND_API_URL = "https://api.resend.com/emails"
 
 
 def send_email(to_email: str, subject: str, body: str):
-    if not RESEND_API_KEY:
-        raise Exception("RESEND_API_KEY is not configured")
+    api_key = os.getenv("RESEND_API_KEY") or config.RESEND_API_KEY
+    email_from = os.getenv("EMAIL_FROM") or config.EMAIL_FROM
 
-    resp = requests.post(
-        RESEND_API_URL,
-        headers={
-            "Authorization": f"Bearer {RESEND_API_KEY}",
-            "Content-Type": "application/json",
-        },
-        json={
-            "from": EMAIL_FROM,
-            "to": [to_email],
-            "subject": subject,
-            "html": body,
-        },
-        timeout=10,
-    )
+    # Fallback to local stdout logging if API key is missing or mocked
+    if not api_key or api_key.startswith("mock") or api_key == "dummy":
+        print("\n=== [LOCAL EMAIL SIMULATION] ===")
+        print(f"From: {email_from}")
+        print(f"To: {to_email}")
+        print(f"Subject: {subject}")
+        print(f"Body: {body[:300]}...")
+        print("===============================\n")
+        return
 
-    if not resp.ok:
+    # Send using Resend REST API
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "from": email_from,
+        "to": [to_email],
+        "subject": subject,
+        "html": body,
+    }
+
+    try:
+        response = requests.post(RESEND_API_URL, json=payload, headers=headers, timeout=10)
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
         try:
-            error_msg = resp.json().get("message", "Email send failed")
+            error_detail = response.json().get("message", str(e))
         except Exception:
-            error_msg = "Email send failed"
-        raise Exception(f"Resend error {resp.status_code}: {error_msg}")
-
+            error_detail = str(e)
+        raise Exception(f"Resend API error: {error_detail}")

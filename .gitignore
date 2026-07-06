@@ -40,6 +40,7 @@ instance/
 .pytest_cache/
 .coverage
 .coverage.*
+coverage.xml
 htmlcov/
 .mypy_cache/
 .pyre/
@@ -83,3 +84,7 @@ scripts/
 .backend.log
 .frontend.pid
 .frontend.log
+
+# --- App Specific ---
+coverage/
+backend/uploaded_files_store/

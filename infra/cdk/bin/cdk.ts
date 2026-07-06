@@ -1,53 +1,64 @@
 #!/usr/bin/env node
 import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
+import { Aspects } from 'aws-cdk-lib';
+import { AwsSolutionsChecks } from 'cdk-nag';
 import { AxioraPulseStack } from '../lib/axiora-pulse-stack';
 import { GitHubOidcStack } from '../lib/github-oidc-stack';
 
 const app = new cdk.App();
 
+// Add cdk-nag aspects conditionally
+if (process.env.CDK_NAG_ENABLED === 'true') {
+  Aspects.of(app).add(new AwsSolutionsChecks({ verbose: true }));
+}
+
 // Global / Shared Infrastructure
-new GitHubOidcStack(app, 'AxioraPulseGitHubOidcStack', {
+
+new GitHubOidcStack(app, 'AxioraPulseGitHubOidcStackProd', {
   env: { 
-    account: '217757579310', 
+    account: '683354427635', 
     region: 'ap-south-1' 
   },
   repositoryConfig: [
-    { owner: 'Kiran-axiora', repo: 'AxioraPulse' }
+    { owner: 'Axiora-products', repo: 'AxioraPulse' }
   ],
-  description: 'GitHub Actions OIDC role for AxioraPulse',
+  description: 'GitHub Actions OIDC role for AxioraPulse PROD',
 });
 
-// Dev Environment
-new AxioraPulseStack(app, 'AxioraPulseStackDev', {
-  environment: 'dev',
+new GitHubOidcStack(app, 'AxioraPulseGitHubOidcStackQa', {
   env: { 
-    account: '079975324160', 
+    account: '399894608507', 
     region: 'ap-south-1' 
   },
-  description: 'Development environment for AxioraPulse',
+  repositoryConfig: [
+    { owner: 'Axiora-products', repo: 'AxioraPulse' }
+  ],
+  description: 'GitHub Actions OIDC role for AxioraPulse QA',
 });
+
 
 // QA Environment
 new AxioraPulseStack(app, 'AxioraPulseStackQa', {
   environment: 'qa',
   env: { 
-    account: process.env.CDK_QA_ACCOUNT || process.env.CDK_DEFAULT_ACCOUNT, 
-    region: process.env.CDK_QA_REGION || 'ap-south-1' 
+    account: '399894608507', 
+    region: 'ap-south-1' 
   },
   description: 'QA environment for AxioraPulse',
 });
 
-// Production (STRICTLY DISABLED)
-// To enable, uncomment and set prodOverride: true
-/*
-new AxioraPulseStack(app, 'AxioraPulseStackProd', {
-  environment: 'prod',
-  prodOverride: false, // Must be true to deploy
-  env: { 
-    account: '217757579310', 
-    region: 'ap-south-1' 
-  },
-  description: 'Production environment for AxioraPulse',
-});
-*/
+
+// Production
+if (process.env.CDK_PROD_ENABLED === 'true') {
+  new AxioraPulseStack(app, 'AxioraPulseStackProd', {
+    environment: 'prod',
+    prodOverride: true, 
+    env: { 
+      account: '683354427635', 
+      region: 'ap-south-1' 
+    },
+    description: 'Production environment for AxioraPulse',
+  });
+}
+

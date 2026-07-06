@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { createOrder, openCheckout } from '../api/paymentApi';
 import useAuthStore from '../hooks/useAuth';
 import useSubscription from '../hooks/useSubscription';
+import { getApiErrorMessage } from '../lib/apiError';
 
 const PLANS = [
   {
@@ -31,7 +32,7 @@ const PLANS = [
     features: [
       'Unlimited surveys',
       '10,000 responses / month',
-      'Full analytics + AI insights',
+      'Full analytics + Pulse insights',
       'All 24+ question types',
       'Custom branding',
       'Team collaboration (5 seats)',
@@ -106,7 +107,7 @@ export default function Pricing() {
         onError: (msg) => toast.error(msg),
       });
     } catch (err) {
-      toast.error(err?.response?.data?.detail || 'Could not initiate payment');
+      toast.error(getApiErrorMessage(err, 'Could not initiate payment'));
     } finally {
       setLoadingPlan(null);
     }

@@ -1,10 +1,12 @@
-"""age_range 
+# ruff: noqa: F401
+"""age_range
 
 Revision ID: 296048710623
 Revises: 20653c6d166f
 Create Date: 2026-05-20 15:29:40.397662
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
@@ -12,8 +14,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '296048710623'
-down_revision: Union[str, None] = '20653c6d166f'
+revision: str = "296048710623"
+down_revision: Union[str, None] = "20653c6d166f"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

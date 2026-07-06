@@ -1,0 +1,35 @@
+name: Destroy QA Infra
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  destroy-infra:
+    name: Destroy CDK Infrastructure
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::399894608507:role/GitHubActionsDeployerRole
+          aws-region: ap-south-1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install CDK Dependencies
+        run: npm install --prefix infra/cdk
+
+      - name: Destroy QA Infrastructure
+        run: |
+          cd infra/cdk
+          npx cdk destroy AxioraPulseStackQa --force

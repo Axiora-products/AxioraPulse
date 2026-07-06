@@ -7,7 +7,6 @@ PATCH /tenants/me   — Update tenant name / color / approved_domains
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from fastapi import Request
 from db.database import get_db
 from db.models import Tenant, UserProfile, RoleEnum
 from schemas import TenantOut, TenantUpdate
@@ -44,6 +43,12 @@ def update_tenant(
     tenant = db.query(Tenant).filter(Tenant.id == current_user.tenant_id).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
+
+    if getattr(tenant, "account_type", "organization") == "personal":
+        raise HTTPException(
+            status_code=403,
+            detail="Organisation settings are not available on personal accounts",
+        )
 
     if body.name is not None:
         tenant.name = body.name

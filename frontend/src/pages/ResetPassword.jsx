@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import API from '../api/axios';
 import toast from 'react-hot-toast';
 import { useLoading } from '../context/LoadingContext';
+import { cognitoForgotPassword, cognitoConfirmPassword } from '../lib/cognito';
 
 const Logo = () => (
   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 0, lineHeight: 1 }}>
@@ -15,23 +15,65 @@ const Logo = () => (
   </div>
 );
 
+const inputStyle = {
+  width: '100%', boxSizing: 'border-box', padding: '0 0 12px',
+  background: 'transparent', border: 'none',
+  borderBottom: '2px solid rgba(22,15,8,0.12)',
+  fontFamily: 'Fraunces, serif', fontSize: 17, color: 'var(--espresso)',
+  outline: 'none', transition: 'border-color 0.2s',
+};
+
 export default function ResetPassword() {
   const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
+  const [newPw, setNewPw] = useState('');
+  const [confirmPw, setConfirmPw] = useState('');
   const [busy, setBusy] = useState(false);
-  const [sent, setSent] = useState(false);
+  const [step, setStep] = useState('email'); // 'email' | 'reset' | 'done'
   const { stopLoading } = useLoading();
   const nav = useNavigate();
   useEffect(() => { stopLoading(); }, [stopLoading]);
 
-  const go = async e => {
+  // Step 1: Request verification code from Cognito
+  const sendCode = async e => {
     e.preventDefault();
     if (!email) return toast.error('Enter your email');
     setBusy(true);
     try {
-      await API.post('/auth/reset-password-request', { email });
-      setSent(true);
-    } catch (e) {
-      toast.error(e.message);
+      await cognitoForgotPassword(email);
+      setStep('reset');
+      toast.success('Verification code sent — check your inbox');
+    } catch (err) {
+      const msg = (err?.message || '').toLowerCase();
+      if (msg.includes('user not found') || msg.includes('username/client id combination')) {
+        toast.error('No account found with that email address.');
+      } else if (msg.includes('limit') || msg.includes('attempt')) {
+        toast.error('Too many attempts. Please wait before trying again.');
+      } else {
+        toast.error(err?.message || 'Failed to send reset code. Please try again.');
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Step 2: Confirm reset with code + new password
+  const confirmReset = async e => {
+    e.preventDefault();
+    if (!code) return toast.error('Enter the verification code');
+    if (newPw.length < 8) return toast.error('Password must be at least 8 characters');
+    if (newPw !== confirmPw) return toast.error("Passwords don't match");
+    setBusy(true);
+    try {
+      await cognitoConfirmPassword(email, code, newPw);
+      setStep('done');
+    } catch (err) {
+      const msg = (err?.message || '').toLowerCase();
+      if (msg.includes('expired') || msg.includes('invalid') || msg.includes('mismatch')) {
+        toast.error('Invalid or expired code. Please request a new one.');
+      } else {
+        toast.error(err?.message || 'Failed to reset password. Please try again.');
+      }
     } finally {
       setBusy(false);
     }
@@ -40,9 +82,9 @@ export default function ResetPassword() {
   return (
     <div style={{ minHeight: '100vh', background: 'var(--warm-white)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}
-        style={{ width: '100%', maxWidth: 380 }}>
+        style={{ width: '100%', maxWidth: 400 }}>
 
-        {/* Header: logo + close button (back to wherever user came from) */}
+        {/* Header: logo + close button */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 48 }}>
           <Link to="/login" style={{ textDecoration: 'none' }}><Logo /></Link>
           <button onClick={() => nav(-1)}
@@ -53,31 +95,86 @@ export default function ResetPassword() {
           </button>
         </div>
 
-        {sent ? (
+        {/* ── Done state ── */}
+        {step === 'done' ? (
           <div style={{ textAlign: 'center' }}>
-            <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(255,69,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', fontSize: 24 }}>✉</div>
-            <h2 style={{ fontFamily: 'Playfair Display, serif', fontWeight: 900, fontSize: 28, letterSpacing: '-1px', color: 'var(--espresso)', marginBottom: 12 }}>Check your inbox</h2>
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(30,122,74,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', fontSize: 24 }}>✓</div>
+            <h2 style={{ fontFamily: 'Playfair Display, serif', fontWeight: 900, fontSize: 28, letterSpacing: '-1px', color: 'var(--espresso)', marginBottom: 12 }}>Password updated</h2>
             <p style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 16, lineHeight: 1.7, color: 'rgba(22,15,8,0.5)', marginBottom: 36 }}>
-              We've sent a password reset link to <strong style={{ color: 'var(--espresso)', fontWeight: 500 }}>{email}</strong>. Follow the link to set a new password.
+              You can now sign in with your new password.
             </p>
-            <Link to="/login" style={{ display: 'inline-flex', padding: '14px 32px', borderRadius: 999, background: 'var(--espresso)', color: 'var(--cream)', fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', textDecoration: 'none', transition: 'background 0.25s' }}
+            <Link to="/login"
+              style={{ display: 'inline-flex', padding: '14px 32px', borderRadius: 999, background: 'var(--espresso)', color: 'var(--cream)', fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', textDecoration: 'none', transition: 'background 0.25s' }}
               onMouseEnter={e => e.currentTarget.style.background = 'var(--coral)'}
               onMouseLeave={e => e.currentTarget.style.background = 'var(--espresso)'}>
-              Back to sign in
+              Sign in →
             </Link>
           </div>
+
+        /* ── Step 2: Enter code + new password ── */
+        ) : step === 'reset' ? (
+          <>
+            <h2 style={{ fontFamily: 'Playfair Display, serif', fontWeight: 900, fontSize: 32, letterSpacing: '-1px', color: 'var(--espresso)', marginBottom: 8 }}>Set new password</h2>
+            <p style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 15, color: 'rgba(22,15,8,0.45)', marginBottom: 40, lineHeight: 1.6 }}>
+              Enter the verification code sent to <strong style={{ color: 'var(--espresso)' }}>{email}</strong> and choose a new password.
+            </p>
+
+            <form onSubmit={confirmReset} style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+              <div>
+                <label style={{ fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.4)', display: 'block', marginBottom: 10 }}>Verification code</label>
+                <input type="text" value={code} onChange={e => setCode(e.target.value.replace(/[^0-9]/g, ''))}
+                  placeholder="123456" autoFocus maxLength={6}
+                  style={{ ...inputStyle, letterSpacing: '0.3em', fontSize: 20, textAlign: 'center' }}
+                  onFocus={e => e.target.style.borderBottomColor = 'var(--coral)'}
+                  onBlur={e => e.target.style.borderBottomColor = 'rgba(22,15,8,0.12)'} />
+              </div>
+              <div>
+                <label style={{ fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.4)', display: 'block', marginBottom: 10 }}>New password</label>
+                <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)}
+                  placeholder="Min 8 characters" style={inputStyle}
+                  onFocus={e => e.target.style.borderBottomColor = 'var(--coral)'}
+                  onBlur={e => e.target.style.borderBottomColor = 'rgba(22,15,8,0.12)'} />
+              </div>
+              <div>
+                <label style={{ fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.4)', display: 'block', marginBottom: 10 }}>Confirm new password</label>
+                <input type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)}
+                  placeholder="Repeat new password" style={inputStyle}
+                  onFocus={e => e.target.style.borderBottomColor = 'var(--coral)'}
+                  onBlur={e => e.target.style.borderBottomColor = 'rgba(22,15,8,0.12)'} />
+              </div>
+
+              {newPw && confirmPw && newPw !== confirmPw && (
+                <p style={{ fontFamily: 'Syne, sans-serif', fontSize: 10, fontWeight: 700, color: 'var(--terracotta)', margin: '-16px 0 0', letterSpacing: '0.06em' }}>Passwords don't match</p>
+              )}
+
+              <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }}
+                type="submit" disabled={busy}
+                style={{ padding: '16px 28px', background: busy ? 'rgba(22,15,8,0.3)' : 'var(--espresso)', color: 'var(--cream)', border: 'none', borderRadius: 999, fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 12, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: busy ? 'not-allowed' : 'pointer', transition: 'background 0.25s' }}
+                onMouseEnter={e => { if (!busy) e.currentTarget.style.background = 'var(--coral)'; }}
+                onMouseLeave={e => { if (!busy) e.currentTarget.style.background = 'var(--espresso)'; }}>
+                {busy ? 'Updating…' : 'Update password →'}
+              </motion.button>
+
+              <button type="button" onClick={() => { setStep('email'); setCode(''); setNewPw(''); setConfirmPw(''); }}
+                style={{ background: 'none', border: 'none', fontFamily: 'Fraunces, serif', fontSize: 13, color: 'rgba(22,15,8,0.4)', cursor: 'pointer', textDecoration: 'underline', textAlign: 'center', padding: 0 }}>
+                ← Use a different email
+              </button>
+            </form>
+          </>
+
+        /* ── Step 1: Enter email ── */
         ) : (
           <>
             <h2 style={{ fontFamily: 'Playfair Display, serif', fontWeight: 900, fontSize: 32, letterSpacing: '-1px', color: 'var(--espresso)', marginBottom: 8 }}>Reset password</h2>
             <p style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 16, color: 'rgba(22,15,8,0.45)', marginBottom: 40, lineHeight: 1.6 }}>
-              Enter your email and we'll send you a link to reset your password.
+              Enter your email and we'll send you a verification code to reset your password.
             </p>
 
-            <form onSubmit={go} style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+            <form onSubmit={sendCode} style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
               <div>
                 <label style={{ fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.4)', display: 'block', marginBottom: 10 }}>Email address</label>
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@company.com"
-                  style={{ width: '100%', boxSizing: 'border-box', padding: '0 0 12px', background: 'transparent', border: 'none', borderBottom: '2px solid rgba(22,15,8,0.12)', fontFamily: 'Fraunces, serif', fontSize: 17, color: 'var(--espresso)', outline: 'none', transition: 'border-color 0.2s' }}
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@company.com" autoFocus
+                  style={inputStyle}
                   onFocus={e => e.target.style.borderBottomColor = 'var(--coral)'}
                   onBlur={e => e.target.style.borderBottomColor = 'rgba(22,15,8,0.12)'}
                 />
@@ -88,7 +185,7 @@ export default function ResetPassword() {
                 style={{ padding: '16px 28px', background: busy ? 'rgba(22,15,8,0.3)' : 'var(--espresso)', color: 'var(--cream)', border: 'none', borderRadius: 999, fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 12, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: busy ? 'not-allowed' : 'pointer', transition: 'background 0.25s' }}
                 onMouseEnter={e => { if (!busy) e.currentTarget.style.background = 'var(--coral)'; }}
                 onMouseLeave={e => { if (!busy) e.currentTarget.style.background = 'var(--espresso)'; }}>
-                {busy ? 'Sending…' : 'Send reset link →'}
+                {busy ? 'Sending…' : 'Send reset code →'}
               </motion.button>
             </form>
 

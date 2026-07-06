@@ -23,22 +23,19 @@ import { useMemo } from 'react';
  *  qualityBreakdown    { high, medium, low, unscored }  (counts)
  *  responseTrend       [{ date 'MMM D', completed, started }]  last 14 days
  *  deviceBreakdown     { desktop, mobile, tablet, unknown }  (counts)
+ *  locationStats       { breakdown: [{ city, count }], located, unknown, uniqueCities }
  *  questionAnalytics   [{ question, data }]  — per-question answer stats
  */
-export function useAnalytics(qs, rs, ans, trendDays = 14) {
+export function useAnalytics(qs, rs, ans, trendDays = 14, surveyCreatedAt = null) {
   return useMemo(() => {
     if (!rs || !qs) return emptyResult();
 
-    // ── Restrict all metrics to the selected time window ────────────────
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - trendDays);
-    const rsW  = rs.filter(r => !r.started_at || new Date(r.started_at) >= cutoff);
-    const wIds = new Set(rsW.map(r => r.id));
-    const ansW = ans.filter(a => wIds.has(a.response_id));
-
-    const total     = rsW.length;
-    const completed = rsW.filter(r => r.status === 'completed');
-    const abandoned = rsW.filter(r => r.status === 'abandoned');
+    // ── Headline metrics span the ENTIRE dataset ────────────────────────
+    // The 7/14/30/90-day selector only scopes the Response Trend chart
+    // (further below) — NOT totals, rates, NPS, segments, milestones, etc.
+    const total     = rs.length;
+    const completed = rs.filter(r => r.status === 'completed');
+    const abandoned = rs.filter(r => r.status === 'abandoned');
 
     // ── Core rates ──────────────────────────────────────────────────────
     const completionRate = total ? Math.round((completed.length / total) * 100) : 0;
@@ -49,8 +46,8 @@ export function useAnalytics(qs, rs, ans, trendDays = 14) {
     // then bucket them into milestone bands.
     const milestones = { pct25: 0, pct50: 0, pct75: 0, pct100: 0 };
     if (total > 0 && qs.length > 0) {
-      rsW.forEach(r => {
-        const answered = new Set(ansW.filter(a => a.response_id === r.id).map(a => a.question_id));
+      rs.forEach(r => {
+        const answered = new Set(ans.filter(a => a.response_id === r.id).map(a => a.question_id));
         const pct = answered.size / qs.length;
         if (pct >= 0.25) milestones.pct25++;
         if (pct >= 0.50) milestones.pct50++;
@@ -71,7 +68,7 @@ export function useAnalytics(qs, rs, ans, trendDays = 14) {
     const npsQ = qs.find(q => q.question_type === 'scale');
     let nps = null;
     if (npsQ) {
-      const scores = ansW
+      const scores = ans
         .filter(a => a.question_id === npsQ.id && a.answer_value)
         .map(a => parseInt(a.answer_value))
         .filter(n => n >= 1 && n <= 10);
@@ -92,13 +89,13 @@ export function useAnalytics(qs, rs, ans, trendDays = 14) {
       // "reached" = answered this question OR any question after it
       const qIdsFromHere = qs.slice(i).map(x => x.id);
       const responseIdsReached = new Set(
-        ansW
+        ans
           .filter(a => qIdsFromHere.includes(a.question_id))
           .map(a => a.response_id)
       );
       // "answered this specific question"
       const answeredThis = new Set(
-        ansW.filter(a => a.question_id === q.id).map(a => a.response_id)
+        ans.filter(a => a.question_id === q.id).map(a => a.response_id)
       );
 
       // reached = answered any Q at this index or later
@@ -107,7 +104,7 @@ export function useAnalytics(qs, rs, ans, trendDays = 14) {
       // dropped = reached this Q but didn't answer it (or didn't go further)
       const prevReached = i === 0 ? total : (() => {
         const prevIds = qs.slice(i - 1).map(x => x.id);
-        return new Set(ansW.filter(a => prevIds.includes(a.question_id)).map(a => a.response_id)).size;
+        return new Set(ans.filter(a => prevIds.includes(a.question_id)).map(a => a.response_id)).size;
       })();
 
       const dropped   = Math.max(0, prevReached - reached);
@@ -126,7 +123,7 @@ export function useAnalytics(qs, rs, ans, trendDays = 14) {
 
     // ── Timing heatmap (from metadata.time_per_question) ────────────────
     const timingMap = {};  // { qId: [seconds...] }
-    rsW.forEach(r => {
+    rs.forEach(r => {
       const tpq = r.metadata?.time_per_question;
       if (!tpq) return;
       Object.entries(tpq).forEach(([qId, secs]) => {
@@ -149,7 +146,7 @@ export function useAnalytics(qs, rs, ans, trendDays = 14) {
 
     // ── Quality breakdown ────────────────────────────────────────────────
     const qualityBreakdown = { high: 0, medium: 0, low: 0, unscored: 0 };
-    rsW.forEach(r => {
+    rs.forEach(r => {
       const qs = r.metadata?.quality_score;
       if (qs == null) { qualityBreakdown.unscored++; return; }
       if (qs >= 70)       qualityBreakdown.high++;
@@ -158,16 +155,31 @@ export function useAnalytics(qs, rs, ans, trendDays = 14) {
     });
 
     // ── Response trend (configurable window) ─────────────────────────────
-    const today   = new Date();
-    const days    = Array.from({ length: trendDays }, (_, i) => {
-      const d = new Date(today);
-      d.setDate(today.getDate() - (trendDays - 1 - i));
-      return d.toISOString().slice(0, 10);
-    });
+    // Work in UTC days to match `started_at` ISO strings (sliced below).
+    // The window spans the selected range, but never earlier than the day
+    // the survey was created — so a new survey fills the chart with real
+    // data instead of a run of empty pre-launch days.
+    const MS_DAY  = 86400000;
+    const now     = new Date();
+    const todayUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+    let startUTC  = todayUTC - (trendDays - 1) * MS_DAY;
+    if (surveyCreatedAt) {
+      const c = new Date(surveyCreatedAt);
+      if (!isNaN(c)) {
+        const createdUTC = Date.UTC(c.getUTCFullYear(), c.getUTCMonth(), c.getUTCDate());
+        if (createdUTC > startUTC) startUTC = createdUTC;
+      }
+    }
+    if (startUTC > todayUTC) startUTC = todayUTC; // guard against future/skewed dates
+
+    const days = [];
+    for (let t = startUTC; t <= todayUTC; t += MS_DAY) {
+      days.push(new Date(t).toISOString().slice(0, 10));
+    }
 
     const trendMap = {};
     days.forEach(d => { trendMap[d] = { started: 0, completed: 0 }; });
-    rsW.forEach(r => {
+    rs.forEach(r => {
       const d = r.started_at?.slice(0, 10);
       if (trendMap[d]) {
         trendMap[d].started++;
@@ -182,15 +194,59 @@ export function useAnalytics(qs, rs, ans, trendDays = 14) {
 
     // ── Device breakdown ─────────────────────────────────────────────────
     const deviceBreakdown = { desktop: 0, mobile: 0, tablet: 0, unknown: 0 };
-    rsW.forEach(r => {
+    rs.forEach(r => {
       const dev = r.metadata?.device || 'unknown';
       deviceBreakdown[dev] = (deviceBreakdown[dev] || 0) + 1;
     });
 
+    // ── Source breakdown (acquisition channel: whatsapp, email, qr, …) ────
+    const SOURCE_LABELS = {
+      whatsapp: 'WhatsApp', linkedin: 'LinkedIn', email: 'Email', qr: 'QR Code',
+      telegram: 'Telegram', twitter: 'X / Twitter', instagram: 'Instagram',
+      messenger: 'Messenger', facebook: 'Facebook', embed: 'Embed', direct: 'Direct Link',
+    };
+    const srcMap = {};
+    rs.forEach(r => {
+      const key = (r.source || 'direct').toLowerCase();
+      if (!srcMap[key]) srcMap[key] = { source: key, total: 0, completed: 0 };
+      srcMap[key].total++;
+      if (r.status === 'completed') srcMap[key].completed++;
+    });
+    const sourceBreakdown = Object.values(srcMap)
+      .map(s => ({
+        ...s,
+        label: SOURCE_LABELS[s.source] || (s.source.charAt(0).toUpperCase() + s.source.slice(1)),
+        completionRate: s.total ? Math.round((s.completed / s.total) * 100) : 0,
+        share: total ? Math.round((s.total / total) * 100) : 0,
+      }))
+      .sort((a, b) => b.total - a.total);
+
+    // ── Location breakdown (from respondent demographics `city`) ──────────
+    // City is free-text, so normalise casing/whitespace before grouping.
+    const locMap = {};       // { displayCity: count }
+    let locatedCount = 0;
+    rs.forEach(r => {
+      const raw = (r.city || '').trim();
+      if (!raw) return;
+      const key = raw.toLowerCase();
+      if (!locMap[key]) locMap[key] = { city: raw, count: 0 };
+      locMap[key].count++;
+      locatedCount++;
+    });
+    const locationBreakdown = Object.values(locMap)
+      .sort((a, b) => b.count - a.count);
+
+    const locationStats = {
+      breakdown:    locationBreakdown,        // [{ city, count }] sorted desc
+      located:      locatedCount,             // responses that shared a city
+      unknown:      total - locatedCount,     // responses without a city
+      uniqueCities: locationBreakdown.length,
+    };
+
     // ── Per-question answer analytics ────────────────────────────────────
     const questionAnalytics = qs.map(q => ({
       question: q,
-      data:     computeQuestionData(q, ansW),
+      data:     computeQuestionData(q, ans),
     }));
 
     return {
@@ -207,9 +263,11 @@ export function useAnalytics(qs, rs, ans, trendDays = 14) {
       qualityBreakdown,
       responseTrend,
       deviceBreakdown,
+      sourceBreakdown,
+      locationStats,
       questionAnalytics,
     };
-  }, [qs, rs, ans, trendDays]);
+  }, [qs, rs, ans, trendDays, surveyCreatedAt]);
 }
 
 // ─── Per-question data computation ──────────────────────────────────────────
@@ -218,7 +276,7 @@ function computeQuestionData(q, ans) {
   if (!qa.length) return null;
 
   // Choice types → doughnut
-  if (['single_choice', 'dropdown', 'yes_no'].includes(q.question_type)) {
+  if (['single_choice', 'dropdown', 'yes_no', 'emoji_reaction', 'swipe_choice', 'visual_choice'].includes(q.question_type)) {
     const c = {};
     qa.forEach(a => { const v = a.answer_value || '—'; c[v] = (c[v] || 0) + 1; });
     const labels = Object.keys(c).map(k => (q.options || []).find(o => o.value === k)?.label || k);
@@ -344,6 +402,8 @@ function emptyResult() {
     dropOffFunnel: [], timingHeatmap: [],
     qualityBreakdown: { high: 0, medium: 0, low: 0, unscored: 0 },
     responseTrend: [], deviceBreakdown: { desktop: 0, mobile: 0, tablet: 0, unknown: 0 },
+    sourceBreakdown: [],
+    locationStats: { breakdown: [], located: 0, unknown: 0, uniqueCities: 0 },
     questionAnalytics: [],
   };
 }

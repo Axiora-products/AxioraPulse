@@ -1,4 +1,5 @@
 import axios from "axios";
+import { getApiErrorMessage } from "../lib/apiError";
 
 const rawBaseURL = import.meta.env.VITE_API_BASE_URL;
 // If the API URL points to an AWS Load Balancer, we proxy requests through Nginx (/api)
@@ -14,6 +15,15 @@ API.interceptors.request.use((config) => {
     const token = localStorage.getItem("token");
     if (token) {
         config.headers.Authorization = `Bearer ${token}`;
+    }
+    // Attach the respondent session token to /responses/ calls so the backend can
+    // verify the caller owns the response being read/modified. (AP-SEC-003)
+    const url = config.url || "";
+    if (url.includes("/responses/")) {
+        const st = localStorage.getItem("nx_active_session");
+        if (st) {
+            config.headers["X-Session-Token"] = st;
+        }
     }
     return config;
 });
@@ -38,6 +48,10 @@ API.interceptors.response.use(
                 });
             }
         }
+        // Centralized error handling: attach a user-friendly message that callers
+        // can surface safely (getApiErrorMessage also logs the technical detail
+        // internally). Raw backend/exception text is never meant to reach the UI.
+        err.friendlyMessage = getApiErrorMessage(err);
         return Promise.reject(err);
     }
 );

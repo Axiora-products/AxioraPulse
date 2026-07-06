@@ -22,14 +22,15 @@ import SurveyAnalytics from './pages/SurveyAnalytics';
 import SurveyRespond from './pages/SurveyRespond';
 import EmbedView from './pages/EmbedView';
 import TeamManagement from './pages/TeamManagement';
+import Files from './pages/Files';
 import Settings from './pages/Settings';
 import ResetPassword from './pages/ResetPassword';
 import UpdatePassword from './pages/UpdatePassword';
 import AcceptInvite from './pages/AcceptInvite';
-import ComingSoon from './pages/ComingSoon';
 import Pricing from './pages/Pricing';
 import Billing from './pages/Billing';
 import PaymentWall from './components/PaymentWall';
+import SuperAdminDashboard from './pages/SuperAdminDashboard';
 
 import useAuthStore from './hooks/useAuth';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -112,11 +113,10 @@ function AppRoutes() {
         {/* <Route path="/" element={initialized && user ? <Navigate to="/dashboard" replace /> : <LandingPage />} /> */}
         <Route
           path="/"
-          element={isAuth ? <Navigate to="/dashboard" replace /> : <LandingPage />}
+          element={isAuth ? <Navigate to={user?.role === 'super_admin' ? '/super-admin' : '/dashboard'} replace /> : <LandingPage />}
         />
-        <Route path="/coming-soon" element={<ComingSoon />} />
-        <Route path="/login" element={isAuth ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
-        <Route path="/register" element={<Navigate to="/coming-soon" replace />} />
+        <Route path="/login" element={isAuth ? <Navigate to={user?.role === 'super_admin' ? '/super-admin' : '/dashboard'} replace /> : <LoginPage />} />
+        <Route path="/register" element={isAuth ? <Navigate to={user?.role === 'super_admin' ? '/super-admin' : '/dashboard'} replace /> : <RegisterPage />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/update-password" element={<UpdatePassword />} />
         <Route path="/accept-invite" element={<AcceptInvite />} />
@@ -129,6 +129,8 @@ function AppRoutes() {
 
         {/* ── Protected app (all children require auth) ── */}
         <Route element={<ProtectedRoute />}>
+          <Route path="/super-admin" element={<SuperAdminDashboard />} />
+
           <Route element={<DashboardLayout />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/surveys" element={<SurveyList />} />
@@ -136,6 +138,7 @@ function AppRoutes() {
             <Route path="/surveys/:id/edit" element={<SurveyEdit />} />
             <Route path="/surveys/:id/analytics" element={<SurveyAnalytics />} />
             <Route path="/team" element={<TeamManagement />} />
+            <Route path="/files" element={<Files />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/billing" element={<Billing />} />
           </Route>
@@ -149,7 +152,6 @@ function AppRoutes() {
               to={isAuth ? "/dashboard" : "/"}
               replace
             />
-
           }
         />      </Routes>
     </>

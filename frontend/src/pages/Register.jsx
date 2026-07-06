@@ -6,6 +6,8 @@ import { useLoading } from '../context/LoadingContext';
 import useAuthStore from "../hooks/useAuth";
 import { cognitoSignUp, cognitoConfirmSignUp, cognitoSignIn, cognitoResendCode } from '../lib/cognito';
 import API from '../api/axios';
+import { consumePostAuthRedirect } from '../lib/pendingTemplate';
+import { getApiErrorMessage } from '../lib/apiError';
 const Logo = ({ dark }) => (
   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 0, lineHeight: 1 }}>
     <span style={{ fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: dark ? 'rgba(253,245,232,0.35)' : 'rgba(22,15,8,0.35)', marginRight: 8, position: 'relative', top: -2 }}>Axiora</span>
@@ -16,12 +18,84 @@ const Logo = ({ dark }) => (
   </div>
 );
 
+// Validation helpers
+const validateFullName = (val) => {
+  if (!val || val === '') {
+    return 'Name is required';
+  }
+  const trimmed = val.trim();
+  if (!/^[a-zA-Z]+(\s[a-zA-Z]+)*$/.test(trimmed)) {
+    return 'Name must contain only alphabets';
+  }
+  if (trimmed.length < 3) {
+    return 'Name must be at least 3 characters';
+  }
+  if (trimmed.length > 100) {
+    return 'Name must be at most 100 characters';
+  }
+  return '';
+};
+
+const validateEmail = (val, accountType) => {
+  const trimmed = val.trim().toLowerCase();
+  if (!trimmed) {
+    return 'Email is required';
+  }
+  if (trimmed.length > 254) {
+    return 'Email is too long';
+  }
+  const [localPart] = trimmed.split('@');
+  if (localPart && localPart.length > 64) {
+    return 'Email username is too long';
+  }
+  const regex = /^[a-zA-Z0-9._%+-]+@[^\s@.]{1,63}(\.[^\s@.]{1,63})*\.[a-zA-Z]{2,24}$/;
+  if (!regex.test(trimmed)) {
+    return 'That doesn’t look like a real email… try again with something like name@example.com';
+  }
+  if (accountType === 'personal') {
+    const allowedDomains = ['gmail.com', 'yahoo.com', 'outlook.com'];
+    const domain = trimmed.split('@')[1];
+    if (!allowedDomains.includes(domain)) {
+      return 'Personal accounts must use Gmail, Yahoo, or Outlook email';
+    }
+  }
+  return '';
+};
+
+const validatePhoneNumber = (val) => {
+  const suffix = val.slice(4).trim();
+  if (!suffix) {
+    return '';
+  }
+  const digits = val.replace(/\D/g, '');
+  let parsed = digits;
+  if (parsed.startsWith('91')) {
+    parsed = parsed.slice(2);
+  }
+  if (parsed.length !== 10) {
+    return 'Enter a valid mobile number';
+  }
+  return '';
+};
+
+const validateOrgName = (val) => {
+  const trimmed = val.trim();
+  if (!trimmed) return 'Organisation name is required';
+  if (!/^[a-zA-Z0-9 &\-'.,!/]+$/.test(trimmed)) return 'Organisation name contains invalid characters';
+  if (!/[a-zA-Z]/.test(trimmed)) return 'Organisation name must contain at least one letter';
+  if (trimmed.length < 2) return 'Organisation name must be at least 2 characters';
+  if (trimmed.length > 100) return 'Organisation name must be at most 100 characters';
+  return '';
+};
+
 export default function Register() {
   const location = useLocation();
   const [f, sf] = useState({ 
     fullName: '', 
     email: location.state?.email || '', 
     password: '', 
+    phoneNumber: '+91 ',
+    accountType: 'organization',
     tenantName: '', 
     tenantSlug: '' 
   });
@@ -32,26 +106,111 @@ export default function Register() {
   const { user, initialized, initialize } = useAuthStore();
   const { stopLoading } = useLoading();
   const nav = useNavigate();
+  const [errors, setErrors] = useState({
+    fullName: '',
+    email: '',
+    phoneNumber: '',
+    tenantName: ''
+  });
+  const [focusedField, setFocusedField] = useState('');
+
+  const handleBlur = (k) => {
+    let errorMsg = '';
+    if (k === 'fullName') {
+      const trimmed = f.fullName.trim();
+      sf(p => ({ ...p, fullName: trimmed }));
+      errorMsg = validateFullName(trimmed);
+    } else if (k === 'email') {
+      const trimmed = f.email.trim();
+      sf(p => ({ ...p, email: trimmed }));
+      errorMsg = validateEmail(trimmed, f.accountType);
+    } else if (k === 'phoneNumber') {
+      errorMsg = validatePhoneNumber(f.phoneNumber);
+    } else if (k === 'tenantName') {
+      const trimmed = f.tenantName.trim();
+      sf(p => ({ ...p, tenantName: trimmed }));
+      errorMsg = validateOrgName(trimmed);
+    } 
+
+    setErrors(p => ({ ...p, [k]: errorMsg }));
+  };
+
   useEffect(() => { stopLoading(); }, [stopLoading]);
 
   if (initialized && user) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={user.role === 'super_admin' ? '/super-admin' : '/dashboard'} replace />;
   }
 
-  const s = (k, v) => sf(p => {
-    const n = { ...p, [k]: v };
-    if (k === 'tenantName') n.tenantSlug = v.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    return n;
-  });
+  const s = (k, v) => {
+    sf(p => {
+      let finalVal = v;
+      if (k === 'phoneNumber') {
+        finalVal = v.startsWith('+91 ') ? v : '+91 ';
+      }
+      const n = { ...p, [k]: finalVal };
+      if (k === 'tenantName') n.tenantSlug = finalVal.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      if (k === 'accountType' && v === 'personal') {
+        n.tenantName = '';
+        n.tenantSlug = '';
+      }
+      return n;
+    });
+
+    if (errors[k]) {
+      setErrors(p => ({ ...p, [k]: '' }));
+    }
+  };
+
+  const personalWorkspaceSlug = () => {
+    const localPart = f.email.split('@')[0] || 'personal';
+    const base = localPart.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'personal';
+    return `${base}-${Date.now().toString(36)}`;
+  };
 
   // Step 1: sign up with Cognito → sends verification email
   const go = async (e) => {
     e.preventDefault();
-    if (!f.fullName || !f.email || !f.password || !f.tenantName) return toast.error('Fill all fields');
+    const trimmedEmail = f.email.trim().toLowerCase();
+    const trimmedName = f.fullName.trim();
+    sf(p => ({ ...p, email: trimmedEmail, fullName: trimmedName }));
+
+    const nameErr = validateFullName(trimmedName);
+    const emailErr = validateEmail(trimmedEmail, f.accountType);
+    const phoneErr = validatePhoneNumber(f.phoneNumber);
+
+    const trimmedOrgName = f.tenantName.trim();
+    const orgErr = f.accountType === 'organization' ? validateOrgName(trimmedOrgName) : '';
+    if (f.accountType === 'organization') sf(p => ({ ...p, tenantName: trimmedOrgName }));
+
+    setErrors({
+      fullName: nameErr,
+      email: emailErr,
+      phoneNumber: phoneErr,
+      tenantName: orgErr
+    });
+
+    if (nameErr) {
+      toast.error(nameErr);
+      return;
+    }
+    if (emailErr) {
+      toast.error(emailErr);
+      return;
+    }
+    if (phoneErr) {
+      toast.error(phoneErr);
+      return;
+    }
+    if (orgErr) {
+      toast.error(orgErr);
+      return;
+    }
+
+    if (!f.password) return toast.error('Password is required');
     if (f.password.length < 8) return toast.error('Password needs 8+ characters');
     setBusy(true);
     try {
-      await cognitoSignUp(f.email, f.password, f.fullName);
+      await cognitoSignUp(trimmedEmail, f.password, trimmedName);
       setStep('verify');
       toast.success('Verification code sent to your email');
     } catch (err) {
@@ -60,12 +219,12 @@ export default function Register() {
         // Option 1: Cleanup flow
         try {
           console.log('Calling /auth/cleanup-unconfirmed...');
-          const cleanupResp = await API.post('/auth/cleanup-unconfirmed', { email: f.email });
+          const cleanupResp = await API.post('/auth/cleanup-unconfirmed', { email: trimmedEmail });
           console.log('Cleanup response:', cleanupResp.data);
           
           if (cleanupResp.data?.deleted) {
             console.log('User was unconfirmed and deleted. Retrying signup...');
-            await cognitoSignUp(f.email, f.password, f.fullName);
+            await cognitoSignUp(trimmedEmail, f.password, trimmedName);
             setStep('verify');
             toast.success('Verification code sent to your email');
             return;
@@ -91,7 +250,7 @@ export default function Register() {
           { duration: 6000 }
         );
       } else {
-        toast.error(err.message || 'Registration failed');
+        toast.error(getApiErrorMessage(err, 'Registration failed'));
       }
     } finally {
       setBusy(false);
@@ -105,7 +264,7 @@ export default function Register() {
       await cognitoResendCode(f.email);
       toast.success('New verification code sent!');
     } catch (err) {
-      toast.error(err.message || 'Failed to resend code');
+      toast.error(getApiErrorMessage(err, 'Failed to resend code'));
     } finally {
       setResending(false);
     }
@@ -117,7 +276,17 @@ export default function Register() {
     if (!verifyCode) return toast.error('Enter the verification code');
     setBusy(true);
     try {
-      await cognitoConfirmSignUp(f.email, verifyCode);
+      try {
+        await cognitoConfirmSignUp(f.email, verifyCode);
+      } catch (err) {
+        const isAlreadyConfirmed = err.message && (
+          err.message.includes('Current status is CONFIRMED') ||
+          err.message.includes('User cannot be confirmed')
+        );
+        if (!isAlreadyConfirmed) {
+          throw err;
+        }
+      }
       
       // If we don't have password (e.g. redirected from Login), redirect back to Login
       if (!f.password) {
@@ -128,17 +297,42 @@ export default function Register() {
       const session = await cognitoSignIn(f.email, f.password);
       localStorage.setItem('token', session.getIdToken().getJwtToken());
 
+      const isOrganization = f.accountType === 'organization';
+      const tenantName = isOrganization ? f.tenantName : `${f.fullName}'s workspace`;
+      const tenantSlug = isOrganization
+        ? (f.tenantSlug || f.tenantName.toLowerCase().replace(/[^a-z0-9]+/g, '-'))
+        : personalWorkspaceSlug();
+
       await initialize(true, {
-        tenant_name: f.tenantName,
-        tenant_slug: f.tenantSlug || f.tenantName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        tenant_name: tenantName,
+        tenant_slug: tenantSlug,
+        account_type: f.accountType,
       });
+      const storeUser = useAuthStore.getState().user;
+      if (!storeUser) {
+        throw new Error('Failed to synchronize user session with the backend. Please try again.');
+      }
+
+      // Save phone number if provided during registration (and not just the default prefix).
+      // Strip '+91' from the value and check that actual digits remain before saving.
+      const phoneSuffix = f.phoneNumber.replace('+91', '').trim(); // '' if only the prefix was typed
+      if (phoneSuffix) {
+        try {
+          // Normalize: remove all whitespace so '+91 98765 43210' → '+9198765 43210'
+          const normalizedPhone = f.phoneNumber.replace(/\s/g, '');
+          await API.patch('/auth/me/profile', { phone_number: normalizedPhone });
+        } catch (err) {
+          console.warn('Failed to save phone number:', err);
+        }
+      }
+
       toast.success('Welcome to Axiora Pulse!');
-      nav('/dashboard');
+      nav(consumePostAuthRedirect());
     } catch (err) {
       if (err.code === 'CodeMismatchException') {
         toast.error('Incorrect code — please try again');
       } else {
-        toast.error(err.message || 'Verification failed');
+        toast.error(getApiErrorMessage(err, 'Verification failed'));
       }
     } finally {
       setBusy(false);
@@ -147,6 +341,17 @@ export default function Register() {
 
   const inputStyle = { width: '100%', boxSizing: 'border-box', padding: '0 0 12px', background: 'transparent', border: 'none', borderBottom: '2px solid rgba(22,15,8,0.12)', fontFamily: 'Fraunces, serif', fontSize: 16, color: 'var(--espresso)', outline: 'none', transition: 'border-color 0.2s' };
   const labelStyle = { fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.4)', display: 'block', marginBottom: 10 };
+  const accountTypeStyle = (active) => ({
+    flex: 1,
+    padding: '14px 12px',
+    borderRadius: 14,
+    border: active ? '2px solid var(--coral)' : '2px solid rgba(22,15,8,0.12)',
+    background: active ? 'rgba(255,69,0,0.08)' : 'transparent',
+    cursor: 'pointer',
+    fontFamily: 'Fraunces, serif',
+    fontSize: 14,
+    color: 'var(--espresso)',
+  });
 
   return (
     <div className="auth-grid" style={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: '1fr 480px' }}>
@@ -227,37 +432,106 @@ export default function Register() {
           ) : (
             <>
           <h2 style={{ fontFamily: 'Playfair Display, serif', fontWeight: 900, fontSize: 30, letterSpacing: '-1px', color: 'var(--espresso)', marginBottom: 6 }}>Create workspace</h2>
-          <p style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 15, color: 'rgba(22,15,8,0.45)', marginBottom: 36 }}>Set up your team's survey platform</p>
+          <p style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 15, color: 'rgba(22,15,8,0.45)', marginBottom: 36 }}>Set up your survey platform</p>
 
           <form onSubmit={go} style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             {[
               { label: 'Your name', key: 'fullName', type: 'text', ph: 'Jane Smith' },
               { label: 'Work email', key: 'email', type: 'email', ph: 'jane@company.com' },
-              { label: 'Password', key: 'password', type: 'password', ph: 'Min 6 characters' },
-              { label: 'Organisation', key: 'tenantName', type: 'text', ph: 'Acme Research' },
-            ].map(field => (
-              <div key={field.key}>
-                <label style={labelStyle}>{field.label}</label>
-                <input type={field.type} value={f[field.key]} onChange={e => s(field.key, e.target.value)} placeholder={field.ph}
-                  style={inputStyle}
-                  onFocus={e => e.target.style.borderBottomColor = 'var(--coral)'}
-                  onBlur={e => e.target.style.borderBottomColor = 'rgba(22,15,8,0.12)'}
-                />
-              </div>
-            ))}
+              { label: 'Password', key: 'password', type: 'password', ph: 'Min 8 characters' },
+              { label: 'Mobile number (optional)', key: 'phoneNumber', type: 'tel', ph: '+91 98765 43210' },
+            ].map(field => {
+              const hasError = !!errors[field.key];
+              const isFocused = focusedField === field.key;
+
+              let borderBottomColor = 'rgba(22,15,8,0.12)';
+              if (hasError) {
+                borderBottomColor = 'var(--terracotta)';
+              } else if (isFocused) {
+                borderBottomColor = 'var(--coral)';
+              }
+
+              return (
+                <div key={field.key} style={{ display: 'flex', flexDirection: 'column' }}>
+                  <label style={labelStyle}>{field.label}</label>
+                  <input type={field.type} value={f[field.key]} onChange={e => s(field.key, e.target.value)} placeholder={field.ph}
+                    style={{
+                      ...inputStyle,
+                      borderBottom: `2px solid ${borderBottomColor}`
+                    }}
+                    onFocus={() => setFocusedField(field.key)}
+                    onBlur={() => {
+                      setFocusedField('');
+                      if (field.key !== 'password') {
+                        handleBlur(field.key);
+                      }
+                    }}
+                  />
+                  {hasError && (
+                    <span style={{
+                      color: 'var(--terracotta)',
+                      fontSize: 11,
+                      fontFamily: 'Fraunces, serif',
+                      marginTop: 4
+                    }}>
+                      {errors[field.key]}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
 
             <div>
-              <label style={labelStyle}>Workspace URL</label>
-              <div style={{ display: 'flex', alignItems: 'baseline', borderBottom: '2px solid rgba(22,15,8,0.12)', transition: 'border-color 0.2s' }}
-                onFocusCapture={e => e.currentTarget.style.borderBottomColor = 'var(--coral)'}
-                onBlurCapture={e => e.currentTarget.style.borderBottomColor = 'rgba(22,15,8,0.12)'}>
-                <input value={f.tenantSlug} onChange={e => s('tenantSlug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-                  placeholder="acme"
-                  style={{ ...inputStyle, flex: 1, border: 'none', borderBottom: 'none', fontFamily: 'Fraunces, serif' }}
-                />
-                <span style={{ fontFamily: 'Syne, sans-serif', fontSize: 11, color: 'rgba(22,15,8,0.3)', paddingBottom: 12, whiteSpace: 'nowrap' }}>.Axiora.io</span>
+              <label style={labelStyle}>Account type</label>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <label style={accountTypeStyle(f.accountType === 'organization')}>
+                  <input
+                    type="radio"
+                    name="accountType"
+                    value="organization"
+                    checked={f.accountType === 'organization'}
+                    onChange={e => s('accountType', e.target.value)}
+                    style={{ marginRight: 8 }}
+                  />
+                  Organisation
+                </label>
+                <label style={accountTypeStyle(f.accountType === 'personal')}>
+                  <input
+                    type="radio"
+                    name="accountType"
+                    value="personal"
+                    checked={f.accountType === 'personal'}
+                    onChange={e => s('accountType', e.target.value)}
+                    style={{ marginRight: 8 }}
+                  />
+                  Personal
+                </label>
               </div>
             </div>
+
+            {f.accountType === 'organization' && (
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <label style={labelStyle}>Organisation</label>
+                <input
+                  type="text"
+                  value={f.tenantName}
+                  onChange={e => s('tenantName', e.target.value)}
+                  placeholder="Acme Research"
+                  style={{
+                    ...inputStyle,
+                    borderBottom: `2px solid ${errors.tenantName ? 'var(--terracotta)' : focusedField === 'tenantName' ? 'var(--coral)' : 'rgba(22,15,8,0.12)'}`
+                  }}
+                  onFocus={() => setFocusedField('tenantName')}
+                  onBlur={() => { setFocusedField(''); handleBlur('tenantName'); }}
+                />
+                {errors.tenantName && (
+                  <span style={{ color: 'var(--terracotta)', fontSize: 11, fontFamily: 'Fraunces, serif', marginTop: 4 }}>
+                    {errors.tenantName}
+                  </span>
+                )}
+              </div>
+            )}
+
 
             <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }}
               type="submit" disabled={busy}

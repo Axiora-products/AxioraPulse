@@ -1,9 +1,14 @@
 #!/bin/bash
 
-# Ensure DATABASE_URL is set
+# Ensure DATABASE_URL is set or can be constructed
 if [ -z "$DATABASE_URL" ]; then
-    echo "ERROR: DATABASE_URL environment variable is not set."
-    exit 1
+    if [ -n "$DB_HOST" ] && [ -n "$DB_USER" ] && [ -n "$DB_PASSWORD" ]; then
+        echo "DATABASE_URL is not set. Constructing from database environment variables..."
+        export DATABASE_URL="postgresql://$DB_USER:$DB_PASSWORD@$DB_HOST:${DB_PORT:-5432}/${DB_NAME:-axiorapulse}"
+    else
+        echo "ERROR: DATABASE_URL environment variable is not set and connection variables are missing."
+        exit 1
+    fi
 fi
 
 echo "Waiting for database to be ready..."
@@ -32,7 +37,7 @@ while attempts < max_attempts:
         conn.close()
         print('Database is ready!')
         sys.exit(0)
-    except Exception as e:
+    except Exception:
         attempts += 1
         # Only print the error every few attempts to keep logs clean
         if attempts % 5 == 1:
@@ -48,7 +53,62 @@ fi
 
 # Run Alembic migrations
 echo "Running database migrations..."
-alembic upgrade head
+if ! alembic upgrade head; then
+    echo "WARNING: Database migrations failed."
+    echo "This frequently happens in local development when switching between branches"
+    echo "where the database schema no longer matches the current migration history."
+
+    case "$ENVIRONMENT" in
+        production|prod)
+            echo "ERROR: Refusing automatic Alembic recovery in production."
+            echo "Manual migration repair is required."
+            exit 1
+            ;;
+    esac
+
+    # Local auto-recovery: rebuild the schema from scratch so it always matches the
+    # codebase, then migrate from base. We deliberately do NOT 'alembic stamp head'
+    # here — stamping marks the DB as migrated WITHOUT applying any DDL, which
+    # silently leaves the schema out of sync (e.g. columns from skipped migrations
+    # never get created, surfacing later as UndefinedColumn 500s).
+    echo "Local auto-recovery: dropping and rebuilding the database schema from scratch."
+    echo "WARNING: this DESTROYS all data in this local database."
+    python -c "
+import os
+import sys
+import psycopg2
+
+db_url = os.environ.get('DATABASE_URL')
+if db_url and '://' in db_url:
+    protocol, rest = db_url.split('://', 1)
+    if '+' in protocol:
+        protocol = protocol.split('+')[0]
+    db_url = f'{protocol}://{rest}'
+
+try:
+    conn = psycopg2.connect(db_url, connect_timeout=5)
+    conn.autocommit = True
+    with conn.cursor() as cur:
+        cur.execute('DROP SCHEMA public CASCADE; CREATE SCHEMA public;')
+    conn.close()
+    print('Schema dropped and recreated (empty).')
+except Exception as exc:
+    print(f'ERROR: Failed to rebuild schema: {exc}')
+    sys.exit(1)
+"
+
+    if [ $? -ne 0 ]; then
+        echo "ERROR: Failed to rebuild the database schema. Manual intervention required."
+        exit 1
+    fi
+
+    echo "Re-running migrations from base..."
+    if ! alembic upgrade head; then
+        echo "ERROR: Migrations failed even after a clean schema rebuild. Manual intervention required."
+        exit 1
+    fi
+    echo "Successfully rebuilt schema and applied all migrations."
+fi
 
 echo "Database setup complete!"
 

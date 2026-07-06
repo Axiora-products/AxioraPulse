@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import API from '../api/axios';
-import { cognitoGetCurrentSession, cognitoSignOut } from '../lib/cognito';
+import { cognitoGetCurrentSession, cognitoSignOut, setAuthConfig } from '../lib/cognito';
 
 const useAuthStore = create((set, get) => ({
   user: null,
@@ -13,7 +13,33 @@ const useAuthStore = create((set, get) => ({
   initialize: async (force = false, syncParams = {}) => {
     if (get().initialized && !force) return;
     set({ loading: true });
+
+    const token = localStorage.getItem('token');
+    // During registration (syncParams provided) we must run /auth/sync FIRST so the
+    // tenant is created with the chosen account_type. Calling /auth/me first would let
+    // get_current_user auto-provision an 'organization' tenant and short-circuit sync.
+    const hasSyncIntent = syncParams && Object.keys(syncParams).length > 0;
+    if (token && !hasSyncIntent) {
+      try {
+        const res = await API.get('/auth/me');
+        const { user, profile, tenant } = res.data;
+        set({ user, profile, tenant, loading: false, initialized: true });
+        return;
+      } catch (meErr) {
+        // Only fall back to Cognito session restoration if the token was deleted (i.e. invalid/expired)
+        if (localStorage.getItem('token')) {
+          // Keep the token (e.g. network drop or aborted request). Do not fall back.
+          set({ loading: false, initialized: true });
+          return;
+        }
+      }
+    }
+
     try {
+      // Fetch dynamic AWS Cognito credentials from backend before checking authentication session
+      const configRes = await API.get('/auth/config');
+      setAuthConfig(configRes.data);
+
       const session = await cognitoGetCurrentSession();
       const idToken = session.getIdToken().getJwtToken();
       localStorage.setItem('token', idToken);
@@ -24,8 +50,14 @@ const useAuthStore = create((set, get) => ({
       const { user, profile, tenant } = res.data;
       set({ user, profile, tenant, loading: false, initialized: true });
     } catch (err) {
+      if (err?.message !== 'No authenticated user') {
+        console.error("Auth session initialization failed:", err);
+      }
       const status = err?.response?.status;
-      if (!status || status === 401 || status === 403) {
+      const isAxiosError = !!err?.config;
+      // Nuke session only for local Cognito failures or explicit 401/403 auth errors.
+      // Do not nuke for aborted requests (like page navigation unloads), network drops, or 500s.
+      if (!isAxiosError || status === 401 || status === 403) {
         cognitoSignOut();
         localStorage.removeItem('token');
       }
@@ -35,6 +67,22 @@ const useAuthStore = create((set, get) => ({
 
   // ── checkSession: validate stored session (called by ProtectedRoute) ──────
   checkSession: async () => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        const res = await API.get('/auth/me');
+        const { user, profile, tenant } = res.data;
+        set({ user, profile, tenant, loading: false, initialized: true });
+        return true;
+      } catch (meErr) {
+        // Only fall back to Cognito session restoration if the token was deleted (i.e. invalid/expired)
+        if (localStorage.getItem('token')) {
+          // Keep the token (e.g. network drop or aborted request). Do not fall back.
+          return true;
+        }
+      }
+    }
+
     try {
       const session = await cognitoGetCurrentSession();
       const idToken = session.getIdToken().getJwtToken();
@@ -45,8 +93,14 @@ const useAuthStore = create((set, get) => ({
       set({ user, profile, tenant, loading: false, initialized: true });
       return true;
     } catch (err) {
+      if (err?.message !== 'No authenticated user') {
+        console.error("Session check failed:", err);
+      }
       const status = err?.response?.status;
-      if (!status || status === 401 || status === 403) {
+      const isAxiosError = !!err?.config;
+      // Nuke session only for local Cognito failures or explicit 401/403 auth errors.
+      // Do not nuke for aborted requests (like page navigation unloads), network drops, or 500s.
+      if (!isAxiosError || status === 401 || status === 403) {
         cognitoSignOut();
         localStorage.removeItem('token');
         set({ user: null, profile: null, tenant: null, loading: false });

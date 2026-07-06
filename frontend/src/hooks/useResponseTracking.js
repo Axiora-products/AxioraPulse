@@ -102,9 +102,12 @@ export function useResponseTracking(responseIdRef) {
       ...extra,
     };
 
-    const url = `${API.defaults.baseURL}/responses/${id}/abandon`;
+    // Authorize via the respondent session token (raw fetch bypasses the axios
+    // interceptor, so pass it explicitly as header + query param). (AP-SEC-003)
+    const st = localStorage.getItem('nx_active_session') || '';
+    const url = `${API.defaults.baseURL}/responses/${id}/abandon${st ? `?st=${encodeURIComponent(st)}` : ''}`;
     const body = JSON.stringify({ metadata });
-    const headers = { 'Content-Type': 'application/json' };
+    const headers = { 'Content-Type': 'application/json', 'X-Session-Token': st };
 
     try {
       // fetch with keepalive works on page unload (like sendBeacon)

@@ -17,20 +17,13 @@ COPY package*.json ./
 RUN npm ci --ignore-scripts
 
 COPY . .
-
-# Update backend ALB DNS name dynamically in nginx.conf if VITE_API_BASE_URL is a load balancer URL
-RUN if [ -n "$VITE_API_BASE_URL" ] && echo "$VITE_API_BASE_URL" | grep -q "elb.amazonaws.com"; then \
-        ALB_HOST=$(echo "$VITE_API_BASE_URL" | sed -e 's/https:\/\///' -e 's/http:\/\///' -e 's/\/.*//'); \
-        sed -i "s|proxy_pass http://[^;]*;|proxy_pass http://${ALB_HOST}/;|g" nginx.conf; \
-    fi
-
 RUN npm run build
 
 # Stage 2: Serve with nginx
 FROM nginx:1.27-alpine
 
 COPY --from=builder /app/dist /usr/share/nginx/html
-COPY --from=builder /app/nginx.conf /etc/nginx/conf.d/default.conf
+COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 
 EXPOSE 80
 

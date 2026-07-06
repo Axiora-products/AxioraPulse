@@ -2,32 +2,43 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
+
 
 class ResponseCreate(BaseModel):
     survey_id: UUID
     session_token: Optional[str] = None
-    respondent_email: Optional[EmailStr] = None
+    respondent_email: Optional[str] = None
+    source: Optional[str] = None
+    language: str = "en"
     age_range: Optional[str] = None
     gender: Optional[str] = None
     occupation: Optional[str] = None
+    country: Optional[str] = None
+    state: Optional[str] = None
     city: Optional[str] = None
     status: str = "in_progress"
 
+
 class ResponseUpdate(BaseModel):
-    respondent_email: Optional[EmailStr] = None
+    respondent_email: Optional[str] = None
+    language: Optional[str] = None
     status: Optional[str] = None
     last_saved_at: Optional[datetime] = None
     metadata: Optional[Dict[str, Any]] = None
     age_range: Optional[str] = None
     gender: Optional[str] = None
     occupation: Optional[str] = None
+    country: Optional[str] = None
+    state: Optional[str] = None
     city: Optional[str] = None
+
 
 class AnswerIn(BaseModel):
     question_id: UUID
     answer_value: Optional[str] = None
     answer_json: Optional[Any] = None
+
 
 class AnswerOut(BaseModel):
     id: UUID
@@ -38,11 +49,14 @@ class AnswerOut(BaseModel):
 
     model_config = {"from_attributes": True}
 
+
 class ResponseOut(BaseModel):
     id: UUID
     survey_id: UUID
     session_token: Optional[str] = None
     respondent_email: Optional[str] = None
+    source: Optional[str] = None
+    language: str = "en"
     status: str
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
@@ -52,10 +66,14 @@ class ResponseOut(BaseModel):
     age_range: Optional[str] = None
     gender: Optional[str] = None
     occupation: Optional[str] = None
+    country: Optional[str] = None
+    state: Optional[str] = None
     city: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
+
 class SubmitResponse(BaseModel):
     action: str = "submit"
+    response_id: Optional[UUID] = None
     metadata: Optional[Dict[str, Any]] = None

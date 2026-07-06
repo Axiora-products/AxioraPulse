@@ -7,18 +7,34 @@ POST /public/send-email  — Send survey share or resume-link email via AWS SES
 """
 
 import logging
-from fastapi import APIRouter, HTTPException, Depends
+from urllib.parse import urlparse
+
+from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel, EmailStr
 from typing import Literal, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
+from core import config
+from core.rate_limiter import limiter
 from services.email_service import send_email
 from db.database import get_db
 from db.models import WaitlistEntry
 
 router = APIRouter(prefix="/public", tags=["public"])
 logger = logging.getLogger(__name__)
+
+
+def _assert_trusted_survey_url(survey_url: str) -> None:
+    """Only allow links to our own frontend so this branded email cannot be used
+    as a phishing relay to arbitrary URLs. (AP-SEC-010)"""
+    allowed_hosts = {urlparse(o.strip()).netloc for o in config.FRONTEND_URL.split(",") if o.strip()}
+    # No configured frontend (local dev) → skip host enforcement.
+    if not allowed_hosts:
+        return
+    host = urlparse(survey_url).netloc
+    if host not in allowed_hosts:
+        raise HTTPException(status_code=400, detail="Survey link must point to the application domain")
 
 
 class SendEmailRequest(BaseModel):
@@ -29,22 +45,21 @@ class SendEmailRequest(BaseModel):
     respondentName: Optional[str] = None
 
 
-def _build_email_html(to: str, surveyTitle: str, surveyUrl: str,
-                      is_resume: bool, respondentName: Optional[str]) -> str:
-    greeting  = f"Hi {respondentName}," if respondentName else "Hi there,"
-    headline  = "Continue where you left off" if is_resume else "You have been invited"
+def _build_email_html(to: str, surveyTitle: str, surveyUrl: str, is_resume: bool, respondentName: Optional[str]) -> str:
+    greeting = f"Hi {respondentName}," if respondentName else "Hi there,"
+    headline = "Continue where you left off" if is_resume else "You have been invited"
     body_text = (
         f"You started <strong>{surveyTitle}</strong> but didn't quite finish. "
         "Your progress is saved — pick up exactly where you left off."
-        if is_resume else
-        f"You've been invited to complete <strong>{surveyTitle}</strong>. "
+        if is_resume
+        else f"You've been invited to complete <strong>{surveyTitle}</strong>. "
         "It only takes a few minutes and every answer makes a difference."
     )
-    cta_text    = "Resume Survey →" if is_resume else "Take the Survey →"
+    cta_text = "Resume Survey →" if is_resume else "Take the Survey →"
     footer_note = (
         "You received this because you started this survey. Your answers are saved."
-        if is_resume else
-        "You received this because someone shared this survey with you."
+        if is_resume
+        else "You received this because someone shared this survey with you."
     )
     label = "Resume" if is_resume else "Invitation"
 
@@ -98,12 +113,14 @@ def _build_email_html(to: str, surveyTitle: str, surveyUrl: str,
 
 
 @router.post("/send-email")
-def send_survey_email(body: SendEmailRequest):
+@limiter.limit("5/minute")
+def send_survey_email(request: Request, body: SendEmailRequest):
+    _assert_trusted_survey_url(body.surveyUrl)
     is_resume = body.type == "resume"
     subject = (
         f"Continue your survey: {body.surveyTitle}"
-        if is_resume else
-        f"You've been invited to complete: {body.surveyTitle}"
+        if is_resume
+        else f"You've been invited to complete: {body.surveyTitle}"
     )
     html = _build_email_html(
         to=body.to,
@@ -115,13 +132,14 @@ def send_survey_email(body: SendEmailRequest):
 
     try:
         send_email(to_email=body.to, subject=subject, body=html)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=502, detail="Failed to send email")
 
     return {"success": True}
 
 
 # ── Waitlist ──────────────────────────────────────────────────────────────────
+
 
 class WaitlistRequest(BaseModel):
     email: EmailStr
@@ -543,8 +561,10 @@ color:#6f665d;
 </html>
 """
 
+
 @router.post("/waitlist")
-def join_waitlist(body: WaitlistRequest, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def join_waitlist(request: Request, body: WaitlistRequest, db: Session = Depends(get_db)):
     entry = WaitlistEntry(email=body.email)
     try:
         db.add(entry)

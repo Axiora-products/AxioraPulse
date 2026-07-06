@@ -39,6 +39,9 @@ const TYPE_SECS = {
   ranking:         20,
   slider:          10,
   matrix:          30,
+  emoji_reaction:   6,
+  swipe_choice:    12,
+  visual_choice:   14,
 };
 
 function estimateSecs(questions, trackerAvg) {

@@ -23,7 +23,8 @@ function friendlyAuthError(msg = '') {
     return 'Too many attempts — please wait a minute before trying again.';
   if (m.includes('network') || m.includes('fetch'))
     return 'Connection error. Please check your internet and try again.';
-  return msg;
+  // Never surface raw exception text to the user.
+  return 'Something went wrong. Please try again.';
 }
 
 export default function UpdatePassword() {
@@ -34,6 +35,8 @@ export default function UpdatePassword() {
   const [linkBad, setLinkBad] = useState(false);
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
+  const { stopLoading } = useLoading();
+  const nav = useNavigate();
 
   useEffect(() => {
     stopLoading();
@@ -46,7 +49,7 @@ export default function UpdatePassword() {
 
   const go = async e => {
     e.preventDefault();
-    if (pw.length < 6)     return toast.error('Password needs 6+ characters');
+    if (pw.length < 8)     return toast.error('Password must be  8 characters');
     if (pw !== confirm)    return toast.error("Passwords don't match");
     setBusy(true);
     try {
@@ -112,7 +115,7 @@ export default function UpdatePassword() {
 
             <form onSubmit={go} style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
               {[
-                { label: 'New password',     val: pw,      set: setPw,  ph: 'Min 6 characters' },
+                { label: 'New password',     val: pw,      set: setPw,  ph: 'Min 8 characters' },
                 { label: 'Confirm password', val: confirm, set: setCf,  ph: 'Same as above' },
               ].map(f => (
                 <div key={f.label}>

@@ -1,0 +1,18 @@
+# Standard ignores
+.git
+.gitignore
+**/venv/
+**/.venv/
+**/node_modules/
+**/.env
+**/__pycache__/
+*.pyc
+
+
+dev_params.json
+qa_params.json
+survey_export_raw.json
+
+# Exclude infrastructure code from app containers
+infra/
+cdk.out/

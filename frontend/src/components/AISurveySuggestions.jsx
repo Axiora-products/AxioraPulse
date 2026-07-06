@@ -33,6 +33,9 @@ const SUGGESTION_TYPES = {
   ranking:         { label: 'Ranking',      emoji: '↕️' },
   slider:          { label: 'Slider',       emoji: '↔️' },
   matrix:          { label: 'Matrix',       emoji: '⊞'  },
+  emoji_reaction:  { label: 'Emoji',        emoji: '🙂' },
+  swipe_choice:    { label: 'Swipe',        emoji: '↔️' },
+  visual_choice:   { label: 'Visual',       emoji: '🖼️' },
 };
 
 export default function AISurveySuggestions({ survey, questions = [], onAdd, tc = '#FF4500', aiContext = '' }) {
@@ -112,7 +115,7 @@ export default function AISurveySuggestions({ survey, questions = [], onAdd, tc 
           style={{ fontFamily:'Syne,sans-serif', fontSize:9, fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase', color:'rgba(22,15,8,0.3)', background:'none', border:'none', cursor:'pointer', transition:'color 0.2s', padding:'6px 0', display:'inline-flex', alignItems:'center', gap:6 }}
           onMouseEnter={e=>e.currentTarget.style.color='var(--coral)'}
           onMouseLeave={e=>e.currentTarget.style.color='rgba(22,15,8,0.3)'}>
-          ✦ Suggest questions with AI {state === 'error' ? '(retry)' : ''}
+          ✦ Suggest questions with Pulse {state === 'error' ? '(retry)' : ''}
         </button>
       </div>
     );
@@ -139,7 +142,7 @@ export default function AISurveySuggestions({ survey, questions = [], onAdd, tc 
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
           <div style={{ display:'flex', alignItems:'center', gap:8 }}>
             <span style={{ fontSize:14 }}>✦</span>
-            <span style={{ fontFamily:'Syne,sans-serif', fontWeight:700, fontSize:10, letterSpacing:'0.14em', textTransform:'uppercase', color:'var(--coral)' }}>AI Suggestions</span>
+            <span style={{ fontFamily:'Syne,sans-serif', fontWeight:700, fontSize:10, letterSpacing:'0.14em', textTransform:'uppercase', color:'var(--coral)' }}>Pulse Suggestions</span>
           </div>
           <div style={{ display:'flex', gap:10 }}>
             <button onClick={fetchSuggestions}
@@ -207,7 +210,7 @@ export default function AISurveySuggestions({ survey, questions = [], onAdd, tc 
 
         {suggestions.length > 0 && (
           <p style={{ fontFamily:'Syne,sans-serif', fontSize:8, fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', color:'rgba(22,15,8,0.25)', textAlign:'center', marginTop:12, marginBottom:0 }}>
-            AI-generated — review before adding
+            Pulse-generated — review before adding
           </p>
         )}
       </motion.div>
