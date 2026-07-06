@@ -52,9 +52,9 @@ export class AxioraPulseStack extends cdk.Stack {
     }
 
     // 0. Infrastructure: VPC and Cluster
-    const vpc = new ec2.Vpc(this, 'Vpc', {
+    const vpc = new ec2.Vpc(this, 'VpcV2', {
       maxAzs: 2,
-      natGateways: isProd ? undefined : 1, // Minimize NAT Gateway costs in Dev/QA
+      natGateways: isProd ? undefined : 0, // 0 NAT Gateways for QA to save costs
     });
 
     if (isProd) {
@@ -87,7 +87,7 @@ export class AxioraPulseStack extends cdk.Stack {
     });
 
     // RDS PostgreSQL database instance
-    const database = new rds.DatabaseInstance(this, 'Database', {
+    const database = new rds.DatabaseInstance(this, 'DatabaseV3', {
       engine: rds.DatabaseInstanceEngine.postgres({
         version: rds.PostgresEngineVersion.VER_16_13,
       }),
@@ -95,7 +95,7 @@ export class AxioraPulseStack extends cdk.Stack {
         ? ec2.InstanceType.of(ec2.InstanceClass.BURSTABLE3, ec2.InstanceSize.MEDIUM)
         : ec2.InstanceType.of(ec2.InstanceClass.BURSTABLE3, ec2.InstanceSize.MICRO),
       vpc,
-      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      vpcSubnets: { subnetType: isProd ? ec2.SubnetType.PRIVATE_WITH_EGRESS : ec2.SubnetType.PRIVATE_ISOLATED },
       securityGroups: [dbSecurityGroup],
       databaseName: 'axiorapulse',
       credentials: rds.Credentials.fromSecret(dbSecret),
@@ -103,6 +103,8 @@ export class AxioraPulseStack extends cdk.Stack {
       multiAz: isProd,
       storageEncrypted: isProd,
       backupRetention: isProd ? cdk.Duration.days(7) : undefined,
+      allocatedStorage: isProd ? 100 : 20,
+      storageType: isProd ? undefined : rds.StorageType.GP3,
     });
 
     // Store DB connection details in SSM (non-sensitive fields)
@@ -292,13 +294,13 @@ export class AxioraPulseStack extends cdk.Stack {
       }
     });
 
-    const backendService = new ecs.FargateService(this, 'BackendService', {
+    const backendService = new ecs.FargateService(this, 'BackendServiceV2', {
       cluster,
       taskDefinition: backendTaskDef,
       desiredCount: (isProd || shortEnv === 'qa') ? 2 : 1, // 2 tasks for HA in QA/Prod, 1 for Dev
-      serviceName: `pulse-backend-${shortEnv}`,
-      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
-      assignPublicIp: false,
+      serviceName: `pulse-backend-${shortEnv}${shortEnv === 'qa' ? '-v2' : ''}`,
+      vpcSubnets: { subnetType: isProd ? ec2.SubnetType.PRIVATE_WITH_EGRESS : ec2.SubnetType.PUBLIC },
+      assignPublicIp: !isProd,
       cloudMapOptions: {
         name: 'backend',
       },
@@ -316,10 +318,10 @@ export class AxioraPulseStack extends cdk.Stack {
     let frontendService: ecs.FargateService | undefined = undefined;
 
     // 4. Application Load Balancer
-    const alb = new elbv2.ApplicationLoadBalancer(this, 'Alb', {
+    const alb = new elbv2.ApplicationLoadBalancer(this, 'AlbV2', {
       vpc,
       internetFacing: true,
-      loadBalancerName: `axiorapulse-${shortEnv}-alb`,
+      loadBalancerName: `axiorapulse-${shortEnv}-alb${shortEnv === 'qa' ? '-v2' : ''}`,
     });
 
     const zoneName = 'axiorapulse.com';
@@ -468,13 +470,13 @@ export class AxioraPulseStack extends cdk.Stack {
         }
       ]);
 
-      frontendService = new ecs.FargateService(this, 'FrontendService', {
+      frontendService = new ecs.FargateService(this, 'FrontendServiceV2', {
         cluster,
         taskDefinition: frontendTaskDef,
         desiredCount: 2,
-        serviceName: `pulse-frontend-${shortEnv}`,
-        vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
-        assignPublicIp: false,
+        serviceName: `pulse-frontend-${shortEnv}${shortEnv === 'qa' ? '-v2' : ''}`,
+        vpcSubnets: { subnetType: isProd ? ec2.SubnetType.PRIVATE_WITH_EGRESS : ec2.SubnetType.PUBLIC },
+        assignPublicIp: !isProd,
       });
     }
 
@@ -492,12 +494,12 @@ export class AxioraPulseStack extends cdk.Stack {
       // Scheduled scaling to scale down to 0 at night/weekends for QA backend
       const backendScaling = backendService.autoScaleTaskCount({ maxCapacity: 2, minCapacity: 0 });
       backendScaling.scaleOnSchedule('ScaleDownQA', {
-        schedule: appscaling.Schedule.cron({ hour: '14', minute: '30', weekDay: 'MON-FRI' }), // 8:00 PM IST / 2:30 PM UTC
+        schedule: appscaling.Schedule.cron({ hour: '16', minute: '30', weekDay: 'MON-SAT' }), // 10:00 PM IST / 4:30 PM UTC
         minCapacity: 0,
         maxCapacity: 0,
       });
       backendScaling.scaleOnSchedule('ScaleUpQA', {
-        schedule: appscaling.Schedule.cron({ hour: '3', minute: '30', weekDay: 'MON-FRI' }), // 9:00 AM IST / 3:30 AM UTC
+        schedule: appscaling.Schedule.cron({ hour: '4', minute: '30', weekDay: 'MON-SAT' }), // 10:00 AM IST / 4:30 AM UTC
         minCapacity: 2,
         maxCapacity: 2,
       });
@@ -506,12 +508,12 @@ export class AxioraPulseStack extends cdk.Stack {
         // Scheduled scaling to scale down to 0 at night/weekends for QA frontend
         const frontendScaling = frontendService.autoScaleTaskCount({ maxCapacity: 2, minCapacity: 0 });
         frontendScaling.scaleOnSchedule('FrontendScaleDownQA', {
-          schedule: appscaling.Schedule.cron({ hour: '14', minute: '30', weekDay: 'MON-FRI' }), // 8:00 PM IST / 2:30 PM UTC
+          schedule: appscaling.Schedule.cron({ hour: '16', minute: '30', weekDay: 'MON-SAT' }), // 10:00 PM IST / 4:30 PM UTC
           minCapacity: 0,
           maxCapacity: 0,
         });
         frontendScaling.scaleOnSchedule('FrontendScaleUpQA', {
-          schedule: appscaling.Schedule.cron({ hour: '3', minute: '30', weekDay: 'MON-FRI' }), // 9:00 AM IST / 3:30 AM UTC
+          schedule: appscaling.Schedule.cron({ hour: '4', minute: '30', weekDay: 'MON-SAT' }), // 10:00 AM IST / 4:30 AM UTC
           minCapacity: 2,
           maxCapacity: 2,
         });
