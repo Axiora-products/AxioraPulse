@@ -1140,6 +1140,21 @@ export default function SurveyRespond() {
 
       {/* Global scoped CSS */}
       <style>{`
+      /* In the welcome section (step === -1) */
+.np-welcome-stage h1 {
+  font-size: clamp(22px, 4vw, 42px) !important; /* Reduced from clamp(28px,5vw,62px) */
+  letter-spacing: -1px !important; /* Reduced from -2px */
+}
+
+.np-welcome-stage p {
+  font-size: 14px !important; /* Reduced from 16px */
+  line-height: 1.5 !important; /* Tighter line height */
+}
+
+.np-welcome-stage .description-text {
+  font-size: 13px !important; /* Even smaller for description */
+  line-height: 1.4 !important;
+}
         .qt { width:100%; box-sizing:border-box; background:transparent; border:none; border-bottom:2px solid rgba(22,15,8,0.09); font-family:'Fraunces',serif; font-size:clamp(20px,3vw,30px); font-weight:300; color:#160F08; outline:none; padding:6px 0 16px; transition:border-color 0.25s; resize:none; }
         .qt:focus { border-bottom-color:var(--qt-tc); }
         .qt::placeholder { color:rgba(22,15,8,0.12); }
@@ -1156,7 +1171,9 @@ export default function SurveyRespond() {
         .qsc { flex:1; height:54px; border-radius:14px; border:1.5px solid rgba(22,15,8,0.08); background:rgba(253,245,232,0.5); font-family:'Syne',sans-serif; font-weight:700; font-size:14px; color:rgba(22,15,8,0.38); cursor:pointer; transition:all 0.25s; }
         .qsc:hover { border-color:rgba(22,15,8,0.2); transform:translateY(-4px); color:#160F08; background:white; box-shadow:0 6px 20px rgba(22,15,8,0.08); }
         .qsc.on { color:white; transform:translateY(-4px); box-shadow:0 8px 28px rgba(22,15,8,0.15); }
-      `}</style>
+      `}
+        
+      </style>
 
       {/* ── Footer ── */}
       <footer style={{ flexShrink: 0, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 32px', borderTop: `1px solid ${line}` }}>
