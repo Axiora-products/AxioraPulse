@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import API from '../api/axios';
 import { useLoading } from '../context/LoadingContext';
 import ConfirmModal from '../components/ConfirmModal';
+import { getApiErrorMessage } from '../lib/apiError';
 import {
   FileText,
   FileSpreadsheet,
@@ -14,10 +15,8 @@ import {
   Archive,
   FileJson,
   Mic,
-  ImageIcon,
   Files as FilesIcon,
   Music2,
-  Images,
   Search,
   Download,
   Trash2,
@@ -44,13 +43,6 @@ const FILE_TYPES = [
     icon: Music2,
     color: '#C026D3',
     bg: 'rgba(192,38,211,0.10)',
-  },
-  {
-    id: 'image',
-    label: 'Images',
-    icon: Images,
-    color: '#CA8A04',
-    bg: 'rgba(202,138,4,0.10)',
   },
 ];
 
@@ -116,13 +108,6 @@ const getFileIcon = (type, name = '') => {
   }
 
   if (
-    t.includes('image') ||
-    ['.png', '.jpg', '.jpeg', '.webp'].some(ext => n.endsWith(ext))
-  ) {
-    return <ImageIcon {...commonProps} color="#CA8A04" />;
-  }
-
-  if (
     n.endsWith('.zip') ||
     n.endsWith('.rar')
   ) {
@@ -184,7 +169,7 @@ export default function Files() {
       if (refreshFiles) refreshFiles();
     } catch (e) {
       console.error('Failed to delete file', e);
-      toast.error(e.response?.data?.detail || 'Failed to delete file');
+      toast.error(getApiErrorMessage(e, 'Failed to delete file'));
     } finally {
       setDeleteTarget(null);
     }
@@ -193,11 +178,7 @@ export default function Files() {
   const filteredFiles = files.filter(f => {
     // Apply Category Filter
     if (filter !== 'all') {
-      if (filter === 'image') {
-        if (!f.content_type?.startsWith('image/')) return false;
-      } else {
-        if (f.upload_type !== filter) return false;
-      }
+      if (f.upload_type !== filter) return false;
     }
     // Apply Search
     if (search.trim()) {

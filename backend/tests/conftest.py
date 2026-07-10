@@ -1,3 +1,14 @@
+import os
+
+# Test-suite secret/config defaults. Set BEFORE any backend module (which reads
+# these at import time via core.config) is imported below. setdefault() respects
+# anything the CI/dev shell already exported. These mirror the security-hardening
+# requirements (AP-SEC-001/002/004): the suite must provide real, non-default
+# secrets and the super-admin allowlist, just like a real deployment would.
+os.environ.setdefault("OTP_JWT_SECRET", "test-otp-jwt-secret-not-a-default-value")
+os.environ.setdefault("RAZORPAY_WEBHOOK_SECRET", "test-razorpay-webhook-secret")
+os.environ.setdefault("SUPER_ADMIN_EMAILS", "roopsai.work8@gmail.com")
+
 import pytest
 import json
 import uuid
@@ -41,7 +52,6 @@ def auth_headers():
 @pytest.fixture(autouse=True)
 def mock_gemini(monkeypatch):
     import routes.ai
-    import routes.investor
 
     monkeypatch.setenv("GEMINI_KEY", "mock_key_123")
 
@@ -111,11 +121,7 @@ def mock_gemini(monkeypatch):
             }
         )
 
-    def mock_investor_call_gemini(*args, **kwargs):
-        raise ValueError("Simulated Gemini error for fallback testing")
-
     monkeypatch.setattr(routes.ai, "call_ai_sync", mock_call_gemini)
-    monkeypatch.setattr(routes.investor, "call_ai_sync", mock_investor_call_gemini)
 
 
 # --- Mock Whisper Speech-to-Text ---
@@ -147,53 +153,6 @@ def mock_whisper(monkeypatch):
         return MockCompletedProcess()
 
     monkeypatch.setattr(subprocess, "run", mock_subprocess_run)
-
-
-# --- Mock Google Drive SDK ---
-class MockDriveFiles:
-    def export_media(self, fileId, mimeType):
-        class RequestMock:
-            def execute(self):
-                return b"mock file content"
-
-        return RequestMock()
-
-    def get_media(self, fileId):
-        class RequestMock:
-            def execute(self):
-                return b"mock file content"
-
-        return RequestMock()
-
-
-class MockDriveService:
-    def files(self):
-        return MockDriveFiles()
-
-
-@pytest.fixture(autouse=True)
-def mock_google_drive(monkeypatch):
-    import routes.uploads
-
-    class DummyCredentials:
-        def __init__(self, token):
-            self.token = token
-
-    def mock_build(serviceName, version, credentials=None):
-        return MockDriveService()
-
-    class MockMediaIoBaseDownload:
-        def __init__(self, fh, request):
-            self.fh = fh
-            self.fh.write(b"mock drive download content")
-
-        def next_chunk(self):
-            return None, True
-
-    # Monkeypatch where these are used inside routes.uploads
-    monkeypatch.setattr(routes.uploads, "Credentials", DummyCredentials)
-    monkeypatch.setattr(routes.uploads, "build", mock_build)
-    monkeypatch.setattr(routes.uploads, "MediaIoBaseDownload", MockMediaIoBaseDownload)
 
 
 # --- Mock Razorpay Client ---
@@ -307,10 +266,13 @@ def seed_test_data():
         db.commit()
 
         # Create default Tenant if none exists
-        tenant = db.query(Tenant).first()
+        tenant = db.query(Tenant).filter(Tenant.id == uuid.UUID("d3b07384-d113-4956-a5cc-be150efb0f85")).first()
         if not tenant:
             tenant = Tenant(
-                id=uuid.UUID("d3b07384-d113-4956-a5cc-be150efb0f85"), name="Test Organisation", slug="test-org"
+                id=uuid.UUID("d3b07384-d113-4956-a5cc-be150efb0f85"),
+                name="Test Organisation",
+                slug="test-org",
+                account_type="organization",
             )
             db.add(tenant)
             db.commit()

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import useSubscription from '../hooks/useSubscription';
+import useAuthStore from '../hooks/useAuth';
+import { openSupportEmail } from '../lib/constants';
 
 const card = { background: 'var(--warm-white)', borderRadius: 20, border: '1px solid rgba(22,15,8,0.07)', padding: '24px 32px', marginBottom: 12 };
 const secH = { fontFamily: 'Syne, sans-serif', fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.35)', marginBottom: 14 };
@@ -34,7 +35,8 @@ function fmt(dateStr) {
 
 export default function Billing() {
   const { subscription, loading, loaded, load } = useSubscription();
-  const navigate = useNavigate();
+  const { tenant } = useAuthStore();
+  const isPersonal = tenant?.account_type === 'personal';
 
   useEffect(() => { if (!loaded) load(); }, [loaded]);
 
@@ -75,7 +77,7 @@ export default function Billing() {
               </span>
             </div>
             <button
-              onClick={() => navigate('/pricing')}
+              onClick={() => openSupportEmail()}
               style={{ padding: '13px 28px', borderRadius: 999, border: 'none', background: 'var(--coral)', color: '#fff', fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}
             >
               Upgrade plan
@@ -107,8 +109,8 @@ export default function Billing() {
                 ['Period end', fmt(subscription.current_period_end)],
                 ['Surveys', plan.max_surveys != null ? `Up to ${plan.max_surveys}` : 'Unlimited'],
                 ['Responses / month', plan.max_responses != null ? plan.max_responses.toLocaleString() : 'Unlimited'],
-                ['Team members', plan.max_team_members != null ? plan.max_team_members : 'Unlimited'],
-                ['AI insights', plan.ai_insights_enabled ? 'Included' : 'Not included'],
+                ...(!isPersonal ? [['Team members', plan.max_team_members != null ? plan.max_team_members : 'Unlimited']] : []),
+                ['Pulse insights', plan.ai_insights_enabled ? 'Included' : 'Not included'],
               ].map(([label, value], i, arr) => (
                 <div key={label} style={{ ...row, borderBottom: i === arr.length - 1 ? 'none' : row.borderBottom }}>
                   <span style={lbl}>{label}</span>
@@ -120,7 +122,7 @@ export default function Billing() {
             {plan.code !== 'enterprise' && (
               <div style={{ marginTop: 16 }}>
                 <button
-                  onClick={() => navigate('/pricing')}
+                  onClick={() => openSupportEmail()}
                   style={{ padding: '13px 28px', borderRadius: 999, border: 'none', background: 'var(--espresso)', color: 'var(--cream)', fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}
                 >
                   Change plan

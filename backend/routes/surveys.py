@@ -14,6 +14,7 @@ GET    /surveys/{id}/questions       — get questions only
 PUT    /surveys/{id}/questions       — replace all questions
 POST   /surveys/{id}/duplicate       — duplicate survey
 GET    /surveys/slug/{slug}          — PUBLIC fetch by slug (SurveyRespond)
+GET    /surveys/og/{slug}            — PUBLIC OG meta-tag HTML for social-media bots
 """
 
 import uuid
@@ -26,9 +27,12 @@ import requests
 from functools import lru_cache
 from datetime import datetime, timezone
 from typing import Any, List
+from html import escape
+from urllib.parse import quote
 from core.rate_limiter import limiter
 from fastapi import Request
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session, joinedload
 from fastapi import Query
 
@@ -45,7 +49,9 @@ from db.models import (
     SurveyResponse,
     SurveyAnswer,
     SurveyFeedback,
+    Subscription,
 )
+from core import config
 from schemas import (
     SurveyCreate,
     SurveyUpdate,
@@ -61,7 +67,6 @@ from schemas import (
     FeedbackOut,
 )
 from dependencies import get_current_user
-from services.feature_gate import require_feature
 
 
 router = APIRouter(prefix="/surveys", tags=["surveys"])
@@ -75,6 +80,77 @@ def _require_creator(user: UserProfile):
     role_val = user.role.value if hasattr(user.role, "value") else str(user.role)
     if role_val not in CREATOR_ROLES:
         raise HTTPException(status_code=403, detail="Insufficient permissions to modify surveys")
+
+
+# Free-trial limit message (kept in sync with the frontend upgrade modal).
+SURVEY_LIMIT_DETAIL = (
+    "You have reached the maximum limit of 3 surveys available under the free plan. "
+    "Upgrade your plan to create additional surveys."
+)
+
+
+def _effective_survey_limit(db: Session, user: UserProfile):
+    """Max non-draft surveys allowed for this tenant. A paid plan's own
+    ``max_surveys`` wins; tenants with no paid plan fall back to the free
+    ceiling. Returns ``None`` when unlimited (or limits are bypassed)."""
+    if config.DISABLE_PAYMENTS or getattr(user, "is_internal", False):
+        return None
+    sub = (
+        db.query(Subscription).filter(Subscription.tenant_id == user.tenant_id, Subscription.status == "active").first()
+    )
+    plan = sub.plan if sub else None
+    if plan is not None:
+        return plan.max_surveys  # may be None => unlimited
+    return config.FREE_PLAN_MAX_SURVEYS
+
+
+def _assert_within_survey_limit(db: Session, user: UserProfile, exclude_id=None) -> None:
+    """Block when the tenant already has the maximum number of non-draft
+    (active/paused/expired/closed) surveys. Drafts are never counted. Called
+    before creating an active survey or publishing/activating an existing one.
+    """
+    limit = _effective_survey_limit(db, user)
+    if limit is None:
+        return
+    q = db.query(Survey).filter(
+        Survey.tenant_id == user.tenant_id,
+        Survey.status != SurveyStatusEnum.draft,
+    )
+    if exclude_id is not None:
+        q = q.filter(Survey.id != exclude_id)
+    non_draft_count = q.count()
+    if non_draft_count >= limit:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=SURVEY_LIMIT_DETAIL)
+
+
+# Org-level managers may administer any survey in their tenant.
+SURVEY_ADMIN_ROLES = {"super_admin", "admin", "manager"}
+
+
+def _authorize_survey_write(survey, user: UserProfile, db: Session) -> None:
+    """Object-level authorization for survey mutations.
+
+    Tenant scoping alone is insufficient: a plain creator must not be able to
+    edit/delete a teammate's survey just by knowing its id. Allow org managers,
+    the survey's creator, or a user granted an editor share. (AP-SEC-017)
+    """
+    role_val = user.role.value if hasattr(user.role, "value") else str(user.role)
+    if role_val in SURVEY_ADMIN_ROLES:
+        return
+    if survey.created_by == user.id:
+        return
+    editor_share = (
+        db.query(SurveyShare)
+        .filter(
+            SurveyShare.survey_id == survey.id,
+            SurveyShare.shared_with == user.id,
+            SurveyShare.permission == SharePermissionEnum.editor,
+        )
+        .first()
+    )
+    if editor_share:
+        return
+    raise HTTPException(status_code=403, detail="You do not have permission to modify this survey")
 
 
 def _gen_slug(title: str) -> str:
@@ -398,7 +474,7 @@ def auto_save_draft(
 
 
 @router.get("/", response_model=List[SurveyOut])
-@limiter.limit("20/minute")
+@limiter.limit("120/minute")
 def list_surveys(
     request: Request,
     q: str = None,
@@ -412,7 +488,10 @@ def list_surveys(
         db.query(Survey)
         .options(joinedload(Survey.questions))
         .options(joinedload(Survey.creator))
-        .filter(Survey.tenant_id == current_user.tenant_id)
+        .filter(
+            Survey.tenant_id == current_user.tenant_id,
+            Survey.created_by == current_user.id,
+        )
     )
 
     if q:
@@ -421,6 +500,32 @@ def list_surveys(
     surveys = query.order_by(Survey.created_at.desc()).offset(skip).limit(limit).all()
 
     return [SurveyOut.model_validate(s) for s in surveys]
+
+
+@router.get("/check-slug", response_model=dict)
+@limiter.limit("30/minute")
+def check_slug(
+    request: Request,
+    slug: str,
+    exclude_survey_id: str | None = None,
+    db: Session = Depends(get_db),
+):
+    """
+    Check if a custom survey slug is valid and unique.
+    """
+    if not slug or not re.match(r"^[a-z0-9-]+$", slug) or len(slug) > 50:
+        return {"available": False, "reason": "invalid"}
+
+    q = db.query(Survey).filter(Survey.slug == slug)
+    if exclude_survey_id and exclude_survey_id.strip() not in ("", "null", "undefined"):
+        try:
+            parsed_uuid = uuid.UUID(exclude_survey_id)
+            q = q.filter(Survey.id != parsed_uuid)
+        except ValueError:
+            pass
+
+    exists = q.first() is not None
+    return {"available": not exists}
 
 
 # ── Public: fetch by slug (no auth required — SurveyRespond.jsx) ─────────────
@@ -434,6 +539,8 @@ def get_survey_by_slug(request: Request, slug: str, db: Session = Depends(get_db
         .options(joinedload(Survey.questions))
         .options(joinedload(Survey.creator))
         .filter(Survey.slug == slug)
+        # Never expose unpublished (draft) surveys publicly. (AP-SEC-037)
+        .filter(Survey.status != SurveyStatusEnum.draft)
         .first()
     )
     if not survey:
@@ -448,6 +555,75 @@ def get_survey_by_slug(request: Request, slug: str, db: Session = Depends(get_db
     return out
 
 
+# ── Public: OG meta-tag page for social-media bots ───────────────────────────
+
+
+@router.get("/og/{slug}", response_class=HTMLResponse, include_in_schema=False)
+def get_survey_og(slug: str, db: Session = Depends(get_db)):
+    """
+    Returns a minimal HTML page with Open Graph / Twitter Card meta tags
+    for the given survey slug.  Social-media crawlers (WhatsApp, Telegram,
+    LinkedIn, Facebook, Twitter) visit this URL and use the tags to render
+    rich link previews.  Human visitors are immediately JS-redirected to the
+    React SPA at /s/{slug}.
+
+    Nginx bot-detection routes crawler User-Agents from /s/{slug} to
+    /api/surveys/og/{slug} so the share URL stays clean.
+    """
+    survey = db.query(Survey).filter(Survey.slug == slug, Survey.status != SurveyStatusEnum.draft).first()
+    if not survey:
+        raise HTTPException(status_code=404, detail="Survey not found")
+
+    frontend_url = (
+        os.environ.get("FRONTEND_URL") or os.environ.get("VITE_FRONTEND_URL") or "https://app.axiorapulse.com"
+    ).rstrip("/")
+
+    safe_slug = quote(slug, safe="")
+    survey_url = f"{frontend_url}/s/{safe_slug}"
+    og_image_url = f"{frontend_url}/og-share-card.png"
+
+    title = escape(survey.title or "Survey", quote=True)
+    raw_desc = (
+        survey.description
+        or f"Take this short survey and share your perspective on: {survey.title or 'User Feedback'}."
+    )
+    description = escape(raw_desc[:200], quote=True)
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{title} — Axiora Pulse</title>
+  <meta name="description" content="{description}" />
+
+  <!-- Open Graph -->
+  <meta property="og:type"        content="website" />
+  <meta property="og:url"         content="{survey_url}" />
+  <meta property="og:title"       content="{title}" />
+  <meta property="og:description" content="{description}" />
+  <meta property="og:image"       content="{og_image_url}" />
+  <meta property="og:image:width"  content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:site_name"   content="Axiora Pulse" />
+
+  <!-- Twitter / X Card -->
+  <meta name="twitter:card"        content="summary_large_image" />
+  <meta name="twitter:title"       content="{title}" />
+  <meta name="twitter:description" content="{description}" />
+  <meta name="twitter:image"       content="{og_image_url}" />
+
+  <!-- Redirect human visitors to the React SPA immediately -->
+  <meta http-equiv="refresh" content="0; url={survey_url}" />
+  <script>window.location.replace("{survey_url}");</script>
+</head>
+<body style="margin:0;background:#160F08;color:#FDF5E8;font-family:Georgia,serif;display:flex;align-items:center;justify-content:center;min-height:100vh;">
+  <p>Redirecting… <a href="{survey_url}" style="color:#FF4500;">{title}</a></p>
+</body>
+</html>"""
+    return HTMLResponse(content=html)
+
+
 # ── Create ────────────────────────────────────────────────────────────────────
 
 
@@ -458,7 +634,6 @@ def create_survey(
     body: SurveyCreate,
     current_user: UserProfile = Depends(get_current_user),
     db: Session = Depends(get_db),
-    _gate: None = Depends(require_feature("create_survey")),
 ):
     _require_creator(current_user)
 
@@ -470,6 +645,10 @@ def create_survey(
         sv_status = SurveyStatusEnum(body.status)
     except ValueError:
         sv_status = SurveyStatusEnum.draft
+
+    # Free-plan limit applies to non-draft surveys only; drafts are unlimited.
+    if sv_status != SurveyStatusEnum.draft:
+        _assert_within_survey_limit(db, current_user)
 
     if sv_status == SurveyStatusEnum.active and (not body.questions or len(body.questions) < 2):
         raise HTTPException(status_code=400, detail="At least 2 questions are required to publish")
@@ -550,6 +729,7 @@ def update_survey(
     survey = db.query(Survey).filter(Survey.id == survey_id, Survey.tenant_id == current_user.tenant_id).first()
     if not survey:
         raise HTTPException(status_code=404, detail="Survey not found")
+    _authorize_survey_write(survey, current_user, db)
 
     update_data = body.model_dump(exclude_unset=True)
 
@@ -557,6 +737,9 @@ def update_survey(
         try:
             new_status = SurveyStatusEnum(update_data["status"])
             if new_status == SurveyStatusEnum.active:
+                # Publishing/activating counts toward the free-plan limit.
+                if survey.status == SurveyStatusEnum.draft:
+                    _assert_within_survey_limit(db, current_user, exclude_id=survey_id)
                 q_count = db.query(SurveyQuestion).filter(SurveyQuestion.survey_id == survey_id).count()
                 if q_count < 2:
                     raise HTTPException(status_code=400, detail="At least 2 questions are required to publish")
@@ -606,10 +789,14 @@ def update_survey_status(
     survey = db.query(Survey).filter(Survey.id == survey_id, Survey.tenant_id == current_user.tenant_id).first()
     if not survey:
         raise HTTPException(status_code=404, detail="Survey not found")
+    _authorize_survey_write(survey, current_user, db)
 
     try:
         new_status = SurveyStatusEnum(body.status)
         if new_status == SurveyStatusEnum.active:
+            # Publishing/activating a draft counts toward the free-plan limit.
+            if survey.status == SurveyStatusEnum.draft:
+                _assert_within_survey_limit(db, current_user, exclude_id=survey_id)
             q_count = db.query(SurveyQuestion).filter(SurveyQuestion.survey_id == survey_id).count()
             if q_count < 2:
                 raise HTTPException(status_code=400, detail="At least 2 questions are required to publish")
@@ -647,6 +834,7 @@ def delete_survey(
     survey = db.query(Survey).filter(Survey.id == survey_id, Survey.tenant_id == current_user.tenant_id).first()
     if not survey:
         raise HTTPException(status_code=404, detail="Survey not found")
+    _authorize_survey_write(survey, current_user, db)
 
     db.delete(survey)
     db.commit()
@@ -683,6 +871,7 @@ def replace_questions(
     survey = db.query(Survey).filter(Survey.id == survey_id, Survey.tenant_id == current_user.tenant_id).first()
     if not survey:
         raise HTTPException(status_code=404, detail="Survey not found")
+    _authorize_survey_write(survey, current_user, db)
 
     _upsert_questions(survey.id, questions, db)
     db.commit()
@@ -786,6 +975,7 @@ def share_survey(
     survey = db.query(Survey).filter(Survey.id == survey_id, Survey.tenant_id == current_user.tenant_id).first()
     if not survey:
         raise HTTPException(status_code=404, detail="Survey not found")
+    _authorize_survey_write(survey, current_user, db)
 
     # Ensure recipient belongs to the same tenant
     target_user = (
@@ -829,6 +1019,10 @@ def revoke_share(
 ):
     """Remove a team member's access to a survey."""
     _require_creator(current_user)
+    survey = db.query(Survey).filter(Survey.id == survey_id, Survey.tenant_id == current_user.tenant_id).first()
+    if not survey:
+        raise HTTPException(status_code=404, detail="Survey not found")
+    _authorize_survey_write(survey, current_user, db)
     share = db.query(SurveyShare).filter(SurveyShare.id == share_id, SurveyShare.survey_id == survey_id).first()
     if not share:
         raise HTTPException(status_code=404, detail="Share record not found")

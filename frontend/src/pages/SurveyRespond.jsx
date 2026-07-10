@@ -3,6 +3,22 @@ import { useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import API from '../api/axios';
+import LocationSelect from '../components/LocationSelect';
+import SearchableSelect from '../components/SearchableSelect';
+
+// Basic email format check for the (optional) results-email step.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Occupation options for the demographics step (searchable dropdown).
+const OCCUPATION_OPTIONS = [
+  'Non IT Employee',
+  'IT Employee',
+  'Business Owner',
+  'Student',
+  'Homemaker',
+  'Entrepreneur',
+  'Unemployed',
+];
 import { useLoading } from '../context/LoadingContext';
 import { useConditionalLogic } from '../hooks/useConditionalLogic';
 import { useResponseTracking } from '../hooks/useResponseTracking';
@@ -13,6 +29,9 @@ function getToken(slug) {
   const k = `nx_${slug}`;
   let t = localStorage.getItem(k);
   if (!t) { t = 's_' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem(k, t); }
+  // Expose the active session token so the axios interceptor can authorize
+  // /responses/ calls for this respondent. (AP-SEC-003)
+  localStorage.setItem('nx_active_session', t);
   return t;
 }
 
@@ -468,9 +487,13 @@ export default function SurveyRespond() {
   const [demographics, setDemographics] = useState({
     age_range: "",
     gender: "",
+    country: "",
+    state: "",
     city: "",
     occupation: ""
   });
+  // Set once the respondent tries to finish so the mandatory occupation error shows.
+  const [demoSubmitAttempted, setDemoSubmitAttempted] = useState(false);
 
   // ── Load ──────────────────────────────────────────────────────────────────
   useEffect(() => { load(); return () => clearTimeout(timer.current); }, [slug]);
@@ -515,7 +538,16 @@ export default function SurveyRespond() {
       } else {
         setStep(-1);
       }
-    } catch (e) { console.error(e); setErr('Failed to load survey'); }
+    } catch (e) {
+      console.error(e);
+      // A 404 here usually means the survey isn't published yet (drafts are hidden
+      // from respondents) or the link is wrong — keep the message friendly + actionable.
+      setErr(
+        e?.response?.status === 404
+          ? "This survey isn’t available yet. It may be unpublished or no longer active."
+          : "Failed to load survey"
+      );
+    }
     finally { stopLoading(); }
   }
 
@@ -529,6 +561,7 @@ export default function SurveyRespond() {
         survey_id: sv.id,
         session_token: token.current,
         respondent_email: email || null,
+        source: sourceRef.current || null,
         language: currentLang || 'en',
         status: 'in_progress',
       });
@@ -574,6 +607,10 @@ export default function SurveyRespond() {
   async function submit() {
     for (const q of visibleQuestions) {
       if (q.is_required && !ans[q.id]) { goTo(activeQs.indexOf(q)); return toast.error(ui.pleaseAnswer(textFor(q.question_text, currentLang))); }
+    }
+    // Validate the results email format when one is required.
+    if (activeSv?.require_email && !EMAIL_RE.test((email || '').trim())) {
+      return toast.error('Please enter a valid email address.');
     }
     setBusy(true);
     try {
@@ -670,19 +707,20 @@ export default function SurveyRespond() {
     <div
       style={{
         minHeight: "100vh",
+        maxHeight: "100vh",
         background: "#0E0501",
         display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
+        flexDirection: "column",
         padding: "20px 16px",
-        overflow: "hidden",
+        overflowY: "auto",
+        WebkitOverflowScrolling: "touch",
         position: "relative"
       }}
     >
       {/* Glow */}
       <div
         style={{
-          position: "absolute",
+          position: "fixed",
           width: 620,
           height: 620,
           background:
@@ -702,6 +740,7 @@ export default function SurveyRespond() {
         style={{
           width: "100%",
           maxWidth: 680,
+          margin: "auto",
           position: "relative",
           zIndex: 2
         }}
@@ -814,7 +853,7 @@ export default function SurveyRespond() {
               margin: "0 auto"
             }}
           >
-            These details are optional and used for aggregate analytics.
+            Used only for aggregate analytics.
           </p>
         </div>
 
@@ -957,8 +996,8 @@ export default function SurveyRespond() {
             marginTop: 24
           }}
         >
-          {/* CITY */}
-          <div>
+          {/* LOCATION — cascading Country → State → City */}
+          <div style={{ gridColumn: "1 / -1" }}>
             <p
               style={{
                 fontFamily: "Syne,sans-serif",
@@ -971,26 +1010,37 @@ export default function SurveyRespond() {
                 textAlign: window.innerWidth <= 768 ? 'center' : 'left'
               }}
             >
-              City
+              Location
             </p>
 
-            <input
-              type="text"
-              placeholder="Hyderabad"
-              value={demographics.city}
-              onChange={(e) =>
+            <LocationSelect
+              dark
+              value={{ country: demographics.country, state: demographics.state, city: demographics.city }}
+              onChange={(loc) =>
                 setDemographics({
                   ...demographics,
-                  city: e.target.value
+                  country: loc.country || "",
+                  state: loc.state || "",
+                  city: loc.city || ""
                 })
               }
-              style={{
+              labelStyle={{
+                fontFamily: "Syne,sans-serif",
+                fontSize: 9,
+                fontWeight: 700,
+                letterSpacing: "0.12em",
+                textTransform: "uppercase",
+                color: "rgba(237,232,223,0.4)",
+                display: "block",
+                marginBottom: 6
+              }}
+              selectStyle={{
                 width: "100%",
                 height: 54,
                 borderRadius: 18,
                 border: "1px solid rgba(237,232,223,0.08)",
                 background: "#F5EFE7",
-                padding: "0 20px",
+                padding: "14px 38px 14px 16px",
                 fontFamily: "Fraunces,serif",
                 fontSize: window.innerWidth <= 768 ? 16 : 22,
                 color: "#160F08",
@@ -998,10 +1048,11 @@ export default function SurveyRespond() {
                 boxSizing: "border-box",
                 textAlign: window.innerWidth <= 768 ? 'center' : 'left'
               }}
+              wrapStyle={{ marginBottom: 12 }}
             />
           </div>
 
-          {/* OCCUPATION */}
+          {/* OCCUPATION — mandatory searchable dropdown */}
           <div>
             <p
               style={{
@@ -1015,26 +1066,29 @@ export default function SurveyRespond() {
                 textAlign: window.innerWidth <= 768 ? 'center' : 'left'
               }}
             >
-              Occupation
+              Occupation <span style={{ color: "#FF5A00" }}>*</span>
             </p>
 
-            <input
-              type="text"
-              placeholder="IT Employee"
+            <SearchableSelect
+              dark
+              ariaLabel="Occupation"
+              required
+              clearable={false}
+              options={OCCUPATION_OPTIONS}
               value={demographics.occupation}
-              onChange={(e) =>
-                setDemographics({
-                  ...demographics,
-                  occupation: e.target.value
-                })
-              }
-              style={{
+              placeholder="Search your occupation…"
+              emptyText="No occupation found"
+              onChange={(v) => {
+                setDemographics({ ...demographics, occupation: v });
+                if (v) setDemoSubmitAttempted(false);
+              }}
+              inputStyle={{
                 width: "100%",
                 height: 54,
                 borderRadius: 18,
                 border: "2px solid #FF5A00",
                 background: "#F5EFE7",
-                padding: "0 20px",
+                padding: "14px 38px 14px 16px",
                 fontFamily: "Fraunces,serif",
                 fontSize: window.innerWidth <= 768 ? 16 : 22,
                 color: "#160F08",
@@ -1059,10 +1113,18 @@ export default function SurveyRespond() {
         >
           <button
             onClick={async () => {
+              // Occupation is mandatory — block completion until it is chosen.
+              if (!demographics.occupation) {
+                setDemoSubmitAttempted(true);
+                toast.error("Please select your occupation.");
+                return;
+              }
               try {
                 await API.patch(`/responses/${rId.current}`, {
                   age_range: demographics.age_range,
                   gender: demographics.gender,
+                  country: demographics.country,
+                  state: demographics.state,
                   city: demographics.city,
                   occupation: demographics.occupation
                 });
@@ -1396,7 +1458,7 @@ export default function SurveyRespond() {
                   style={{ position: 'absolute', top: '30%', left: '25%', width: 350, height: 350, borderRadius: '50%', background: `radial-gradient(circle,${tc}10,transparent 70%)`, filter: 'blur(60px)' }} />
                 <div style={{ position: 'absolute', bottom: '-20px', left: '-10px', fontFamily: "'Playfair Display',serif", fontWeight: 900, fontSize: 'clamp(100px,18vw,280px)', color: 'transparent', WebkitTextStroke: '1px rgba(255,69,0,0.04)', letterSpacing: '-8px', lineHeight: 1, userSelect: 'none', pointerEvents: 'none' }}>Pulse</div>
               </div>
-              <div style={{ textAlign: 'center', maxWidth: 560, position: 'relative', zIndex: 1 }}>
+              <div style={{ textAlign: 'center', maxWidth: 560, margin: 'auto', position: 'relative', zIndex: 1, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 12px', borderRadius: 999, border: `1px solid ${tc}2E`, background: `${tc}0D`, marginBottom: 24 }}>
                   <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: tc }}>
@@ -1561,6 +1623,8 @@ export default function SurveyRespond() {
                       style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '13px 36px', borderRadius: 999, border: 'none', background: email ? tc : 'rgba(22,15,8,0.1)', color: email ? '#fff' : sub, fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: (busy || !email) ? 'not-allowed' : 'pointer', opacity: busy ? 0.65 : 1, transition: 'all 0.25s', boxShadow: email ? `0 8px 32px ${tc}40` : 'none', width: window.innerWidth <= 480 ? '100%' : 'auto', justifyContent: 'center' }}>
                       {busy ? ui.submitting : <><span>{ui.submit}</span><Icons.Check style={{ color: 'currentColor' }} /></>}
                     </motion.button>
+                      );
+                    })()}
                   </div>
                 </motion.div>
               </div>

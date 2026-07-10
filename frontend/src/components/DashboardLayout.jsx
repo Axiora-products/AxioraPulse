@@ -25,6 +25,8 @@ export default function DashboardLayout() {
   const [surveys, setSurveys] = useState([]);
   const [files, setFiles] = useState([]);
   const [sidebarLoading, setSidebarLoading] = useState(true);
+  const [recentOpen, setRecentOpen] = useState(true);
+  const [draftsOpen, setDraftsOpen] = useState(true);
 
   // Fetch surveys and files for sidebar
   useEffect(() => {
@@ -42,7 +44,9 @@ export default function DashboardLayout() {
       setSidebarLoading(false);
     };
     load();
-  }, [profile]);
+    // Key on the user id, not the profile object — checkSession() replaces the
+    // profile object on every navigation, which would otherwise refetch endlessly.
+  }, [profile?.id]);
 
   // Close user menu on outside click
   useEffect(() => {
@@ -77,7 +81,7 @@ export default function DashboardLayout() {
     if (loc.pathname === '/surveys' || loc.pathname === '/dashboard') {
       API.get('/surveys/?limit=50').then(r => setSurveys(r.data || [])).catch(() => { });
     }
-  }, [loc.pathname, profile]);
+  }, [loc.pathname, profile?.id]);
 
   const refreshFiles = async () => {
     try {
@@ -127,10 +131,14 @@ export default function DashboardLayout() {
 
   const initials = (profile?.full_name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
 
-  // Group surveys by status
-  const activeSurveys = surveys.filter(s => s.status === 'active');
+  // Personal accounts have no team-management surface
+  const isPersonal = tenant?.account_type === 'personal';
+
+  // Group surveys by status. "Recent" = every non-draft survey, newest first.
+  const recentSurveys = [...surveys]
+    .filter(s => s.status !== 'draft')
+    .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
   const draftSurveys = surveys.filter(s => s.status === 'draft');
-  const closedSurveys = surveys.filter(s => ['closed', 'paused', 'expired'].includes(s.status));
 
   function handleSignOut() { signOut(); setUserMenu(false); }
 
@@ -230,7 +238,6 @@ export default function DashboardLayout() {
                 justifyContent: 'center',
                 transition: 'all 0.25s ease',
                 backdropFilter: 'blur(12px)',
-                marginTop: '-4px',
                 boxShadow: '0 4px 14px rgba(0,0,0,0.12)',
               }}
               onMouseEnter={e => {
@@ -263,7 +270,15 @@ export default function DashboardLayout() {
             </button>
 
           </div>
-          <Link to="/surveys/new" className="ws-new-btn" onClick={() => setMobileOpen(false)}>
+          <Link to="/surveys/new" className="ws-new-btn" onClick={(e) => {
+            setMobileOpen(false);
+            // Already on the create page: React Router won't remount the same route,
+            // so force a fresh load to reset the builder to a brand-new survey.
+            if (loc.pathname === '/surveys/new') {
+              e.preventDefault();
+              window.location.assign('/surveys/new');
+            }
+          }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
             <span>New Survey</span>
           </Link>
@@ -286,32 +301,31 @@ export default function DashboardLayout() {
               </div>
               <span className="ws-sidebar-item-text">Surveys</span>
             </NavLink>
-                  {/* Uploaded Files */}
-            <div className="ws-sidebar-section">
-              <div className="ws-sidebar-section-label">Files</div>
-              <NavLink to="/files" className={`ws-sidebar-item${loc.pathname === '/files' ? ' active' : ''}`} onClick={() => setMobileOpen(false)}>
-                <div className="ws-sidebar-item-icon">📁</div>
-                <div className="ws-sidebar-item-text">
-                  <span className="ws-sidebar-item-title">All Files</span>
-                  <span className="ws-sidebar-item-meta">{files.length} uploaded</span>
-                </div>
-              </NavLink>
-            </div>
-          </div>
+            {!isPersonal && (
             <NavLink to="/team" className={`ws-sidebar-item${loc.pathname === '/team' ? ' active' : ''}`} onClick={() => setMobileOpen(false)}>
               <div className="ws-sidebar-item-icon">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
               </div>
               <span className="ws-sidebar-item-text">Team</span>
             </NavLink>
+            )}
+            <NavLink to="/files" className={`ws-sidebar-item${loc.pathname === '/files' ? ' active' : ''}`} onClick={() => setMobileOpen(false)}>
+              <div className="ws-sidebar-item-icon">📁</div>
+              <div className="ws-sidebar-item-text">
+                <span className="ws-sidebar-item-title">All Files</span>
+                <span className="ws-sidebar-item-meta">{files.length} uploaded</span>
+              </div>
+            </NavLink>
           </div>
-
-          {/* Active Surveys */}
-          {activeSurveys.length > 0 && (
-            <div className="ws-sidebar-section">
-              <div className="ws-sidebar-section-label">Active ({activeSurveys.length})</div>
-              {activeSurveys.map(s => (
-                <NavLink key={s.id} to={`/surveys/${s.id}/edit`} className={`ws-sidebar-item${loc.pathname.includes(s.id) ? ' active' : ''}`} onClick={() => setMobileOpen(false)}>
+          {/* Recent Surveys */}
+          {recentSurveys.length > 0 && (
+            <div className="ws-sidebar-section" style={{ marginTop: 12 }}>
+              <button type="button" className="ws-sidebar-section-label ws-sidebar-section-toggle" onClick={() => setRecentOpen(o => !o)} aria-expanded={recentOpen}>
+                <span>Recent Surveys ({recentSurveys.length})</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 'auto', transform: recentOpen ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.2s ease' }}><polyline points="6 9 12 15 18 9" /></svg>
+              </button>
+              {recentOpen && recentSurveys.map(s => (
+                <NavLink key={s.id} to={`/surveys/${s.id}/edit`} title={s.title} className={`ws-sidebar-item${loc.pathname.includes(s.id) ? ' active' : ''}`} onClick={() => setMobileOpen(false)}>
                   <div className="ws-sidebar-item-icon">📊</div>
                   <div className="ws-sidebar-item-text">
                     <span className="ws-sidebar-item-title">{s.title}</span>
@@ -333,12 +347,15 @@ export default function DashboardLayout() {
           {/* Draft Surveys */}
           {draftSurveys.length > 0 && (
             <div className="ws-sidebar-section">
-              <div className="ws-sidebar-section-label">Drafts ({draftSurveys.length})</div>
-              {draftSurveys.map(s => {
+              <button type="button" className="ws-sidebar-section-label ws-sidebar-section-toggle" onClick={() => setDraftsOpen(o => !o)} aria-expanded={draftsOpen}>
+                <span>Drafts ({draftSurveys.length})</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 'auto', transform: draftsOpen ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.2s ease' }}><polyline points="6 9 12 15 18 9" /></svg>
+              </button>
+              {draftsOpen && draftSurveys.map(s => {
                 const isPromptDraft = !s.questions || s.questions.length === 0;
                 const linkTo = isPromptDraft ? `/surveys/new?draftId=${s.id}` : `/surveys/${s.id}/edit`;
                 return (
-                  <NavLink key={s.id} to={linkTo} className={`ws-sidebar-item${loc.pathname.includes(s.id) ? ' active' : ''}`} onClick={() => setMobileOpen(false)}>
+                  <NavLink key={s.id} to={linkTo} title={s.title} className={`ws-sidebar-item${loc.pathname.includes(s.id) ? ' active' : ''}`} onClick={() => setMobileOpen(false)}>
                     <div className="ws-sidebar-item-icon">{isPromptDraft ? '🖋️' : '📝'}</div>
                     <div className="ws-sidebar-item-text">
                       <span className="ws-sidebar-item-title">{s.title}</span>
@@ -358,22 +375,6 @@ export default function DashboardLayout() {
             </div>
           )}
 
-          {/* Closed Surveys */}
-          {closedSurveys.length > 0 && (
-            <div className="ws-sidebar-section">
-              <div className="ws-sidebar-section-label">Closed ({closedSurveys.length})</div>
-              {closedSurveys.map(s => (
-                <NavLink key={s.id} to={`/surveys/${s.id}/analytics`} className={`ws-sidebar-item${loc.pathname.includes(s.id) ? ' active' : ''}`} onClick={() => setMobileOpen(false)}>
-                  <div className="ws-sidebar-item-icon" style={{ opacity: 0.5 }}>📋</div>
-                  <div className="ws-sidebar-item-text">
-                    <span className="ws-sidebar-item-title" style={{ opacity: 0.7 }}>{s.title}</span>
-                    <span className="ws-sidebar-item-meta">{s.status}</span>
-                  </div>
-                </NavLink>
-              ))}
-            </div>
-          )}
-
           {/* No surveys */}
           {surveys.length === 0 && !sidebarLoading && (
             <div className="ws-empty">
@@ -383,9 +384,7 @@ export default function DashboardLayout() {
               <div className="ws-empty-text">No surveys yet.<br />Create your first one!</div>
             </div>
           )}
-
-          
-
+        </div>
         {/* User Section at bottom */}
         <div className="ws-sidebar-user" ref={userRef}>
           <div className="ws-sidebar-avatar" onClick={() => setUserMenu(v => !v)}>
@@ -528,6 +527,7 @@ export default function DashboardLayout() {
             .ws-layout.left-collapsed .ws-sidebar-item-text,
             .ws-layout.left-collapsed .ws-sidebar-section-label,
             .ws-layout.left-collapsed .ws-sidebar-item-meta,
+            .ws-layout.left-collapsed .ws-sidebar-item-actions,
             .ws-layout.left-collapsed .ws-sidebar-user-info,
             .ws-layout.left-collapsed .ws-empty-text,
             .ws-layout.left-collapsed .ws-sidebar-user button,

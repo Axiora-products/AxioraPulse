@@ -6,6 +6,8 @@ import { useLoading } from '../context/LoadingContext';
 import useAuthStore from "../hooks/useAuth";
 import { cognitoSignIn, cognitoForgotPassword, cognitoConfirmPassword, cognitoResendCode } from '../lib/cognito';
 import { sendLoginOTP, verifyLoginOTP } from '../lib/otp';
+import { consumePostAuthRedirect } from '../lib/pendingTemplate';
+import { getApiErrorMessage } from '../lib/apiError';
 
 const Logo = ({ dark }) => (
   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 0, lineHeight: 1 }}>
@@ -23,17 +25,33 @@ function isValidPhone(num) {
 }
 
 
-function friendlyAuthError(msg = '') {
-  const m = msg.toLowerCase();
-  if (m.includes('invalid login') || m.includes('invalid credentials') || m.includes('email not confirmed'))
+function friendlyAuthError(msg = '', code = '') {
+  const m = (msg || '').toLowerCase();
+  const c = (code || '').toLowerCase();
+  if (c === 'usernotconfirmedexception' || m.includes('not confirmed'))
+    return 'Your email isn’t verified yet. Please verify your email to continue.';
+  if (
+    c === 'notauthorizedexception' ||
+    c === 'usernotfoundexception' ||
+    m.includes('incorrect username or password') ||
+    m.includes('invalid login') ||
+    m.includes('invalid credentials') ||
+    m.includes('user does not exist')
+  )
     return 'Incorrect email or password. Please try again.';
-  if (m.includes('expired') || m.includes('otp') || m.includes('token'))
+  if (c === 'expiredcodeexception' || m.includes('expired') || m.includes('otp') || m.includes('token'))
     return 'Your sign-in link has expired. Please log in with your password or request a new link.';
-  if (m.includes('rate limit') || m.includes('too many'))
+  if (
+    c === 'limitexceededexception' ||
+    c === 'toomanyrequestsexception' ||
+    m.includes('rate limit') ||
+    m.includes('too many')
+  )
     return 'Too many attempts — please wait a minute before trying again.';
-  if (m.includes('network') || m.includes('fetch'))
+  if (m.includes('network') || m.includes('fetch') || m.includes('failed to synchronize'))
     return 'Connection error. Please check your internet and try again.';
-  return msg;
+  // Never surface raw exception text to the user.
+  return 'Something went wrong. Please try again.';
 }
 
 function ForgotPasswordModal({ onClose }) {
@@ -195,7 +213,7 @@ export default function Login() {
       toast.success('OTP sent to your phone');
       setResendTimer(30);
     } catch (err) {
-      toast.error(err.message || 'Failed to send OTP');
+      toast.error(getApiErrorMessage(err, 'Failed to send OTP'));
     } finally { setOtpBusy(false); }
   };
 
@@ -211,9 +229,9 @@ export default function Login() {
       const storeUser = useAuthStore.getState().user;
       if (!storeUser) throw new Error('Failed to sync session');
       toast.success('Welcome back!');
-      window.location.href = '/dashboard';
+      window.location.href = consumePostAuthRedirect('/dashboard');
     } catch (err) {
-      toast.error(err.message || 'Verification failed');
+      toast.error(getApiErrorMessage(err, 'Verification failed'));
     } finally { setOtpBusy(false); }
   };
 
@@ -235,13 +253,16 @@ export default function Login() {
         throw new Error('Failed to synchronize user session with the backend. Please try again.');
       }
       toast.success('Welcome back!');
-      window.location.href = '/dashboard';
+      window.location.href = consumePostAuthRedirect('/dashboard');
     } catch (err) {
-      if (err.code === 'UserNotConfirmedException') {
+      // amazon-cognito-identity-js surfaces the error type on `code` in some
+      // versions and `name` in others; check both (plus the message as a fallback).
+      const code = err.code || err.name || '';
+      if (code === 'UserNotConfirmedException' || /not confirmed/i.test(err.message || '')) {
         toast.error('Email not verified. Redirecting to verification...');
         nav('/register', { state: { email, step: 'verify', isUnconfirmed: true } });
       } else {
-        toast.error(friendlyAuthError(err.message || 'Login failed', err.code || ''));
+        toast.error(friendlyAuthError(err.message || 'Login failed', code));
       }
     } finally {
       setBusy(false);

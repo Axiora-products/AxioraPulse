@@ -31,12 +31,23 @@ def dashboard_stats(
     """
     tid = current_user.tenant_id
 
-    total_surveys = db.query(func.count(Survey.id)).filter(Survey.tenant_id == tid).scalar() or 0
+    # KPI counts exclude drafts — only active/paused/expired/closed surveys count.
+    total_surveys = (
+        db.query(func.count(Survey.id))
+        .filter(
+            Survey.tenant_id == tid,
+            Survey.created_by == current_user.id,
+            Survey.status != SurveyStatusEnum.draft,
+        )
+        .scalar()
+        or 0
+    )
 
     active_surveys = (
         db.query(func.count(Survey.id))
         .filter(
             Survey.tenant_id == tid,
+            Survey.created_by == current_user.id,
             Survey.status == SurveyStatusEnum.active,
         )
         .scalar()
@@ -47,7 +58,10 @@ def dashboard_stats(
     total_responses = (
         db.query(func.count(SurveyResponse.id))
         .join(Survey, SurveyResponse.survey_id == Survey.id)
-        .filter(Survey.tenant_id == tid)
+        .filter(
+            Survey.tenant_id == tid,
+            Survey.created_by == current_user.id,
+        )
         .scalar()
         or 0
     )
@@ -57,6 +71,7 @@ def dashboard_stats(
         .join(Survey, SurveyResponse.survey_id == Survey.id)
         .filter(
             Survey.tenant_id == tid,
+            Survey.created_by == current_user.id,
             SurveyResponse.status == ResponseStatusEnum.completed,
         )
         .scalar()
@@ -66,9 +81,14 @@ def dashboard_stats(
     completion_rate = round((completed_responses / total_responses) * 100, 1) if total_responses > 0 else 0.0
 
     team_members = (
-        db.query(func.count(UserProfile.id)).filter(UserProfile.tenant_id == tid, UserProfile.is_active).scalar() or 0
+        db.query(func.count(UserProfile.id))
+        .filter(
+            UserProfile.tenant_id == current_user.tenant_id,
+            UserProfile.account_status == "active",
+        )
+        .scalar()
+        or 0
     )
-
     return DashboardStats(
         total_surveys=total_surveys,
         active_surveys=active_surveys,
@@ -93,7 +113,10 @@ def recent_surveys(
     surveys = (
         db.query(Survey)
         .options(joinedload(Survey.creator))
-        .filter(Survey.tenant_id == tid)
+        .filter(
+            Survey.tenant_id == tid,
+            Survey.created_by == current_user.id,
+        )
         .order_by(Survey.created_at.desc())
         .limit(6)
         .all()
@@ -139,14 +162,27 @@ def dashboard_feed(
         db.query(SurveyResponse)
         .options(joinedload(SurveyResponse.survey))
         .join(Survey, SurveyResponse.survey_id == Survey.id)
-        .filter(Survey.tenant_id == tid, SurveyResponse.status == ResponseStatusEnum.completed)
+        .filter(
+            Survey.tenant_id == tid,
+            Survey.created_by == current_user.id,
+            SurveyResponse.status == ResponseStatusEnum.completed,
+        )
         .order_by(SurveyResponse.started_at.desc())
         .limit(12)
         .all()
     )
 
     # 2. Recent surveys
-    survs = db.query(Survey).filter(Survey.tenant_id == tid).order_by(Survey.created_at.desc()).limit(8).all()
+    survs = (
+        db.query(Survey)
+        .filter(
+            Survey.tenant_id == tid,
+            Survey.created_by == current_user.id,
+        )
+        .order_by(Survey.created_at.desc())
+        .limit(8)
+        .all()
+    )
 
     feed = []
     for r in resps:

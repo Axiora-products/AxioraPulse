@@ -3,8 +3,8 @@ services/ai_provider.py
 ───────────────────────
 Centralized multi-provider AI service with automatic failover.
 
-Supports: Gemini 2.5 Flash, OpenAI GPT-5.4 Mini, Anthropic Claude Sonnet.
-Priority order: Gemini → OpenAI → Anthropic.
+Supports: Anthropic Claude Sonnet (primary), OpenAI GPT (fallback).
+Priority order: Claude → OpenAI.
 
 Each provider returns raw JSON text. On failure (rate limit, network error,
 parse error), the next provider is tried automatically. Raises HTTP 503
@@ -12,10 +12,12 @@ only when all configured providers have failed.
 """
 
 import os
+import time
 import logging
-import requests
+import threading
 from typing import Optional
 
+import requests
 import anthropic
 import openai
 
@@ -25,8 +27,8 @@ logger = logging.getLogger("ai_provider")
 
 # ── Provider Models ───────────────────────────────────────────────────────────
 
-GEMINI_MODEL = "gemini-2.5-flash-lite"
-OPENAI_MODEL = "gpt-5.4-mini"
+GEMINI_MODEL = "gemini-2.5-flash"
+OPENAI_MODEL = "gpt-4o-mini"
 ANTHROPIC_MODEL = "claude-sonnet-4-20250514"
 
 # ── Default System Instruction ────────────────────────────────────────────────
@@ -35,9 +37,13 @@ _DEFAULT_SYSTEM = "You are a helpful AI assistant. Always respond with valid JSO
 
 # ── Provider Timeout (seconds) ────────────────────────────────────────────────
 
-_GEMINI_TIMEOUT = 90
-_OPENAI_TIMEOUT = 90
-_ANTHROPIC_TIMEOUT = 90
+_GEMINI_TIMEOUT = 180
+_OPENAI_TIMEOUT = 180
+_ANTHROPIC_TIMEOUT = 120
+
+# ── Gemini API Base ───────────────────────────────────────────────────────────
+
+_GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
 
 # ── Truncated JSON Repair ─────────────────────────────────────────────────────
@@ -119,28 +125,32 @@ def _call_gemini(
     max_tokens: int = 2048,
     system_instruction: Optional[str] = None,
 ) -> str:
-    """Call Google Gemini REST API and return raw JSON text."""
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={api_key}"
-    headers = {"Content-Type": "application/json"}
+    """Call Google Gemini API via REST and return raw JSON text."""
+    url = f"{_GEMINI_API_BASE}/{GEMINI_MODEL}:generateContent?key={api_key}"
+
     payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "systemInstruction": {"parts": [{"text": system_instruction or _DEFAULT_SYSTEM}]},
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
         "generationConfig": {
-            "responseMimeType": "application/json",
             "maxOutputTokens": max_tokens,
+            "responseMimeType": "application/json",
         },
+        "systemInstruction": {"parts": [{"text": system_instruction or _DEFAULT_SYSTEM}]},
     }
 
-    response = requests.post(url, headers=headers, json=payload, timeout=_GEMINI_TIMEOUT)
-    response.raise_for_status()
-    result = response.json()
+    resp = requests.post(url, json=payload, timeout=_GEMINI_TIMEOUT)
+    resp.raise_for_status()
 
+    data = resp.json()
     try:
-        text = result["candidates"][0]["content"]["parts"][0]["text"].strip()
-    except (KeyError, IndexError, TypeError) as exc:
-        raise ValueError(f"Unexpected Gemini response structure: {exc}") from exc
+        text = data["candidates"][0]["content"]["parts"][0]["text"]
+    except (KeyError, IndexError):
+        raise ValueError(f"Unexpected Gemini response structure: {list(data.keys())}")
 
-    # Strip markdown code fences if Gemini wraps JSON despite instructions
+    text = text.strip()
+    if not text:
+        raise ValueError("Empty response from Gemini API")
+
+    # Strip markdown code fences if present
     if text.startswith("```"):
         text = text.split("\n", 1)[-1]
         if text.endswith("```"):
@@ -254,17 +264,19 @@ def _call_anthropic(
 
 
 # ── Provider Registry ─────────────────────────────────────────────────────────
+# Failover priority is top-to-bottom: the first provider with a configured (non-mock)
+# API key is used, falling back to the next on failure. OpenAI is the primary provider.
 
 _PROVIDERS = [
-    {
-        "name": "gemini",
-        "env_key": "GEMINI_KEY",
-        "caller": _call_gemini,
-    },
     {
         "name": "openai",
         "env_key": "OPENAI_KEY",
         "caller": _call_openai,
+    },
+    {
+        "name": "gemini",
+        "env_key": "GEMINI_KEY",
+        "caller": _call_gemini,
     },
     {
         "name": "anthropic",
@@ -285,8 +297,38 @@ def _mask_key(key: str) -> str:
 
 # Transient HTTP status codes that warrant a retry before failover
 _RETRYABLE_STATUS_CODES = {429, 502, 503}
-_MAX_RETRIES = 2
-_RETRY_BASE_DELAY = 2  # seconds; doubles each attempt (2s, 4s)
+_MAX_RETRIES = 3
+_RETRY_BASE_DELAY = 3  # seconds; doubles each attempt (3s, 6s, 12s)
+
+# ── Circuit breaker (AP-SEC-021) ───────────────────────────────────────────────
+# After repeated failures a provider is "opened" (skipped) for a cooldown window
+# so a degraded provider doesn't tie up workers on every request. A hard total
+# deadline bounds how long a single request may spend retrying/failing over.
+_BREAKER_THRESHOLD = 4
+_BREAKER_COOLDOWN = 60  # seconds
+_TOTAL_DEADLINE = 90  # seconds per call_ai_sync invocation
+_breaker_lock = threading.Lock()
+_breaker_state: dict = {}  # provider_name -> {"fails": int, "open_until": float}
+
+
+def _breaker_is_open(name: str) -> bool:
+    with _breaker_lock:
+        st = _breaker_state.get(name)
+        return bool(st and st.get("open_until", 0) > time.monotonic())
+
+
+def _breaker_record_success(name: str) -> None:
+    with _breaker_lock:
+        _breaker_state.pop(name, None)
+
+
+def _breaker_record_failure(name: str) -> None:
+    with _breaker_lock:
+        st = _breaker_state.setdefault(name, {"fails": 0, "open_until": 0})
+        st["fails"] += 1
+        if st["fails"] >= _BREAKER_THRESHOLD:
+            st["open_until"] = time.monotonic() + _BREAKER_COOLDOWN
+            st["fails"] = 0
 
 
 def call_ai_sync(
@@ -303,20 +345,32 @@ def call_ai_sync(
     Returns the raw JSON text from the first successful provider.
     Raises HTTPException 503 if all providers fail.
     """
-    import time
-
     errors: list[str] = []
     attempted = 0
+    deadline = time.monotonic() + _TOTAL_DEADLINE
 
     for provider in _PROVIDERS:
         api_key = os.getenv(provider["env_key"], "").strip()
         if not api_key or api_key.startswith("mock-"):
             continue
 
-        attempted += 1
         provider_name = provider["name"]
 
+        # Skip providers whose breaker is open, and stop once the overall
+        # request deadline is exceeded. (AP-SEC-021)
+        if _breaker_is_open(provider_name):
+            logger.warning("[AI] Skipping provider %s (circuit breaker open)", provider_name)
+            errors.append(f"{provider_name}: circuit breaker open")
+            continue
+        if time.monotonic() > deadline:
+            logger.error("[AI] Aborting failover — total deadline exceeded")
+            break
+
+        attempted += 1
+
         for attempt in range(_MAX_RETRIES + 1):
+            if time.monotonic() > deadline:
+                break
             try:
                 logger.info("[AI] Trying provider: %s (attempt %d)", provider_name, attempt + 1)
                 text = provider["caller"](
@@ -326,6 +380,7 @@ def call_ai_sync(
                     system_instruction=system_instruction,
                 )
                 logger.info("[AI] Success with provider: %s", provider_name)
+                _breaker_record_success(provider_name)
                 return _repair_truncated_json(text)
 
             except Exception as exc:
@@ -351,6 +406,7 @@ def call_ai_sync(
 
                 logger.warning("[AI] Provider %s failed: %s", provider_name, safe_msg)
                 errors.append(f"{provider_name}: {safe_msg}")
+                _breaker_record_failure(provider_name)
                 break  # Move to next provider
 
     if attempted == 0:

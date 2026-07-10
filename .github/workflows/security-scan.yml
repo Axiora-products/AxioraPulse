@@ -1,0 +1,63 @@
+name: security-scan
+
+# Dependency vulnerability + secret scanning. (AP-SEC-024, AP-SEC-006)
+on:
+  pull_request:
+  push:
+    branches: [develop, main]
+  schedule:
+    - cron: "0 6 * * 1" # weekly Monday 06:00 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  python-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: pip-audit (backend)
+        run: |
+          python -m pip install --upgrade pip pip-audit
+          # CVE-2025-3000 (PYSEC-2025-194) — torch; pulled in transitively via
+          # openai-whisper. No patched release exists in any version. Drop this
+          # ignore once upstream ships a fix.
+          pip-audit -r backend/requirements.txt --strict \
+            --ignore-vuln CVE-2025-3000 \
+            || exit 1
+
+  npm-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: npm audit (frontend)
+        working-directory: frontend
+        run: npm audit --audit-level=high
+      - name: npm audit (infra/cdk)
+        working-directory: infra/cdk
+        run: npm audit --audit-level=high
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # Use the open-source gitleaks CLI directly. The gitleaks-action@v2 wrapper
+      # requires a paid GITLEAKS_LICENSE for organization repos; the binary (MIT) does not.
+      - name: Install gitleaks
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          GL_VERSION=$(curl -sSL -H "Authorization: Bearer ${GH_TOKEN}" https://api.github.com/repos/gitleaks/gitleaks/releases/latest | grep -oP '"tag_name":\s*"v\K[^"]+')
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GL_VERSION}/gitleaks_${GL_VERSION}_linux_x64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+      - name: gitleaks
+        run: gitleaks detect --source . --redact --verbose --exit-code 1

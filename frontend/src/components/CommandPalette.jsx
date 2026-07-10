@@ -34,7 +34,8 @@ export default function CommandPalette({ onClose }) {
   const [loading, setLoading] = useState(false);
   const inputRef = useRef(null);
   const nav = useNavigate();
-  const { profile } = useAuthStore();
+  const { profile, tenant } = useAuthStore();
+  const isPersonal = tenant?.account_type === 'personal';
 
   useEffect(() => {
     setTimeout(() => inputRef.current?.focus(), 50);
@@ -46,6 +47,7 @@ export default function CommandPalette({ onClose }) {
 
     // Filter static actions
     const staticFiltered = STATIC_ACTIONS.filter(a => {
+      if (a.to === '/team' && isPersonal) return false;
       if (a.perm && !hasPermission(profile?.role, a.perm)) return false;
       return !trimmed || a.label.toLowerCase().includes(trimmed) || a.group.toLowerCase().includes(trimmed);
     });
@@ -76,7 +78,7 @@ export default function CommandPalette({ onClose }) {
     } finally {
       setLoading(false);
     }
-  }, [profile]);
+  }, [profile, isPersonal]);
 
   useEffect(() => {
     const t = setTimeout(() => search(query), 120);

@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import ShareModal from '../components/ShareModal';
 import AISurveySuggestions from '../components/AISurveySuggestions';
+import LocationSelect from '../components/LocationSelect';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import API from '../api/axios';
 import useAuthStore from '../hooks/useAuth';
-import { QUESTION_TYPES, SHORT_SURVEY_RULES, estimateSurveyMinutes, getFormatDiversityScore, getQuestionWordCount, hasPermission, SURVEY_STATUS, formatDate, isExpired } from '../lib/constants';
+import { QUESTION_TYPES, SHORT_SURVEY_RULES, SURVEY_HEALTH_MINIMUMS, DEFAULT_THANK_YOU_MESSAGE, estimateSurveyMinutes, getFormatDiversityScore, getQuestionWordCount, isQuestionComplete, meetsMinLength, getThankYouCustom, composeThankYou, hasPermission, SURVEY_STATUS, formatDate, isExpired } from '../lib/constants';
 import toast from 'react-hot-toast';
 import { useLoading } from '../context/LoadingContext';
 import { Reorder, useDragControls } from 'framer-motion';
 import ConfirmModal from '../components/ConfirmModal';
 import HelpTip from '../components/HelpTip';
-import PitchInvestorReadinessPanel from '../pitch-investor-readiness';
+import CAAgentPanel from '../components/CAAgentPanel';
+import { getApiErrorMessage } from '../lib/apiError';
 
 const hasO = t => ['single_choice', 'multiple_choice', 'dropdown', 'ranking', 'emoji_reaction', 'swipe_choice', 'visual_choice'].includes(t);
 const isMx = t => t === 'matrix';
@@ -54,7 +56,8 @@ function getLocalSurveyScores(title = '', description = '') {
 const STATUS_COLORS = { draft: { bg: 'rgba(22,15,8,0.07)', text: 'rgba(22,15,8,0.45)', dot: 'rgba(22,15,8,0.3)' }, active: { bg: 'rgba(30,122,74,0.1)', text: 'var(--sage)', dot: 'var(--sage)' }, paused: { bg: 'rgba(255,184,0,0.12)', text: '#A07000', dot: 'var(--saffron)' }, closed: { bg: 'rgba(214,59,31,0.08)', text: 'var(--terracotta)', dot: 'var(--terracotta)' } };
 
 export default function SurveyEdit() {
-  const { id } = useParams(); const { profile } = useAuthStore(); const nav = useNavigate();
+  const { id } = useParams(); const { profile, tenant } = useAuthStore(); const nav = useNavigate();
+  const isPersonal = tenant?.account_type === 'personal';
   const { stopLoading } = useLoading();
   const [busy, setBusy] = useState(false);
   const [sv, setSv] = useState(null);
@@ -70,6 +73,12 @@ export default function SurveyEdit() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  // Ticking clock so the Execute countdown stays live without a manual reload.
+  const [nowTs, setNowTs] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNowTs(Date.now()), 30000);
+    return () => clearInterval(id);
+  }, []);
 
   // AI-powered intelligence for Guidance + Roadmap tabs
   const [aiIntel, setAiIntel] = useState(null);
@@ -94,7 +103,7 @@ export default function SurveyEdit() {
 
   const generatePDF = () => {
     if (!aiIntel) {
-      toast.error('Please visit the Guidance tab first to generate AI intelligence before downloading.');
+      toast.error('Please visit the Guidance tab first to generate Pulse intelligence before downloading.');
       return;
     }
     const html = `<!DOCTYPE html>
@@ -119,13 +128,13 @@ export default function SurveyEdit() {
 </head>
 <body>
   <h1>${sv.title}</h1>
-  <div class="subtitle">Investor Readiness & AI Market Intelligence Memo</div>
+  <div class="subtitle">Investor Readiness & Pulse Market Intelligence Memo</div>
 
   <div class="section">
     <h2>Executive Summary</h2>
     <div class="meta-grid">
       <div class="meta-item"><strong>Survey Idea</strong>${sv.description || 'Not specified'}</div>
-      <div class="meta-item"><strong>AI Industry Classification</strong>${aiIntel.category}</div>
+      <div class="meta-item"><strong>Pulse Industry Classification</strong>${aiIntel.category}</div>
       <div class="meta-item"><strong>Idea Viability Score</strong>${aiIntel.viabilityScore} / 100</div>
     </div>
   </div>
@@ -216,7 +225,7 @@ export default function SurveyEdit() {
       setAiIntel(intelligenceData);
     } catch (err) {
       console.error('[AI Intel]', err);
-      setAiIntelError(err.response?.data?.detail || 'Failed to generate intelligence. Please try again.');
+      setAiIntelError(getApiErrorMessage(err, 'Failed to generate intelligence. Please try again.'));
     } finally {
       setAiIntelLoading(false);
     }
@@ -226,12 +235,20 @@ export default function SurveyEdit() {
 
   async function load() {
     try {
-      const [{ data: s }, { data: q }, { data: sh }, { data: u }] = await Promise.all([
+      // Only the survey itself is essential — questions/shares/users degrade
+      // gracefully so an auxiliary fetch (e.g. a forbidden or rate-limited call)
+      // never blocks opening the survey.
+      const [svRes, qRes, shRes, uRes] = await Promise.allSettled([
         API.get(`/surveys/${id}`),
         API.get(`/surveys/${id}/questions`),
         API.get(`/surveys/${id}/shares`),
         API.get('/users/'),
       ]);
+      if (svRes.status !== 'fulfilled') throw svRes.reason;
+      const s = svRes.value.data;
+      const q = qRes.status === 'fulfilled' ? qRes.value.data : [];
+      const sh = shRes.status === 'fulfilled' ? shRes.value.data : [];
+      const u = uRes.status === 'fulfilled' ? uRes.value.data : [];
       setSv({ ...s, expires_at: s.expires_at ? new Date(s.expires_at).toISOString().slice(0, 16) : '' });
       setIsEditing(s.status === 'draft');
       if (s.ai_intelligence) {
@@ -294,9 +311,7 @@ export default function SurveyEdit() {
       toast.success('Saved');
       await load();
     } catch (e) {
-      console.error(e);
-      const msg = e.response?.data?.detail;
-      toast.error(typeof msg === 'string' ? msg : 'Failed to save');
+      toast.error(getApiErrorMessage(e, 'Unable to save the survey. Please try again.'));
     }
     finally { setBusy(false); }
   }
@@ -309,9 +324,7 @@ export default function SurveyEdit() {
       toast.success('Updated');
       load();
     } catch (e) {
-      console.error(e);
-      const msg = e.response?.data?.detail;
-      toast.error(typeof msg === 'string' ? msg : 'Failed to update status');
+      toast.error(getApiErrorMessage(e, 'Unable to update the survey status. Please try again.'));
     }
   }
 
@@ -333,7 +346,7 @@ export default function SurveyEdit() {
       toast.success('Survey deleted'); nav('/surveys');
     } catch (e) {
       console.error(e);
-      toast.error(e.response?.data?.detail || 'Delete failed');
+      toast.error(getApiErrorMessage(e, 'Delete failed'));
     }
   }
 
@@ -345,7 +358,7 @@ export default function SurveyEdit() {
       load();
     } catch (e) {
       console.error(e);
-      toast.error(e.response?.data?.detail || 'Share failed');
+      toast.error(getApiErrorMessage(e, 'Share failed'));
     }
   }
 
@@ -375,24 +388,36 @@ export default function SurveyEdit() {
 
   function calcHealth() {
     let score = 100;
-    const realCount = qs.filter(q => getQuestionWordCount(q) > 0).length;
-    if (!sv.welcome_message) score -= 5; if (!sv.expires_at) score -= 5;
-    if (realCount < SHORT_SURVEY_RULES.defaultQuestionCount) score -= 15;
+    // A too-short welcome message should be treated the same as a missing one.
+    if (!meetsMinLength(sv.welcome_message, SURVEY_HEALTH_MINIMUMS.welcomeMessage)) score -= 5;
+    if (!sv.expires_at) score -= 5;
+    if (qs.length > SHORT_SURVEY_RULES.defaultQuestionCount) score -= 15;
     if (qs.filter(q => q.is_required).length > SHORT_SURVEY_RULES.preferredRequiredQuestionLimit) score -= 10;
     if (getFormatDiversityScore(qs) < 3) score -= 15;
     if (qs.some(q => getQuestionWordCount(q) > SHORT_SURVEY_RULES.maxHighSignalWords)) score -= 10;
+    // Questions that haven't reached the minimum length aren't really finished.
+    if (qs.some(q => !isQuestionComplete(q))) score -= 10;
     return Math.max(0, Math.min(100, score));
   }
   const health = calcHealth();
   const healthColor = health >= 80 ? 'var(--sage)' : health >= 50 ? 'var(--saffron)' : 'var(--terracotta)';
   const tc = sv.theme_color || '#FF4500';
-  // Only questions that actually have text count toward quality metrics.
-  const realQuestions = qs.filter(q => getQuestionWordCount(q) > 0);
+  // Only questions whose text clears the minimum length count toward quality
+  // metrics — short or single-character questions are not yet meaningful.
+  const realQuestions = qs.filter(q => isQuestionComplete(q));
   const hasRealQuestions = realQuestions.length > 0;
   const estimatedMinutes = estimateSurveyMinutes(realQuestions);
   const conciseQuestionCount = realQuestions.filter(q => getQuestionWordCount(q) <= SHORT_SURVEY_RULES.maxHighSignalWords).length;
   const hasAdaptiveFormats = getFormatDiversityScore(realQuestions) >= 3;
   const statusStyle = STATUS_COLORS[sv.status] || STATUS_COLORS.draft;
+
+  // Execute unlocks when the survey reaches its expiry date. The countdown is
+  // driven by `expires_at` and re-evaluates as the date is edited or time passes
+  // (via nowTs). Surveys with no expiry are not gated. (Backend enforces the same.)
+  const expiresAtMs = sv.expires_at ? new Date(sv.expires_at).getTime() : null;
+  const executeLocked = expiresAtMs != null && !Number.isNaN(expiresAtMs) && nowTs < expiresAtMs;
+  const executeRemainingDays = executeLocked ? Math.max(1, Math.ceil((expiresAtMs - nowTs) / 86400000)) : 0;
+
   const TABS = [
     { id: 'details', n: '01', label: 'Details' },
     { id: 'questions', n: '02', label: 'Questions', count: qs.length },
@@ -572,8 +597,13 @@ export default function SurveyEdit() {
         .opt-input { background:none; border:none; outline:none; font-family:'Fraunces',serif; font-size:14px; color:var(--espresso); padding:7px 0; flex:1; }
         .opt-row:hover { background:rgba(255,255,255,0.9) !important; border-color:rgba(22,15,8,0.16) !important; }
         .se-tab-btn { position:relative; }
-        .se-tab-btn::after { content:''; position:absolute; bottom:-1px; left:0; right:0; height:2px; border-radius:1px; background:var(--coral); transform:scaleX(0); transition:transform 0.3s cubic-bezier(0.16,1,0.3,1); transform-origin:left; }
+        .se-tab-btn::after { content:''; position:absolute; bottom:0; left:0; right:0; height:2px; border-radius:1px; background:var(--coral); transform:scaleX(0); transition:transform 0.3s cubic-bezier(0.16,1,0.3,1); transform-origin:left; }
         .se-tab-btn.active::after { transform:scaleX(1); }
+        /* Tab row is a full-width band above the workspace, so all tabs stay
+           visible and clickable (never under the sidebar). On a tight viewport
+           they wrap to a second line instead of scrolling/hiding. */
+        .tabs-scroll { min-width:0; }
+        .tabs-inner { max-width:100%; flex-wrap:wrap; row-gap:2px; position:relative; z-index:2; }
         @media (max-width: 1040px) { .se-sidebar { position: static !important; } }
         @media (max-width: 768px) {
           .se-grid { grid-template-columns: 1fr !important; }
@@ -690,7 +720,13 @@ export default function SurveyEdit() {
       {/* ── MODALS ── */}
       <ConfirmModal open={extendOpen} title="Reactivate Survey" body="This survey has expired. Choose how many days to extend it." confirmLabel="Reactivate" onConfirm={days => { doExtend(days); setExtendOpen(false); }} onClose={() => setExtendOpen(false)} prompt={{ label: 'Extend by (days)', defaultValue: '7', type: 'number', min: 1, max: 365 }} />
       <ConfirmModal open={deleteOpen} title="Delete Survey" body="This action cannot be undone. All responses will be permanently deleted." confirmLabel="Delete" danger onConfirm={() => { doDelete(); setDeleteOpen(false); }} onClose={() => setDeleteOpen(false)} />
-      <ShareModal survey={{ slug: sv.slug, title: sv.title }} isOpen={pubShareOpen} onClose={() => setPubShareOpen(false)} />
+      <ShareModal
+        survey={{ id: sv.id, slug: sv.slug, title: sv.title, description: sv.description, status: sv.status }}
+        isOpen={pubShareOpen}
+        onClose={() => setPubShareOpen(false)}
+        onSlugChange={(s) => setSv(p => ({ ...p, slug: s }))}
+        onPublished={() => setSv(p => ({ ...p, status: 'active' }))}
+      />
 
       {/* ── PAGE HEADER ── */}
       {/* ── PAGE HEADER ── */}
@@ -808,19 +844,9 @@ export default function SurveyEdit() {
         </div>
       </div>
 
-      {/* ── TWO-COLUMN WORKSPACE ── */}
-      <div className="se-grid np-grid-responsive" style={{
-        display: 'grid',
-        gridTemplateColumns: 'minmax(0,1fr) 320px',
-        gap: '32px',
-        alignItems: 'start',
-        width: '100%'
-      }}>
-
-        {/* LEFT — Editor */}
-        <div className="tabs-scroll">
-          {/* ── EDITORIAL TAB NAVIGATION ── */}
-          <div className="tabs-inner" style={{ display: 'flex', gap: 0, marginBottom: 40, borderBottom: '1px solid rgba(22,15,8,0.07)' }}>
+      {/* ── EDITORIAL TAB NAVIGATION — full-width row above the workspace so every
+           tab stays on one line, fully visible and clickable (not under the sidebar) ── */}
+      <div className="tabs-inner" style={{ display: 'flex', gap: 0, marginBottom: 28, borderBottom: '1px solid rgba(22,15,8,0.07)' }}>
             {TABS.map(t => {
               const isSettings = t.id === 'settings';
               return (
@@ -834,13 +860,28 @@ export default function SurveyEdit() {
                     </>
                   )}
                   {t.label}
+                  {t.id === 'execute' && executeLocked && (
+                    <span title={`Execute activates ${executeRemainingDays} day${executeRemainingDays === 1 ? '' : 's'} after creation`} style={{ fontSize: 11, lineHeight: 1 }}>🔒</span>
+                  )}
                   {t.count !== undefined && (
                     <span style={{ minWidth: 18, height: 18, borderRadius: 999, background: tab === t.id ? `${tc}15` : 'rgba(22,15,8,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px', fontSize: 9, fontFamily: "'Syne',sans-serif", fontWeight: 700, color: tab === t.id ? tc : 'rgba(22,15,8,0.35)' }}>{t.count}</span>
                   )}
                 </button>
               );
             })}
-          </div>
+      </div>
+
+      {/* ── TWO-COLUMN WORKSPACE ── */}
+      <div className="se-grid np-grid-responsive" style={{
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0,1fr) 320px',
+        gap: '32px',
+        alignItems: 'start',
+        width: '100%'
+      }}>
+
+        {/* LEFT — Editor */}
+        <div className="tabs-scroll">
 
           {/* ── DETAILS TAB ── */}
           {tab === 'details' && (
@@ -855,7 +896,15 @@ export default function SurveyEdit() {
                 <div><label style={LBL}>Description</label>{isEditing ? <textarea value={sv.description || ''} onChange={e => s('description', e.target.value)} placeholder="What's this research about?" rows={4} style={{ ...INP, borderRadius: 16 }} onFocus={fi} onBlur={fo} /> : <div style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 14, color: sv.description ? 'var(--espresso)' : 'rgba(22,15,8,0.3)', padding: '12px 18px', background: 'var(--cream-deep)', borderRadius: 16, minHeight: 48, lineHeight: 1.6 }}>{sv.description || '—'}</div>}</div>
                 <div><label style={LBL}>Welcome Message</label>{isEditing ? <textarea value={sv.welcome_message || ''} onChange={e => s('welcome_message', e.target.value)} placeholder="Shown before Q1" rows={4} style={{ ...INP, borderRadius: 16 }} onFocus={fi} onBlur={fo} /> : <div style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 14, color: sv.welcome_message ? 'var(--espresso)' : 'rgba(22,15,8,0.3)', padding: '12px 18px', background: 'var(--cream-deep)', borderRadius: 16, minHeight: 48, lineHeight: 1.6 }}>{sv.welcome_message || '—'}</div>}</div>
               </div>
-              <div><label style={LBL}>Thank You Message</label>{isEditing ? <textarea value={sv.thank_you_message || ''} onChange={e => s('thank_you_message', e.target.value)} placeholder="Shown after submission" rows={2} style={{ ...INP, borderRadius: 16 }} onFocus={fi} onBlur={fo} /> : <div style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 14, color: 'var(--espresso)', padding: '12px 18px', background: 'var(--cream-deep)', borderRadius: 16, lineHeight: 1.6 }}>{sv.thank_you_message || '—'}</div>}</div>
+              <div><label style={LBL}>Thank You Message</label>{isEditing ? (
+                <div style={{ ...INP, padding: 0, borderRadius: 16, overflow: 'hidden', resize: 'none' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 17px', background: 'rgba(22,15,8,0.04)', borderBottom: '1px solid rgba(22,15,8,0.08)' }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="rgba(22,15,8,0.4)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+                    <span style={{ fontFamily: "'Fraunces',serif", fontSize: 15, color: 'var(--espresso)' }}>{DEFAULT_THANK_YOU_MESSAGE}</span>
+                  </div>
+                  <textarea value={getThankYouCustom(sv.thank_you_message)} onChange={e => s('thank_you_message', composeThankYou(e.target.value))} placeholder="Add an optional message after the default…" rows={2} style={{ width: '100%', boxSizing: 'border-box', padding: '12px 17px', background: 'transparent', border: 'none', outline: 'none', fontFamily: "'Fraunces',serif", fontSize: 16, color: 'var(--espresso)', resize: 'vertical' }} />
+                </div>
+              ) : <div style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 14, color: 'var(--espresso)', padding: '12px 18px', background: 'var(--cream-deep)', borderRadius: 16, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{sv.thank_you_message || DEFAULT_THANK_YOU_MESSAGE}</div>}</div>
               <div className="se-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 22 }}>
                 <div><label style={LBL}>Expires</label>{isEditing ? <input type="datetime-local" value={sv.expires_at || ''} onChange={e => s('expires_at', e.target.value)} style={{ ...INP, borderRadius: 16 }} onFocus={fi} onBlur={fo} /> : <div style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 14, color: sv.expires_at ? 'var(--espresso)' : 'rgba(22,15,8,0.3)', padding: '12px 18px', background: 'var(--cream-deep)', borderRadius: 16, minHeight: 48 }}>{sv.expires_at ? formatDate(sv.expires_at) : 'No expiry set'}</div>}</div>
                 <div>
@@ -955,10 +1004,28 @@ export default function SurveyEdit() {
           )}
 
           {/* ── EXECUTE TAB ── */}
-          {tab === 'execute' && (
+          {tab === 'execute' && executeLocked && (
+            <div style={{ background: 'var(--warm-white)', borderRadius: 22, border: '1.5px solid rgba(22,15,8,0.07)', padding: 40, textAlign: 'center', boxShadow: '0 8px 32px rgba(22,15,8,0.03)' }}>
+              <div style={{ width: 56, height: 56, borderRadius: 16, background: 'rgba(255,184,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 22px', fontSize: 24 }}>🔒</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 10 }}>
+                <h2 style={{ fontFamily: "'Playfair Display',serif", fontWeight: 700, fontSize: 24, color: 'var(--espresso)', margin: 0 }}>Execute unlocks soon</h2>
+                <HelpTip text="The Execute workspace (Investor Readiness Report + mentor outreach) opens once the survey reaches its expiry date, so it analyses a complete set of responses." position="bottom" />
+              </div>
+              <p style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 15, color: 'rgba(22,15,8,0.55)', lineHeight: 1.6, maxWidth: 440, margin: '0 auto 20px' }}>
+                Survey execution becomes available once the survey reaches its expiry date
+                {sv.expires_at ? ` (${new Date(sv.expires_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })})` : ''}.
+              </p>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', borderRadius: 999, background: 'rgba(255,184,0,0.12)', border: '1px solid rgba(255,184,0,0.25)' }}>
+                <span style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#A07000' }}>
+                  Execute feature will be activated in {executeRemainingDays} day{executeRemainingDays === 1 ? '' : 's'}
+                </span>
+              </div>
+            </div>
+          )}
+          {tab === 'execute' && !executeLocked && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
-              {/* Premium Pitch & Investor Readiness Dashboard */}
-              <PitchInvestorReadinessPanel survey={sv} />
+              {/* CA Agent — Content Analysis Agent */}
+              <CAAgentPanel survey={sv} />
 
               {/* Mentorship / Contact a Mentor */}
               <div style={{ background: 'var(--warm-white)', borderRadius: 22, border: '1.5px solid rgba(22,15,8,0.07)', padding: 32 }}>
@@ -1036,7 +1103,8 @@ export default function SurveyEdit() {
                 </div>
               ))}
 
-              {/* ── INTERNAL TEAM SHARING ── */}
+              {/* ── INTERNAL TEAM SHARING (hidden for personal accounts) ── */}
+              {!isPersonal && (
               <div style={{ marginTop: 24, padding: '24px 26px', background: 'var(--warm-white)', borderRadius: 22, border: '1.5px solid rgba(22,15,8,0.07)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
                   <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(22,15,8,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--espresso)' }}>
@@ -1100,6 +1168,7 @@ export default function SurveyEdit() {
                   )}
                 </div>
               </div>
+              )}
             </div>
           )}
 
@@ -1117,18 +1186,13 @@ export default function SurveyEdit() {
                   </p>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 18, maxWidth: 400, margin: '0 auto 32px', textAlign: 'left' }}>
-                    <div>
-                      <label style={LBL}>Target Country (Leave blank for Global)</label>
-                      <input type="text" placeholder="e.g. United States, India, Germany" value={locationCountry} onChange={e => setLocationCountry(e.target.value)} style={INP} onFocus={fi} onBlur={fo} />
-                    </div>
-                    <div>
-                      <label style={LBL}>Target State / Region (Leave blank for National)</label>
-                      <input type="text" placeholder="e.g. California, Telangana, Bavaria" value={locationState} onChange={e => setLocationState(e.target.value)} style={INP} onFocus={fi} onBlur={fo} />
-                    </div>
-                    <div>
-                      <label style={LBL}>Target District / City (Leave blank for State-level)</label>
-                      <input type="text" placeholder="e.g. Los Angeles, Hyderabad, Munich" value={locationDistrict} onChange={e => setLocationDistrict(e.target.value)} style={INP} onFocus={fi} onBlur={fo} />
-                    </div>
+                    <LocationSelect
+                      value={{ country: locationCountry, state: locationState, city: locationDistrict }}
+                      onChange={(loc) => { setLocationCountry(loc.country || ''); setLocationState(loc.state || ''); setLocationDistrict(loc.city || ''); }}
+                      labels={{ country: 'Target Country (Leave blank for Global)', state: 'Target State / Region (Leave blank for National)', city: 'Target District / City (Leave blank for State-level)' }}
+                      labelStyle={LBL}
+                      selectStyle={INP}
+                    />
                   </div>
 
                   <button onClick={() => {
@@ -1152,7 +1216,7 @@ export default function SurveyEdit() {
                     <div style={{ width: 48, height: 48, borderRadius: 14, background: 'var(--saffron)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--espresso)', fontSize: 20 }}>💡</div>
                     <div>
                       <div style={{ fontFamily: "'Playfair Display',serif", fontWeight: 700, fontSize: 18, color: 'var(--espresso)', marginBottom: 4 }}>
-                        {aiIntel ? `Intelligence Classification: ${aiIntel.category}` : 'AI Market Intelligence'}
+                        {aiIntel ? `Intelligence Classification: ${aiIntel.category}` : 'Pulse Market Intelligence'}
                       </div>
                       <div style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 13, color: 'rgba(22,15,8,0.6)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                         <span>Target Market: <strong>{locationDistrict ? `${locationDistrict}, ` : ''}{locationState ? `${locationState}, ` : ''}{locationCountry || 'Global'}</strong></span>
@@ -1204,7 +1268,7 @@ export default function SurveyEdit() {
                       <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(22,15,8,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--espresso)' }}>📊</div>
                       <div>
                         <div style={{ fontFamily: "'Playfair Display',serif", fontWeight: 700, fontSize: 17, color: 'var(--espresso)' }}>Competitor Landscape</div>
-                        <div style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 12, color: 'rgba(22,15,8,0.4)' }}>AI-analyzed competitors relevant to your survey concept</div>
+                        <div style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 12, color: 'rgba(22,15,8,0.4)' }}>Pulse-analyzed competitors relevant to your survey concept</div>
                       </div>
                     </div>
                     <div style={{ overflowX: 'auto' }}>
@@ -1230,7 +1294,7 @@ export default function SurveyEdit() {
                     <div style={{ background: 'var(--warm-white)', borderRadius: 22, border: '1.5px solid rgba(22,15,8,0.07)', padding: 26 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
                         <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(22,15,8,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--espresso)' }}>👤</div>
-                        <div><div style={{ fontFamily: "'Playfair Display',serif", fontWeight: 700, fontSize: 17, color: 'var(--espresso)' }}>Target Customer Segment</div><div style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 12, color: 'rgba(22,15,8,0.4)' }}>AI-generated Ideal Customer Persona</div></div>
+                        <div><div style={{ fontFamily: "'Playfair Display',serif", fontWeight: 700, fontSize: 17, color: 'var(--espresso)' }}>Target Customer Segment</div><div style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 12, color: 'rgba(22,15,8,0.4)' }}>Pulse-generated Ideal Customer Persona</div></div>
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                         {[['Persona Name', aiIntel.persona.name, true], ['Demographics', aiIntel.persona.demographics], ['Psychographics', aiIntel.persona.psychographics], ['Key Pain Points', aiIntel.persona.painPoints], ['Buying Behavior', aiIntel.persona.buyingBehavior]].map(([label, val, bold]) => (
@@ -1249,7 +1313,7 @@ export default function SurveyEdit() {
                         </div>
                       </div>
                       <div style={{ background: 'var(--cream-deep)', padding: '18px 22px', borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <div><div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.4)', marginBottom: 2 }}>Idea Viability Index</div><div style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 12, color: 'rgba(22,15,8,0.5)' }}>AI-evaluated opportunity score</div></div>
+                        <div><div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.4)', marginBottom: 2 }}>Idea Viability Index</div><div style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 12, color: 'rgba(22,15,8,0.5)' }}>Pulse-evaluated opportunity score</div></div>
                         <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}><span style={{ fontFamily: "'Playfair Display',serif", fontWeight: 900, fontSize: 38, color: tc }}>{aiIntel.viabilityScore}</span><span style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 11, color: tc }}>/100</span></div>
                       </div>
                     </div>
@@ -1273,18 +1337,13 @@ export default function SurveyEdit() {
                   </p>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 18, maxWidth: 400, margin: '0 auto 32px', textAlign: 'left' }}>
-                    <div>
-                      <label style={LBL}>Target Country (Leave blank for Global)</label>
-                      <input type="text" placeholder="e.g. United States, India, Germany" value={locationCountry} onChange={e => setLocationCountry(e.target.value)} style={INP} onFocus={fi} onBlur={fo} />
-                    </div>
-                    <div>
-                      <label style={LBL}>Target State / Region (Leave blank for National)</label>
-                      <input type="text" placeholder="e.g. California, Telangana, Bavaria" value={locationState} onChange={e => setLocationState(e.target.value)} style={INP} onFocus={fi} onBlur={fo} />
-                    </div>
-                    <div>
-                      <label style={LBL}>Target District / City (Leave blank for State-level)</label>
-                      <input type="text" placeholder="e.g. Los Angeles, Hyderabad, Munich" value={locationDistrict} onChange={e => setLocationDistrict(e.target.value)} style={INP} onFocus={fi} onBlur={fo} />
-                    </div>
+                    <LocationSelect
+                      value={{ country: locationCountry, state: locationState, city: locationDistrict }}
+                      onChange={(loc) => { setLocationCountry(loc.country || ''); setLocationState(loc.state || ''); setLocationDistrict(loc.city || ''); }}
+                      labels={{ country: 'Target Country (Leave blank for Global)', state: 'Target State / Region (Leave blank for National)', city: 'Target District / City (Leave blank for State-level)' }}
+                      labelStyle={LBL}
+                      selectStyle={INP}
+                    />
                   </div>
 
                   <button onClick={() => {
@@ -1314,7 +1373,7 @@ export default function SurveyEdit() {
                       </div>
                     </div>
                   </div>
-                  <span style={{ fontFamily: "'Syne',sans-serif", fontSize: 9, fontWeight: 700, background: `${tc}15`, color: tc, padding: '6px 14px', borderRadius: 999, letterSpacing: '0.1em', textTransform: 'uppercase' }}>AI Powered</span>
+                  <span style={{ fontFamily: "'Syne',sans-serif", fontSize: 9, fontWeight: 700, background: `${tc}15`, color: tc, padding: '6px 14px', borderRadius: 999, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Pulse Powered</span>
                 </div>
 
                 {aiIntelLoading && !aiIntel && (
@@ -1345,8 +1404,12 @@ export default function SurveyEdit() {
                         <div style={{ position: 'absolute', left: -24, top: 32, width: 16, height: 16, borderRadius: '50%', background: '#fff', border: `3px solid ${tc}`, boxShadow: `0 0 0 3px ${tc}20`, zIndex: 2 }} />
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(22,15,8,0.06)', paddingBottom: 12, marginBottom: 14 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                            <span style={{ fontFamily: "'Syne',sans-serif", fontSize: 10, fontWeight: 800, color: tc, background: `${tc}12`, padding: '4px 10px', borderRadius: 8 }}>Phase {idx + 1}</span>
-                            <h3 style={{ fontFamily: "'Playfair Display',serif", fontWeight: 700, fontSize: 18, color: 'var(--espresso)' }}>{step.name.split(': ')[1] || step.name}</h3>
+                            <span style={{ fontFamily: "'Syne',sans-serif", fontSize: 12, fontWeight: 700, color: tc, background: `${tc}12`, padding: '4px 10px', borderRadius: 8 }}>Phase {idx + 1}</span>
+                            {/* Rendered as a div (not <h3>) so it uses the clean UI font (Syne),
+                                matching the "Phase N" badge and the rest of the UI, instead of
+                                being forced to Playfair Display by the global h2,h3 override in
+                                app-overrides.css. */}
+                            <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 16, color: 'var(--espresso)', lineHeight: 1.3, letterSpacing: '-0.01em' }}>{step.name.split(': ')[1] || step.name}</div>
                           </div>
                           <span style={{ fontFamily: "'Syne',sans-serif", fontSize: 10, fontWeight: 700, color: 'rgba(22,15,8,0.4)' }}>⏱️ {step.timeline}</span>
                         </div>
@@ -1397,6 +1460,19 @@ export default function SurveyEdit() {
                   </div>
                 ))}
               </div>
+
+              {/* Execute countdown — visible from any tab while locked */}
+              {executeLocked && (
+                <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid rgba(255,251,244,0.08)', display: 'flex', alignItems: 'center', gap: 9 }}>
+                  <span style={{ fontSize: 13 }}>🔒</span>
+                  <div style={{ lineHeight: 1.25 }}>
+                    <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(255,251,244,0.35)' }}>Execute unlocks in</div>
+                    <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--saffron)' }}>
+                      {executeRemainingDays} day{executeRemainingDays === 1 ? '' : 's'}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1425,7 +1501,7 @@ export default function SurveyEdit() {
                 </svg>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
                   {[
-                    [sv.welcome_message, 'Welcome message'],
+                    [meetsMinLength(sv.welcome_message, SURVEY_HEALTH_MINIMUMS.welcomeMessage), 'Welcome message'],
                     [sv.expires_at, 'Expiry date set'],
                     [realQuestions.length >= SHORT_SURVEY_RULES.defaultQuestionCount, `${SHORT_SURVEY_RULES.defaultQuestionCount}-question target`],
                     [qs.filter(q => q.is_required).length <= SHORT_SURVEY_RULES.preferredRequiredQuestionLimit, `≤${SHORT_SURVEY_RULES.preferredRequiredQuestionLimit} required questions`],
@@ -1460,6 +1536,29 @@ export default function SurveyEdit() {
                 {busy ? 'Saving…' : <>Save Changes <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg></>}
               </button>
             )}
+          </div>
+
+          {/* Guidance — best practices for effective surveys */}
+          <div style={{ background: 'var(--warm-white)', borderRadius: 22, border: '1.5px solid rgba(22,15,8,0.08)', padding: '22px 22px 8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+              <span style={{ fontSize: 14 }}>💡</span>
+              <span style={{ fontFamily: "'Syne',sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.4)' }}>Guidance</span>
+            </div>
+            <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {[
+                'Complete all survey details before publishing.',
+                'Share with the appropriate target audience.',
+                'Use multiple distribution channels for better response rates.',
+                'Monitor survey responses regularly.',
+                'Review insights before making business decisions.',
+                'Keep questions clear, unbiased, and easy to understand.',
+              ].map((tip, i) => (
+                <li key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', paddingBottom: 12, borderBottom: i === 5 ? 'none' : '1px solid rgba(22,15,8,0.05)' }}>
+                  <span aria-hidden style={{ flexShrink: 0, marginTop: 5, width: 5, height: 5, borderRadius: '50%', background: tc }} />
+                  <span style={{ fontFamily: "'Fraunces',serif", fontWeight: 300, fontSize: 13, lineHeight: 1.5, color: 'rgba(22,15,8,0.62)' }}>{tip}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>{/* end sidebar */}
       </div>
@@ -1540,7 +1639,7 @@ body {
   top: 24px;
 
   align-self: start;
-  padding-top: 72px;
+  padding-top: 0;
 }
 
 .se-sidebar .survey-preview-card {

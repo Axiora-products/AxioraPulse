@@ -6,6 +6,7 @@ import { useLoading } from '../context/LoadingContext';
 import API from '../api/axios';
 import { sendPhoneLinkOTP, verifyPhoneLinkOTP, removePhone } from '../lib/otp';
 import { cognitoChangePassword } from '../lib/cognito';
+import { getApiErrorMessage } from '../lib/apiError';
 
 const card = { background: 'var(--warm-white)', borderRadius: 20, border: '1px solid rgba(22,15,8,0.07)', padding: '36px 40px', marginBottom: 20 };
 const label = { fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.38)', display: 'block', marginBottom: 10 };
@@ -41,7 +42,7 @@ function ApprovedDomainsCard({ tenant, onSaved }) {
       setDomains(parsed.join(', '));
       toast.success(parsed.length === 0 ? 'Domain restrictions cleared — all email addresses can now be invited' : 'Approved domains saved');
     } catch (err) {
-      toast.error(err.response?.data?.detail || err.message || 'Failed to save domains');
+      toast.error(getApiErrorMessage(err, 'Failed to save domains'));
     } finally {
       setSaving(false);
     }
@@ -103,6 +104,8 @@ export default function Settings() {
   // updated Supabase but never synced back to Zustand, so the nav header kept
   // showing the old org name until a full page refresh.
   const { profile, tenant, updateProfile, updateTenant } = useAuthStore();
+  // Personal accounts have no organisation / team — hide org + invite-domain settings
+  const isPersonal = tenant?.account_type === 'personal';
   const { stopLoading } = useLoading();
   // No async data fetch — stop the nav spinner immediately
   useEffect(() => { stopLoading(); }, [stopLoading]);
@@ -128,14 +131,14 @@ export default function Settings() {
   async function sendPhoneOtp() {
     if (!phoneForm.number) return toast.error('Enter your mobile number');
     if (!isValidPhone(phoneForm.number))
-      return toast.error('Enter a valid 10-digit Indian mobile number');
+      return toast.error('Enter a valid mobile number');
     setPhoneBusy(true);
     try {
       await sendPhoneLinkOTP(phoneForm.number);
       setPhoneStep('otp');
       toast.success('OTP sent to your phone');
     } catch (err) {
-      toast.error(err.response?.data?.detail || err.message || 'Failed to send OTP');
+      toast.error(getApiErrorMessage(err, 'Failed to send OTP'));
     } finally { setPhoneBusy(false); }
   }
 
@@ -151,7 +154,7 @@ export default function Settings() {
       setPhoneForm({ number: '+91 ', otp: '' });
       toast.success('Phone number linked successfully!');
     } catch (err) {
-      toast.error(err.response?.data?.detail || err.message || 'Verification failed');
+      toast.error(getApiErrorMessage(err, 'Verification failed'));
     } finally { setPhoneBusy(false); }
   }
 
@@ -164,7 +167,7 @@ export default function Settings() {
       setRemoveConfirm(false);
       toast.success('Phone number removed');
     } catch (err) {
-      toast.error(err.response?.data?.detail || err.message || 'Failed to remove');
+      toast.error(getApiErrorMessage(err, 'Failed to remove'));
     } finally { setPhoneBusy(false); }
   }
 
@@ -241,8 +244,8 @@ export default function Settings() {
 
   async function saveP(e) {
     e.preventDefault(); sSP(true);
-    try { await updateProfile({ full_name: pF.full_name }); toast.success('Profile saved'); }
-    catch (e) { toast.error(e.message); } finally { sSP(false); }
+    try { await updateProfile({ full_name: pF.full_name }); toast.success('Profile updated successfully.'); }
+    catch (e) { toast.error(getApiErrorMessage(e, 'Unable to update your profile. Please try again.')); } finally { sSP(false); }
   }
 
   async function saveT(e) {
@@ -254,8 +257,8 @@ export default function Settings() {
       // This updates both the DB and the Zustand store in one step, so the nav
       // header reflects the new name immediately without a page refresh.
       await updateTenant({ name: tF.name, primary_color: tF.primary_color });
-      toast.success('Organisation saved');
-    } catch (e) { toast.error(e.message); } finally { sST(false); }
+      toast.success('Changes saved successfully.');
+    } catch (e) { toast.error(getApiErrorMessage(e, 'Unable to save organisation settings. Please try again.')); } finally { sST(false); }
   }
 
   return (
@@ -305,7 +308,7 @@ export default function Settings() {
         {phoneStep === 'idle' && (
           <>
             {profile?.phone_number && profile?.phone_verified ? (
-              /* Linked & verified */
+              /* ── State 1: Linked & verified ── */
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <span style={{ fontFamily: 'Fraunces, serif', fontSize: 18, color: 'var(--espresso)', letterSpacing: '0.05em' }}>{maskPhone(profile.phone_number)}</span>
@@ -339,8 +342,48 @@ export default function Settings() {
                   )}
                 </div>
               </div>
+            ) : profile?.phone_number && !profile?.phone_verified ? (
+              /* ── State 2: Number saved (from Register) but not yet verified ── */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span style={{ fontFamily: 'Fraunces, serif', fontSize: 18, color: 'var(--espresso)', letterSpacing: '0.05em' }}>{maskPhone(profile.phone_number)}</span>
+                  <span style={{ fontFamily: 'Syne, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '3px 10px', borderRadius: 999, background: 'rgba(217,119,6,0.12)', color: '#b45309', border: '1px solid rgba(217,119,6,0.25)' }}>⚠ Unverified</span>
+                </div>
+                <p style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 13, color: 'rgba(22,15,8,0.45)', lineHeight: 1.6, margin: 0 }}>
+                  This number hasn't been verified yet. Verify it to enable phone-based login.
+                </p>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  {/* Send OTP to the stored number and jump straight to OTP entry */}
+                  <button
+                    disabled={phoneBusy}
+                    onClick={async () => {
+                      setPhoneBusy(true);
+                      try {
+                        await sendPhoneLinkOTP(profile.phone_number);
+                        setPhoneForm(p => ({ ...p, number: profile.phone_number, otp: '' }));
+                        setPhoneStep('otp');
+                        toast.success('OTP sent to your phone');
+                      } catch (err) {
+                        toast.error(getApiErrorMessage(err, 'Failed to send OTP'));
+                      } finally { setPhoneBusy(false); }
+                    }}
+                    style={{ ...btn, fontSize: 10, padding: '10px 20px', opacity: phoneBusy ? 0.5 : 1 }}
+                    onMouseEnter={e => { if (!phoneBusy) e.currentTarget.style.background = 'var(--coral)'; }}
+                    onMouseLeave={e => { if (!phoneBusy) e.currentTarget.style.background = 'var(--espresso)'; }}>
+                    {phoneBusy ? 'Sending…' : 'Verify now →'}
+                  </button>
+                  {/* Let the user swap to a different number instead */}
+                  <button
+                    onClick={() => { setPhoneStep('input'); setPhoneForm({ number: '+91 ', otp: '' }); }}
+                    style={{ ...btn, background: 'transparent', color: 'var(--espresso)', border: '1px solid rgba(22,15,8,0.15)', fontSize: 10, padding: '10px 20px' }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--coral)'; e.currentTarget.style.color = 'var(--coral)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(22,15,8,0.15)'; e.currentTarget.style.color = 'var(--espresso)'; }}>
+                    Change number
+                  </button>
+                </div>
+              </div>
             ) : (
-              /* Not linked */
+              /* ── State 3: No number linked ── */
               <div>
                 <p style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 14, color: 'rgba(22,15,8,0.5)', lineHeight: 1.65, marginBottom: 20, marginTop: -16 }}>
                   Link a mobile number to enable phone-based login.
@@ -457,7 +500,7 @@ export default function Settings() {
       </div>
 
       {/* Organisation */}
-      {hasPermission(profile?.role, 'manage_tenant') && (
+      {!isPersonal && hasPermission(profile?.role, 'manage_tenant') && (
         <div style={card}>
           <div style={secH}>Organisation</div>
           <form onSubmit={saveT} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -505,7 +548,7 @@ export default function Settings() {
       )}
 
       {/* Approved Email Domains — req #5/#6/#12/#13 */}
-      {hasPermission(profile?.role, 'manage_tenant') && (
+      {!isPersonal && hasPermission(profile?.role, 'manage_tenant') && (
         <ApprovedDomainsCard tenant={tenant} onSaved={syncDomains} />
       )}
 

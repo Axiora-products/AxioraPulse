@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     AxioraPulse — Local Development Container Orchestrator for PowerShell (Docker & Podman support)
 .DESCRIPTION
@@ -221,117 +221,36 @@ Write-Host "⚙️  Preparing local environment files..."
 if (-not (Test-Path -Path "backend")) { New-Item -ItemType Directory -Path "backend" | Out-Null }
 if (-not (Test-Path -Path "frontend")) { New-Item -ItemType Directory -Path "frontend" | Out-Null }
 
-if (-not (Test-Path -Path "backend\.env.docker")) { New-Item -ItemType File -Path "backend\.env.docker" | Out-Null }
+# The backend fail-closes on a missing/insecure SECRET_KEY at import time, so an
+# empty .env.docker would crash it before init_local_aws.py can generate the real
+# one. Seed a valid bootstrap secret on first run to break that chicken-and-egg.
+if (-not (Test-Path -Path "backend\.env.docker")) {
+    $bootBytes = New-Object byte[] 48
+    [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bootBytes)
+    $bootSecret = ([Convert]::ToBase64String($bootBytes)) -replace '[+/=]', ''
+    @(
+        "# Bootstrap env for first container start. Overwritten by init_local_aws.py.",
+        "SECRET_KEY=$bootSecret",
+        "ENVIRONMENT=development"
+    ) | Set-Content -Path "backend\.env.docker" -Encoding utf8
+}
 if (-not (Test-Path -Path "frontend\.env.local")) { New-Item -ItemType File -Path "frontend\.env.local" | Out-Null }
 
-# --- Startup Floci & Database First ---
-Write-Host "🌐 Spinning up Floci Server and Database containers..."
-& $DockerCmd compose -f docker-compose.local.yml up -d pulse-floci pulse-db
-
-# --- Build Backend Container to run Floci seed script ---
-Write-Host "📦 Building backend container..."
-& $DockerCmd compose -f docker-compose.local.yml build pulse-backend
-
-# --- Seed Floci Server (SSM & Cognito) ---
-Write-Host "🌱 Initializing local mock AWS resources (Floci)..."
-& $DockerCmd compose -f docker-compose.local.yml run --rm --entrypoint python pulse-backend init_local_aws.py
-
-# --- Move generated Frontend env file ---
-if (Test-Path -Path "backend\.env.local") {
-    Move-Item -Path "backend\.env.local" -Destination "frontend\.env.local" -Force
-    Write-Host "✅ Mapped generated Cognito credentials to frontend."
-} else {
-    Write-Host "❌ Error: backend\.env.local not found. Floci initialization failed."
-    exit 1
-}
-
-# --- Run Local Tests inside Backend Container if Flag is set ---
+# --- Startup Services (Unified) ---
+Write-Host "🌐 Spin up the local development/test container stack..."
 if ($Test) {
-    # Startup Backend Container
-    Write-Host "🚀 Spinning up backend container for tests..."
-    & $DockerCmd compose -f docker-compose.local.yml up -d pulse-backend
-
-    Write-Host "⏳ Waiting for backend container to be healthy..."
-    $attempts = 0
-    $max_attempts = 30
-    $backend_ready = $false
-
-    while ($attempts -lt $max_attempts) {
-        try {
-            $response = Invoke-RestMethod -Uri "http://localhost:8000/health" -TimeoutSec 1 -ErrorAction SilentlyContinue
-            $backend_ready = $true
-            break
-        } catch {
-            # Not ready yet
-        }
-        Start-Sleep -Seconds 1
-        $attempts++
-    }
-
-    if ($backend_ready) {
-        Write-Host "======================================================================="
-        Write-Host "🔍 Running Local Linters and Tests inside Backend Container"
-        Write-Host "======================================================================="
-
-        Write-Host "📦 Installing test dependencies inside container..."
-        & $DockerCmd exec pulse-backend pip install pytest ruff alembic pytest-cov
-        $InstallExit = $LASTEXITCODE
-        if ($InstallExit -ne 0) {
-            Write-Host "❌ Error: Failed to install test dependencies inside container."
-            & $DockerCmd compose -f docker-compose.local.yml down
-            exit $InstallExit
-        }
-
-        Write-Host "👉 Running Ruff Check..."
-        & $DockerCmd exec pulse-backend ruff check .
-        $RuffCheckExit = $LASTEXITCODE
-
-        Write-Host "👉 Running Ruff Format Check..."
-        & $DockerCmd exec pulse-backend ruff format --check .
-        $RuffFormatExit = $LASTEXITCODE
-
-        Write-Host "👉 Running Alembic Migrations on Test DB..."
-        & $DockerCmd exec pulse-backend alembic upgrade head
-        $AlembicExit = $LASTEXITCODE
-
-        $TestExitCode = 0
-        if ($AlembicExit -eq 0) {
-            Write-Host "👉 Running Backend Pytest with Coverage..."
-            & $DockerCmd exec -e PYTHONPATH=. pulse-backend pytest --cov=. --cov-report=term-missing --cov-config=.coveragerc tests
-            $TestExitCode = $LASTEXITCODE
-        } else {
-            Write-Host "❌ Skipping pytest because database migrations failed."
-            $TestExitCode = $AlembicExit
-        }
-
-        Write-Host "🛑 Tearing down local test containers..."
-        & $DockerCmd compose -f docker-compose.local.yml down *>$null
-
-        if ($RuffCheckExit -eq 0 -and $RuffFormatExit -eq 0 -and $AlembicExit -eq 0 -and $TestExitCode -eq 0) {
-            Write-Host "✅ All checks and tests passed successfully!"
-            exit 0
-        } else {
-            Write-Host "❌ Some checks or tests failed."
-            exit 1
-        }
-    } else {
-        Write-Host "❌ Error: Backend did not become healthy in time."
-        & $DockerCmd compose -f docker-compose.local.yml down
-        exit 1
-    }
-}
-
-# --- Startup Services ---
-Write-Host "🌐 Initializing Docker network & persistent storage..."
-Write-Host "🚀 Spining up local development container stack..."
-
-if ($Rebuild) {
-    & $DockerCmd compose -f docker-compose.local.yml up --build -d -V --force-recreate pulse-backend pulse-frontend
+    # Only need db, floci, and backend for running backend tests
+    & $DockerCmd compose -f docker-compose.local.yml up -d pulse-db pulse-floci pulse-backend
 } else {
-    & $DockerCmd compose -f docker-compose.local.yml up -d pulse-backend pulse-frontend
+    # Startup everything for local development
+    if ($Rebuild) {
+        & $DockerCmd compose -f docker-compose.local.yml up --build -d -V pulse-db pulse-floci pulse-backend pulse-frontend
+    } else {
+        & $DockerCmd compose -f docker-compose.local.yml up -d pulse-db pulse-floci pulse-backend pulse-frontend
+    }
 }
 
-# --- Wait for Backend to be Healthy & Seed Users ---
+# --- Wait for Backend to be Healthy ---
 Write-Host "⏳ Waiting for backend container to be healthy and start server..."
 $attempts = 0
 $max_attempts = 30
@@ -339,15 +258,81 @@ $backend_ready = $false
 
 while ($attempts -lt $max_attempts) {
     try {
-        # Check health using native Invoke-WebRequest or Invoke-RestMethod
         $response = Invoke-RestMethod -Uri "http://localhost:8000/health" -TimeoutSec 1 -ErrorAction SilentlyContinue
         $backend_ready = $true
         break
     } catch {
-        # Endpoint not ready yet
+        # Not ready yet
     }
     Start-Sleep -Seconds 1
     $attempts++
+}
+
+if (-not $backend_ready) {
+    Write-Host "❌ Error: Backend container did not become healthy in time."
+    & $DockerCmd compose -f docker-compose.local.yml down
+    exit 1
+}
+
+# --- Seed Floci Server (SSM & Cognito) inside the running container ---
+Write-Host "🌱 Initializing local mock AWS resources (Floci)..."
+& $DockerCmd exec -i pulse-backend python init_local_aws.py
+
+# --- Move generated Frontend env file ---
+if (Test-Path -Path "backend\.env.local") {
+    Move-Item -Path "backend\.env.local" -Destination "frontend\.env.local" -Force
+    Write-Host "✅ Mapped generated Cognito credentials to frontend."
+} else {
+    Write-Host "⚠️ Warning: backend\.env.local not found. Skipping frontend mapping."
+}
+
+# --- Run Local Tests inside Backend Container if Flag is set ---
+if ($Test) {
+    Write-Host "======================================================================="
+    Write-Host "🔍 Running Local Linters and Tests inside Backend Container"
+    Write-Host "======================================================================="
+
+    Write-Host "📦 Installing test dependencies inside container..."
+    & $DockerCmd exec pulse-backend pip install pytest ruff alembic pytest-cov
+    $InstallExit = $LASTEXITCODE
+    if ($InstallExit -ne 0) {
+        Write-Host "❌ Error: Failed to install test dependencies inside container."
+        & $DockerCmd compose -f docker-compose.local.yml down
+        exit $InstallExit
+    }
+
+    Write-Host "👉 Running Ruff Check..."
+    & $DockerCmd exec pulse-backend ruff check .
+    $RuffCheckExit = $LASTEXITCODE
+
+    Write-Host "👉 Running Ruff Format Check..."
+    & $DockerCmd exec pulse-backend ruff format --check .
+    $RuffFormatExit = $LASTEXITCODE
+
+    Write-Host "👉 Running Alembic Migrations on Test DB..."
+    & $DockerCmd exec pulse-backend alembic upgrade head
+    $AlembicExit = $LASTEXITCODE
+
+    $TestExitCode = 0
+    if ($AlembicExit -eq 0) {
+        Write-Host "👉 Running Backend Pytest with Coverage..."
+        & $DockerCmd exec -e PYTHONPATH=. pulse-backend pytest --cov=. --cov-report=term-missing --cov-config=.coveragerc tests
+        $TestExitCode = $LASTEXITCODE
+    } else {
+        Write-Host "❌ Skipping pytest because database migrations failed."
+        $TestExitCode = $AlembicExit
+    }
+
+    Write-Host "🛑 Tearing down local test containers..."
+    & $DockerCmd compose -f docker-compose.local.yml down *>$null
+
+    if ($RuffCheckExit -eq 0 -and $RuffFormatExit -eq 0 -and $AlembicExit -eq 0 -and $TestExitCode -eq 0) {
+        Write-Host "✅ All checks and tests passed successfully!"
+        exit 0
+    } else {
+        Write-Host "❌ Some checks or tests failed."
+        exit 1
+    }
 }
 
 if ($backend_ready) {
@@ -359,10 +344,20 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from db.models import Tenant, UserProfile, RoleEnum
 
-user_pool_id = os.getenv("COGNITO_USER_POOL_ID")
 region = os.getenv("COGNITO_REGION", "ap-south-1")
+endpoint = os.getenv("AWS_ENDPOINT_URL", "http://pulse-floci:4566")
+
+# Always fetch User Pool ID dynamically from local SSM first
+try:
+    ssm = boto3.client("ssm", region_name=region, endpoint_url=endpoint, aws_access_key_id="mock", aws_secret_access_key="mock")
+    res = ssm.get_parameter(Name="/axiorapulse/dev/COGNITO_USER_POOL_ID")
+    user_pool_id = res["Parameter"]["Value"]
+except Exception as e:
+    user_pool_id = os.getenv("COGNITO_USER_POOL_ID")
+    print(f"⚠️ Failed to fetch Cognito User Pool ID from SSM: {str(e)}. Falling back to environment variable.")
+
 if not user_pool_id:
-    print("⚠️ COGNITO_USER_POOL_ID not set. Skipping user seeding.")
+    print("⚠️ COGNITO_USER_POOL_ID not resolved. Skipping user seeding.")
     exit(0)
 
 print(f"Connecting to Cognito User Pool: {user_pool_id} ({region})...")
@@ -427,7 +422,7 @@ try:
             email=email,
             full_name=name,
             cognito_sub=sub,
-            role=RoleEnum.admin,
+            role=RoleEnum.super_admin if email == "roopsai.work8@gmail.com" else RoleEnum.admin,
             tenant_id=t.id,
             is_active=True,
             is_internal=True,
@@ -436,6 +431,53 @@ try:
         db.add(usr)
         db.commit()
         print(f"Seeded UserProfile: {email}")
+
+    # Explicitly ensure the super admin user is seeded and correctly configured even if not present in Cognito
+    sa_email = "roopsai.work8@gmail.com"
+    sa_usr = db.query(UserProfile).filter(UserProfile.email == sa_email).first()
+    if not sa_usr:
+        dom = "Axiora"
+        slug = "axiora"
+        t = db.query(Tenant).filter(Tenant.slug == slug).first()
+        if not t:
+            t = Tenant(
+                id=uuid.uuid4(),
+                name="Axiora Workspace",
+                slug=slug,
+                plan="enterprise"
+            )
+            db.add(t)
+            db.commit()
+            db.refresh(t)
+            print(f"Created Tenant: {t.name} for Super Admin")
+
+        sa_usr = UserProfile(
+            id=uuid.uuid4(),
+            email=sa_email,
+            full_name="Super Admin",
+            cognito_sub=None,
+            role=RoleEnum.super_admin,
+            tenant_id=t.id,
+            is_active=True,
+            is_internal=True,
+            account_status="active"
+        )
+        db.add(sa_usr)
+        db.commit()
+        print(f"Explicitly seeded Super Admin UserProfile: {sa_email}")
+    else:
+        # Update existing profile to ensure it has super_admin role and is_internal = True
+        updated = False
+        if sa_usr.role != RoleEnum.super_admin:
+            sa_usr.role = RoleEnum.super_admin
+            updated = True
+        if not sa_usr.is_internal:
+            sa_usr.is_internal = True
+            updated = True
+        if updated:
+            db.commit()
+            print(f"Explicitly promoted existing UserProfile to Super Admin: {sa_email}")
+
     print("🎉 Idempotent Cognito user seeding complete!")
 except Exception as e:
     db.rollback()

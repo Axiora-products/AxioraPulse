@@ -121,13 +121,6 @@ class AIGeneratedQuestionItem(BaseModel):
     options: Optional[Any] = None
 
 
-class IdeaProtectionMetadata(BaseModel):
-    protection_applied: bool = False
-    detected_sensitive_categories: List[str] = Field(default_factory=list)
-    protected_context_summary: Optional[str] = None
-    leak_validation_applied: bool = False
-
-
 class AIGenerateRequest(BaseModel):
     aiContext: str
     mode: Optional[str] = "conversational"
@@ -143,7 +136,6 @@ class AIGenerateResponse(BaseModel):
     description: str
     welcome_message: str
     questions: List[AIGeneratedQuestionItem]
-    protection_metadata: Optional[IdeaProtectionMetadata] = None
 
 
 # ── Survey Intelligence (Guidance + Roadmap) ──────────────────────────────────
@@ -189,3 +181,23 @@ class SurveyIntelligenceResponse(BaseModel):
     opportunities: List[SurveyIntelOpportunity]
     viabilityScore: int
     roadmap: List[SurveyIntelRoadmapStep]
+
+
+# ── Social Share Content Kit ──────────────────────────────────────────────────
+
+
+class SocialShareCaptions(BaseModel):
+    linkedin: str = ""
+    twitter: str = ""
+    instagram: str = ""
+    whatsapp: str = ""
+    telegram: str = ""
+    facebook: str = ""
+
+
+class SocialShareContentResponse(BaseModel):
+    description: str
+    tagline: str
+    hashtags: List[str] = Field(default_factory=list)
+    captions: SocialShareCaptions = Field(default_factory=SocialShareCaptions)
+    fallback_used: bool = False

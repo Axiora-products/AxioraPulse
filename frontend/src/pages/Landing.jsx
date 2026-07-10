@@ -26,6 +26,10 @@ import {
   X,
 } from "lucide-react";
 import { useLoading } from "../context/LoadingContext";
+import useAuthStore from "../hooks/useAuth";
+import { SURVEY_TEMPLATES, toBuilderTemplate } from "../lib/surveyTemplates";
+import { setPendingTemplate } from "../lib/pendingTemplate";
+import { track, ANALYTICS_EVENTS } from "../lib/analytics";
 
 const CSS = `
 :root {
@@ -2008,6 +2012,56 @@ export default function Landing() {
   const movePricing = (direction) => {
     if (pricingMode === "one-time") return;
     setPricingWindowStart((current) => Math.max(0, Math.min(2, current + direction)));
+  };
+
+  const QTYPE_LABELS = {
+    short_text: "Short Text", long_text: "Long Text", single_choice: "Single Choice",
+    multiple_choice: "Multiple Choice", rating: "Star Rating", scale: "Scale", yes_no: "Yes / No",
+    dropdown: "Dropdown", number: "Number", email: "Email", date: "Date", ranking: "Ranking",
+    slider: "Slider", matrix: "Matrix", emoji_reaction: "Emoji Reaction", swipe_choice: "Swipe Choice",
+    visual_choice: "Visual Choice",
+  };
+
+  // Read-only preview of how a question's answer field looks.
+  const renderPreviewField = (q) => {
+    const t = q.question_type;
+    const opts = Array.isArray(q.options) ? q.options : [];
+    if (["single_choice", "multiple_choice", "dropdown", "ranking", "swipe_choice", "visual_choice"].includes(t)) {
+      return <div className="lp-pv-q-opts">{opts.map((o, j) => <span className="lp-pv-opt" key={j}>{o.label}</span>)}</div>;
+    }
+    if (t === "yes_no") {
+      return <div className="lp-pv-q-opts"><span className="lp-pv-opt">Yes</span><span className="lp-pv-opt">No</span></div>;
+    }
+    if (t === "rating") {
+      return <div className="lp-pv-stars">★★★★★</div>;
+    }
+    if (t === "scale") {
+      return <div className="lp-pv-scale">{Array.from({ length: 11 }, (_, n) => <span className="lp-pv-scale-pip" key={n}>{n}</span>)}</div>;
+    }
+    if (t === "slider") {
+      return <div className="lp-pv-field"><div className="lp-pv-field-stub">0 ————————●———————— 100</div></div>;
+    }
+    if (t === "emoji_reaction") {
+      return <div className="lp-pv-stars" style={{ letterSpacing: "8px" }}>😞 😐 🙂 😄 🤩</div>;
+    }
+    if (t === "matrix") {
+      const rows = q.options?.rows || [];
+      const cols = q.options?.columns || [];
+      return (
+        <div className="lp-pv-matrix">
+          <table>
+            <thead><tr><th></th>{cols.map((c, j) => <th key={j}>{c.label}</th>)}</tr></thead>
+            <tbody>{rows.map((r, ri) => <tr key={ri}><td>{r.label}</td>{cols.map((c, ci) => <td key={ci}>○</td>)}</tr>)}</tbody>
+          </table>
+        </div>
+      );
+    }
+    const stub = t === "date" ? "DD / MM / YYYY"
+      : t === "email" ? "name@company.com"
+      : t === "number" ? "0"
+      : t === "long_text" ? "Type your detailed answer here…"
+      : "Type your answer here…";
+    return <div className="lp-pv-field"><div className="lp-pv-field-stub">{stub}</div></div>;
   };
 
   return (

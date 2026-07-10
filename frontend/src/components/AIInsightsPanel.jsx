@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import API from '../api/axios';
+import { getApiErrorMessage } from '../lib/apiError';
 
 /**
  * AIInsightsPanel — Advanced Analytics Dashboard
@@ -31,6 +32,23 @@ const S = {
   card:    { background:'var(--warm-white)', borderRadius:20, border:'1px solid rgba(22,15,8,0.07)', padding:'24px 24px 20px' },
   section: { marginBottom:0 },
 };
+
+// ── Axiora Pulse live logo dot ───────────────────────────────────────────────
+// The brand's coral dot with live "sonar" rings, mirrored from the survey-taking
+// header. Replaces the static activity-line glyph next to "Pulse Insights".
+function PulseDot({ size = 8 }) {
+  return (
+    <div style={{ position:'relative', width:size, height:size, background:'#FF4500', borderRadius:'50%', boxShadow:'0 0 8px rgba(255,69,0,0.55)', flexShrink:0 }}>
+      <style>{`
+        @keyframes apSonar { 0% { transform:translate(-50%,-50%) scale(1); opacity:.5; } 100% { transform:translate(-50%,-50%) scale(2.6); opacity:0; } }
+        .ap-sonar { position:absolute; border-radius:50%; border:1.5px solid #FF4500; top:50%; left:50%; transform:translate(-50%,-50%) scale(0); opacity:0; animation: apSonar 2.8s ease-out infinite; }
+        .ap-sonar:nth-child(2){animation-delay:1.4s}
+      `}</style>
+      <div className="ap-sonar" style={{ width:size, height:size }} />
+      <div className="ap-sonar" style={{ width:size, height:size }} />
+    </div>
+  );
+}
 
 const TYPE_ICONS = {
   positive: { icon: <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>, bg: 'rgba(30,122,74,0.08)',  border: 'rgba(30,122,74,0.15)',  color: 'var(--sage)'       },
@@ -469,7 +487,7 @@ function buildInsightsReport(doc, r, survey) {
 
   // ── Title ──
   doc.setFont('helvetica', 'bold'); doc.setFontSize(22); doc.setTextColor(INK);
-  doc.text('AI Deep Analysis', M, y + 8); gap(28);
+  doc.text('Pulse Deep Analysis', M, y + 8); gap(28);
   doc.setFont('helvetica', 'normal'); doc.setFontSize(12); doc.setTextColor(SUB);
   doc.text(ascii(survey?.title || 'Survey insights'), M, y); gap(16);
   doc.setFontSize(9); doc.setTextColor(FAINT);
@@ -670,7 +688,7 @@ export default function AIInsightsPanel({ survey, analytics, questionAnalytics }
       setState('done');
     } catch (e) {
       console.error('AI insights:', e);
-      setErrMsg(e.response?.data?.detail || 'Could not connect to AI — ensure your API key is set on the server.');
+      setErrMsg(getApiErrorMessage(e, 'Could not connect to Pulse — ensure your API key is set on the server.'));
       setState('error');
     }
   }
@@ -679,7 +697,7 @@ export default function AIInsightsPanel({ survey, analytics, questionAnalytics }
   function exportFileBase() {
     const slug = (survey?.title || 'survey')
       .replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase();
-    return `${slug || 'survey'}-ai-insights`;
+    return `${slug || 'survey'}-pulse-insights`;
   }
 
   // async function exportPDF() {
@@ -713,7 +731,7 @@ export default function AIInsightsPanel({ survey, analytics, questionAnalytics }
   if (state !== 'done') return (
     <div style={{ ...S.card, display:'flex', flexDirection:'column', alignItems:'center', textAlign:'center', padding:'36px 32px', gap:16 }}>
       <div style={{ width:52, height:52, borderRadius:'50%', background:'rgba(255,69,0,0.08)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--coral)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        <PulseDot size={11} />
       </div>
       <div>
         <div style={{ fontFamily:FONTS.display, fontWeight:900, fontSize:20, letterSpacing:'-0.5px', color:'var(--espresso)', marginBottom:8 }}>Pulse Insights</div>
@@ -760,7 +778,7 @@ export default function AIInsightsPanel({ survey, analytics, questionAnalytics }
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12 }}>
           <div style={{ display:'flex', alignItems:'center', gap:10 }}>
             <div style={{ width:32, height:32, borderRadius:'50%', background:'rgba(255,69,0,0.1)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--coral)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              <PulseDot size={8} />
             </div>
             <span style={{ fontFamily:FONTS.display, fontWeight:900, fontSize:18, letterSpacing:'-0.5px', color:'var(--espresso)' }}>Pulse Analysis</span>
           </div>
@@ -829,7 +847,7 @@ export default function AIInsightsPanel({ survey, analytics, questionAnalytics }
                   <div>
                     <div style={{ ...S.h3, fontSize:14, marginBottom:4 }}>What does this score mean?</div>
                     <p style={{ ...S.body, fontSize:12, margin:0 }}>
-                      Calculated by AI from your survey responses — sentiment, purchase intent,
+                      Calculated by Pulse from your survey responses — sentiment, purchase intent,
                       recommendations and overall respondent engagement across every answer.
                     </p>
                   </div>

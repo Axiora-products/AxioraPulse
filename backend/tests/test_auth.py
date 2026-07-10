@@ -91,6 +91,119 @@ def test_auth_sync_new_user(monkeypatch):
         db.close()
 
 
+def test_auth_sync_downgrades_non_internal_super_admin_by_sub(monkeypatch):
+    import routes.auth
+    from db.database import SessionLocal
+    from db.models import RoleEnum, Tenant, UserProfile
+
+    tenant_id = uuid.uuid4()
+    user_id = uuid.uuid4()
+    cognito_sub = f"non-internal-super-{uuid.uuid4()}"
+
+    db = SessionLocal()
+    try:
+        tenant = Tenant(id=tenant_id, name="Non Internal Super Org", slug=f"non-internal-super-{uuid.uuid4().hex}")
+        user = UserProfile(
+            id=user_id,
+            email=f"non_internal_super_{uuid.uuid4().hex}@example.com",
+            cognito_sub=cognito_sub,
+            tenant_id=tenant.id,
+            role=RoleEnum.super_admin,
+            is_internal=False,
+            is_active=True,
+            account_status="active",
+        )
+        db.add(tenant)
+        db.add(user)
+        db.commit()
+    finally:
+        db.close()
+
+    def mock_verify(token):
+        return {
+            "sub": cognito_sub,
+            "email": "ignored@example.com",
+            "name": "Non Internal Super",
+            "token_use": "id",
+        }
+
+    monkeypatch.setattr(routes.auth, "verify_cognito_token", mock_verify)
+
+    try:
+        response = client.post("/auth/sync", json={"id_token": "super-by-sub"})
+
+        assert response.status_code == 200
+        assert response.json()["user"]["role"] == "admin"
+    finally:
+        db = SessionLocal()
+        try:
+            user = db.query(UserProfile).filter(UserProfile.id == user_id).first()
+            tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+            if user:
+                db.delete(user)
+            if tenant:
+                db.delete(tenant)
+            db.commit()
+        finally:
+            db.close()
+
+
+def test_auth_sync_downgrades_non_internal_super_admin_by_email(monkeypatch):
+    import routes.auth
+    from db.database import SessionLocal
+    from db.models import RoleEnum, Tenant, UserProfile
+
+    tenant_id = uuid.uuid4()
+    user_id = uuid.uuid4()
+    email = f"non_internal_email_{uuid.uuid4().hex}@example.com"
+
+    db = SessionLocal()
+    try:
+        tenant = Tenant(id=tenant_id, name="Email Super Org", slug=f"email-super-{uuid.uuid4().hex}")
+        user = UserProfile(
+            id=user_id,
+            email=email,
+            tenant_id=tenant.id,
+            role=RoleEnum.super_admin,
+            is_internal=False,
+            is_active=True,
+            account_status="active",
+        )
+        db.add(tenant)
+        db.add(user)
+        db.commit()
+    finally:
+        db.close()
+
+    def mock_verify(token):
+        return {
+            "sub": f"linked-sub-{uuid.uuid4()}",
+            "email": email,
+            "name": "Email Super",
+            "token_use": "id",
+        }
+
+    monkeypatch.setattr(routes.auth, "verify_cognito_token", mock_verify)
+
+    try:
+        response = client.post("/auth/sync", json={"id_token": "super-by-email"})
+
+        assert response.status_code == 200
+        assert response.json()["user"]["role"] == "admin"
+    finally:
+        db = SessionLocal()
+        try:
+            user = db.query(UserProfile).filter(UserProfile.id == user_id).first()
+            tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+            if user:
+                db.delete(user)
+            if tenant:
+                db.delete(tenant)
+            db.commit()
+        finally:
+            db.close()
+
+
 def test_migrate_check(monkeypatch):
     import routes.auth
 
@@ -164,22 +277,30 @@ def test_cleanup_unconfirmed(monkeypatch):
     monkeypatch.setattr(routes.auth, "admin_get_user_status", lambda email: "UNCONFIRMED")
     monkeypatch.setattr(routes.auth, "admin_delete_user", lambda email: True)
 
+    # Hardened (AP-SEC-013): always returns a generic {"ok": True} regardless of
+    # whether a user existed/was deleted, to prevent account enumeration.
     response = client.post("/auth/cleanup-unconfirmed", json={"email": "unconfirmed@example.com"})
     assert response.status_code == 200
-    assert response.json()["deleted"] is True
+    assert response.json()["ok"] is True
 
     monkeypatch.setattr(routes.auth, "admin_get_user_status", lambda email: "CONFIRMED")
     response = client.post("/auth/cleanup-unconfirmed", json={"email": "confirmed@example.com"})
     assert response.status_code == 200
-    assert response.json()["deleted"] is False
+    assert response.json()["ok"] is True
 
 
 def test_mock_login(monkeypatch):
-    monkeypatch.setenv("MOCK_COGNITO", "false")
+    # MOCK_COGNITO / MOCK_COGNITO_SECRET are read from core.config at request time;
+    # patch the config attributes (setenv would not update the imported constants).
+    # A real (non-default) secret is required or _clean_secret nulls it (AP-SEC-029).
+    from core import config
+
+    monkeypatch.setattr(config, "MOCK_COGNITO", False)
     response = client.post("/auth/mock-login", json={"email": "test@example.com"})
     assert response.status_code == 400
 
-    monkeypatch.setenv("MOCK_COGNITO", "true")
+    monkeypatch.setattr(config, "MOCK_COGNITO", True)
+    monkeypatch.setattr(config, "MOCK_COGNITO_SECRET", "a-valid-test-mock-secret")
     response = client.post("/auth/mock-login", json={})
     assert response.status_code == 400
 

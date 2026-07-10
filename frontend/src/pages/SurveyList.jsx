@@ -7,6 +7,9 @@ import { hasPermission, SURVEY_STATUS, timeAgo, isExpired, formatDate } from '..
 import toast from 'react-hot-toast';
 import { useLoading } from '../context/LoadingContext';
 import ConfirmModal from '../components/ConfirmModal';
+import FreePlanLimitModal from '../components/FreePlanLimitModal';
+import useSubscription from '../hooks/useSubscription';
+import { FREE_PLAN_MAX_SURVEYS } from '../lib/constants';
 
 const STATUS_FILTERS = ['all', 'active', 'draft', 'paused', 'expired', 'closed'];
 const SORT_OPTIONS = [
@@ -20,6 +23,8 @@ export default function SurveyList() {
   const { profile } = useAuthStore();
   const nav = useNavigate();
   const { stopLoading } = useLoading();
+  const { subscription, loaded: subLoaded, load: loadSub } = useSubscription();
+  const [limitModalOpen, setLimitModalOpen] = useState(false);
   const [surveys, setSurveys] = useState([]);
   const [search, setSearch]   = useState('');
   const [filter, setFilter]   = useState('all');
@@ -58,6 +63,20 @@ export default function SurveyList() {
 
   const location = useLocation();
   useEffect(() => { if (profile?.id) load(); else stopLoading(); }, [profile?.id, location.key]);
+  useEffect(() => { if (profile?.id && !subLoaded) loadSub(); }, [profile?.id, subLoaded, loadSub]);
+
+  // Free plan = no paid subscription (or an explicit "free" plan). Drafts never
+  // count toward the limit; only active/paused/expired/closed surveys do.
+  const isFreePlan = !subscription || subscription?.plan?.code === 'free';
+  const nonDraftCount = surveys.filter(s => s.status && s.status !== 'draft').length;
+
+  function handleNewSurvey() {
+    if (isFreePlan && nonDraftCount >= FREE_PLAN_MAX_SURVEYS) {
+      setLimitModalOpen(true);
+      return;
+    }
+    nav('/surveys/new');
+  }
 
   async function load() {
     try {
@@ -156,6 +175,9 @@ export default function SurveyList() {
       {/* ── Confirm Modal ── */}
       <ConfirmModal open={confirmOpen} onClose={() => setConfirmOpen(false)} {...confirmProps} />
 
+      {/* ── Free-plan survey limit ── */}
+      <FreePlanLimitModal open={limitModalOpen} onClose={() => setLimitModalOpen(false)} />
+
       {/* ── Extend expiry prompt ── */}
       <ConfirmModal
         open={extendOpen}
@@ -175,12 +197,12 @@ export default function SurveyList() {
           <p style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 15, color: 'rgba(22,15,8,0.5)', marginTop: 6 }}>{surveys.length} total</p>
         </div>
         {hasPermission(profile?.role, 'create_survey') && (
-          <Link to="/surveys/new"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'var(--espresso)', color: 'var(--cream)', fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', padding: '14px 28px', borderRadius: 999, textDecoration: 'none', transition: 'background 0.25s ease' }}
+          <button onClick={handleNewSurvey}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'var(--espresso)', color: 'var(--cream)', fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', padding: '14px 28px', borderRadius: 999, border: 'none', cursor: 'pointer', transition: 'background 0.25s ease' }}
             onMouseEnter={e => e.currentTarget.style.background = 'var(--coral)'}
             onMouseLeave={e => e.currentTarget.style.background = 'var(--espresso)'}>
             + New Survey
-          </Link>
+          </button>
         )}
       </div>
 
@@ -245,8 +267,13 @@ export default function SurveyList() {
               whileHover={{ y: -4, boxShadow: '0 24px 60px rgba(22,15,8,0.1)' }}
               style={{ background: 'var(--warm-white)', borderRadius: 20, border: '1px solid rgba(22,15,8,0.07)', overflow: 'visible', position: 'relative', zIndex: menu === sv.id ? 100 : 1 }}>
 
-              {/* Colour accent bar */}
-              <div style={{ height: 3, borderRadius: '20px 20px 0 0', background: sv.theme_color || 'var(--coral)' }} />
+              {/* Colour accent bar — an overlay clipped to the FULL rounded card
+                  shape so the bar follows the corner arc instead of overhanging it.
+                  pointerEvents:none keeps the kebab menu / links clickable, and the
+                  card keeps overflow:visible so the menu can still pop out. */}
+              <div style={{ position: 'absolute', inset: 0, borderRadius: 20, overflow: 'hidden', pointerEvents: 'none' }}>
+                <div style={{ height: 3, background: sv.theme_color || 'var(--coral)' }} />
+              </div>
 
               <div style={{ padding: 24 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>

@@ -1,13 +1,14 @@
 import os
 import re
 import uuid
-import random
+import secrets
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from jose import jwt
 
+from core import config
 from core.rate_limiter import limiter
 from db.database import get_db
 from db.models import UserProfile, OTPVerification
@@ -21,13 +22,24 @@ from schemas import (
 )
 from services.sms import send_otp_sms
 from dependencies import get_current_user
+from cognito_utils import get_user_pool_id, get_app_client_id
 
 router = APIRouter(prefix="/auth/otp", tags=["otp"])
 
 COGNITO_REGION = os.getenv("COGNITO_REGION", "ap-south-1")
-COGNITO_USER_POOL_ID = os.getenv("COGNITO_USER_POOL_ID")
-COGNITO_APP_CLIENT_ID = os.getenv("COGNITO_APP_CLIENT_ID")
-OTP_JWT_SECRET = os.getenv("OTP_JWT_SECRET", "otp-secret-key-change-in-production")
+# Secret is loaded fail-closed in core.config (no insecure default). (AP-SEC-001)
+OTP_JWT_SECRET = config.OTP_JWT_SECRET
+
+
+def _issue_otp_token(payload: dict) -> str:
+    """Sign an OTP login token, refusing to run if no real secret is configured."""
+    if not OTP_JWT_SECRET:
+        raise HTTPException(
+            status_code=503,
+            detail="OTP login is not configured. Set OTP_JWT_SECRET.",
+        )
+    return jwt.encode(payload, OTP_JWT_SECRET, algorithm="HS256")
+
 
 PHONE_REGEX = re.compile(r"^\+\d{10,15}$")
 
@@ -35,6 +47,17 @@ PHONE_REGEX = re.compile(r"^\+\d{10,15}$")
 def _validate_phone(phone_number: str) -> None:
     if not PHONE_REGEX.match(phone_number):
         raise HTTPException(400, "Invalid phone number format. Must start with + and contain 10-15 digits.")
+
+
+def _generate_otp() -> str:
+    """Cryptographically-strong 6-digit OTP.
+
+    A fixed code is returned ONLY on explicit local development to ease testing;
+    every deployed environment always gets a random code. (AP-SEC-014, AP-SEC-015)
+    """
+    if config.IS_LOCAL and not config.IS_PRODUCTION:
+        return "123456"
+    return f"{secrets.randbelow(900000) + 100000}"
 
 
 # ── POST /auth/otp/send ──────────────────────────────────────────────────────
@@ -70,7 +93,7 @@ def otp_send(
     ).delete(synchronize_session=False)
 
     # Generate and store OTP
-    otp_code = f"{random.randint(100000, 999999)}"
+    otp_code = _generate_otp()
     otp_record = OTPVerification(
         id=uuid.uuid4(),
         phone_number=body.phone_number,
@@ -112,13 +135,14 @@ def otp_verify(
     if not otp_record:
         raise HTTPException(400, "OTP expired or not found")
 
-    otp_record.attempts += 1
-    db.commit()
-
+    # Reject once the attempt budget is exhausted, BEFORE comparing — and only
+    # count failed guesses so a correct code is never wasted. (AP-SEC-015)
     if otp_record.attempts >= 5:
-        raise HTTPException(429, "Too many attempts")
+        raise HTTPException(429, "Too many attempts. Request a new code.")
 
-    if otp_record.otp_code != body.otp_code:
+    if not secrets.compare_digest(otp_record.otp_code, body.otp_code):
+        otp_record.attempts += 1
+        db.commit()
         raise HTTPException(400, "Invalid OTP")
 
     # Mark OTP as verified
@@ -143,7 +167,7 @@ def otp_verify(
         db.refresh(user)
 
     # Generate JWT token
-    issuer_url = f"https://cognito-idp.{COGNITO_REGION}.amazonaws.com/{COGNITO_USER_POOL_ID or 'mock-user-pool-id'}"
+    issuer_url = f"https://cognito-idp.{COGNITO_REGION}.amazonaws.com/{get_user_pool_id() or 'mock-user-pool-id'}"
     payload = {
         "sub": str(user.cognito_sub or user.id),
         "email": user.email,
@@ -151,10 +175,10 @@ def otp_verify(
         "phone_number": user.phone_number,
         "token_use": "id",
         "auth_method": "otp",
-        "aud": COGNITO_APP_CLIENT_ID or "mock-client-id",
+        "aud": get_app_client_id() or "mock-client-id",
         "iss": issuer_url,
     }
-    id_token = jwt.encode(payload, OTP_JWT_SECRET, algorithm="HS256")
+    id_token = _issue_otp_token(payload)
 
     return OTPLoginResponse(
         id_token=id_token,
@@ -197,7 +221,7 @@ def phone_link_send(
     ).delete(synchronize_session=False)
 
     # Generate and store OTP
-    otp_code = f"{random.randint(100000, 999999)}"
+    otp_code = _generate_otp()
     otp_record = OTPVerification(
         id=uuid.uuid4(),
         phone_number=body.phone_number,
@@ -241,13 +265,14 @@ def phone_link_verify(
     if not otp_record:
         raise HTTPException(400, "OTP expired or not found")
 
-    otp_record.attempts += 1
-    db.commit()
-
+    # Reject once the attempt budget is exhausted, BEFORE comparing — and only
+    # count failed guesses so a correct code is never wasted. (AP-SEC-015)
     if otp_record.attempts >= 5:
-        raise HTTPException(429, "Too many attempts")
+        raise HTTPException(429, "Too many attempts. Request a new code.")
 
-    if otp_record.otp_code != body.otp_code:
+    if not secrets.compare_digest(otp_record.otp_code, body.otp_code):
+        otp_record.attempts += 1
+        db.commit()
         raise HTTPException(400, "Invalid OTP")
 
     # Mark OTP as verified and update user phone

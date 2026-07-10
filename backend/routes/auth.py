@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 
+from core import config
 from core.rate_limiter import limiter
 from db.database import get_db
 from db.models import Tenant, UserProfile, RoleEnum
@@ -24,6 +25,8 @@ from cognito_utils import (
     admin_get_user_status,
     admin_delete_user,
     get_cognito_client,
+    get_user_pool_id,
+    get_app_client_id,
 )
 from auth_utils import verify_password
 from dependencies import get_current_user
@@ -134,8 +137,8 @@ def change_password(
         # In mock mode just acknowledge success — no real Cognito to call
         return {"message": "Password updated (mock mode)"}
 
-    user_pool_id = os.getenv("COGNITO_USER_POOL_ID")
-    app_client_id = os.getenv("COGNITO_APP_CLIENT_ID")
+    user_pool_id = get_user_pool_id()
+    app_client_id = get_app_client_id()
 
     if not user_pool_id or not app_client_id:
         raise HTTPException(500, "Cognito is not configured on this server")
@@ -215,6 +218,10 @@ def sync(
             user.cognito_sub = cognito_sub
             db.commit()
             db.refresh(user)
+        if user.role == RoleEnum.super_admin and not user.is_internal:
+            user.role = RoleEnum.admin
+            db.commit()
+            db.refresh(user)
         tenant = db.query(Tenant).filter(Tenant.id == user.tenant_id).first()
         return SyncResponse(
             user=UserProfileOut.model_validate(user),
@@ -228,6 +235,10 @@ def sync(
             existing.cognito_sub = cognito_sub
             db.commit()
             db.refresh(existing)
+            if existing.role == RoleEnum.super_admin and not existing.is_internal:
+                existing.role = RoleEnum.admin
+                db.commit()
+                db.refresh(existing)
             tenant = db.query(Tenant).filter(Tenant.id == existing.tenant_id).first()
             return SyncResponse(
                 user=UserProfileOut.model_validate(existing),
@@ -238,31 +249,37 @@ def sync(
     # Auto-derive tenant name from email domain if not provided (handles local dev with fresh DB)
     derived_tenant_name = body.tenant_name or email.split("@")[1].split(".")[0].title() if email else "My Organisation"
     derived_tenant_slug = body.tenant_slug or _slugify(derived_tenant_name)
+    account_type = "personal" if (body.account_type or "").strip().lower() == "personal" else "organization"
 
-    # Check if a tenant with this slug already exists — reuse it instead of crashing
-    tenant = db.query(Tenant).filter(Tenant.slug == derived_tenant_slug).first()
-    if not tenant:
-        try:
-            tenant = Tenant(
-                id=uuid.uuid4(),
-                name=derived_tenant_name,
-                slug=derived_tenant_slug,
-            )
-            db.add(tenant)
-            db.flush()
-        except Exception:
-            db.rollback()
-            # Race condition: another request created this tenant simultaneously
-            tenant = db.query(Tenant).filter(Tenant.slug == derived_tenant_slug).first()
-            if not tenant:
-                raise HTTPException(500, "Failed to create or find tenant")
+    # Ensure the tenant slug is unique for brand new organizations/users to prevent placing different users in the same tenant
+    base_slug = derived_tenant_slug
+    counter = 1
+    while db.query(Tenant).filter(Tenant.slug == derived_tenant_slug).first() is not None:
+        derived_tenant_slug = f"{base_slug}-{counter}"
+        counter += 1
+
+    try:
+        tenant = Tenant(
+            id=uuid.uuid4(),
+            name=derived_tenant_name,
+            slug=derived_tenant_slug,
+            account_type=account_type,
+        )
+        db.add(tenant)
+        db.flush()
+    except Exception:
+        db.rollback()
+        # Race condition: another request created this tenant simultaneously
+        tenant = db.query(Tenant).filter(Tenant.slug == derived_tenant_slug).first()
+        if not tenant:
+            raise HTTPException(500, "Failed to create or find tenant")
 
     user = UserProfile(
         id=uuid.uuid4(),
         email=email,
         full_name=name,
         cognito_sub=cognito_sub,
-        role=RoleEnum.super_admin,
+        role=RoleEnum.admin,
         tenant_id=tenant.id,
         is_active=True,
         account_status="active",
@@ -307,17 +324,22 @@ def migrate_check(
 
 
 @router.post("/cleanup-unconfirmed")
-def cleanup_unconfirmed(body: CleanupRequest):
+@limiter.limit("3/minute")
+def cleanup_unconfirmed(request: Request, body: CleanupRequest):
     """
     Deletes a user from Cognito ONLY if they are UNCONFIRMED.
-    Used during signup retries to allow fresh start.
-    """
-    status = admin_get_user_status(body.email)
-    if status == "UNCONFIRMED":
-        success = admin_delete_user(body.email)
-        return {"deleted": success, "email": body.email}
+    Used during signup retries to allow a fresh start.
 
-    return {"deleted": False, "status": status}
+    Hardened (AP-SEC-013): rate-limited, and always returns a generic response so
+    it cannot be used to enumerate which emails exist or are confirmed.
+    """
+    try:
+        if admin_get_user_status(body.email) == "UNCONFIRMED":
+            admin_delete_user(body.email)
+    except Exception:
+        pass
+    # Generic response regardless of outcome — no account-status disclosure.
+    return {"ok": True}
 
 
 @router.post("/mock-login")
@@ -326,7 +348,9 @@ def mock_login(body: dict, db: Session = Depends(get_db)):
     Generate a self-signed JWT token for a local developer.
     Only available when MOCK_COGNITO=true.
     """
-    if not os.getenv("MOCK_COGNITO", "false").lower() == "true":
+    # Mock login is a local-development aid only. core.config guarantees
+    # MOCK_COGNITO is never true in production. (AP-SEC-029)
+    if not config.MOCK_COGNITO or not config.MOCK_COGNITO_SECRET:
         raise HTTPException(400, "Mock Cognito is not enabled in this environment")
 
     email = body.get("email")
@@ -349,12 +373,11 @@ def mock_login(body: dict, db: Session = Depends(get_db)):
         "email": email,
         "name": name,
         "token_use": "id",
-        "aud": os.getenv("COGNITO_APP_CLIENT_ID") or "mock-client-id",
-        "iss": f"https://cognito-idp.{os.getenv('COGNITO_REGION', 'ap-south-1')}.amazonaws.com/{os.getenv('COGNITO_USER_POOL_ID') or 'mock-user-pool-id'}",
+        "aud": get_app_client_id() or "mock-client-id",
+        "iss": f"https://cognito-idp.{os.getenv('COGNITO_REGION', 'ap-south-1')}.amazonaws.com/{get_user_pool_id() or 'mock-user-pool-id'}",
     }
 
-    secret = os.getenv("MOCK_COGNITO_SECRET", "mock-secret-key-1234567890")
-    token = jwt.encode(payload, secret, algorithm="HS256")
+    token = jwt.encode(payload, config.MOCK_COGNITO_SECRET, algorithm="HS256")
 
     return {"id_token": token}
 
@@ -366,8 +389,8 @@ def get_auth_config():
     Allows for environment-agnostic frontend builds that resolve configurations at runtime.
     """
     return {
-        "COGNITO_USER_POOL_ID": os.getenv("COGNITO_USER_POOL_ID"),
-        "COGNITO_APP_CLIENT_ID": os.getenv("COGNITO_APP_CLIENT_ID"),
+        "COGNITO_USER_POOL_ID": get_user_pool_id(),
+        "COGNITO_APP_CLIENT_ID": get_app_client_id(),
         "COGNITO_REGION": os.getenv("COGNITO_REGION", "ap-south-1"),
         "MOCK_COGNITO": os.getenv("MOCK_COGNITO", "false").lower() == "true",
     }

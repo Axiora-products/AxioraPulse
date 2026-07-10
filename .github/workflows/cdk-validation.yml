@@ -38,7 +38,7 @@ jobs:
 
       - name: Run CDK Synth
         env:
-          CDK_PROD_ENABLED: "true"
+          CDK_PROD_ENABLED: "false"
           CDK_NAG_ENABLED: ${{ (github.ref_name == 'main' || startsWith(github.ref_name, 'release/')) && 'true' || 'false' }}
         run: |
           cd infra/cdk

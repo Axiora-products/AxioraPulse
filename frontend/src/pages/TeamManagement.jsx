@@ -1,12 +1,13 @@
 import React, { useEffect, useState, useRef } from 'react';
 import API from '../api/axios';
-import { useLocation } from 'react-router-dom';
+import { useLocation, Navigate } from 'react-router-dom';
 import useAuthStore from '../hooks/useAuth';
 import { ROLE_LABELS, hasPermission } from '../lib/constants';
 import toast from 'react-hot-toast';
 import { useLoading } from '../context/LoadingContext';
 import ConfirmModal from '../components/ConfirmModal';
 import useSubscription from '../hooks/useSubscription';
+import { getApiErrorMessage } from '../lib/apiError';
 
 const ROLE_COLORS = { super_admin: 'rgba(139,92,246,0.10)', admin: 'rgba(255,69,0,0.10)', manager: 'rgba(255,184,0,0.12)', creator: 'rgba(30,122,74,0.10)', viewer: 'rgba(22,15,8,0.06)' };
 const ROLE_TEXT = { super_admin: '#7C3AED', admin: 'var(--coral)', manager: '#A07000', creator: 'var(--sage)', viewer: 'rgba(22,15,8,0.38)' };
@@ -87,7 +88,11 @@ export default function TeamManagement() {
   const teamFull = members.length >= maxMembers;
 
   const location = useLocation();
-  useEffect(() => { if (profile?.id) load(); else stopLoading(); }, [profile?.id, location.key]);
+  const isPersonal = tenant?.account_type === 'personal';
+  useEffect(() => { if (profile?.id && !isPersonal) load(); else stopLoading(); }, [profile?.id, isPersonal, location.key]);
+
+  // Team Management is unavailable on personal accounts — bounce to dashboard
+  if (isPersonal) return <Navigate to="/dashboard" replace />;
 
   async function load() {
     try {
@@ -123,7 +128,7 @@ export default function TeamManagement() {
       sIE(''); sIN(''); sIR('viewer'); setBulkEmails('');
       load();
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to send invite');
+      toast.error(getApiErrorMessage(err, 'Failed to send invite'));
     } finally {
       setBusy(false);
     }
@@ -137,7 +142,7 @@ export default function TeamManagement() {
     try {
       await API.patch(`/users/${uid}/role`, { role: newRole });
       toast.success('Role updated'); load();
-    } catch (err) { toast.error(err.response?.data?.detail || 'Failed to update role'); }
+    } catch (err) { toast.error(getApiErrorMessage(err, 'Failed to update role')); }
   }
   async function deactivate(uid) {
     if (uid === profile.id) return toast.error("Can't deactivate yourself");
@@ -147,9 +152,9 @@ export default function TeamManagement() {
     setDeactivateTarget(uid);
   }
 
-  // req #14: only super_admin can delete users
+  // Both admin and super_admin can delete users
   function confirmDelete(uid) {
-    if (profile.role !== 'super_admin') return toast.error("Only Super Admins can delete users");
+    if (profile.role !== 'super_admin' && profile.role !== 'admin') return toast.error("Only Admins and Super Admins can delete users");
     const target = members.find(m => m.id === uid);
     if (target?.role === 'super_admin') return toast.error("Super Admin cannot be deleted");
     setDeleteTarget(uid);
@@ -159,20 +164,37 @@ export default function TeamManagement() {
     try {
       await API.delete(`/users/${deleteTarget}`);
       toast.success('User deleted'); setDeleteTarget(null); load();
-    } catch (err) { toast.error(err.response?.data?.detail || 'Failed to delete user'); }
+    } catch (err) { toast.error(getApiErrorMessage(err, 'Failed to delete user')); }
   }
   async function doDeactivate() {
     try {
       await API.patch(`/users/${deactivateTarget}/status`, { is_active: false });
       toast.success('Member deactivated'); load();
-    } catch (err) { toast.error(err.response?.data?.detail || 'Failed to deactivate'); }
+    } catch (err) { toast.error(getApiErrorMessage(err, 'Failed to deactivate')); }
   }
   async function reactivate(uid) {
     if (uid === profile.id) return;
     try {
       await API.patch(`/users/${uid}/status`, { is_active: true });
       toast.success('Member reactivated'); load();
-    } catch (err) { toast.error(err.response?.data?.detail || 'Failed to reactivate'); }
+    } catch (err) { toast.error(getApiErrorMessage(err, 'Failed to reactivate')); }
+  }
+
+  async function resendInvite(member) {
+    setBusy(true);
+    try {
+      await API.post('/users/invite', {
+        email: member.email,
+        role: member.role,
+        full_name: member.full_name || null
+      });
+      toast.success(`Resent invitation to ${member.email}`);
+      load();
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Failed to resend invite'));
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -236,9 +258,11 @@ export default function TeamManagement() {
                 {m.id === profile.id && (
                   <span style={{ fontFamily: 'Syne, sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.3)', background: 'var(--cream-deep)', padding: '3px 8px', borderRadius: 999 }}>You</span>
                 )}
-                {m.is_active === false && (
+                {m.is_active === false ? (
                   <span id={`member-status-${m.id}`} style={{ fontFamily: 'Syne, sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--terracotta)', background: 'rgba(214,59,31,0.08)', padding: '3px 8px', borderRadius: 999 }}>Disabled</span>
-                )}
+                ) : m.account_status === 'invited' ? (
+                  <span id={`member-status-${m.id}`} style={{ fontFamily: 'Syne, sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#A07000', background: 'rgba(255,184,0,0.12)', padding: '3px 8px', borderRadius: 999 }}>Pending</span>
+                ) : null}
               </div>
               <div style={{ fontFamily: 'Fraunces, serif', fontWeight: 300, fontSize: 12, color: 'rgba(22,15,8,0.38)', marginBottom: 10, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.email}</div>
 
@@ -255,6 +279,14 @@ export default function TeamManagement() {
             {/* Action — enable / deactivate */}
             {hasPermission(profile?.role, 'manage_team') && m.id !== profile.id && m.role !== 'super_admin' && (
               <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                {m.account_status === 'invited' && m.is_active !== false && (
+                  <button onClick={() => resendInvite(m)} title="Resend invitation email"
+                    style={{ width: 30, height: 30, borderRadius: '50%', border: 'none', background: 'none', color: 'rgba(22,15,8,0.2)', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
+                    onMouseEnter={e => { e.currentTarget.style.color = '#A07000'; e.currentTarget.style.background = 'rgba(255,184,0,0.12)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.color = 'rgba(22,15,8,0.2)'; e.currentTarget.style.background = 'none'; }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                  </button>
+                )}
                 {m.is_active === false ? (
                   <button onClick={() => reactivate(m.id)} title="Re-enable member"
                     style={{ padding: '8px 16px', borderRadius: 999, border: 'none', background: 'rgba(30,122,74,0.1)', color: 'var(--sage)', fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}
@@ -272,8 +304,8 @@ export default function TeamManagement() {
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="8" y1="12" x2="16" y2="12" /></svg>
                   </button>
                 )}
-                {/* req #14: only super_admin sees delete button */}
-                {profile.role === 'super_admin' && (
+                {/* Both admin and super_admin see delete button */}
+                {(profile.role === 'super_admin' || profile.role === 'admin') && (
                   <button onClick={() => confirmDelete(m.id)} title="Delete user permanently"
                     style={{ width: 30, height: 30, borderRadius: '50%', border: 'none', background: 'none', color: 'rgba(22,15,8,0.15)', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
                     onMouseEnter={e => { e.currentTarget.style.color = 'var(--terracotta)'; e.currentTarget.style.background = 'rgba(214,59,31,0.06)'; }}

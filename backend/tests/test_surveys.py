@@ -121,6 +121,8 @@ def test_survey_localization_helper_methods(auth_headers):
         "description": "Please help translate this.",
         "welcome_message": "Welcome!",
         "thank_you_message": "Thank you!",
+        # Must be published (active) — public slug endpoint hides drafts (AP-SEC-037).
+        "status": "active",
         "questions": [
             {
                 "question_text": "Matrix question",
@@ -272,3 +274,68 @@ def test_survey_localization_helpers_direct():
 
     # non-dict/list fallback
     assert _localize_options("plain_string", translations) == "plain_string"
+
+
+def test_get_survey_og(auth_headers):
+    # Self-contained: create an active survey of our own. The shared seeded survey
+    # is mutated to draft by test_update_survey, and the public OG endpoint hides
+    # drafts (AP-SEC-037), so we must not depend on its slug here.
+    payload = {
+        "title": "OG Test Survey",
+        "status": "active",
+        "questions": [
+            {"question_text": "Q1?", "question_type": "yes_no", "sort_order": 1},
+            {"question_text": "Q2?", "question_type": "yes_no", "sort_order": 2},
+        ],
+    }
+    create = client.post("/surveys/", json=payload, headers=auth_headers)
+    assert create.status_code == 201
+    slug = create.json()["slug"]
+
+    response = client.get(f"/surveys/og/{slug}")
+    assert response.status_code == 200
+    assert "og:title" in response.text
+    assert slug in response.text
+
+    response_nf = client.get("/surveys/og/non-existent-slug")
+    assert response_nf.status_code == 404
+
+
+def test_check_slug():
+    # Test available slug
+    resp = client.get("/surveys/check-slug?slug=new-available-slug")
+    assert resp.status_code == 200
+    assert resp.json() == {"available": True}
+
+    # Test taken slug
+    resp_taken = client.get("/surveys/check-slug?slug=test-survey")
+    assert resp_taken.status_code == 200
+    assert resp_taken.json() == {"available": False}
+
+    # Test taken slug with exclusion
+    resp_excl = client.get(f"/surveys/check-slug?slug=test-survey&exclude_survey_id={SURVEY_ID}")
+    assert resp_excl.status_code == 200
+    assert resp_excl.json() == {"available": True}
+
+    # Test invalid slug
+    resp_invalid = client.get("/surveys/check-slug?slug=Invalid_Slug!")
+    assert resp_invalid.status_code == 200
+    assert resp_invalid.json() == {"available": False, "reason": "invalid"}
+
+    # Test exclusion with null/undefined/empty string
+    resp_null = client.get("/surveys/check-slug?slug=test-survey&exclude_survey_id=null")
+    assert resp_null.status_code == 200
+    assert resp_null.json() == {"available": False}
+
+    resp_undef = client.get("/surveys/check-slug?slug=test-survey&exclude_survey_id=undefined")
+    assert resp_undef.status_code == 200
+    assert resp_undef.json() == {"available": False}
+
+    resp_empty = client.get("/surveys/check-slug?slug=test-survey&exclude_survey_id=")
+    assert resp_empty.status_code == 200
+    assert resp_empty.json() == {"available": False}
+
+    # Test exclusion with invalid UUID format (ignores gracefully)
+    resp_bad = client.get("/surveys/check-slug?slug=test-survey&exclude_survey_id=not-a-uuid")
+    assert resp_bad.status_code == 200
+    assert resp_bad.json() == {"available": False}

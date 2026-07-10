@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:root@localhost:5432/nexpulse")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:root@localhost:5432/axiorapulse")
 
 engine = create_engine(
     DATABASE_URL,
@@ -24,6 +24,11 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
 
+# Register the Row-Level Security GUC listener (no-op unless ENABLE_DB_RLS).
+from db.rls import register_rls_listener, clear_tenant_context  # noqa: E402
+
+register_rls_listener(SessionLocal)
+
 
 def get_db():
     """FastAPI dependency that yields a DB session and closes it after the request."""
@@ -31,4 +36,5 @@ def get_db():
     try:
         yield db
     finally:
+        clear_tenant_context()
         db.close()

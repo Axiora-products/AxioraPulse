@@ -15,14 +15,23 @@ const useAuthStore = create((set, get) => ({
     set({ loading: true });
 
     const token = localStorage.getItem('token');
-    if (token) {
+    // During registration (syncParams provided) we must run /auth/sync FIRST so the
+    // tenant is created with the chosen account_type. Calling /auth/me first would let
+    // get_current_user auto-provision an 'organization' tenant and short-circuit sync.
+    const hasSyncIntent = syncParams && Object.keys(syncParams).length > 0;
+    if (token && !hasSyncIntent) {
       try {
         const res = await API.get('/auth/me');
         const { user, profile, tenant } = res.data;
         set({ user, profile, tenant, loading: false, initialized: true });
         return;
       } catch (meErr) {
-        // Token is invalid/expired; fall back to Cognito session restoration
+        // Only fall back to Cognito session restoration if the token was deleted (i.e. invalid/expired)
+        if (localStorage.getItem('token')) {
+          // Keep the token (e.g. network drop or aborted request). Do not fall back.
+          set({ loading: false, initialized: true });
+          return;
+        }
       }
     }
 
@@ -66,7 +75,11 @@ const useAuthStore = create((set, get) => ({
         set({ user, profile, tenant, loading: false, initialized: true });
         return true;
       } catch (meErr) {
-        // Token is invalid/expired; fall back to Cognito session restoration
+        // Only fall back to Cognito session restoration if the token was deleted (i.e. invalid/expired)
+        if (localStorage.getItem('token')) {
+          // Keep the token (e.g. network drop or aborted request). Do not fall back.
+          return true;
+        }
       }
     }
 

@@ -66,6 +66,52 @@ export const SHORT_SURVEY_RULES = {
   preferredRequiredQuestionLimit: 5,
 };
 
+// Minimum input lengths (characters) before a Survey Health item is allowed to
+// count as complete. Single-character or very short inputs must NOT inflate the
+// health score, so each field has to clear a meaningful threshold first.
+export const SURVEY_HEALTH_MINIMUMS = {
+  title: 20,
+  welcomeMessage: 50,
+  description: 50,
+  questionText: 30,
+};
+
+// The locked default thank-you message. It is permanently visible and cannot be
+// edited, overwritten, or deleted — users may only append custom text after it.
+export const DEFAULT_THANK_YOU_MESSAGE = 'Thank you for completing this survey!';
+
+// Whether a free-text field has enough content to satisfy a health check.
+export function meetsMinLength(value, min) {
+  return (value || '').trim().length >= min;
+}
+
+// A question only contributes toward completion/quality once its text is
+// substantial enough (>= SURVEY_HEALTH_MINIMUMS.questionText characters).
+export function getQuestionCharCount(question = {}) {
+  return (question.question_text || question.text || '').trim().length;
+}
+
+export function isQuestionComplete(question = {}) {
+  return getQuestionCharCount(question) >= SURVEY_HEALTH_MINIMUMS.questionText;
+}
+
+// The thank-you message is stored as the locked default optionally followed by a
+// blank line and the user's custom addition. These helpers split/recombine the
+// two halves so the default text can never be lost.
+export function getThankYouCustom(message = '') {
+  if (!message) return '';
+  if (message.startsWith(DEFAULT_THANK_YOU_MESSAGE)) {
+    return message.slice(DEFAULT_THANK_YOU_MESSAGE.length).replace(/^\s+/, '');
+  }
+  // Legacy messages saved before the default was locked are treated as custom text.
+  return message;
+}
+
+export function composeThankYou(custom = '') {
+  const trimmed = (custom || '').trim();
+  return trimmed ? `${DEFAULT_THANK_YOU_MESSAGE}\n\n${trimmed}` : DEFAULT_THANK_YOU_MESSAGE;
+}
+
 export function estimateSurveyMinutes(questions = []) {
   const seconds = questions.reduce((total, q) => {
     const type = q?.question_type || q?.type;
@@ -85,6 +131,38 @@ export function getQuestionWordCount(question = {}) {
 export function getFormatDiversityScore(questions = []) {
   if (!questions.length) return 0;
   return new Set(questions.map(q => q.question_type || q.type).filter(Boolean)).size;
+}
+
+// ── Survey content validation ───────────────────────────────────────────────
+// Text fields must contain real words — at least one letter, so a value made up
+// of only digits/symbols is rejected — and meet a minimum character length.
+// Drives the survey-health checklist and the publish guard.
+export const SURVEY_TEXT_RULES = {
+  titleMinChars: 20,
+  longTextMinChars: 50,   // description + welcome message
+  questionMinChars: 25,
+};
+
+// At least one alphabetic letter (incl. accented Latin) — blocks numbers-only.
+const HAS_LETTER = /[A-Za-zÀ-ɏ]/;
+
+export function hasLetters(value = '') {
+  return HAS_LETTER.test(value || '');
+}
+
+export function isValidSurveyTitle(value = '') {
+  const v = (value || '').trim();
+  return v.length >= SURVEY_TEXT_RULES.titleMinChars && hasLetters(v);
+}
+
+export function isValidSurveyLongText(value = '') {
+  const v = (value || '').trim();
+  return v.length >= SURVEY_TEXT_RULES.longTextMinChars && hasLetters(v);
+}
+
+export function isValidQuestionText(value = '') {
+  const v = (value || '').trim();
+  return v.length >= SURVEY_TEXT_RULES.questionMinChars && hasLetters(v);
 }
 
 // Question types that use options arrays
@@ -155,4 +233,16 @@ export function timeAgo(dateStr) {
 export function isExpired(expiresAt) {
   if (!expiresAt) return false;
   return new Date(expiresAt) < new Date();
+}
+
+// ── Support / billing contact ────────────────────────────────────────────────
+// Billing CTAs open the user's default mail client (Gmail web, Outlook, Apple
+// Mail, etc.) composing to this address via a standard mailto: link.
+export const SUPPORT_EMAIL = 'support@axioraglobalsolutions.com';
+
+// Max non-draft surveys on the free plan (mirrors backend FREE_PLAN_MAX_SURVEYS).
+export const FREE_PLAN_MAX_SURVEYS = 3;
+
+export function openSupportEmail(subject = 'Plan Upgrade Inquiry') {
+  window.location.href = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}`;
 }

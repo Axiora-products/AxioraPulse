@@ -10,6 +10,7 @@ let _config = null;
 
 export function setAuthConfig(config) {
   _config = config;
+  _userPool = null;
 }
 
 export function isMockAuth() {

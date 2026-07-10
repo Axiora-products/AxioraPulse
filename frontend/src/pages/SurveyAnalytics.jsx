@@ -2,10 +2,11 @@
 // SurveyAnalytics.jsx  —  World-class analytics dashboard · Axiora Pulse
 // Tabs: Overview · Drop-off · Questions · Text Insights · Pulse Insights
 // ─────────────────────────────────────────────────────────────────────────────
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
+import toast from 'react-hot-toast';
 import API from '../api/axios';
 import useAuthStore from '../hooks/useAuth';
 import { formatDateTime } from '../lib/constants';
@@ -305,9 +306,78 @@ function TabBar({ active, onChange, onScroll }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// TAB: SOURCES — respondent source / acquisition-channel tracking
+// ─────────────────────────────────────────────────────────────────────────────
+function SourcesTab({ analytics }) {
+  const { sourceBreakdown, total } = analytics;
+
+  if (!total || sourceBreakdown.length === 0) {
+    return (
+      <div style={{ ...S.card }}>
+        <div style={S.secLabel}>Response Sources</div>
+        <p style={{ ...S.body, color:'rgba(22,15,8,0.4)', margin:0 }}>
+          No responses yet. Share your survey from the Share dialog — each channel (WhatsApp,
+          LinkedIn, Email, QR Code, Direct Link, …) tags its link, so responses are attributed
+          to their source here automatically.
+        </p>
+      </div>
+    );
+  }
+
+  const top = sourceBreakdown[0];
+  const bestCompletion = sourceBreakdown.slice().sort((a, b) => b.completionRate - a.completionRate)[0];
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
+      {/* Summary tiles */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(170px,1fr))', gap:14 }}>
+        <div style={{ ...S.card }}>
+          <div style={{ fontFamily:'Playfair Display,serif', fontWeight:900, fontSize:34, color:'var(--espresso)' }}>{sourceBreakdown.length}</div>
+          <div style={S.statLbl}>Channels used</div>
+        </div>
+        <div style={{ ...S.card }}>
+          <div style={{ fontFamily:'Playfair Display,serif', fontWeight:900, fontSize:28, color:'var(--coral)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{top.label}</div>
+          <div style={S.statLbl}>Top source · {top.total} ({top.share}%)</div>
+        </div>
+        <div style={{ ...S.card }}>
+          <div style={{ fontFamily:'Playfair Display,serif', fontWeight:900, fontSize:34, color:'#1E7A4A' }}>{bestCompletion.completionRate}%</div>
+          <div style={S.statLbl}>Best completion · {bestCompletion.label}</div>
+        </div>
+      </div>
+
+      {/* Per-source breakdown */}
+      <div style={{ ...S.card }}>
+        <div style={S.secLabel}>Responses by Source</div>
+        <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+          {sourceBreakdown.map((s, i) => {
+            const c = COLS[i % COLS.length];
+            return (
+              <div key={s.source}>
+                <div style={{ display:'flex', alignItems:'baseline', justifyContent:'space-between', marginBottom:6, flexWrap:'wrap', gap:8 }}>
+                  <span style={{ display:'inline-flex', alignItems:'center', gap:8, fontFamily:'Syne,sans-serif', fontSize:12, fontWeight:700, color:'var(--espresso)' }}>
+                    <span style={{ width:10, height:10, borderRadius:3, background:c }} />
+                    {s.label}
+                  </span>
+                  <span style={{ fontFamily:'Syne,sans-serif', fontSize:11, fontWeight:700, letterSpacing:'0.06em', color:'rgba(22,15,8,0.45)' }}>
+                    {s.total} {s.total === 1 ? 'response' : 'responses'} · {s.share}% of total · {s.completionRate}% completed
+                  </span>
+                </div>
+                <div style={{ height:8, borderRadius:999, background:'rgba(22,15,8,0.06)', overflow:'hidden' }}>
+                  <div style={{ width:`${Math.max(s.share, 2)}%`, height:'100%', background:c, borderRadius:999, transition:'width 0.4s' }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // TAB 1: OVERVIEW
 // ─────────────────────────────────────────────────────────────────────────────
-function OverviewTab({ analytics, trendDays, setTrendDays }) {
+function OverviewTab({ analytics, trendDays, setTrendDays, survey }) {
   const { total, completedCount, abandonedCount, completionRate, abandonRate, avgTimeMin, nps, responseTrend, deviceBreakdown, locationStats, milestones } = analytics;
   const inProgress = Math.max(0, total - completedCount - abandonedCount);
   const pctOf = (n) => total ? Math.round((n / total) * 100) : 0;
@@ -493,8 +563,26 @@ function OverviewTab({ analytics, trendDays, setTrendDays }) {
               {trendClamped ? 'No responses since this survey launched.' : `No responses in the last ${trendDays} days.`}
             </p>
           </div>
-        </div>
-      )}
+
+          {/* Secondary stats */}
+          <div style={{ marginTop:'auto', paddingTop:18, display:'flex', flexDirection:'column', gap:12 }}>
+            <div style={{ display:'flex', alignItems:'baseline', justifyContent:'space-between', gap:8 }}>
+              <span style={{ fontFamily:'Fraunces,serif', fontWeight:300, fontSize:13, color:'rgba(22,15,8,0.55)' }}>Avg. per day</span>
+              <span style={{ fontFamily:'Playfair Display,serif', fontWeight:900, fontSize:18, letterSpacing:'-0.5px', color:'var(--espresso)' }}>
+                {avgPerDay.toFixed(1)}
+              </span>
+            </div>
+            <div style={{ display:'flex', alignItems:'baseline', justifyContent:'space-between', gap:8 }}>
+              <span style={{ fontFamily:'Fraunces,serif', fontWeight:300, fontSize:13, color:'rgba(22,15,8,0.55)' }}>
+                Projected total{daysLeft != null ? ` (in ${daysLeft}d)` : ''}
+              </span>
+              <span style={{ fontFamily:'Playfair Display,serif', fontWeight:900, fontSize:18, letterSpacing:'-0.5px', color:'var(--coral)' }}>
+                {projectedTotal.toLocaleString()}
+              </span>
+            </div>
+          </div>
+        </motion.div>
+      </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }} className="np-grid-responsive">
         {/* Device breakdown */}
@@ -1483,158 +1571,5 @@ export default function SurveyAnalytics() {
 
 /* =========================
    TABS
-========================= */
-
-.sa-tabs-scroll{
-  overflow-x:auto;
-  overflow-y:hidden;
-  scrollbar-width:none;
-}
-
-.sa-tabs-scroll::-webkit-scrollbar{
-  display:none;
-}
-
-/* =========================
-   TABLET
-========================= */
-
-@media (max-width:1024px){
-
-  .np-stats-grid{
-    grid-template-columns:repeat(2,1fr) !important;
-  }
-
-  .np-overview-mid{
-    grid-template-columns:1fr !important;
-  }
-
-  .np-feedback-grid{
-    grid-template-columns:1fr !important;
-  }
-
-  .np-page-header{
-    flex-direction:column;
-  }
-
-  .sa-header-actions{
-    width:100%;
-    justify-content:flex-start;
-  }
-}
-
-/* =========================
-   MOBILE
-========================= */
-
-@media (max-width:768px){
-
-  .np-stats-grid{
-    grid-template-columns:1fr !important;
-  }
-
-  .np-grid-responsive{
-    grid-template-columns:1fr !important;
-  }
-
-  .np-overview-mid{
-    grid-template-columns:1fr !important;
-  }
-
-  .np-feedback-grid{
-    grid-template-columns:1fr !important;
-  }
-
-  .np-page-header{
-    flex-direction:column;
-    gap:16px;
-  }
-
-  .sa-header-actions{
-    width:100%;
-    overflow-x:auto;
-    flex-wrap:nowrap;
-    padding-bottom:6px;
-  }
-
-  .sa-header-actions button{
-    flex-shrink:0;
-  }
-
-  .np-chart-wrap{
-    height:220px !important;
-  }
-
-  .np-doughnut-card{
-    flex-direction:column !important;
-    align-items:center !important;
-  }
-
-  .np-doughnut-wrap{
-    width:120px !important;
-    height:120px !important;
-  }
-}
-
-/* =========================
-   SMALL MOBILE
-========================= */
-
-@media (max-width:480px){
-
-  .np-chart-wrap{
-    height:180px !important;
-  }
-
-  .sa-header-actions{
-    gap:4px;
-  }
-
-  .sa-header-actions button{
-    font-size:8px !important;
-    padding:6px 10px !important;
-  }
-
-  h1{
-    word-break:break-word;
-  }
-   
-}
-   .sa-tabs-wrapper{
-  position:relative;
-}
-
-.sa-tabs-wrapper{
-  position:relative;
-}
-
-.scroll-indicator{
-  position:absolute;
-  right:8px;
-  top:0%;
-  transform:translateY(-50%);
-  width:22px;
-  height:22px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  border-radius:50%;
-  background:rgba(253,245,232,.95);
-  color:rgba(22,15,8,.55);
-  font-size:13px;
-  font-weight:700;
-  pointer-events:none;
-  transition:all .2s ease;
-  z-index:5;
-}
-
-@media (min-width:769px){
-  .scroll-indicator{
-    display:none;
-  }
-}
-        `}
-      </style>
-    </>
   );
 }

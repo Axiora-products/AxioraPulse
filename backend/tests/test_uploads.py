@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 from app.main import app
+from routes.uploads import _make_download_token
 import io
 
 client = TestClient(app)
@@ -27,7 +28,8 @@ def test_upload_invalid_file_type(auth_headers):
     assert response.status_code == 400
 
 
-def test_upload_from_drive(auth_headers):
+def test_upload_from_drive_route_removed(auth_headers):
+    # The "Upload from Drive" feature was removed; the endpoint must no longer exist.
     payload = {
         "accessToken": "mock-access-token",
         "fileId": "mock-file-id-123",
@@ -35,10 +37,7 @@ def test_upload_from_drive(auth_headers):
         "mimeType": "application/pdf",
     }
     response = client.post("/uploads/drive", json=payload, headers=auth_headers)
-    assert response.status_code == 200
-    data = response.json()
-    assert data["filename"] == "GoogleDocFeedback.pdf"
-    assert "id" in data
+    assert response.status_code in (404, 405)
 
 
 def test_upload_audio(auth_headers):
@@ -187,19 +186,22 @@ def test_download_file(auth_headers):
     assert "file_url" in upload_data
     assert f"/uploads/download/{file_id}" in upload_data["file_url"]
 
-    # Download the file
-    response = client.get(f"/uploads/download/{file_id}", headers=auth_headers)
+    # Download the file using the signed token (AP-SEC-007: a valid ?token= is
+    # required; the bare /download/{id} path is no longer accessible).
+    response = client.get(f"/uploads/download/{file_id}?token={_make_download_token(file_id)}", headers=auth_headers)
     assert response.status_code == 200
     assert response.content == file_content
 
-    # Try downloading with non-existent UUID
+    # Non-existent UUID with a valid token reaches the not-found check (404).
     import uuid
 
     random_id = str(uuid.uuid4())
-    response = client.get(f"/uploads/download/{random_id}", headers=auth_headers)
+    response = client.get(
+        f"/uploads/download/{random_id}?token={_make_download_token(random_id)}", headers=auth_headers
+    )
     assert response.status_code == 404
 
-    # Try downloading with invalid UUID format
+    # Invalid UUID format is rejected (400) before the token check.
     response = client.get("/uploads/download/not-a-valid-uuid", headers=auth_headers)
     assert response.status_code == 400
 
@@ -221,8 +223,8 @@ def test_delete_file_endpoint(auth_headers):
     assert response.status_code == 200
     assert response.json()["success"] is True
 
-    # Try to download the deleted file (should fail with 404)
-    response = client.get(f"/uploads/download/{file_id}", headers=auth_headers)
+    # Try to download the deleted file (valid token, but row is gone => 404)
+    response = client.get(f"/uploads/download/{file_id}?token={_make_download_token(file_id)}", headers=auth_headers)
     assert response.status_code == 404
 
     # Try to delete again (should fail with 404)
@@ -374,3 +376,88 @@ def test_transcribe_audio_no_file(auth_headers):
     )
     assert response.status_code == 400
     assert "No audio file uploaded" in response.json()["detail"]
+
+
+def test_transcribe_with_whisper_duration_checks(monkeypatch):
+    import routes.uploads
+
+    # Test <= 0 duration
+    monkeypatch.setattr(routes.uploads, "_get_audio_duration", lambda path: 0.0)
+    try:
+        routes.uploads._transcribe_with_whisper("dummy_path")
+        assert False, "Expected ValueError"
+    except ValueError as e:
+        assert "no playable content" in str(e)
+
+    # Test > MAX_AUDIO_DURATION_SECONDS (600) duration
+    monkeypatch.setattr(routes.uploads, "_get_audio_duration", lambda path: 1200.0)
+    try:
+        routes.uploads._transcribe_with_whisper("dummy_path")
+        assert False, "Expected ValueError"
+    except ValueError as e:
+        assert "too long" in str(e)
+
+
+def test_transcribe_with_whisper_openai_success(monkeypatch, tmp_path):
+    import routes.uploads
+    import openai
+
+    # Set up keys and duration
+    monkeypatch.setattr(routes.uploads, "OPENAI_KEY", "real-openai-key")
+    monkeypatch.setattr(routes.uploads, "_get_audio_duration", lambda path: 5.0)
+
+    class MockOpenAIClient:
+        def __init__(self, api_key=None):
+            self.audio = self.MockAudio()
+
+        class MockAudio:
+            def __init__(self):
+                self.transcriptions = self.MockTranscriptions()
+
+            class MockTranscriptions:
+                def create(self, **kwargs):
+                    class MockResponse:
+                        text = " Mocked text from OpenAI API "
+
+                    return MockResponse()
+
+    monkeypatch.setattr(openai, "OpenAI", MockOpenAIClient)
+
+    # Create dummy file to open
+    dummy_file = tmp_path / "audio.mp3"
+    dummy_file.write_bytes(b"dummy")
+
+    res = routes.uploads._transcribe_with_whisper(str(dummy_file))
+    assert res["text"] == "Mocked text from OpenAI API"
+    assert res["language"] == "en"
+
+
+def test_transcribe_with_whisper_openai_fallback(monkeypatch, tmp_path):
+    import routes.uploads
+    import openai
+
+    # Set up keys and duration
+    monkeypatch.setattr(routes.uploads, "OPENAI_KEY", "real-openai-key")
+    monkeypatch.setattr(routes.uploads, "_get_audio_duration", lambda path: 5.0)
+
+    class MockOpenAIClientError:
+        def __init__(self, api_key=None):
+            self.audio = self.MockAudio()
+
+        class MockAudio:
+            def __init__(self):
+                self.transcriptions = self.MockTranscriptions()
+
+            class MockTranscriptions:
+                def create(self, **kwargs):
+                    raise Exception("OpenAI API Failure")
+
+    monkeypatch.setattr(openai, "OpenAI", MockOpenAIClientError)
+
+    # Create dummy file to open
+    dummy_file = tmp_path / "audio.mp3"
+    dummy_file.write_bytes(b"dummy")
+
+    res = routes.uploads._transcribe_with_whisper(str(dummy_file))
+    assert res["text"] == "This is a mocked audio transcription from Whisper."
+    assert res["language"] == "en"

@@ -1,8 +1,19 @@
 import os
+import secrets
 import sys
 import time
 import boto3
 from botocore.exceptions import EndpointConnectionError
+
+# Values core.config rejects as signing secrets (public, ex-hardcoded defaults).
+# Keep in sync with core.config._INSECURE_SECRET_VALUES so local seeding never
+# produces a SECRET_KEY the backend will fail-closed on at startup.
+_INSECURE_SECRET_VALUES = {
+    "otp-secret-key-change-in-production",
+    "mock-secret-key-1234567890",
+    "change-in-production",
+    "local-development-secret-key-1234567890",
+}
 
 # Inside docker network, Floci is available at pulse-floci
 FLOCI_ENDPOINT = os.getenv("FLOCI_ENDPOINT_URL", "http://pulse-floci:4566")
@@ -50,10 +61,10 @@ def seed_ssm():
 
     # Default mock/non-sensitive parameters for local development
     parameters = {
-        "SECRET_KEY": "local-development-secret-key-1234567890",
+        "SECRET_KEY": secrets.token_urlsafe(48),
         "ENVIRONMENT": "development",
         "FRONTEND_URL": "http://localhost:5173",
-        "DATABASE_URL": "postgresql://postgres:root@pulse-db:5432/nexpulse",
+        "DATABASE_URL": "postgresql://postgres:root@pulse-db:5432/axiorapulse",
         "MIGRATION_LAMBDA_SECRET": "local-migration-secret-token",
         "GEMINI_KEY": "mock-gemini-api-key",
         "ANTHROPIC_KEY": "mock-anthropic-api-key",
@@ -66,6 +77,7 @@ def seed_ssm():
         "ZOOM_CLIENT_SECRET": "mock-zoom-client-secret",
         "AWS_SES_REGION": "ap-south-1",
         "EMAIL_FROM": "Axiora Pulse <noreply@axiorapulse.com>",
+        "RESEND_API_KEY": os.getenv("RESEND_API_KEY", "mock-resend-api-key"),
         "TWILIO_ACCOUNT_SID": "ACmockaccountsid1234567890",
         "TWILIO_AUTH_TOKEN": "mocktwilioauthtoken1234567890",
         "TWILIO_WHATSAPP_FROM": "+14155238886",
@@ -106,6 +118,11 @@ def seed_ssm():
             print(f"✅ Created default template file at: {template_path}")
         except Exception as e:
             print(f"⚠️ Failed to write template file: {str(e)}")
+
+    # A pre-existing template may still carry the old public default. The backend
+    # fail-closes on it, so mint a fresh local secret instead. (mirrors core.config)
+    if (parameters.get("SECRET_KEY") or "").strip() in _INSECURE_SECRET_VALUES:
+        parameters["SECRET_KEY"] = secrets.token_urlsafe(48)
 
     for key, val in parameters.items():
         # Exclude variables we generate/override dynamically
@@ -156,6 +173,7 @@ def seed_cognito():
         dev_users = [
             {"email": "dev@axiorapulse.com", "name": "Developer User"},
             {"email": "admin@axioraadmin.com", "name": "Admin User"},
+            {"email": "roopsai.work8@gmail.com", "name": "Super Admin"},
         ]
 
         for u in dev_users:
@@ -203,7 +221,7 @@ def generate_env_files(pool_id, client_id, ssm_params):
         f.write(f"COGNITO_USER_POOL_ID={pool_id}\n")
         f.write(f"COGNITO_APP_CLIENT_ID={client_id}\n")
         f.write(f"COGNITO_REGION={REGION}\n")
-        f.write("DATABASE_URL=postgresql://postgres:root@pulse-db:5432/nexpulse\n")
+        f.write("DATABASE_URL=postgresql://postgres:root@pulse-db:5432/axiorapulse\n")
         f.write("FRONTEND_URL=http://localhost:5173\n")
         f.write("ENVIRONMENT=development\n")
         f.write("MOCK_COGNITO=false\n")  # Run full Cognito authentication flow using Floci!

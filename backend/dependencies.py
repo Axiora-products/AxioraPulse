@@ -10,11 +10,17 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
+from core import config
 from db.database import get_db
 from db.models import UserProfile
 from cognito_utils import verify_cognito_token
 
 bearer_scheme = HTTPBearer(auto_error=False)
+
+
+def _is_super_admin_email(email: str | None) -> bool:
+    """Super-admin grants are config/data-driven, not hardcoded. (AP-SEC-002)"""
+    return bool(email) and email.strip().lower() in config.SUPER_ADMIN_EMAILS
 
 
 def get_current_user(
@@ -86,40 +92,50 @@ def get_current_user(
             derived_tenant_name = email.split("@")[1].split(".")[0].title() if email else "My Organisation"
             derived_tenant_slug = _slugify(derived_tenant_name)
 
-            # Check if a tenant with this slug already exists — reuse it or find a fallback
-            tenant = db.query(Tenant).filter(Tenant.slug == derived_tenant_slug).first()
-            if not tenant:
-                try:
+            # Ensure the tenant slug is unique for brand new users to prevent placing different users in the same tenant
+            base_slug = derived_tenant_slug
+            counter = 1
+            while db.query(Tenant).filter(Tenant.slug == derived_tenant_slug).first() is not None:
+                derived_tenant_slug = f"{base_slug}-{counter}"
+                counter += 1
+
+            try:
+                tenant = Tenant(
+                    id=uuid.uuid4(),
+                    name=derived_tenant_name,
+                    slug=derived_tenant_slug,
+                )
+                db.add(tenant)
+                db.flush()
+            except Exception:
+                db.rollback()
+                tenant = db.query(Tenant).filter(Tenant.slug == derived_tenant_slug).first()
+                if not tenant:
+                    # Create a default tenant with a unique slug rather than reusing someone else's tenant
+                    fallback_base = "default-org"
+                    fallback_slug = fallback_base
+                    fallback_counter = 1
+                    while db.query(Tenant).filter(Tenant.slug == fallback_slug).first() is not None:
+                        fallback_slug = f"{fallback_base}-{fallback_counter}"
+                        fallback_counter += 1
+
                     tenant = Tenant(
                         id=uuid.uuid4(),
-                        name=derived_tenant_name,
-                        slug=derived_tenant_slug,
+                        name="Default Organisation",
+                        slug=fallback_slug,
                     )
                     db.add(tenant)
                     db.flush()
-                except Exception:
-                    db.rollback()
-                    tenant = db.query(Tenant).filter(Tenant.slug == derived_tenant_slug).first()
-                    if not tenant:
-                        # Fallback: reuse first available tenant or create a default
-                        tenant = db.query(Tenant).first()
-                        if not tenant:
-                            tenant = Tenant(
-                                id=uuid.uuid4(),
-                                name="Default Organisation",
-                                slug="default-org",
-                            )
-                            db.add(tenant)
-                            db.flush()
 
             user = UserProfile(
                 id=uuid.uuid4(),
                 email=email,
                 full_name=name,
                 cognito_sub=cognito_sub,
-                role=RoleEnum.super_admin,
+                role=RoleEnum.super_admin if _is_super_admin_email(email) else RoleEnum.admin,
                 tenant_id=tenant.id,
                 is_active=True,
+                is_internal=_is_super_admin_email(email),
                 account_status="active",
             )
             db.add(user)
@@ -128,6 +144,29 @@ def get_current_user(
 
     if user is None or not user.is_active:
         raise credentials_exception
+
+    # Self-healing: reconcile super_admin status against the configured allowlist.
+    # Emails in SUPER_ADMIN_EMAILS are promoted; any other super_admin that is not
+    # marked internal is downgraded to admin. (AP-SEC-002)
+    from db.models import RoleEnum
+
+    if _is_super_admin_email(user.email):
+        if user.role != RoleEnum.super_admin or not user.is_internal:
+            user.role = RoleEnum.super_admin
+            user.is_internal = True
+            db.commit()
+            db.refresh(user)
+    elif user.role == RoleEnum.super_admin and not user.is_internal:
+        user.role = RoleEnum.admin
+        db.commit()
+        db.refresh(user)
+
+    # Defense-in-depth: bind this request's DB session to the user's tenant so
+    # Postgres RLS constrains every query to that tenant. (no-op unless ENABLE_DB_RLS)
+    from db.rls import set_tenant_context, apply_tenant_guc
+
+    set_tenant_context(user.tenant_id)
+    apply_tenant_guc(db)
 
     return user
 
@@ -149,3 +188,28 @@ def get_optional_user(
     if not cognito_sub:
         return None
     return db.query(UserProfile).filter(UserProfile.cognito_sub == cognito_sub).first()
+
+
+def get_current_super_admin(
+    current_user: UserProfile = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> UserProfile:
+    """
+    Requires the current user to be a Super Admin.
+    """
+    from db.models import RoleEnum
+
+    if current_user.role != RoleEnum.super_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Super Admin privileges required.",
+        )
+
+    # Super admins operate across all tenants — bypass RLS for this request.
+    # (no-op unless ENABLE_DB_RLS)
+    from db.rls import set_bypass_rls, apply_tenant_guc
+
+    set_bypass_rls(True)
+    apply_tenant_guc(db)
+
+    return current_user
