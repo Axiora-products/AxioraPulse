@@ -28,7 +28,7 @@ function optionList(raw) {
   return Array.isArray(parsed) ? parsed : [];
 }
 
-// ─── Inline SVG icons — no emojis, no icon libraries ─────────────────────────
+// ─── Inline SVG icons ─────────────────────────────────────────────────────────
 const Icons = {
   Arrow: ({ d = 'M5 12h14M12 5l7 7-7 7', ...p }) => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" {...p}><path d={d} /></svg>,
   Check: (p) => <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M5 13l4 4L19 7" /></svg>,
@@ -37,6 +37,7 @@ const Icons = {
   Star: ({ filled, ...p }) => <svg width="36" height="36" viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...p}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>,
   Chevron: (p) => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" {...p}><path d="M6 9l6 6 6-6" /></svg>,
   X: (p) => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" {...p}><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>,
+  Globe: (p) => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></svg>,
 };
 
 // ─── Slide variants ───────────────────────────────────────────────────────────
@@ -115,14 +116,16 @@ const UI_TEXT = {
     improve: 'Anything we should improve?',
     feedbackPlaceholder: 'Question wording, length, clarity... anything helps.',
     recommend: 'Recommend',
-    recommendAxiora: 'How likely are you to recommend Axiora?',
-    npsHint: '0 = Not at all likely - 10 = Extremely likely',
+    recommendAxiora: 'How likely are you to recommend us?',
+    npsHint: '0 = Not at all · 10 = Extremely likely',
     sending: 'Sending...',
     submitFeedback: 'Submit feedback',
     yes: 'Yes',
     no: 'No',
     thankYou: 'Thank you.',
     responseRecorded: 'Your response has been recorded. We appreciate you taking the time.',
+    npsReason: 'What is the main reason for your score?',
+    npsImprove: 'What could we do to improve?',
   },
   hi: {
     questions: n => `${n} प्रश्न`,
@@ -184,6 +187,8 @@ const UI_TEXT = {
     no: 'नहीं',
     thankYou: 'धन्यवाद।',
     responseRecorded: 'आपका उत्तर दर्ज कर लिया गया है। समय देने के लिए धन्यवाद।',
+    npsReason: 'आपके स्कोर का मुख्य कारण क्या है?',
+    npsImprove: 'हम सुधार के लिए क्या कर सकते हैं?',
   },
   te: {
     questions: n => `${n} ప్రశ్నలు`,
@@ -245,6 +250,8 @@ const UI_TEXT = {
     no: 'కాదు',
     thankYou: 'ధన్యవాదాలు.',
     responseRecorded: 'మీ సమాధానం నమోదు చేయబడింది. సమయం కేటాయించినందుకు ధన్యవాదాలు.',
+    npsReason: 'మీ స్కోర్కు ప్రధాన కారణం ఏమిటి?',
+    npsImprove: 'మేము మెరుగుపరచడానికి ఏమి చేయగలము?',
   },
 };
 
@@ -275,49 +282,49 @@ export default function SurveyRespond() {
   const [ans, setAns] = useState({});
   const [step, setStep] = useState(-1);
 
-// Save answers whenever they change
-useEffect(() => {
-  localStorage.setItem(
-    `survey_answers_${slug}`,
-    JSON.stringify(ans)
-  );
-}, [ans, slug]);
-// Save current question step
-useEffect(() => {
-  localStorage.setItem(
-    `survey_step_${slug}`,
-    step.toString()
-  );
-}, [step, slug]);
-  
+  // Save answers whenever they change
+  useEffect(() => {
+    localStorage.setItem(
+      `survey_answers_${slug}`,
+      JSON.stringify(ans)
+    );
+  }, [ans, slug]);
+  // Save current question step
+  useEffect(() => {
+    localStorage.setItem(
+      `survey_step_${slug}`,
+      step.toString()
+    );
+  }, [step, slug]);
+
   // Restore cached answers and step
-useEffect(() => {
-  const cachedAnswers = localStorage.getItem(
-    `survey_answers_${slug}`
-  );
+  useEffect(() => {
+    const cachedAnswers = localStorage.getItem(
+      `survey_answers_${slug}`
+    );
 
-  if (cachedAnswers) {
-    try {
-      setAns(JSON.parse(cachedAnswers));
-    } catch (err) {
-      console.error("Failed to parse cached answers", err);
+    if (cachedAnswers) {
+      try {
+        setAns(JSON.parse(cachedAnswers));
+      } catch (err) {
+        console.error("Failed to parse cached answers", err);
+      }
     }
-  }
 
-  const cachedStep = localStorage.getItem(
-    `survey_step_${slug}`
-  );
+    const cachedStep = localStorage.getItem(
+      `survey_step_${slug}`
+    );
 
-  if (cachedStep !== null) {
-    setStep(parseInt(cachedStep, 10));
-  }
-}, [slug]);
+    if (cachedStep !== null) {
+      setStep(parseInt(cachedStep, 10));
+    }
+  }, [slug]);
 
   const [dir, setDir] = useState(1);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [fbDone, setFbDone] = useState(false);
-  const [fbStep, setFbStep] = useState(0);   // 0=rating, 1=comment, 2=email(if required), 3=nps, 4=done
+  const [fbStep, setFbStep] = useState(0);
   const [fbRating, setFbRating] = useState(0);
   const [fbComment, setFbComment] = useState('');
   const [fbNps, setFbNps] = useState(-1);
@@ -338,10 +345,8 @@ useEffect(() => {
   const getBrandedName = () => {
     const creatorName = sv?.creator?.full_name;
     if (!orgName) return creatorName || '';
-    
-    // Checks if the workspace name represents a personal/individual account
-    const isPersonal = 
-      orgName.toLowerCase().trim().endsWith("workspace") || 
+    const isPersonal =
+      orgName.toLowerCase().trim().endsWith("workspace") ||
       orgName.toLowerCase().trim() === 'personal' ||
       orgName.toLowerCase().includes("gmail") ||
       orgName.toLowerCase().includes("yahoo") ||
@@ -350,7 +355,6 @@ useEffect(() => {
       orgName.toLowerCase().includes("proton") ||
       orgName.toLowerCase().includes("icloud") ||
       (creatorName && orgName.toLowerCase().trim() === creatorName.toLowerCase().trim());
-
     return (isPersonal && creatorName) ? creatorName : orgName;
   };
   const brandedName = getBrandedName();
@@ -365,7 +369,7 @@ useEffect(() => {
     if (langCode === 'en') return;
     if (translatedData[langCode]) return;
     if (hasBackendTranslation(langCode)) return;
-    
+
     setTranslating(true);
     try {
       const payload = {
@@ -382,10 +386,10 @@ useEffect(() => {
         })),
         language: langCode
       };
-      
+
       const res = await API.post('/ai/translate-survey', payload);
       const translated = res.data;
-      
+
       const mergedQs = qs.map(originalQ => {
         const transQ = (translated.questions || []).find(t => t.id === originalQ.id);
         if (transQ) {
@@ -402,7 +406,7 @@ useEffect(() => {
         }
         return originalQ;
       });
-      
+
       const mergedSv = {
         ...sv,
         title: translated.title && translated.title !== textFor(sv.title, 'en') ? withTranslation(sv.title, langCode, translated.title) : sv.title,
@@ -410,7 +414,7 @@ useEffect(() => {
         welcome_message: translated.welcome_message && translated.welcome_message !== textFor(sv.welcome_message, 'en') ? withTranslation(sv.welcome_message, langCode, translated.welcome_message) : sv.welcome_message,
         thank_you_message: translated.thank_you_message && translated.thank_you_message !== textFor(sv.thank_you_message, 'en') ? withTranslation(sv.thank_you_message, langCode, translated.thank_you_message) : sv.thank_you_message
       };
-      
+
       setTranslatedData(prev => ({
         ...prev,
         [langCode]: { sv: mergedSv, qs: mergedQs }
@@ -436,16 +440,14 @@ useEffect(() => {
         console.warn('Failed to save response language:', e.message);
       });
     }
-    
-    // Clear existing cookie
+
     document.cookie = "googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
     document.cookie = "googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=" + window.location.hostname;
-    
-    // Set new cookie
+
     if (langCode !== 'en') {
       document.cookie = "googtrans=/en/" + langCode + "; path=/";
       document.cookie = "googtrans=/en/" + langCode + "; path=/; domain=" + window.location.hostname;
-      
+
       if (!translatedData[langCode]) {
         fetchTranslation(langCode);
       }
@@ -456,16 +458,13 @@ useEffect(() => {
   const token = useRef(null);
   const timer = useRef(null);
   const rId = useRef(null);
-  const insertPending = useRef(null);   // guards against concurrent ensureR() calls
+  const insertPending = useRef(null);
 
   const tracker = useResponseTracking(rId);
   useExitDetection(rId, tracker.onAbandon, done);
   const { visibleQuestions, nextVisible, prevVisible, progressAt } = useConditionalLogic(activeQs, ans);
 
-
-  // For demographic questions shown at end (if enabled in survey settings)
   const [showDemographics, setShowDemographics] = useState(false);
-
   const [demographics, setDemographics] = useState({
     age_range: "",
     gender: "",
@@ -473,14 +472,11 @@ useEffect(() => {
     occupation: ""
   });
 
-
-
   // ── Load ──────────────────────────────────────────────────────────────────
   useEffect(() => { load(); return () => clearTimeout(timer.current); }, [slug]);
 
   async function load() {
     try {
-      // Single request returns survey + questions + tenant_name
       const res = await API.get(`/surveys/slug/${slug}`);
       const s = res.data;
       if (!s) { setErr('Survey not found'); return; }
@@ -491,47 +487,31 @@ useEffect(() => {
       if (s.tenant_name) setOrgName(s.tenant_name);
       const q = (s.questions || []).slice().sort((a, b) => a.sort_order - b.sort_order);
       setQs(q);
-      // Resume previous in-progress session
       const sessionRes = await API.get(`/responses/session/${token.current}`);
       const ex = sessionRes.data;
       if (ex) {
         rId.current = ex.id;
-
         if (ex.language) {
           setCurrentLang(ex.language);
         }
-
         const r = {};
         (ex.survey_answers || []).forEach(a => {
           r[a.question_id] = a.answer_json ?? a.answer_value ?? '';
         });
-
-        console.log("Backend answers:", r);
-
-        const cachedAnswers = localStorage.getItem(
-          `survey_answers_${slug}`
-        );
-        console.log("Backend answers:", r);
-        console.log("Local cache:", cachedAnswers);
-
+        const cachedAnswers = localStorage.getItem(`survey_answers_${slug}`);
         if (Object.keys(r).length > 0) {
           setAns(r);
         } else if (cachedAnswers) {
           setAns(JSON.parse(cachedAnswers));
         }
-
-        const cachedStep = localStorage.getItem(
-            `survey_step_${slug}`
-          );
-
-          if (cachedStep !== null) {
-            setStep(parseInt(cachedStep, 10));
-          } else {
-            const first = q.findIndex(x => !r[x.id]);
-            setStep(first >= 0 ? first : 0);
-          }
+        const cachedStep = localStorage.getItem(`survey_step_${slug}`);
+        if (cachedStep !== null) {
+          setStep(parseInt(cachedStep, 10));
+        } else {
+          const first = q.findIndex(x => !r[x.id]);
+          setStep(first >= 0 ? first : 0);
+        }
         setSaved(ex.last_saved_at);
-
       } else {
         setStep(-1);
       }
@@ -540,17 +520,11 @@ useEffect(() => {
   }
 
   // ── Ensure response row exists ───────────────────────────────────────────
-  // Race-safe: a pending promise ref means concurrent calls (e.g. rapid typing
-  // triggering multiple debounced auto-saves) all await the same insert instead
-  // of each firing their own — which caused the duplicate session_token 409.
-  // Additionally handles the 23505 duplicate-key case defensively by fetching
-  // the existing row, so even a true race between two tabs never hard-crashes.
   async function ensureR() {
     if (rId.current) return rId.current;
     if (insertPending.current) return insertPending.current;
 
     insertPending.current = (async () => {
-      // POST /responses/ handles dedup via session_token server-side
       const res = await API.post('/responses/', {
         survey_id: sv.id,
         session_token: token.current,
@@ -569,7 +543,7 @@ useEffect(() => {
     }
   }
 
-  // ── Auto-save (via Netlify function) ─────────────────────────────────────
+  // ── Auto-save ─────────────────────────────────────────────────────
   const autoSave = useCallback(async (a, id) => {
     if (!id) return;
     try {
@@ -606,7 +580,6 @@ useEffect(() => {
       const id = await ensureR();
       const quality = await tracker.onSubmit(ans, activeQs);
       await autoSave(ans, id);
-      // Update email if collected at end
       if (activeSv?.require_email && email) {
         await API.patch(`/responses/${id}`, { respondent_email: email });
       }
@@ -733,11 +706,70 @@ useEffect(() => {
           zIndex: 2
         }}
       >
-        {/* HEADER */}
+        {/* Language Selector - Top Right for Mobile */}
+        <div style={{ position: 'absolute', top: -10, right: 0, zIndex: 10 }}>
+          <button onClick={() => setShowLangPopup(v => !v)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '6px 12px',
+              borderRadius: 99,
+              border: '1px solid rgba(237,232,223,0.15)',
+              background: 'rgba(237,232,223,0.05)',
+              color: '#EDE8DF',
+              fontFamily: 'Syne,sans-serif',
+              fontWeight: 700,
+              fontSize: 10,
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+              cursor: 'pointer',
+              backdropFilter: 'blur(8px)'
+            }}
+          >
+            <Icons.Globe style={{ color: 'rgba(237,232,223,0.5)' }} />
+            {LANG_LABELS[currentLang] || LANG_LABELS.en}
+          </button>
+          {showLangPopup && (
+            <div style={{
+              position: 'absolute',
+              top: 38,
+              right: 0,
+              minWidth: 150,
+              padding: 8,
+              borderRadius: 14,
+              background: '#FFFBF4',
+              border: '1px solid rgba(22,15,8,0.08)',
+              boxShadow: '0 18px 50px rgba(0,0,0,0.28)'
+            }}>
+              {['en', 'hi', 'te'].map(lang => (
+                <button key={lang} onClick={() => { changeLanguage(lang); setShowLangPopup(false); }}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    border: 'none',
+                    borderRadius: 10,
+                    background: currentLang === lang ? `${tc}12` : 'transparent',
+                    color: '#160F08',
+                    fontFamily: 'Syne,sans-serif',
+                    fontWeight: 700,
+                    fontSize: 12,
+                    textAlign: 'left',
+                    cursor: 'pointer'
+                  }}>
+                  {LANG_LABELS[lang]}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* HEADER - Centered */}
         <div
           style={{
             textAlign: "center",
-            marginBottom: 12
+            marginBottom: 12,
+            marginTop: 30
           }}
         >
           <p
@@ -758,7 +790,7 @@ useEffect(() => {
               fontFamily: "Playfair Display,serif",
               marginTop: -20,
               fontWeight: 900,
-              fontSize: "clamp(42px,5vw,64px)",
+              fontSize: "clamp(32px,5vw,64px)",
               lineHeight: 0.92,
               letterSpacing: "-3px",
               color: "#F4EDE5",
@@ -775,7 +807,7 @@ useEffect(() => {
             style={{
               fontFamily: "Fraunces,serif",
               fontWeight: 300,
-              fontSize: 15,
+              fontSize: 14,
               color: "#FF5A00",
               lineHeight: 1.5,
               maxWidth: 520,
@@ -786,8 +818,8 @@ useEffect(() => {
           </p>
         </div>
 
-        {/* AGE */}
-        <div style={{ marginTop: 30 }}>
+        {/* AGE - Centered */}
+        <div style={{ marginTop: 30, textAlign: 'center' }}>
           <p
             style={{
               fontFamily: "Syne,sans-serif",
@@ -805,8 +837,9 @@ useEffect(() => {
           <div
             style={{
               display: "flex",
-              gap: 10,
-              flexWrap: "wrap"
+              gap: 8,
+              flexWrap: "wrap",
+              justifyContent: "center"
             }}
           >
             {["<18", "18-24", "25-34", "35-44", "45-54", "55+"].map(
@@ -823,7 +856,7 @@ useEffect(() => {
                       })
                     }
                     style={{
-                      padding: "13px 22px",
+                      padding: "12px 18px",
                       borderRadius: 16,
                       border: active
                         ? "1px solid #FF5A00"
@@ -834,12 +867,13 @@ useEffect(() => {
                         : "rgba(237,232,223,0.55)",
                       fontFamily: "Syne,sans-serif",
                       fontWeight: 700,
-                      fontSize: 16,
+                      fontSize: 14,
                       cursor: "pointer",
                       transition: "all 0.25s ease",
                       boxShadow: active
                         ? "0 12px 35px rgba(255,90,0,0.35)"
-                        : "none"
+                        : "none",
+                      flex: window.innerWidth <= 480 ? '1 1 45%' : 'auto'
                     }}
                   >
                     {age}
@@ -850,8 +884,8 @@ useEffect(() => {
           </div>
         </div>
 
-        {/* GENDER */}
-        <div style={{ marginTop: 24 }}>
+        {/* GENDER - Centered */}
+        <div style={{ marginTop: 24, textAlign: 'center' }}>
           <p
             style={{
               fontFamily: "Syne,sans-serif",
@@ -869,8 +903,9 @@ useEffect(() => {
           <div
             style={{
               display: "flex",
-              gap: 12,
-              flexWrap: "wrap"
+              gap: 10,
+              flexWrap: "wrap",
+              justifyContent: "center"
             }}
           >
             {["Male", "Female", "Non-binary", "Other"].map((g) => {
@@ -886,7 +921,7 @@ useEffect(() => {
                     })
                   }
                   style={{
-                    padding: "13px 22px",
+                    padding: "12px 20px",
                     borderRadius: 16,
                     border: active
                       ? "1px solid #FF5A00"
@@ -897,12 +932,13 @@ useEffect(() => {
                       : "rgba(237,232,223,0.55)",
                     fontFamily: "Syne,sans-serif",
                     fontWeight: 700,
-                    fontSize: 16,
+                    fontSize: 14,
                     cursor: "pointer",
                     transition: "all 0.25s ease",
                     boxShadow: active
                       ? "0 12px 35px rgba(255,90,0,0.35)"
-                      : "none"
+                      : "none",
+                    flex: window.innerWidth <= 480 ? '1 1 45%' : 'auto'
                   }}
                 >
                   {g}
@@ -912,11 +948,11 @@ useEffect(() => {
           </div>
         </div>
 
-        {/* INPUTS */}
+        {/* INPUTS - Centered */}
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "1fr 1fr",
+            gridTemplateColumns: window.innerWidth <= 768 ? "1fr" : "1fr 1fr",
             gap: 18,
             marginTop: 24
           }}
@@ -931,7 +967,8 @@ useEffect(() => {
                 letterSpacing: "0.14em",
                 textTransform: "uppercase",
                 color: "rgba(237,232,223,0.45)",
-                marginBottom: 12
+                marginBottom: 12,
+                textAlign: window.innerWidth <= 768 ? 'center' : 'left'
               }}
             >
               City
@@ -949,16 +986,17 @@ useEffect(() => {
               }
               style={{
                 width: "100%",
-                height: 58,
+                height: 54,
                 borderRadius: 18,
                 border: "1px solid rgba(237,232,223,0.08)",
                 background: "#F5EFE7",
                 padding: "0 20px",
                 fontFamily: "Fraunces,serif",
-                fontSize: 22,
+                fontSize: window.innerWidth <= 768 ? 16 : 22,
                 color: "#160F08",
                 outline: "none",
-                boxSizing: "border-box"
+                boxSizing: "border-box",
+                textAlign: window.innerWidth <= 768 ? 'center' : 'left'
               }}
             />
           </div>
@@ -973,7 +1011,8 @@ useEffect(() => {
                 letterSpacing: "0.14em",
                 textTransform: "uppercase",
                 color: "rgba(237,232,223,0.45)",
-                marginBottom: 12
+                marginBottom: 12,
+                textAlign: window.innerWidth <= 768 ? 'center' : 'left'
               }}
             >
               Occupation
@@ -991,29 +1030,31 @@ useEffect(() => {
               }
               style={{
                 width: "100%",
-                height: 58,
+                height: 54,
                 borderRadius: 18,
                 border: "2px solid #FF5A00",
                 background: "#F5EFE7",
                 padding: "0 20px",
                 fontFamily: "Fraunces,serif",
-                fontSize: 22,
+                fontSize: window.innerWidth <= 768 ? 16 : 22,
                 color: "#160F08",
                 outline: "none",
                 boxSizing: "border-box",
-                boxShadow: "0 0 0 4px rgba(255,90,0,0.12)"
+                boxShadow: "0 0 0 4px rgba(255,90,0,0.12)",
+                textAlign: window.innerWidth <= 768 ? 'center' : 'left'
               }}
             />
           </div>
         </div>
 
-        {/* BUTTONS */}
+        {/* BUTTONS - Centered */}
         <div
           style={{
             display: "flex",
             justifyContent: "center",
-            gap: 16,
-            marginTop: 36
+            gap: 14,
+            flexWrap: "wrap",
+            marginTop: 28
           }}
         >
           <button
@@ -1028,23 +1069,23 @@ useEffect(() => {
               } catch (e) {
                 console.log(e);
               }
-
               setShowDemographics(false);
               setDone(true);
             }}
             style={{
-              padding: "18px 20px",
+              padding: "16px 28px",
               borderRadius: 999,
               border: "none",
               background: "#FF5A00",
               color: "#fff",
               fontFamily: "Syne,sans-serif",
               fontWeight: 800,
-              fontSize: 12,
+              fontSize: 11,
               letterSpacing: "0.16em",
               textTransform: "uppercase",
               cursor: "pointer",
-              boxShadow: "0 18px 45px rgba(255,90,0,0.38)"
+              boxShadow: "0 18px 45px rgba(255,90,0,0.38)",
+              width: window.innerWidth <= 480 ? '100%' : 'auto'
             }}
           >
             {ui.saveContinue}
@@ -1056,17 +1097,18 @@ useEffect(() => {
               setDone(true);
             }}
             style={{
-              padding: "18px 28px",
+              padding: "16px 28px",
               borderRadius: 999,
               border: "1px solid rgba(237,232,223,0.08)",
               background: "transparent",
               color: "rgba(237,232,223,0.28)",
               fontFamily: "Syne,sans-serif",
               fontWeight: 800,
-              fontSize: 12,
+              fontSize: 11,
               letterSpacing: "0.16em",
               textTransform: "uppercase",
-              cursor: "pointer"
+              cursor: "pointer",
+              width: window.innerWidth <= 480 ? '100%' : 'auto'
             }}
           >
             {ui.skip}
@@ -1085,6 +1127,7 @@ useEffect(() => {
       <div style={{ position: 'absolute', top: 18, right: 24, zIndex: 5 }}>
         <button onClick={() => setShowLangPopup(v => !v)}
           style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 99, border: '1px solid rgba(237,232,223,0.15)', background: 'rgba(237,232,223,0.05)', color: '#EDE8DF', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}>
+          <Icons.Globe style={{ color: 'rgba(237,232,223,0.5)' }} />
           {LANG_LABELS[currentLang] || LANG_LABELS.en}
         </button>
         {showLangPopup && (
@@ -1100,15 +1143,12 @@ useEffect(() => {
       </div>
 
       <AnimatePresence mode="wait">
-
-        {/* ── Multi-step feedback ── */}
         {!fbDone ? (
           <motion.div key={`fb-${fbStep}-${currentLang}`}
             initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
             style={{ position: 'relative', zIndex: 1, textAlign: 'center', maxWidth: 440, width: '100%' }}>
 
-            {/* Step dots */}
             <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginBottom: 32 }}>
               {[0, 1, 2].map(n => (
                 <div key={n} style={{ width: fbStep === n ? 20 : 6, height: 6, borderRadius: 99, background: fbStep === n ? tc : 'rgba(237,232,223,0.2)', transition: 'all 0.3s' }} />
@@ -1128,13 +1168,13 @@ useEffect(() => {
                   </button>
                 ))}
               </div>
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
                 <button onClick={() => fbRating > 0 && setFbStep(1)} disabled={fbRating === 0}
-                  style={{ padding: '13px 32px', borderRadius: 999, border: 'none', background: fbRating === 0 ? 'rgba(237,232,223,0.08)' : tc, color: fbRating === 0 ? 'rgba(237,232,223,0.3)' : '#fff', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: fbRating === 0 ? 'not-allowed' : 'pointer', transition: 'all 0.25s' }}>
+                  style={{ padding: '13px 32px', borderRadius: 999, border: 'none', background: fbRating === 0 ? 'rgba(237,232,223,0.08)' : tc, color: fbRating === 0 ? 'rgba(237,232,223,0.3)' : '#fff', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: fbRating === 0 ? 'not-allowed' : 'pointer', transition: 'all 0.25s', width: window.innerWidth <= 480 ? '100%' : 'auto' }}>
                   {ui.next}
                 </button>
                 <button onClick={() => setFbDone(true)}
-                  style={{ padding: '13px 20px', borderRadius: 999, border: '1px solid rgba(237,232,223,0.12)', background: 'transparent', color: 'rgba(237,232,223,0.3)', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                  style={{ padding: '13px 20px', borderRadius: 999, border: '1px solid rgba(237,232,223,0.12)', background: 'transparent', color: 'rgba(237,232,223,0.3)', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', width: window.innerWidth <= 480 ? '100%' : 'auto' }}>
                   {ui.skipAll}
                 </button>
               </div>
@@ -1152,13 +1192,13 @@ useEffect(() => {
                 onFocus={e => { e.target.style.borderColor = tc; e.target.style.boxShadow = `0 0 0 4px ${tc}20`; }}
                 onBlur={e => { e.target.style.borderColor = 'rgba(237,232,223,0.12)'; e.target.style.boxShadow = 'none'; }}
               />
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
                 <button onClick={() => setFbStep(2)}
-                  style={{ padding: '13px 32px', borderRadius: 999, border: 'none', background: tc, color: '#fff', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                  style={{ padding: '13px 32px', borderRadius: 999, border: 'none', background: tc, color: '#fff', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', width: window.innerWidth <= 480 ? '100%' : 'auto' }}>
                   {ui.next}
                 </button>
                 <button onClick={() => { setFbStep(0); }}
-                  style={{ padding: '13px 20px', borderRadius: 999, border: '1px solid rgba(237,232,223,0.12)', background: 'transparent', color: 'rgba(237,232,223,0.3)', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                  style={{ padding: '13px 20px', borderRadius: 999, border: '1px solid rgba(237,232,223,0.12)', background: 'transparent', color: 'rgba(237,232,223,0.3)', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', width: window.innerWidth <= 480 ? '100%' : 'auto' }}>
                   {ui.back}
                 </button>
               </div>
@@ -1170,31 +1210,33 @@ useEffect(() => {
                 {ui.recommendAxiora}
               </h2>
               <p style={{ fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 13, color: 'rgba(237,232,223,0.3)', marginBottom: 24 }}>{ui.npsHint}</p>
-              <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 28 }}>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: window.innerWidth <= 768 ? 'repeat(6, 1fr)' : 'repeat(11, 1fr)',
+                gap: 6,
+                marginBottom: 28,
+                width: '100%'
+              }}>
                 {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
                   <button key={n} onClick={() => setFbNps(n)}
-                    style={{ width: 38, height: 38, borderRadius: 10, border: `1.5px solid ${fbNps === n ? tc : 'rgba(237,232,223,0.15)'}`, background: fbNps === n ? tc : 'transparent', color: fbNps === n ? '#fff' : 'rgba(237,232,223,0.5)', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 12, cursor: 'pointer', transition: 'all 0.2s' }}>
+                    style={{ width: '100%', height: 38, borderRadius: 10, border: `1.5px solid ${fbNps === n ? tc : 'rgba(237,232,223,0.15)'}`, background: fbNps === n ? tc : 'transparent', color: fbNps === n ? '#fff' : 'rgba(237,232,223,0.5)', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 12, cursor: 'pointer', transition: 'all 0.2s' }}>
                     {n}
                   </button>
                 ))}
               </div>
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
                 <button onClick={submitFeedback} disabled={fbBusy}
-                  style={{ padding: '13px 32px', borderRadius: 999, border: 'none', background: tc, color: '#fff', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: fbBusy ? 'not-allowed' : 'pointer', transition: 'all 0.25s' }}>
+                  style={{ padding: '13px 32px', borderRadius: 999, border: 'none', background: tc, color: '#fff', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: fbBusy ? 'not-allowed' : 'pointer', transition: 'all 0.25s', width: window.innerWidth <= 480 ? '100%' : 'auto' }}>
                   {fbBusy ? ui.sending : ui.submitFeedback}
                 </button>
                 <button onClick={() => setFbStep(1)}
-                  style={{ padding: '13px 20px', borderRadius: 999, border: '1px solid rgba(237,232,223,0.12)', background: 'transparent', color: 'rgba(237,232,223,0.3)', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                  style={{ padding: '13px 20px', borderRadius: 999, border: '1px solid rgba(237,232,223,0.12)', background: 'transparent', color: 'rgba(237,232,223,0.3)', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', width: window.innerWidth <= 480 ? '100%' : 'auto' }}>
                   {ui.back}
                 </button>
               </div>
             </>)}
-
           </motion.div>
-
         ) : (
-
-          /* ── Thank-you screen ── */
           <motion.div key={`thankyou-${currentLang}`}
             initial={{ opacity: 0, scale: 0.92, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
             style={{ textAlign: 'center', maxWidth: 460, position: 'relative', zIndex: 1 }}>
@@ -1215,12 +1257,12 @@ useEffect(() => {
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.65 }}
               style={{ marginTop: 56, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
               {brandedName && (
-                <span style={{ 
-                  fontFamily: 'Syne,sans-serif', 
-                  fontSize: 10, 
-                  fontWeight: 700, 
-                  letterSpacing: '0.2em', 
-                  textTransform: 'uppercase', 
+                <span style={{
+                  fontFamily: 'Syne,sans-serif',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  letterSpacing: '0.2em',
+                  textTransform: 'uppercase',
                   color: 'rgba(237,232,223,0.35)'
                 }}>
                   {brandedName}
@@ -1233,9 +1275,7 @@ useEffect(() => {
               </div>
             </motion.div>
           </motion.div>
-
         )}
-
       </AnimatePresence>
     </div>
   );
@@ -1248,7 +1288,7 @@ useEffect(() => {
   const line = dark ? 'rgba(237,232,223,0.07)' : 'rgba(22,15,8,0.07)';
 
   return (
-    <div className="np-respond-shell" style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: bg, transition: 'background 0.5s' }}>
+    <div className="np-respond-shell" style={{ minHeight: '100vh', height: 'auto', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: bg, transition: 'background 0.5s' }}>
 
       {/* ── Progress line ── */}
       {step >= 0 && sv?.show_progress_bar !== false && (
@@ -1259,18 +1299,17 @@ useEffect(() => {
       )}
 
       {/* ── Header ── */}
-      <header className="np-respond-header" style={{ flexShrink: 0, height: 58, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px', position: 'relative', zIndex: 20 }}>
-        {/* Axiora Pulse logo with coral dot */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <header className="np-respond-header" style={{ flexShrink: 0, height: 58, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', position: 'relative', zIndex: 20 }}>
+        {/* Brand - Left */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 0, lineHeight: 1 }}>
-            <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: dark ? 'rgba(237,232,223,0.35)' : 'rgba(22,15,8,0.35)', marginRight: 6, position: 'relative', top: 2 }}>
+            <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 7, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: dark ? 'rgba(237,232,223,0.35)' : 'rgba(22,15,8,0.35)', marginRight: 4, position: 'relative', top: 2 }}>
               Axiora
             </span>
-            <span style={{ fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: 19, letterSpacing: '-0.5px', color: dark ? 'rgba(237,232,223,0.7)' : 'rgba(22,15,8,0.55)', lineHeight: 1 }}>
+            <span style={{ fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: 16, letterSpacing: '-0.5px', color: dark ? 'rgba(237,232,223,0.7)' : 'rgba(22,15,8,0.55)', lineHeight: 1 }}>
               Pulse
             </span>
-            {/* Coral dot with sonar rings */}
-            <div style={{ position: 'relative', width: 7, height: 7, background: '#FF4500', borderRadius: '50%', boxShadow: '0 0 8px rgba(255,69,0,0.55)', alignSelf: 'flex-start', marginTop: 4, marginLeft: 5, flexShrink: 0 }}>
+            <div style={{ position: 'relative', width: 6, height: 6, background: '#FF4500', borderRadius: '50%', boxShadow: '0 0 8px rgba(255,69,0,0.55)', alignSelf: 'flex-start', marginTop: 3, marginLeft: 4, flexShrink: 0 }}>
               <style>{`
                 @keyframes sonarR { 0% { transform:translate(-50%,-50%) scale(1); opacity:.65; } 60% { opacity:.3; } 100% { transform:translate(-50%,-50%) scale(3.8); opacity:0; } }
                 .np-sonar { position:absolute; border-radius:50%; border:1.5px solid #FF4500; top:50%; left:50%; width:7px; height:7px; transform:translate(-50%,-50%) scale(0); opacity:0; animation: sonarR 3s ease-out infinite; }
@@ -1280,60 +1319,60 @@ useEffect(() => {
             </div>
           </div>
           {brandedName && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div style={{ width: 1, height: 14, background: dark ? 'rgba(237,232,223,0.15)' : 'rgba(22,15,8,0.12)' }} />
-              <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: dark ? 'rgba(237,232,223,0.4)' : 'rgba(22,15,8,0.4)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <div style={{ width: 1, height: 12, background: dark ? 'rgba(237,232,223,0.15)' : 'rgba(22,15,8,0.12)' }} />
+              <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 7, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: dark ? 'rgba(237,232,223,0.4)' : 'rgba(22,15,8,0.4)' }}>
                 {brandedName}
               </span>
             </div>
           )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-          {/* Custom language selector button in header */}
-          <div style={{ position: 'relative' }}>
-            <button onClick={() => setShowLangPopup(true)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '6px 12px',
-                borderRadius: 99,
-                border: `1px solid ${dark ? 'rgba(237,232,223,0.15)' : 'rgba(22,15,8,0.12)'}`,
-                background: dark ? 'rgba(237,232,223,0.05)' : 'rgba(22,15,8,0.03)',
-                color: dark ? '#EDE8DF' : '#160F08',
-                fontFamily: 'Syne,sans-serif',
-                fontWeight: 700,
-                fontSize: 10,
-                letterSpacing: '0.06em',
-                textTransform: 'uppercase',
-                cursor: 'pointer',
-                transition: 'all 0.25s ease'
-              }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = tc; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = dark ? 'rgba(237,232,223,0.15)' : 'rgba(22,15,8,0.12)'; }}
-            >
-              {LANG_LABELS[currentLang] || LANG_LABELS.en}
-            </button>
-          </div>
-          {/* Estimated time */}
+
+        {/* Right side - Language + Status */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* Language Selector */}
+          <button onClick={() => setShowLangPopup(v => !v)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              padding: '4px 10px',
+              borderRadius: 99,
+              border: `1px solid ${dark ? 'rgba(237,232,223,0.15)' : 'rgba(22,15,8,0.12)'}`,
+              background: dark ? 'rgba(237,232,223,0.05)' : 'rgba(22,15,8,0.03)',
+              color: dark ? '#EDE8DF' : '#160F08',
+              fontFamily: 'Syne,sans-serif',
+              fontWeight: 700,
+              fontSize: 9,
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+              cursor: 'pointer',
+              transition: 'all 0.25s ease'
+            }}
+          >
+            <Icons.Globe style={{ color: dark ? 'rgba(237,232,223,0.5)' : 'rgba(22,15,8,0.3)', width: 12, height: 12 }} />
+            {LANG_LABELS[currentLang] || LANG_LABELS.en}
+          </button>
+
+          {/* Time/Saved */}
           {!onWelcome && remaining.length > 1 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: sub }}>
-              <Icons.Clock style={{ color: 'currentColor' }} />
-              <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
-                ~{Math.max(1, Math.ceil(remaining.length * 0.4))} {ui.min}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: sub }}>
+              <Icons.Clock style={{ color: 'currentColor', width: 10, height: 10 }} />
+              <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+                ~{Math.max(1, Math.ceil(remaining.length * 0.4))}m
               </span>
             </div>
           )}
           {saved && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <div style={{ width: 5, height: 5, borderRadius: '50%', background: tc }} />
-              <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: sub }}>{ui.saved}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <div style={{ width: 4, height: 4, borderRadius: '50%', background: tc }} />
+              <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: sub }}>{ui.saved}</span>
             </div>
           )}
           {step >= 0 && (
-            <span style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 12, letterSpacing: '0.04em', color: tc, fontVariantNumeric: 'tabular-nums' }}>
+            <span style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.04em', color: tc, fontVariantNumeric: 'tabular-nums' }}>
               {String(visPos).padStart(2, '0')}
-              <span style={{ color: sub, fontWeight: 400 }}> / {String(visTotal).padStart(2, '0')}</span>
+              <span style={{ color: sub, fontWeight: 400 }}>/{String(visTotal).padStart(2, '0')}</span>
             </span>
           )}
         </div>
@@ -1346,44 +1385,41 @@ useEffect(() => {
           {/* WELCOME */}
           {step === -1 && (
             <motion.div className="np-welcome-stage" key={`welcome-${currentLang}`} custom={dir} variants={variants} initial="enter" animate="show" exit="exit" transition={spring}
-              style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px 40px' }}>
+              style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px 16px' }}>
               <div aria-hidden style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
-                {/* Grain texture */}
                 <div style={{ position: 'absolute', inset: 0, backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E")`, backgroundSize: '250px', opacity: 0.04 }} />
-                {/* Gradient blobs */}
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1.5 }}
                   style={{ position: 'absolute', top: '-20%', right: '-10%', width: 700, height: 700, borderRadius: '50%', background: `radial-gradient(circle,${tc}22,transparent 65%)`, filter: 'blur(80px)' }} />
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3, duration: 1.2 }}
                   style={{ position: 'absolute', bottom: '-15%', left: '-8%', width: 500, height: 500, borderRadius: '50%', background: 'radial-gradient(circle,rgba(188,150,80,0.14),transparent 70%)', filter: 'blur(70px)' }} />
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5, duration: 2 }}
                   style={{ position: 'absolute', top: '30%', left: '25%', width: 350, height: 350, borderRadius: '50%', background: `radial-gradient(circle,${tc}10,transparent 70%)`, filter: 'blur(60px)' }} />
-                {/* Ghost watermark */}
-                <div style={{ position: 'absolute', bottom: '-20px', left: '-10px', fontFamily: "'Playfair Display',serif", fontWeight: 900, fontSize: 'clamp(120px,22vw,280px)', color: 'transparent', WebkitTextStroke: '1px rgba(255,69,0,0.04)', letterSpacing: '-8px', lineHeight: 1, userSelect: 'none', pointerEvents: 'none' }}>Pulse</div>
+                <div style={{ position: 'absolute', bottom: '-20px', left: '-10px', fontFamily: "'Playfair Display',serif", fontWeight: 900, fontSize: 'clamp(100px,18vw,280px)', color: 'transparent', WebkitTextStroke: '1px rgba(255,69,0,0.04)', letterSpacing: '-8px', lineHeight: 1, userSelect: 'none', pointerEvents: 'none' }}>Pulse</div>
               </div>
               <div style={{ textAlign: 'center', maxWidth: 560, position: 'relative', zIndex: 1 }}>
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 14px', borderRadius: 999, border: `1px solid ${tc}2E`, background: `${tc}0D`, marginBottom: 32 }}>
-                  <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: tc }}>
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 12px', borderRadius: 999, border: `1px solid ${tc}2E`, background: `${tc}0D`, marginBottom: 24 }}>
+                  <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: tc }}>
                     {ui.questions(visTotal)}
                   </span>
                 </motion.div>
                 <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18, duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-                  style={{ fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: 'clamp(32px,5.5vw,62px)', letterSpacing: '-2.5px', color: '#EDE8DF', lineHeight: 1.02, marginBottom: 20 }}>
+                  style={{ fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: 'clamp(28px,5vw,62px)', letterSpacing: '-2px', color: '#EDE8DF', lineHeight: 1.02, marginBottom: 16 }}>
                   {textFor(activeSv.title, currentLang)}
                 </motion.h1>
                 {textFor(activeSv.description, currentLang) && (
                   <motion.p initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28 }}
-                    style={{ fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 18, color: 'rgba(237,232,223,0.42)', lineHeight: 1.75, marginBottom: 8 }}>
+                    style={{ fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 16, color: 'rgba(237,232,223,0.42)', lineHeight: 1.75, marginBottom: 6 }}>
                     {textFor(activeSv.description, currentLang)}
                   </motion.p>
                 )}
                 {textFor(activeSv.welcome_message, currentLang) && (
                   <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.35 }}
-                    style={{ fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 15, color: 'rgba(237,232,223,0.28)', lineHeight: 1.7, marginBottom: 0 }}>
+                    style={{ fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 14, color: 'rgba(237,232,223,0.28)', lineHeight: 1.7, marginBottom: 0 }}>
                     {textFor(activeSv.welcome_message, currentLang)}
                   </motion.p>
                 )}
-                <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.44 }} style={{ marginTop: 36 }}>
+                <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.44 }} style={{ marginTop: 32 }}>
                   <motion.button whileHover={{ scale: 1.02, y: -2 }} whileTap={{ scale: 0.97 }}
                     onClick={() => {
                       setDir(1);
@@ -1391,7 +1427,7 @@ useEffect(() => {
                       const idx = first >= 0 ? first : 0;
                       setStep(idx); tracker.onEnter(activeQs[idx]?.id);
                     }}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 10, padding: '15px 44px', borderRadius: 999, border: 'none', background: tc, color: '#fff', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 12, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', boxShadow: `0 8px 40px ${tc}40` }}>
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '14px 36px', borderRadius: 999, border: 'none', background: tc, color: '#fff', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', boxShadow: `0 8px 40px ${tc}40` }}>
                     {ui.begin}
                     <Icons.Arrow style={{ color: 'currentColor' }} />
                   </motion.button>
@@ -1404,79 +1440,79 @@ useEffect(() => {
           {step >= 0 && step < qs.length && q && (
             <motion.div className="np-question-stage" key={`${q.id}-${currentLang}`} custom={dir} variants={variants} initial="enter" animate="show" exit="exit" transition={spring}
               style={{ position: 'absolute', inset: 0, overflowY: 'auto', overflowX: 'hidden' }}>
-              <div className="np-question-wrap" style={{ minHeight: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px 40px' }}>
+              <div className="np-question-wrap" style={{ minHeight: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px 16px 40px' }}>
                 <div className="np-question-panel" style={{ width: '100%', maxWidth: 680, position: 'relative' }}>
                   {/* Ghost question number */}
-                  <div aria-hidden style={{ position: 'absolute', right: -8, top: -16, fontFamily: "'Playfair Display',serif", fontWeight: 900, fontSize: 'clamp(80px,13vw,130px)', color: 'rgba(22,15,8,0.032)', lineHeight: 1, letterSpacing: '-5px', userSelect: 'none', pointerEvents: 'none', zIndex: 0 }}>
+                  <div aria-hidden style={{ position: 'absolute', right: -4, top: -12, fontFamily: "'Playfair Display',serif", fontWeight: 900, fontSize: 'clamp(60px,10vw,130px)', color: dark ? 'rgba(237,232,223,0.032)' : 'rgba(22,15,8,0.032)', lineHeight: 1, letterSpacing: '-5px', userSelect: 'none', pointerEvents: 'none', zIndex: 0 }}>
                     {String(visPos).padStart(2, '0')}
                   </div>
 
                   {/* Meta row */}
                   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.05 }}
-                    style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 28 }}>
-                    <div style={{ width: 32, height: 1.5, background: `linear-gradient(90deg,${tc},${tc}00)`, borderRadius: 1 }} />
-                    <span style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 8, letterSpacing: '0.22em', textTransform: 'uppercase', color: sub }}>
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+                    <div style={{ width: 24, height: 1.5, background: `linear-gradient(90deg,${tc},${tc}00)`, borderRadius: 1 }} />
+                    <span style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 7, letterSpacing: '0.22em', textTransform: 'uppercase', color: sub }}>
                       {String(visPos).padStart(2, '0')} {ui.of} {String(visTotal).padStart(2, '0')}
                     </span>
                     {q.is_required
-                      ? <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: tc, background: `${tc}10`, padding: '3px 8px', borderRadius: 4 }}>{ui.required}</span>
-                      : <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.2)', background: 'rgba(22,15,8,0.05)', padding: '3px 8px', borderRadius: 4 }}>{ui.optional}</span>
+                      ? <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 7, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: tc, background: `${tc}10`, padding: '2px 6px', borderRadius: 4 }}>{ui.required}</span>
+                      : <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 7, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.2)', background: 'rgba(22,15,8,0.05)', padding: '2px 6px', borderRadius: 4 }}>{ui.optional}</span>
                     }
                   </motion.div>
 
                   {/* Question text */}
                   <motion.h2 initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                    style={{ fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: 'clamp(26px,4vw,46px)', letterSpacing: '-1.5px', color: fg, lineHeight: 1.1, marginBottom: q.description ? 14 : 0 }}>
+                    style={{ fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: 'clamp(22px,3.5vw,46px)', letterSpacing: '-1px', color: fg, lineHeight: 1.1, marginBottom: q.description ? 10 : 0 }}>
                     {textFor(q.question_text, currentLang)}
                   </motion.h2>
                   {q.description && (
                     <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}
-                      style={{ fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 16, color: sub, lineHeight: 1.65, marginTop: 0 }}>
+                      style={{ fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 14, color: sub, lineHeight: 1.65, marginTop: 0 }}>
                       {textFor(q.description, currentLang)}
                     </motion.p>
                   )}
 
                   {/* Input */}
                   <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.22, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                    style={{ marginTop: 36 }}>
+                    style={{ marginTop: 28 }}>
                     <QInput q={q} val={ans[q.id] ?? ''} set={v => setAn(q.id, v)} tc={tc} fg={fg} sub={sub} lang={currentLang} ui={ui} />
                   </motion.div>
 
                   {/* Nav */}
                   <motion.div className="np-question-nav" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.38 }}
-                    style={{ marginTop: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    style={{ marginTop: 40, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
                     <button id="back-btn" data-testid="back-btn" onClick={goBack} disabled={!canBack}
-                      style={{ display: 'flex', alignItems: 'center', gap: 7, fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: sub, background: 'none', border: 'none', cursor: canBack ? 'pointer' : 'default', opacity: canBack ? 1 : 0, padding: '8px 0', transition: 'color 0.2s' }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: sub, background: 'none', border: 'none', cursor: canBack ? 'pointer' : 'default', opacity: canBack ? 1 : 0, padding: '6px 0', transition: 'color 0.2s' }}
                       onMouseEnter={e => { if (canBack) e.currentTarget.style.color = fg; }}
                       onMouseLeave={e => e.currentTarget.style.color = sub}>
-                      <Icons.Arrow d="M19 12H5M12 19l-7-7 7-7" style={{ color: 'currentColor' }} />
+                      <Icons.Arrow d="M19 12H5M12 19l-7-7 7-7" style={{ color: 'currentColor', width: 14, height: 14 }} />
                       {ui.back}
                     </button>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 7 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, width: window.innerWidth <= 480 ? '100%' : 'auto' }}>
                       {!isLast ? (
                         <motion.button whileHover={{ scale: 1.02, y: -1 }} whileTap={{ scale: 0.97 }} onClick={goNext}
-                          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 36px', borderRadius: 999, border: 'none', background: fg, color: dark ? '#100B05' : '#F7F5F0', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', transition: 'background 0.25s, box-shadow 0.25s' }}
+                          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '12px 28px', borderRadius: 999, border: 'none', background: fg, color: dark ? '#100B05' : '#F7F5F0', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', transition: 'background 0.25s, box-shadow 0.25s', width: window.innerWidth <= 480 ? '100%' : 'auto', justifyContent: 'center' }}
                           onMouseEnter={e => { e.currentTarget.style.background = tc; e.currentTarget.style.color = '#fff'; e.currentTarget.style.boxShadow = `0 8px 32px ${tc}40`; }}
                           onMouseLeave={e => { e.currentTarget.style.background = fg; e.currentTarget.style.color = dark ? '#100B05' : '#F7F5F0'; e.currentTarget.style.boxShadow = 'none'; }}>
                           {ui.continue}
-                          <Icons.Arrow style={{ color: 'currentColor' }} />
+                          <Icons.Arrow style={{ color: 'currentColor', width: 14, height: 14 }} />
                         </motion.button>
                       ) : activeSv?.require_email ? (
                         <motion.button whileHover={{ scale: 1.02, y: -1 }} whileTap={{ scale: 0.97 }}
                           onClick={() => { if (q?.is_required && !ans[q.id]) return toast.error(ui.requiredToast); setDir(1); setStep(activeQs.length); }}
-                          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 36px', borderRadius: 999, border: 'none', background: fg, color: dark ? '#100B05' : '#F7F5F0', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', transition: 'background 0.25s, box-shadow 0.25s' }}
+                          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '12px 28px', borderRadius: 999, border: 'none', background: fg, color: dark ? '#100B05' : '#F7F5F0', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', transition: 'background 0.25s, box-shadow 0.25s', width: window.innerWidth <= 480 ? '100%' : 'auto', justifyContent: 'center' }}
                           onMouseEnter={e => { e.currentTarget.style.background = tc; e.currentTarget.style.color = '#fff'; e.currentTarget.style.boxShadow = `0 8px 32px ${tc}40`; }}
                           onMouseLeave={e => { e.currentTarget.style.background = fg; e.currentTarget.style.color = dark ? '#100B05' : '#F7F5F0'; e.currentTarget.style.boxShadow = 'none'; }}>
                           {ui.almostDone}
-                          <Icons.Arrow style={{ color: 'currentColor' }} />
+                          <Icons.Arrow style={{ color: 'currentColor', width: 14, height: 14 }} />
                         </motion.button>
                       ) : (
                         <motion.button whileHover={{ scale: 1.02, y: -1 }} whileTap={{ scale: 0.97 }} onClick={submit} disabled={busy}
-                          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 36px', borderRadius: 999, border: 'none', background: tc, color: '#fff', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.65 : 1, boxShadow: `0 8px 32px ${tc}45` }}>
+                          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '12px 28px', borderRadius: 999, border: 'none', background: tc, color: '#fff', fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.65 : 1, boxShadow: `0 8px 32px ${tc}45`, width: window.innerWidth <= 480 ? '100%' : 'auto', justifyContent: 'center' }}>
                           {busy ? ui.submitting : <><span>{ui.submit}</span><Icons.Check style={{ color: 'currentColor' }} /></>}
                         </motion.button>
                       )}
-                      <span className="np-enter-hint" style={{ fontFamily: 'Syne,sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.16)' }}>
+                      <span className="np-enter-hint" style={{ fontFamily: 'Syne,sans-serif', fontSize: 7, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.16)' }}>
                         {ui.enterHint}
                       </span>
                     </div>
@@ -1486,43 +1522,43 @@ useEffect(() => {
             </motion.div>
           )}
 
-          {/* EMAIL COLLECTION (if required, shown after last question) */}
+          {/* EMAIL COLLECTION */}
           {step === activeQs.length && activeSv?.require_email && (
             <motion.div key={`email-gate-${currentLang}`} custom={dir} variants={variants} initial="enter" animate="show" exit="exit" transition={spring}
-              style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px 40px' }}>
+              style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px 16px' }}>
               <div style={{ width: '100%', maxWidth: 520, textAlign: 'center' }}>
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 14px', borderRadius: 999, border: `1px solid ${tc}2E`, background: `${tc}0D`, marginBottom: 28 }}>
-                  <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: tc }}>
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 12px', borderRadius: 999, border: `1px solid ${tc}2E`, background: `${tc}0D`, marginBottom: 20 }}>
+                  <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: tc }}>
                     {ui.emailBadge}
                   </span>
                 </motion.div>
                 <motion.h2 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12, duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
-                  style={{ fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: 'clamp(28px,5vw,50px)', letterSpacing: '-2px', color: fg, lineHeight: 1.05, marginBottom: 16 }}>
+                  style={{ fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: 'clamp(24px,4vw,50px)', letterSpacing: '-1.5px', color: fg, lineHeight: 1.05, marginBottom: 12 }}>
                   {ui.emailTitle}
                 </motion.h2>
                 <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.22 }}
-                  style={{ fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 16, color: sub, lineHeight: 1.65, marginBottom: 36 }}>
+                  style={{ fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 14, color: sub, lineHeight: 1.65, marginBottom: 28 }}>
                   {ui.emailBody}
                 </motion.p>
                 <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28 }}>
                   <input
-                     id="respondent-email"
-                     data-testid="respondent-email"
-                     type="email"
-                     value={email}
-                     onChange={e => setEmail(e.target.value)}
-                     onKeyDown={e => { if (e.key === 'Enter' && email) submit(); }}
-                     placeholder="you@company.com"
-                     autoFocus
-                     style={{ width: '100%', boxSizing: 'border-box', padding: '18px 24px', background: 'rgba(22,15,8,0.04)', border: `1.5px solid rgba(22,15,8,0.12)`, borderRadius: 18, fontFamily: 'Fraunces,serif', fontSize: 20, fontWeight: 300, color: fg, outline: 'none', textAlign: 'center', transition: 'border-color 0.2s, box-shadow 0.2s', marginBottom: 20 }}
-                     onFocus={e => { e.target.style.borderColor = tc; e.target.style.boxShadow = `0 0 0 4px ${tc}14`; }}
-                     onBlur={e => { e.target.style.borderColor = 'rgba(22,15,8,0.12)'; e.target.style.boxShadow = 'none'; }}
+                    id="respondent-email"
+                    data-testid="respondent-email"
+                    type="email"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && email) submit(); }}
+                    placeholder="you@company.com"
+                    autoFocus
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '14px 18px', background: 'rgba(22,15,8,0.04)', border: `1.5px solid rgba(22,15,8,0.12)`, borderRadius: 16, fontFamily: 'Fraunces,serif', fontSize: 18, fontWeight: 300, color: fg, outline: 'none', textAlign: 'center', transition: 'border-color 0.2s, box-shadow 0.2s', marginBottom: 16 }}
+                    onFocus={e => { e.target.style.borderColor = tc; e.target.style.boxShadow = `0 0 0 4px ${tc}14`; }}
+                    onBlur={e => { e.target.style.borderColor = 'rgba(22,15,8,0.12)'; e.target.style.boxShadow = 'none'; }}
                   />
-                  <div style={{ display: 'flex', gap: 12, justifyContent: 'center', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: 10, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' }}>
                     <motion.button id="continue-btn" data-testid="continue-btn" whileHover={{ scale: 1.02, y: -1 }} whileTap={{ scale: 0.97 }}
                       onClick={submit} disabled={busy || !email}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '15px 44px', borderRadius: 999, border: 'none', background: email ? tc : 'rgba(22,15,8,0.1)', color: email ? '#fff' : sub, fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 12, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: (busy || !email) ? 'not-allowed' : 'pointer', opacity: busy ? 0.65 : 1, transition: 'all 0.25s', boxShadow: email ? `0 8px 32px ${tc}40` : 'none' }}>
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '13px 36px', borderRadius: 999, border: 'none', background: email ? tc : 'rgba(22,15,8,0.1)', color: email ? '#fff' : sub, fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: (busy || !email) ? 'not-allowed' : 'pointer', opacity: busy ? 0.65 : 1, transition: 'all 0.25s', boxShadow: email ? `0 8px 32px ${tc}40` : 'none', width: window.innerWidth <= 480 ? '100%' : 'auto', justifyContent: 'center' }}>
                       {busy ? ui.submitting : <><span>{ui.submit}</span><Icons.Check style={{ color: 'currentColor' }} /></>}
                     </motion.button>
                   </div>
@@ -1549,7 +1585,7 @@ useEffect(() => {
         </div>
       )}
 
-      {/* ── Language translation initial pop-up modal ── */}
+      {/* ── Language translation pop-up modal ── */}
       <AnimatePresence>
         {showLangPopup && (
           <motion.div
@@ -1565,7 +1601,7 @@ useEffect(() => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              padding: 24,
+              padding: 20,
             }}
           >
             <motion.div
@@ -1575,60 +1611,56 @@ useEffect(() => {
               transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
               style={{
                 width: '100%',
-                maxWidth: 440,
-                background: '#FFFBF4', // Warm white card background
+                maxWidth: 400,
+                background: '#FFFBF4',
                 borderRadius: 24,
                 border: '1.5px solid rgba(22,15,8,0.08)',
-                padding: '36px 32px',
+                padding: '28px 24px',
                 boxShadow: '0 24px 60px rgba(0,0,0,0.3)',
                 textAlign: 'center',
                 position: 'relative',
               }}
             >
-              {/* Close Button */}
-              <button 
+              <button
                 onClick={() => setShowLangPopup(false)}
                 style={{
                   position: 'absolute',
-                  top: 20,
-                  right: 20,
+                  top: 16,
+                  right: 16,
                   background: 'none',
                   border: 'none',
                   color: 'rgba(22,15,8,0.3)',
                   cursor: 'pointer',
-                  padding: 4,
-                  transition: 'color 0.2s'
+                  padding: 4
                 }}
-                onMouseEnter={e => e.currentTarget.style.color = '#160F08'}
-                onMouseLeave={e => e.currentTarget.style.color = 'rgba(22,15,8,0.3)'}
               >
                 <Icons.X style={{ width: 16, height: 16 }} />
               </button>
 
-              <div style={{ width: 56, height: 56, borderRadius: 16, background: `${tc}12`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: 24 }}>
+              <div style={{ width: 48, height: 48, borderRadius: 16, background: `${tc}12`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: 22 }}>
                 🌐
               </div>
 
-              <h2 style={{ fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: 26, letterSpacing: '-0.8px', color: '#160F08', marginBottom: 6, lineHeight: 1.2 }}>
+              <h2 style={{ fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: 22, letterSpacing: '-0.8px', color: '#160F08', marginBottom: 4, lineHeight: 1.2 }}>
                 {ui.selectLanguage}
               </h2>
-              <p style={{ fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 13, color: 'rgba(22,15,8,0.5)', lineHeight: 1.5, marginBottom: 28 }}>
+              <p style={{ fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 12, color: 'rgba(22,15,8,0.5)', lineHeight: 1.5, marginBottom: 24 }}>
                 {ui.chooseLanguage}
               </p>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <button
                   onClick={() => { changeLanguage('en'); setShowLangPopup(false); }}
                   style={{
                     width: '100%',
-                    padding: '14px 20px',
-                    borderRadius: 14,
+                    padding: '12px 16px',
+                    borderRadius: 12,
                     border: currentLang === 'en' ? `2px solid ${tc}` : '1.5px solid rgba(22,15,8,0.08)',
                     background: currentLang === 'en' ? `${tc}06` : 'white',
                     color: '#160F08',
                     fontFamily: 'Syne,sans-serif',
                     fontWeight: 700,
-                    fontSize: 14,
+                    fontSize: 13,
                     cursor: 'pointer',
                     transition: 'all 0.2s',
                     textAlign: 'left',
@@ -1636,8 +1668,6 @@ useEffect(() => {
                     alignItems: 'center',
                     justifyContent: 'space-between'
                   }}
-                  onMouseEnter={e => { if (currentLang !== 'en') e.currentTarget.style.borderColor = tc; }}
-                  onMouseLeave={e => { if (currentLang !== 'en') e.currentTarget.style.borderColor = 'rgba(22,15,8,0.08)'; }}
                 >
                   <span>{ui.englishDefault}</span>
                   {currentLang === 'en' && <span style={{ color: tc }}>✓</span>}
@@ -1647,14 +1677,14 @@ useEffect(() => {
                   onClick={() => { changeLanguage('hi'); setShowLangPopup(false); }}
                   style={{
                     width: '100%',
-                    padding: '14px 20px',
-                    borderRadius: 14,
+                    padding: '12px 16px',
+                    borderRadius: 12,
                     border: currentLang === 'hi' ? `2px solid ${tc}` : '1.5px solid rgba(22,15,8,0.08)',
                     background: currentLang === 'hi' ? `${tc}06` : 'white',
                     color: '#160F08',
                     fontFamily: 'Syne,sans-serif',
                     fontWeight: 700,
-                    fontSize: 14,
+                    fontSize: 13,
                     cursor: 'pointer',
                     transition: 'all 0.2s',
                     textAlign: 'left',
@@ -1662,8 +1692,6 @@ useEffect(() => {
                     alignItems: 'center',
                     justifyContent: 'space-between'
                   }}
-                  onMouseEnter={e => { if (currentLang !== 'hi') e.currentTarget.style.borderColor = tc; }}
-                  onMouseLeave={e => { if (currentLang !== 'hi') e.currentTarget.style.borderColor = 'rgba(22,15,8,0.08)'; }}
                 >
                   <span>{ui.hindi}</span>
                   {currentLang === 'hi' && <span style={{ color: tc }}>✓</span>}
@@ -1673,14 +1701,14 @@ useEffect(() => {
                   onClick={() => { changeLanguage('te'); setShowLangPopup(false); }}
                   style={{
                     width: '100%',
-                    padding: '14px 20px',
-                    borderRadius: 14,
+                    padding: '12px 16px',
+                    borderRadius: 12,
                     border: currentLang === 'te' ? `2px solid ${tc}` : '1.5px solid rgba(22,15,8,0.08)',
                     background: currentLang === 'te' ? `${tc}06` : 'white',
                     color: '#160F08',
                     fontFamily: 'Syne,sans-serif',
                     fontWeight: 700,
-                    fontSize: 14,
+                    fontSize: 13,
                     cursor: 'pointer',
                     transition: 'all 0.2s',
                     textAlign: 'left',
@@ -1688,8 +1716,6 @@ useEffect(() => {
                     alignItems: 'center',
                     justifyContent: 'space-between'
                   }}
-                  onMouseEnter={e => { if (currentLang !== 'te') e.currentTarget.style.borderColor = tc; }}
-                  onMouseLeave={e => { if (currentLang !== 'te') e.currentTarget.style.borderColor = 'rgba(22,15,8,0.08)'; }}
                 >
                   <span>{ui.telugu}</span>
                   {currentLang === 'te' && <span style={{ color: tc }}>✓</span>}
@@ -1702,7 +1728,6 @@ useEffect(() => {
 
       {/* Global scoped CSS */}
       <style>{`
-        /* Hide default Google Translate bar and iframe completely */
         .goog-te-banner-frame,
         .goog-te-banner-frame.skiptranslate,
         iframe.goog-te-banner-frame,
@@ -1717,61 +1742,212 @@ useEffect(() => {
           background-color: transparent !important;
           box-shadow: none !important;
         }
-        .qt { width:100%; box-sizing:border-box; background:transparent; border:none; border-bottom:2px solid rgba(22,15,8,0.09); font-family:'Fraunces',serif; font-size:clamp(20px,3vw,30px); font-weight:300; color:#160F08; outline:none; padding:6px 0 16px; transition:border-color 0.25s; resize:none; }
+        .qt { width:100%; box-sizing:border-box; background:transparent; border:none; border-bottom:2px solid rgba(22,15,8,0.09); font-family:'Fraunces',serif; font-size:clamp(18px,2.5vw,30px); font-weight:300; color:#160F08; outline:none; padding:4px 0 12px; transition:border-color 0.25s; resize:none; }
         .qt:focus { border-bottom-color:var(--qt-tc); }
         .qt::placeholder { color:rgba(22,15,8,0.12); }
-        .qc { width:100%; display:flex; align-items:center; gap:16px; padding:17px 22px; border-radius:18px; border:1.5px solid rgba(22,15,8,0.07); background:rgba(253,245,232,0.5); cursor:pointer; text-align:left; transition:border-color 0.25s, background 0.25s, transform 0.25s, box-shadow 0.25s; backdrop-filter:blur(6px); }
-        .qc:hover { border-color:rgba(22,15,8,0.18); background:rgba(255,255,255,0.95); transform:translateX(6px); box-shadow:0 4px 20px rgba(22,15,8,0.06); }
+        .qc { width:100%; display:flex; align-items:center; gap:12px; padding:14px 18px; border-radius:16px; border:1.5px solid rgba(22,15,8,0.07); background:rgba(253,245,232,0.5); cursor:pointer; text-align:left; transition:border-color 0.25s, background 0.25s, transform 0.25s, box-shadow 0.25s; backdrop-filter:blur(6px); }
+        .qc:hover { border-color:rgba(22,15,8,0.18); background:rgba(255,255,255,0.95); transform:translateX(4px); box-shadow:0 4px 20px rgba(22,15,8,0.06); }
         .qc.on { border-color:var(--qt-tc); background:rgba(255,255,255,0.95); box-shadow:0 4px 20px rgba(22,15,8,0.08); }
-        .qdot { width:22px; height:22px; flex-shrink:0; border:2px solid rgba(22,15,8,0.14); display:flex; align-items:center; justify-content:center; transition:all 0.25s; }
-        .qdot.r { border-radius:50%; } .qdot.s { border-radius:7px; }
+        .qdot { width:20px; height:20px; flex-shrink:0; border:2px solid rgba(22,15,8,0.14); display:flex; align-items:center; justify-content:center; transition:all 0.25s; }
+        .qdot.r { border-radius:50%; } .qdot.s { border-radius:6px; }
         .qdot.on { border-color:var(--qt-tc); background:var(--qt-tc); }
-        .qlbl { font-family:'Fraunces',serif; font-weight:300; font-size:16px; color:#160F08; flex:1; line-height:1.4; }
-        .qkey { font-family:'Syne',sans-serif; font-size:9px; font-weight:700; letter-spacing:0.12em; color:rgba(22,15,8,0.2); padding:3px 8px; border:1px solid rgba(22,15,8,0.09); border-radius:6px; transition:all 0.2s; }
+        .qlbl { font-family:'Fraunces',serif; font-weight:300; font-size:15px; color:#160F08; flex:1; line-height:1.4; }
+        .qkey { font-family:'Syne',sans-serif; font-size:8px; font-weight:700; letter-spacing:0.12em; color:rgba(22,15,8,0.2); padding:2px 6px; border:1px solid rgba(22,15,8,0.09); border-radius:5px; transition:all 0.2s; }
         .qc:hover .qkey { border-color:rgba(22,15,8,0.2); color:rgba(22,15,8,0.35); }
         .qc.on .qkey { border-color:var(--qt-tc); color:var(--qt-tc); }
-        .qsc { flex:1; height:54px; border-radius:14px; border:1.5px solid rgba(22,15,8,0.08); background:rgba(253,245,232,0.5); font-family:'Syne',sans-serif; font-weight:700; font-size:14px; color:rgba(22,15,8,0.38); cursor:pointer; transition:all 0.25s; }
-        .qsc:hover { border-color:rgba(22,15,8,0.2); transform:translateY(-4px); color:#160F08; background:white; box-shadow:0 6px 20px rgba(22,15,8,0.08); }
-        .qsc.on { color:white; transform:translateY(-4px); box-shadow:0 8px 28px rgba(22,15,8,0.15); }
+        .qsc { flex:1; height:46px; border-radius:12px; border:1.5px solid rgba(22,15,8,0.08); background:rgba(253,245,232,0.5); font-family:'Syne',sans-serif; font-weight:700; font-size:13px; color:rgba(22,15,8,0.38); cursor:pointer; transition:all 0.25s; }
+        .qsc:hover { border-color:rgba(22,15,8,0.2); transform:translateY(-3px); color:#160F08; background:white; box-shadow:0 6px 20px rgba(22,15,8,0.08); }
+        .qsc.on { color:white; transform:translateY(-3px); box-shadow:0 8px 28px rgba(22,15,8,0.15); }
         .qc, .qsc, .qdot, button { -webkit-tap-highlight-color:transparent; }
-        @media (max-width: 640px) {
-          .np-respond-shell { height:100dvh !important; }
-          .np-respond-header { height:52px !important; padding:0 16px !important; }
-          .np-respond-header > div:last-child { gap:12px !important; }
-          .np-respond-header > div:last-child > div:first-child { display:none !important; }
-          .np-welcome-stage { padding:24px 18px !important; align-items:flex-start !important; padding-top:12vh !important; }
-          .np-question-wrap { align-items:flex-start !important; padding:24px 18px 18px !important; }
-          .np-question-panel { max-width:100% !important; }
-          .np-question-panel h2 { font-size:clamp(25px,8vw,34px) !important; line-height:1.12 !important; letter-spacing:-0.8px !important; }
-          .np-question-panel p { font-size:15px !important; line-height:1.55 !important; }
-          .np-question-nav { margin-top:34px !important; align-items:stretch !important; gap:14px !important; }
-          .np-question-nav > div { width:100% !important; }
-          .np-question-nav button { min-height:48px !important; justify-content:center !important; }
-          .np-enter-hint, .np-respond-footer { display:none !important; }
-          .qt { font-size:22px !important; padding-bottom:14px !important; }
-          .qc { min-height:56px !important; padding:14px 16px !important; border-radius:16px !important; gap:12px !important; }
-          .qc:hover { transform:none !important; box-shadow:none !important; }
-          .qlbl { font-size:15px !important; }
-          .qkey { display:none !important; }
-          .qsc { min-width:38px !important; height:48px !important; border-radius:12px !important; }
+        
+        /* ─── FULL MOBILE RESPONSIVE ─── */
+        @media (max-width: 768px) {
+          .np-respond-shell {
+            height: 100dvh !important;
+            min-height: 100dvh !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+          }
+          .np-respond-header {
+            height: 48px !important;
+            padding: 0 12px !important;
+            flex-shrink: 0 !important;
+          }
+          .np-welcome-stage {
+            padding: 16px 14px !important;
+            align-items: center !important;
+            padding-top: 8vh !important;
+          }
+          .np-welcome-stage > div:last-child {
+            margin-top: 0 !important;
+          }
+          .np-question-wrap {
+            align-items: center !important;
+            padding: 16px 14px 50px !important;
+            min-height: calc(100vh - 48px) !important;
+          }
+          .np-question-panel {
+            max-width: 100% !important;
+            width: 100% !important;
+          }
+          .np-question-panel h2 {
+            font-size: clamp(20px, 5.5vw, 28px) !important;
+            line-height: 1.12 !important;
+            letter-spacing: -0.5px !important;
+          }
+          .np-question-panel p {
+            font-size: 14px !important;
+            line-height: 1.55 !important;
+          }
+          .np-question-nav {
+            margin-top: 24px !important;
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 8px !important;
+          }
+          .np-question-nav > button:first-child {
+            order: 2 !important;
+            justify-content: center !important;
+            padding: 10px 0 !important;
+            width: 100% !important;
+          }
+          .np-question-nav > div {
+            width: 100% !important;
+            order: 1 !important;
+            align-items: stretch !important;
+          }
+          .np-question-nav > div button {
+            width: 100% !important;
+            justify-content: center !important;
+            padding: 12px 20px !important;
+            font-size: 10px !important;
+          }
+          .np-enter-hint {
+            display: none !important;
+          }
+          .qt {
+            font-size: 18px !important;
+            padding-bottom: 10px !important;
+          }
+          .qc {
+            min-height: 48px !important;
+            padding: 10px 14px !important;
+            border-radius: 12px !important;
+            gap: 10px !important;
+          }
+          .qc:hover {
+            transform: none !important;
+            box-shadow: none !important;
+          }
+          .qlbl {
+            font-size: 14px !important;
+          }
+          .qkey {
+            display: none !important;
+          }
+          .qsc {
+            min-width: 30px !important;
+            height: 40px !important;
+            border-radius: 10px !important;
+            font-size: 11px !important;
+          }
+          .qdot {
+            width: 18px !important;
+            height: 18px !important;
+          }
+          .np-respond-footer {
+            display: none !important;
+          }
         }
-        @media (hover:none) {
-          .qc:hover, .qsc:hover { transform:none !important; box-shadow:none !important; }
+          /* In the welcome section (step === -1) */
+.np-welcome-stage h1 {
+  font-size: clamp(22px, 4vw, 42px) !important; /* Reduced from clamp(28px,5vw,62px) */
+  letter-spacing: -1px !important; /* Reduced from -2px */
+}
+
+.np-welcome-stage p {
+  font-size: 14px !important; /* Reduced from 16px */
+  line-height: 1.5 !important; /* Tighter line height */
+}
+
+.np-welcome-stage .description-text {
+  font-size: 13px !important; /* Even smaller for description */
+  line-height: 1.4 !important;
+}
+        
+        @media (max-width: 480px) {
+          .np-welcome-stage {
+            padding-top: 6vh !important;
+          }
+          .np-welcome-stage h1 {
+            font-size: 24px !important;
+          }
+          .np-question-panel h2 {
+            font-size: clamp(18px, 5vw, 24px) !important;
+          }
+          .np-question-panel > div > div[style*="grid-template-columns"] {
+            grid-template-columns: 1fr !important;
+            gap: 8px !important;
+          }
+          .np-question-panel > div > div[style*="grid-template-columns"] button {
+            padding: 16px 0 !important;
+            font-size: 16px !important;
+          }
+          .np-question-panel > div > div[style*="display:flex;flex-wrap:wrap;gap:12px"] {
+            gap: 8px !important;
+          }
+          .np-question-panel > div > div[style*="display:flex;flex-wrap:wrap;gap:12px"] button {
+            min-width: 44px !important;
+            min-height: 44px !important;
+          }
+          .np-question-panel > div > div[style*="display:flex;flex-wrap:wrap;gap:12px"] button span {
+            font-size: 22px !important;
+          }
+          /* NPS scale on mobile */
+          .np-question-panel > div > div[style*="max-width:580"] > div[style*="display:flex"][style*="gap:5px"] {
+            gap: 3px !important;
+            flex-wrap: wrap !important;
+          }
+          .np-question-panel > div > div[style*="max-width:580"] > div[style*="display:flex"][style*="gap:5px"] button {
+            min-width: 26px !important;
+            height: 34px !important;
+            font-size: 10px !important;
+          }
+          /* Matrix */
+          .np-question-panel table td {
+            padding: 2px 3px !important;
+          }
+          .np-question-panel table button {
+            width: 22px !important;
+            height: 22px !important;
+          }
+          /* Slider */
+          .np-question-panel > div > div[style*="max-width:520"] > div:first-child span {
+            font-size: clamp(32px, 10vw, 44px) !important;
+          }
         }
+        
+        @media (hover: none) {
+          .qc:hover, .qsc:hover {
+            transform: none !important;
+            box-shadow: none !important;
+          }
+        }
+        
         @media (prefers-reduced-motion: reduce) {
           .np-respond-shell *, .np-respond-shell *::before, .np-respond-shell *::after {
-            animation-duration:0.001ms !important;
-            animation-iteration-count:1 !important;
-            transition-duration:0.001ms !important;
-            scroll-behavior:auto !important;
+            animation-duration: 0.001ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.001ms !important;
+            scroll-behavior: auto !important;
           }
         }
       `}</style>
 
       {/* ── Footer ── */}
-      <footer className="np-respond-footer" style={{ flexShrink: 0, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 32px', borderTop: `1px solid ${line}` }}>
-        <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: dark ? 'rgba(237,232,223,0.15)' : 'rgba(22,15,8,0.2)' }}>
-          © {new Date().getFullYear()} Axiora Pulse · All rights reserved
+      <footer className="np-respond-footer" style={{ flexShrink: 0, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 16px', borderTop: `1px solid ${line}` }}>
+        <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 7, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: dark ? 'rgba(237,232,223,0.15)' : 'rgba(22,15,8,0.2)' }}>
+          © {new Date().getFullYear()} Axiora Pulse
         </span>
       </footer>
     </div>
@@ -1795,17 +1971,17 @@ function QInput({ q, val, set, tc, fg, sub, lang, ui }) {
 
     case 'number':
       return <input type="number" value={val} onChange={e => set(e.target.value)} className="qt" placeholder="0" autoFocus
-        style={{ ...css, fontSize: 'clamp(48px,8vw,80px)', fontWeight: 400, letterSpacing: '-3px', padding: '0 0 12px', textAlign: 'left', width: 220 }} />;
+        style={{ ...css, fontSize: 'clamp(40px,7vw,80px)', fontWeight: 400, letterSpacing: '-3px', padding: '0 0 10px', textAlign: 'left', width: '100%', maxWidth: 220 }} />;
 
     case 'date':
-      return <input type="date" value={val} onChange={e => set(e.target.value)} className="qt" style={{ ...css, fontSize: 24 }} />;
+      return <input type="date" value={val} onChange={e => set(e.target.value)} className="qt" style={{ ...css, fontSize: 20 }} />;
 
     case 'yes_no':
       return (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, maxWidth: 440 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth <= 480 ? '1fr 1fr' : '1fr 1fr', gap: 12, maxWidth: 440 }}>
           {[{ l: ui.yes, v: 'yes' }, { l: ui.no, v: 'no' }].map(o => (
             <motion.button key={o.v} whileHover={{ y: -4 }} whileTap={{ scale: 0.97 }} onClick={() => set(o.v)}
-              style={{ padding: '32px 0', borderRadius: 20, border: `1.5px solid ${val === o.v ? tc : 'rgba(22,15,8,0.08)'}`, background: val === o.v ? tc : 'rgba(255,255,255,0.6)', cursor: 'pointer', fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: 22, letterSpacing: '-0.5px', color: val === o.v ? '#fff' : '#160F08', transition: 'all 0.25s', backdropFilter: 'blur(6px)', boxShadow: val === o.v ? `0 12px 36px ${tc}35` : 'none' }}>
+              style={{ padding: window.innerWidth <= 480 ? '20px 0' : '28px 0', borderRadius: 18, border: `1.5px solid ${val === o.v ? tc : 'rgba(22,15,8,0.08)'}`, background: val === o.v ? tc : 'rgba(255,255,255,0.6)', cursor: 'pointer', fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: window.innerWidth <= 768 ? 16 : 22, letterSpacing: '-0.5px', color: val === o.v ? '#fff' : '#160F08', transition: 'all 0.25s', backdropFilter: 'blur(6px)', boxShadow: val === o.v ? `0 12px 36px ${tc}35` : 'none' }}>
               {o.l}
             </motion.button>
           ))}
@@ -1814,7 +1990,7 @@ function QInput({ q, val, set, tc, fg, sub, lang, ui }) {
 
     case 'single_choice':
       return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 9, maxWidth: 580 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 580 }}>
           {(parseOpts(q.options) || []).map((o, i) => {
             const on = val === o.value;
             return (
@@ -1834,7 +2010,7 @@ function QInput({ q, val, set, tc, fg, sub, lang, ui }) {
     case 'multiple_choice': {
       const sel = Array.isArray(val) ? val : [];
       return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 9, maxWidth: 580 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 580 }}>
           {(parseOpts(q.options) || []).map((o, i) => {
             const on = sel.includes(o.value);
             return (
@@ -1854,14 +2030,14 @@ function QInput({ q, val, set, tc, fg, sub, lang, ui }) {
 
     case 'dropdown':
       return (
-        <div style={{ position: 'relative', maxWidth: 460 }}>
+        <div style={{ position: 'relative', maxWidth: 460, width: '100%' }}>
           <select value={val} onChange={e => set(e.target.value)}
-            style={{ width: '100%', padding: '16px 44px 16px 20px', appearance: 'none', WebkitAppearance: 'none', background: 'rgba(255,255,255,0.75)', border: '1.5px solid rgba(22,15,8,0.09)', borderRadius: 16, fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 19, color: val ? '#160F08' : 'rgba(22,15,8,0.28)', outline: 'none', cursor: 'pointer', backdropFilter: 'blur(6px)', transition: 'border-color 0.2s' }}
+            style={{ width: '100%', padding: '14px 40px 14px 16px', appearance: 'none', WebkitAppearance: 'none', background: 'rgba(255,255,255,0.75)', border: '1.5px solid rgba(22,15,8,0.09)', borderRadius: 14, fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 17, color: val ? '#160F08' : 'rgba(22,15,8,0.28)', outline: 'none', cursor: 'pointer', backdropFilter: 'blur(6px)', transition: 'border-color 0.2s' }}
             onFocus={e => e.target.style.borderColor = tc} onBlur={e => e.target.style.borderColor = 'rgba(22,15,8,0.09)'}>
             <option value="">{ui.selectOption}</option>
             {(parseOpts(q.options) || []).map((o, i) => <option key={i} value={o.value}>{textFor(o.label, lang)}</option>)}
           </select>
-          <Icons.Chevron style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'rgba(22,15,8,0.3)' }} />
+          <Icons.Chevron style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'rgba(22,15,8,0.3)', width: 16, height: 16 }} />
         </div>
       );
 
@@ -1889,12 +2065,12 @@ function QInput({ q, val, set, tc, fg, sub, lang, ui }) {
     case 'rating': {
       const r = parseInt(val) || 0;
       return (
-        <div style={{ display: 'flex', gap: 4 }}>
+        <div style={{ display: 'flex', gap: window.innerWidth <= 480 ? 2 : 4 }}>
           {[1, 2, 3, 4, 5].map(s => (
             <motion.button key={s} whileHover={{ scale: 1.2, y: -6 }} whileTap={{ scale: 0.85 }}
               onClick={() => set(s)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, lineHeight: 1, color: s <= r ? tc : 'rgba(22,15,8,0.14)', transition: 'color 0.2s' }}>
-              <Icons.Star filled={s <= r} style={{ color: 'currentColor', width: 38, height: 38 }} />
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: window.innerWidth <= 480 ? 2 : 4, lineHeight: 1, color: s <= r ? tc : 'rgba(22,15,8,0.14)', transition: 'color 0.2s' }}>
+              <Icons.Star filled={s <= r} style={{ color: 'currentColor', width: window.innerWidth <= 480 ? 28 : 38, height: window.innerWidth <= 480 ? 28 : 38 }} />
             </motion.button>
           ))}
         </div>
@@ -1903,16 +2079,23 @@ function QInput({ q, val, set, tc, fg, sub, lang, ui }) {
 
     case 'scale': {
       const v = parseInt(val) || 0;
+      const isMobile = window.innerWidth <= 768;
       return (
-        <div style={{ maxWidth: 580 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: sub }}>
+        <div style={{ maxWidth: 580, width: '100%' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10, fontFamily: 'Syne,sans-serif', fontSize: isMobile ? 7 : 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: sub }}>
             <span>{ui.notAtAll}</span><span>{ui.extremely}</span>
           </div>
-          <div style={{ display: 'flex', gap: 5 }}>
+          <div style={{ display: 'flex', gap: isMobile ? 3 : 5, flexWrap: 'wrap' }}>
             {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
               <motion.button key={n} whileHover={{ y: -4 }} whileTap={{ scale: 0.9 }} onClick={() => set(n)}
                 className={`qsc${n === v ? ' on' : ''}`}
-                style={n === v ? { borderColor: tc, background: tc, boxShadow: `0 6px 24px ${tc}40`, color: 'white' } : {}}>
+                style={{
+                  ...(n === v ? { borderColor: tc, background: tc, boxShadow: `0 6px 24px ${tc}40`, color: 'white' } : {}),
+                  flex: isMobile ? '1 1 18%' : '1',
+                  minWidth: isMobile ? '30px' : 'auto',
+                  height: isMobile ? '38px' : '46px',
+                  fontSize: isMobile ? '10px' : '13px'
+                }}>
                 {n}
               </motion.button>
             ))}
@@ -1928,7 +2111,7 @@ function QInput({ q, val, set, tc, fg, sub, lang, ui }) {
         if (Array.isArray(raw)) return raw;
         return [];
       })();
-      if (!opts.length) return <div style={{ fontFamily: 'Fraunces,serif', fontSize: 15, color: sub, padding: '16px 0' }}>{ui.noOptions}</div>;
+      if (!opts.length) return <div style={{ fontFamily: 'Fraunces,serif', fontSize: 14, color: sub, padding: '12px 0' }}>{ui.noOptions}</div>;
       return <RankInput opts={opts} val={val} set={set} tc={tc} lang={lang} ui={ui} />;
     }
 
@@ -1940,14 +2123,13 @@ function QInput({ q, val, set, tc, fg, sub, lang, ui }) {
     }
 
     case 'matrix': {
-      // Supabase returns JSONB as a plain JS object already; parseOpts handles string fallback
       const opts = parseOpts(q.options);
       const rows = (opts && Array.isArray(opts.rows)) ? opts.rows : [];
       const cols = (opts && Array.isArray(opts.columns)) ? opts.columns : [];
       if (!rows.length || !cols.length) return (
-        <div style={{ fontFamily: 'Fraunces,serif', fontSize: 15, color: sub, padding: '16px 0', lineHeight: 1.6 }}>
+        <div style={{ fontFamily: 'Fraunces,serif', fontSize: 14, color: sub, padding: '12px 0', lineHeight: 1.6 }}>
           {ui.matrixEmpty}<br />
-          <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+          <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
             {ui.matrixHelp}
           </span>
         </div>
@@ -1972,32 +2154,32 @@ function RankInput({ opts, val, set, tc, lang, ui }) {
   function reorder(next) { setItems(next); set(next); }
 
   return (
-    <div style={{ maxWidth: 520 }}>
-      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '5px 13px', borderRadius: 999, border: `1px solid rgba(22,15,8,0.09)`, background: 'rgba(22,15,8,0.03)', marginBottom: 20 }}>
-        <Icons.Grip style={{ color: 'rgba(22,15,8,0.3)' }} />
-        <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.4)' }}>{ui.dragRank}</span>
+    <div style={{ maxWidth: 520, width: '100%' }}>
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 999, border: `1px solid rgba(22,15,8,0.09)`, background: 'rgba(22,15,8,0.03)', marginBottom: 16 }}>
+        <Icons.Grip style={{ color: 'rgba(22,15,8,0.3)', width: 12, height: 12 }} />
+        <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.4)' }}>{ui.dragRank}</span>
       </div>
       <Reorder.Group axis="y" values={items} onReorder={reorder}
-        style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
         {items.map((v, i) => (
           <Reorder.Item key={v} value={v} whileDrag={{ scale: 1.03, rotate: 1, zIndex: 50 }} style={{ cursor: 'grab', listStyle: 'none' }}>
-            <motion.div layout style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px', background: i === 0 ? `${tc}08` : 'rgba(255,255,255,0.65)', border: `1.5px solid ${i === 0 ? tc + '28' : 'rgba(22,15,8,0.08)'}`, borderRadius: 16, userSelect: 'none', backdropFilter: 'blur(4px)', transition: 'border-color 0.25s, background 0.25s' }}>
+            <motion.div layout style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: i === 0 ? `${tc}08` : 'rgba(255,255,255,0.65)', border: `1.5px solid ${i === 0 ? tc + '28' : 'rgba(22,15,8,0.08)'}`, borderRadius: 14, userSelect: 'none', backdropFilter: 'blur(4px)', transition: 'border-color 0.25s, background 0.25s' }}>
               <motion.div layout animate={{ background: i === 0 ? tc : 'rgba(22,15,8,0.06)' }} transition={{ duration: 0.3 }}
-                style={{ width: 30, height: 30, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: i === 0 ? `0 4px 14px ${tc}40` : 'none', transition: 'box-shadow 0.3s' }}>
-                <span style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 11, color: i === 0 ? '#fff' : 'rgba(22,15,8,0.35)', transition: 'color 0.3s' }}>{i + 1}</span>
+                style={{ width: window.innerWidth <= 480 ? 24 : 28, height: window.innerWidth <= 480 ? 24 : 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: i === 0 ? `0 4px 14px ${tc}40` : 'none', transition: 'box-shadow 0.3s' }}>
+                <span style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: window.innerWidth <= 480 ? 9 : 11, color: i === 0 ? '#fff' : 'rgba(22,15,8,0.35)', transition: 'color 0.3s' }}>{i + 1}</span>
               </motion.div>
-              <span style={{ fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 16, color: '#160F08', flex: 1, lineHeight: 1.4 }}>{getLabel(v)}</span>
-              <Icons.Grip style={{ color: 'rgba(22,15,8,0.18)', flexShrink: 0 }} />
+              <span style={{ fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: window.innerWidth <= 480 ? 13 : 16, color: '#160F08', flex: 1, lineHeight: 1.4 }}>{getLabel(v)}</span>
+              <Icons.Grip style={{ color: 'rgba(22,15,8,0.18)', flexShrink: 0, width: 12, height: 12 }} />
             </motion.div>
           </Reorder.Item>
         ))}
       </Reorder.Group>
       {items.length > 0 && (
-        <div style={{ marginTop: 18, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 16, height: 16, borderRadius: '50%', background: `${tc}15`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Icons.Check style={{ color: tc, width: 8, height: 8 }} />
+        <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ width: 14, height: 14, borderRadius: '50%', background: `${tc}15`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Icons.Check style={{ color: tc, width: 7, height: 7 }} />
           </div>
-          <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.3)' }}>
+          <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.3)' }}>
             {ui.top}: <span style={{ color: tc }}>{getLabel(items[0])}</span>
           </span>
         </div>
@@ -2006,18 +2188,18 @@ function RankInput({ opts, val, set, tc, lang, ui }) {
   );
 }
 
-// ─── SliderInput — fully custom pointer drag ──────────────────────────────────
+// ─── SliderInput ──────────────────────────────────────────────────────────────────
 function EmojiReactionInput({ opts, val, set, tc, lang }) {
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, maxWidth: 560 }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, maxWidth: 560 }}>
       {opts.map((o, i) => {
         const on = val === o.value;
         return (
           <motion.button key={o.value || i} whileHover={{ y: -5, scale: 1.04 }} whileTap={{ scale: 0.92 }} onClick={() => set(o.value)}
             aria-pressed={on}
-            style={{ minWidth: 84, minHeight: 84, borderRadius: 22, border: `1.5px solid ${on ? tc : 'rgba(22,15,8,0.08)'}`, background: on ? `${tc}12` : 'rgba(255,255,255,0.68)', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: on ? `0 12px 30px ${tc}25` : 'none', transition: 'border-color 0.2s, background 0.2s, box-shadow 0.2s' }}>
-            <span style={{ fontSize: 34, lineHeight: 1 }}>{textFor(o.label, lang)}</span>
-            {o.description && <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: on ? tc : 'rgba(22,15,8,0.35)' }}>{textFor(o.description, lang)}</span>}
+            style={{ minWidth: window.innerWidth <= 480 ? 60 : 76, minHeight: window.innerWidth <= 480 ? 60 : 76, borderRadius: 18, border: `1.5px solid ${on ? tc : 'rgba(22,15,8,0.08)'}`, background: on ? `${tc}12` : 'rgba(255,255,255,0.68)', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, boxShadow: on ? `0 12px 30px ${tc}25` : 'none', transition: 'border-color 0.2s, background 0.2s, box-shadow 0.2s', padding: window.innerWidth <= 480 ? 8 : 12 }}>
+            <span style={{ fontSize: window.innerWidth <= 480 ? 28 : 34, lineHeight: 1 }}>{textFor(o.label, lang)}</span>
+            {o.description && <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 7, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: on ? tc : 'rgba(22,15,8,0.35)' }}>{textFor(o.description, lang)}</span>}
           </motion.button>
         );
       })}
@@ -2026,7 +2208,7 @@ function EmojiReactionInput({ opts, val, set, tc, lang }) {
 }
 
 function SwipeChoiceInput({ opts, val, set, tc, sub, lang, ui }) {
-  if (!opts.length) return <div style={{ fontFamily: 'Fraunces,serif', fontSize: 15, color: sub, padding: '16px 0' }}>{ui.noSwipe}</div>;
+  if (!opts.length) return <div style={{ fontFamily: 'Fraunces,serif', fontSize: 14, color: sub, padding: '12px 0' }}>{ui.noSwipe}</div>;
   const current = opts.find(o => o.value === val) || opts[0];
   const idx = Math.max(0, opts.findIndex(o => o.value === current.value));
   const choose = delta => {
@@ -2034,38 +2216,38 @@ function SwipeChoiceInput({ opts, val, set, tc, sub, lang, ui }) {
     if (next) set(next.value);
   };
   return (
-    <div style={{ maxWidth: 420 }}>
+    <div style={{ maxWidth: 420, width: '100%' }}>
       <motion.div key={current.value} drag="x" dragConstraints={{ left: 0, right: 0 }} dragElastic={0.35}
         onDragEnd={(_, info) => { if (info.offset.x > 70) choose(-1); if (info.offset.x < -70) choose(1); }}
         whileTap={{ cursor: 'grabbing' }}
-        style={{ minHeight: 190, borderRadius: 26, border: `1.5px solid ${tc}35`, background: `linear-gradient(135deg, rgba(255,255,255,0.92), ${tc}10)`, boxShadow: `0 18px 50px ${tc}18`, cursor: 'grab', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 28, textAlign: 'center', touchAction: 'pan-y' }}>
+        style={{ minHeight: 160, borderRadius: 22, border: `1.5px solid ${tc}35`, background: `linear-gradient(135deg, rgba(255,255,255,0.92), ${tc}10)`, boxShadow: `0 18px 50px ${tc}18`, cursor: 'grab', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, textAlign: 'center', touchAction: 'pan-y' }}>
         <div>
-          <div style={{ fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: 28, color: '#160F08', lineHeight: 1.15, marginBottom: 10 }}>{textFor(current.label, lang)}</div>
-          {current.description && <div style={{ fontFamily: 'Fraunces,serif', fontSize: 14, color: 'rgba(22,15,8,0.46)', lineHeight: 1.5 }}>{textFor(current.description, lang)}</div>}
+          <div style={{ fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: window.innerWidth <= 480 ? 22 : 28, color: '#160F08', lineHeight: 1.15, marginBottom: 8 }}>{textFor(current.label, lang)}</div>
+          {current.description && <div style={{ fontFamily: 'Fraunces,serif', fontSize: 13, color: 'rgba(22,15,8,0.46)', lineHeight: 1.5 }}>{textFor(current.description, lang)}</div>}
         </div>
       </motion.div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 }}>
-        <button onClick={() => choose(-1)} disabled={idx === 0} style={{ border: 'none', background: 'transparent', color: idx === 0 ? 'rgba(22,15,8,0.18)' : tc, fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: idx === 0 ? 'default' : 'pointer' }}>{ui.prev}</button>
-        <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: sub }}>{ui.swipeTap}</span>
-        <button onClick={() => choose(1)} disabled={idx === opts.length - 1} style={{ border: 'none', background: 'transparent', color: idx === opts.length - 1 ? 'rgba(22,15,8,0.18)' : tc, fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: idx === opts.length - 1 ? 'default' : 'pointer' }}>{ui.next}</button>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
+        <button onClick={() => choose(-1)} disabled={idx === 0} style={{ border: 'none', background: 'transparent', color: idx === 0 ? 'rgba(22,15,8,0.18)' : tc, fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: idx === 0 ? 'default' : 'pointer' }}>{ui.prev}</button>
+        <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: sub }}>{ui.swipeTap}</span>
+        <button onClick={() => choose(1)} disabled={idx === opts.length - 1} style={{ border: 'none', background: 'transparent', color: idx === opts.length - 1 ? 'rgba(22,15,8,0.18)' : tc, fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: idx === opts.length - 1 ? 'default' : 'pointer' }}>{ui.next}</button>
       </div>
     </div>
   );
 }
 
 function VisualChoiceInput({ opts, val, set, tc, sub, lang, ui }) {
-  if (!opts.length) return <div style={{ fontFamily: 'Fraunces,serif', fontSize: 15, color: sub, padding: '16px 0' }}>{ui.noVisual}</div>;
+  if (!opts.length) return <div style={{ fontFamily: 'Fraunces,serif', fontSize: 14, color: sub, padding: '12px 0' }}>{ui.noVisual}</div>;
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 12, maxWidth: 620 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth <= 480 ? 'repeat(2, 1fr)' : 'repeat(auto-fit,minmax(140px,1fr))', gap: 10, maxWidth: 620 }}>
       {opts.map((o, i) => {
         const on = val === o.value;
         return (
           <motion.button key={o.value || i} whileHover={{ y: -4 }} whileTap={{ scale: 0.97 }} onClick={() => set(o.value)}
-            style={{ border: `1.5px solid ${on ? tc : 'rgba(22,15,8,0.08)'}`, background: on ? `${tc}10` : 'rgba(255,255,255,0.7)', borderRadius: 20, padding: 8, cursor: 'pointer', textAlign: 'left', boxShadow: on ? `0 12px 34px ${tc}24` : 'none', overflow: 'hidden' }}>
-            {o.image_url ? <img src={o.image_url} alt="" style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', borderRadius: 14, display: 'block', marginBottom: 10 }} /> : <div style={{ width: '100%', aspectRatio: '4/3', borderRadius: 14, background: `${tc}14`, marginBottom: 10 }} />}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 4px 4px' }}>
-              <div style={{ width: 16, height: 16, borderRadius: '50%', border: `2px solid ${on ? tc : 'rgba(22,15,8,0.18)'}`, background: on ? tc : 'transparent', flexShrink: 0 }} />
-              <span style={{ fontFamily: 'Fraunces,serif', fontSize: 14, color: '#160F08', lineHeight: 1.25 }}>{textFor(o.label, lang)}</span>
+            style={{ border: `1.5px solid ${on ? tc : 'rgba(22,15,8,0.08)'}`, background: on ? `${tc}10` : 'rgba(255,255,255,0.7)', borderRadius: 18, padding: 6, cursor: 'pointer', textAlign: 'left', boxShadow: on ? `0 12px 34px ${tc}24` : 'none', overflow: 'hidden' }}>
+            {o.image_url ? <img src={o.image_url} alt="" style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', borderRadius: 12, display: 'block', marginBottom: 8 }} /> : <div style={{ width: '100%', aspectRatio: '4/3', borderRadius: 12, background: `${tc}14`, marginBottom: 8 }} />}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 2px 2px' }}>
+              <div style={{ width: 14, height: 14, borderRadius: '50%', border: `2px solid ${on ? tc : 'rgba(22,15,8,0.18)'}`, background: on ? tc : 'transparent', flexShrink: 0 }} />
+              <span style={{ fontFamily: 'Fraunces,serif', fontSize: 13, color: '#160F08', lineHeight: 1.25 }}>{textFor(o.label, lang)}</span>
             </div>
           </motion.button>
         );
@@ -2093,19 +2275,19 @@ function SliderInput({ val, set, tc, min, max, step, minLabel, maxLabel, ui }) {
   function onKey(e) { const d = e.shiftKey ? step * 10 : step; if (e.key === 'ArrowRight' || e.key === 'ArrowUp') { e.preventDefault(); set(snap((cur ?? Math.round((min + max) / 2)) + d)); } else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') { e.preventDefault(); set(snap((cur ?? Math.round((min + max) / 2)) - d)); } }
 
   return (
-    <div style={{ maxWidth: 520, userSelect: 'none' }}>
+    <div style={{ maxWidth: 520, userSelect: 'none', width: '100%' }}>
       {/* Value */}
-      <div style={{ marginBottom: 44, textAlign: 'left' }}>
+      <div style={{ marginBottom: 32, textAlign: 'left' }}>
         <AnimatePresence mode="wait">
           {cur != null ? (
             <motion.div key="v" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.2 }}>
-              <span style={{ fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: 'clamp(56px,9vw,88px)', letterSpacing: '-4px', color: tc, lineHeight: 1 }}>{cur}</span>
-              <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.25)', marginLeft: 12 }}>{ui.selected}</span>
+              <span style={{ fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: 'clamp(40px,8vw,88px)', letterSpacing: '-4px', color: tc, lineHeight: 1 }}>{cur}</span>
+              <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.25)', marginLeft: 10 }}>{ui.selected}</span>
             </motion.div>
           ) : (
             <motion.div key="e" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <span style={{ fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: 'clamp(56px,9vw,88px)', letterSpacing: '-4px', color: 'rgba(22,15,8,0.07)', lineHeight: 1 }}>–</span>
-              <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.2)', marginLeft: 12 }}>{ui.dragSelect}</span>
+              <span style={{ fontFamily: 'Playfair Display,serif', fontWeight: 900, fontSize: 'clamp(40px,8vw,88px)', letterSpacing: '-4px', color: 'rgba(22,15,8,0.07)', lineHeight: 1 }}>–</span>
+              <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.2)', marginLeft: 10 }}>{ui.dragSelect}</span>
             </motion.div>
           )}
         </AnimatePresence>
@@ -2115,20 +2297,20 @@ function SliderInput({ val, set, tc, min, max, step, minLabel, maxLabel, ui }) {
       <div ref={trackRef} tabIndex={0} role="slider" aria-valuemin={min} aria-valuemax={max} aria-valuenow={cur ?? min}
         onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerLeave={onUp} onPointerCancel={onUp}
         onKeyDown={onKey} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
-        style={{ position: 'relative', height: 52, cursor: drag ? 'grabbing' : 'grab', touchAction: 'none', outline: 'none' }}>
+        style={{ position: 'relative', height: 44, cursor: drag ? 'grabbing' : 'grab', touchAction: 'none', outline: 'none' }}>
         {/* Track BG */}
         <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: 3, transform: 'translateY(-50%)', background: 'rgba(22,15,8,0.08)', borderRadius: 999, overflow: 'hidden' }}>
           <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${cur != null ? pct : 0}%`, background: `linear-gradient(90deg,${tc}80,${tc})`, borderRadius: 999, transition: drag ? 'none' : 'width 0.08s' }} />
         </div>
         {/* Thumb */}
         <motion.div animate={{ scale: drag ? 1.4 : hover ? 1.12 : 1 }} transition={{ type: 'spring', stiffness: 600, damping: 28 }}
-          style={{ position: 'absolute', top: '50%', left: `${cur != null ? pct : 50}%`, transform: 'translate(-50%,-50%)', width: 24, height: 24, borderRadius: '50%', background: cur != null ? tc : 'rgba(22,15,8,0.2)', border: '3px solid white', boxShadow: drag ? `0 4px 20px ${tc}55, 0 0 0 6px ${tc}15` : '0 2px 10px rgba(22,15,8,0.18)', pointerEvents: 'none', transition: drag ? 'left 0s,background 0.2s,box-shadow 0.2s' : 'left 0.04s,background 0.2s,box-shadow 0.2s' }} />
+          style={{ position: 'absolute', top: '50%', left: `${cur != null ? pct : 50}%`, transform: 'translate(-50%,-50%)', width: 20, height: 20, borderRadius: '50%', background: cur != null ? tc : 'rgba(22,15,8,0.2)', border: '3px solid white', boxShadow: drag ? `0 4px 20px ${tc}55, 0 0 0 6px ${tc}15` : '0 2px 10px rgba(22,15,8,0.18)', pointerEvents: 'none', transition: drag ? 'left 0s,background 0.2s,box-shadow 0.2s' : 'left 0.04s,background 0.2s,box-shadow 0.2s' }} />
       </div>
 
       {/* Labels */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10 }}>
-        <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.28)' }}>{minLabel}</span>
-        <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.28)' }}>{maxLabel}</span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
+        <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.28)' }}>{minLabel}</span>
+        <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.28)' }}>{maxLabel}</span>
       </div>
     </div>
   );
@@ -2146,65 +2328,66 @@ function MatrixInput({ rows, cols, val, set, tc, sub, lang, ui }) {
   }
 
   return (
-    <div style={{ width: '100%' }}>
-      {/* Progress */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
-        <div style={{ flex: 1, height: 2, borderRadius: 999, background: 'rgba(22,15,8,0.07)', overflow: 'hidden' }}>
-          <motion.div animate={{ width: `${pct}%` }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-            style={{ height: '100%', background: tc, borderRadius: 999 }} />
+    <>
+      <div style={{ width: '100%' }}>
+        {/* Progress */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+          <div style={{ flex: 1, height: 2, borderRadius: 999, background: 'rgba(22,15,8,0.07)', overflow: 'hidden' }}>
+            <motion.div animate={{ width: `${pct}%` }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+              style={{ height: '100%', background: tc, borderRadius: 999 }} />
+          </div>
+          <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: sub, flexShrink: 0 }}>{answered}/{rows.length}</span>
         </div>
-        <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: sub, flexShrink: 0 }}>{answered}/{rows.length}</span>
-      </div>
 
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0', minWidth: cols.length > 3 ? 480 : 'auto' }}>
-          <thead>
-            <tr>
-              <th style={{ width: '36%', paddingBottom: 14 }} />
-              {cols.map((c, ci) => (
-                <th key={c.value ?? ci} style={{ paddingBottom: 14, paddingLeft: 8, paddingRight: 8, textAlign: 'center', fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.35)', whiteSpace: 'nowrap' }}>
-                  {textFor(c.label, lang)}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, ri) => {
-              const sel = val[row.value];
-              const done = sel !== undefined;
-              return (
-                <motion.tr key={row.value ?? ri} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: ri * 0.04 }}>
-                  <td style={{ fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: 15, color: done ? '#160F08' : 'rgba(22,15,8,0.5)', paddingRight: 20, paddingTop: 5, paddingBottom: 5, verticalAlign: 'middle', transition: 'color 0.2s', whiteSpace: 'nowrap' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                      {done && <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} style={{ color: tc, lineHeight: 1, flexShrink: 0 }}><Icons.Check style={{ color: tc, width: 10, height: 10 }} /></motion.span>}
-                      {textFor(row.label, lang)}
-                    </span>
-                  </td>
-                  {cols.map((col, ci) => {
-                    const on = sel === col.value;
-                    return (
-                      <td key={col.value ?? ci} style={{ textAlign: 'center', padding: '5px 8px', verticalAlign: 'middle' }}>
-                        <motion.button whileHover={{ scale: 1.12 }} whileTap={{ scale: 0.88 }} onClick={() => toggle(row.value, col.value)}
-                          aria-label={`${textFor(row.label, lang)}: ${textFor(col.label, lang)}`} aria-pressed={on}
-                          style={{ width: 32, height: 32, borderRadius: '50%', border: `2px solid ${on ? tc : 'rgba(22,15,8,0.12)'}`, background: on ? tc : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', transition: 'border-color 0.2s, background 0.2s', boxShadow: on ? `0 4px 14px ${tc}35` : 'none' }}>
-                          {on && <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 500 }}><Icons.Check style={{ color: 'white', width: 10, height: 10 }} /></motion.div>}
-                        </motion.button>
-                      </td>
-                    );
-                  })}
-                </motion.tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <div style={{ overflowX: 'auto', margin: '0 -4px', padding: '0 4px' }}>
+          <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0', minWidth: cols.length > 3 ? 400 : 'auto' }}>
+            <thead>
+              <tr>
+                <th style={{ width: '36%', paddingBottom: 10 }} />
+                {cols.map((c, ci) => (
+                  <th key={c.value ?? ci} style={{ paddingBottom: 10, paddingLeft: 6, paddingRight: 6, textAlign: 'center', fontFamily: 'Syne,sans-serif', fontSize: window.innerWidth <= 480 ? 7 : 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(22,15,8,0.35)', whiteSpace: 'nowrap' }}>
+                    {textFor(c.label, lang)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, ri) => {
+                const sel = val[row.value];
+                const done = sel !== undefined;
+                return (
+                  <motion.tr key={row.value ?? ri} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: ri * 0.04 }}>
+                    <td style={{ fontFamily: 'Fraunces,serif', fontWeight: 300, fontSize: window.innerWidth <= 480 ? 13 : 15, color: done ? '#160F08' : 'rgba(22,15,8,0.5)', paddingRight: 14, paddingTop: 4, paddingBottom: 4, verticalAlign: 'middle', transition: 'color 0.2s', whiteSpace: 'nowrap' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        {done && <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} style={{ color: tc, lineHeight: 1, flexShrink: 0 }}><Icons.Check style={{ color: tc, width: 8, height: 8 }} /></motion.span>}
+                        <span style={{ fontSize: window.innerWidth <= 480 ? 12 : 'inherit' }}>{textFor(row.label, lang)}</span>
+                      </span>
+                    </td>
+                    {cols.map((col, ci) => {
+                      const on = sel === col.value;
+                      return (
+                        <td key={col.value ?? ci} style={{ textAlign: 'center', padding: '4px 6px', verticalAlign: 'middle' }}>
+                          <motion.button whileHover={{ scale: 1.12 }} whileTap={{ scale: 0.88 }} onClick={() => toggle(row.value, col.value)}
+                            aria-label={`${textFor(row.label, lang)}: ${textFor(col.label, lang)}`} aria-pressed={on}
+                            style={{ width: window.innerWidth <= 480 ? 24 : 28, height: window.innerWidth <= 480 ? 24 : 28, borderRadius: '50%', border: `2px solid ${on ? tc : 'rgba(22,15,8,0.12)'}`, background: on ? tc : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', transition: 'border-color 0.2s, background 0.2s', boxShadow: on ? `0 4px 14px ${tc}35` : 'none' }}>
+                            {on && <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 500 }}><Icons.Check style={{ color: 'white', width: 8, height: 8 }} /></motion.div>}
+                          </motion.button>
+                        </td>
+                      );
+                    })}
+                  </motion.tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        {answered === rows.length && rows.length > 0 && (
+          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 5, color: tc }}>
+            <Icons.Check style={{ color: tc, width: 10, height: 10 }} />
+            <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{ui.allRows}</span>
+          </motion.div>
+        )}
       </div>
-      {answered === rows.length && rows.length > 0 && (
-        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 6, color: tc }}>
-          <Icons.Check style={{ color: tc }} />
-          <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{ui.allRows}</span>
-        </motion.div>
-      )}
-    </div>
+    </>
   );
 }
-

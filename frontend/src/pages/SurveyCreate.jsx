@@ -398,7 +398,9 @@ export default function SurveyCreate() {
   const realQuestions = qs.filter(q => getQuestionWordCount(q) > 0);
   const hasRealQuestions = realQuestions.length > 0;
   const conciseQuestionCount = realQuestions.filter(q => getQuestionWordCount(q) <= SHORT_SURVEY_RULES.maxHighSignalWords).length;
-  const hasAdaptiveFormats = getFormatDiversityScore(realQuestions) >= 3;
+  const hasAdaptiveFormats =
+  getFormatDiversityScore(realQuestions) >= 3;
+  const estimatedMinutes = estimateSurveyMinutes(realQuestions);
   // Single source of truth: the same checks drive both the % and the checklist below.
   const healthChecks = [
     f.title.trim(),
@@ -411,8 +413,9 @@ export default function SurveyCreate() {
     qs.length > 0 && conciseQuestionCount === qs.length,
     f.expires_at
   ];
-  const health = Math.round((healthChecks.filter(([done]) => done).length / healthChecks.length) * 100);
-  const healthColor = health >= 70 ? 'var(--sage)' : health >= 40 ? 'var(--saffron)' : 'var(--terracotta)';
+  const health = Math.round(
+    (healthChecks.filter(Boolean).length / healthChecks.length) * 100
+  ); const healthColor = health >= 70 ? 'var(--sage)' : health >= 40 ? 'var(--saffron)' : 'var(--terracotta)';
   const TABS = [{ id: 'details', n: '01', label: 'Details' }, { id: 'questions', n: '02', label: 'Questions', count: qs.length }, { id: 'settings', n: '03', label: 'Settings' }];
 
   // Circular health arc
@@ -1125,7 +1128,6 @@ export default function SurveyCreate() {
                   )}
                 </div>
               </div>
-              )}
 
               <div>
                 <label style={LBL}>Survey Title *</label>

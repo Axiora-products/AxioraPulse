@@ -1,55 +1,1413 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  ArrowRight,
+  BarChart3,
+  Check,
+  ChevronDown,
+  Compass,
+  FileText,
+  Gauge,
+  Lightbulb,
+  Lock,
+  LogIn,
+  Menu,
+  MessageSquare,
+  PieChart,
+  Rocket,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  Star,
+  Target,
+  TrendingUp,
+  Trophy,
+  Users,
+  X,
+} from "lucide-react";
 import { useLoading } from "../context/LoadingContext";
-
-/* ─────────────────────────────────────────────────────────────────
-   LANDING PAGE — Axiora Pulse
-   Faithful React port of pulse-v10.html
-   All CSS is injected via <style> so Tailwind does not interfere.
-───────────────────────────────────────────────────────────────── */
 
 const CSS = `
 :root {
-  --coral: #FF4500;
-  --coral-bright: #FF6B35;
-  --saffron: #FFB800;
-  --saffron-light: #FFD166;
-  --terracotta: #D63B1F;
-  --cream: #FDF5E8;
-  --cream-deep: #F7EDD8;
-  --espresso: #160F08;
-  --espresso-mid: #2C1A0E;
-  --blush: #FADDCA;
-  --sage: #1E7A4A;
-  --cobalt: #0047FF;
-  --electric: #00D4FF;
-  --lime: #C8F54A;
-  --warm-white: #FFFBF4;
-  --card-bg: #FFFFFF;
+  --pulse-orange: #FF4500;
+  --pulse-orange-dark: #D63B1F;
+  --pulse-saffron: #FFB800;
+  --pulse-cream: #FDF5E8;
+  --pulse-cream-deep: #F7EDD8;
+  --pulse-blue: #0047FF;
+  --pulse-ink: #160F08;
+  --pulse-muted: rgba(22, 15, 8, .56);
+  --pulse-line: rgba(22, 15, 8, .08);
+  --pulse-soft: #FADDCA;
+  --pulse-blue-soft: rgba(0, 71, 255, .08);
+  --pulse-bg: #FDF5E8;
+  --pulse-white: #FFFFFF;
 }
 
-/* ─── RESET FOR LANDING ─── */
 .lp *, .lp *::before, .lp *::after { box-sizing: border-box; }
-.lp { background: var(--cream); color: var(--espresso); font-family: 'Fraunces', serif; overflow-x: hidden; }
+.lp {
+  min-height: 100vh;
+  background: var(--pulse-bg);
+  color: var(--pulse-ink);
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  overflow-x: hidden;
+}
+.lp button, .lp input { font: inherit; }
+.lp a { color: inherit; }
+.lp-shell { width: min(1184px, calc(100% - 48px)); margin: 0 auto; }
+.lp-heading {
+  font-family: "Playfair Display", Georgia, serif;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1.03;
+  color: var(--pulse-ink);
+}
+.lp-section { padding: 56px 0; }
+.lp-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--pulse-orange-dark);
+  font-family: "Syne", Inter, sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
 
-/* ─── SCROLLBAR ─── */
-::-webkit-scrollbar { width: 3px; }
-::-webkit-scrollbar-track { background: var(--cream); }
-::-webkit-scrollbar-thumb { background: linear-gradient(180deg, var(--coral), var(--saffron)); border-radius: 10px; }
-::selection { background: var(--coral); color: #fff; }
+  padding: 25px 0 20px 0; /* top right bottom left */
+}
+.lp-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 32px;
+  margin-bottom: 32px;
+}
+.lp-section-title { max-width: 640px; margin: 10px 0 0; font-family: "Playfair Display", serif;
+  font-size: clamp(40px, 4.8vw, 68px);
+  font-weight: 900; }
+.lp-section-copy { max-width: 440px; margin: 0; color: var(--pulse-muted); font-size: 16px; line-height: 1.65; }
+.lp-hero-copy,
+.lp-testimonial-quote,
+.lp-review-card p { Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+.lp-step p,
+.lp-template p,
+.lp-symbol p,
+.lp-success-body p,
+.lp-price-desc,
+.lp-price-list li,
+.lp-faq-a,
+.lp-report-label,
+.lp-report-value,
+.lp-mini-stat span,
+.lp-social-copy,
+.lp-social-stat span,
+.lp-section-copy,
+.lp-footer p,
+.lp-footer a,
+.lp-footer-bottom { font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+.lp-icon { width: 20px; height: 20px; stroke-width: 2; }
+.lp-icon-sm { width: 16px; height: 16px; stroke-width: 2.25; }
 
-/* ─── NAV ─── */
 .lp-nav {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 200;
-  padding: 28px 72px;
-  display: flex; align-items: center; justify-content: space-between;
-  transition: all .4s ease;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 1000;
+
+  background:
+    radial-gradient(circle at 75% 38%, rgba(255,69,0,.16), transparent 13%),
+    linear-gradient(
+      118deg,
+      rgba(255,69,0,.16) 0%,
+      rgba(255,184,0,.10) 34%,
+      rgba(253,245,232,.96) 76%
+    ),
+    var(--pulse-bg);
+
+  border-bottom: 1px solid rgba(22,15,8,.06);
 }
-.lp-nav.stuck {
-  background: rgba(253,245,232,.94); backdrop-filter: blur(24px);
-  padding: 16px 72px; box-shadow: 0 1px 0 rgba(22,15,8,.06);
+.lp-nav-inner {
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
 }
-.lp-logo { text-decoration: none; display: flex; align-items: flex-start; gap: 0; line-height: 1; }
+.lp-logo {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+.lp-brand-logo {
+  display: inline-grid;
+  grid-template-columns: auto auto;
+  grid-template-rows: auto auto;
+  column-gap: 8px;
+  align-items: end;
+  line-height: 1;
+}
+.lp-logo-wrapper{
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+}
+
+.lp-logo{
+  display:flex;
+  align-items:flex-start;
+  line-height:1;
+}
+
+.lp-logo-tagline{
+  margin-top:4px;
+  margin-left:1px;   /* align under Pulse */
+  font-size:11px;
+  font-weight:700;
+  color:#FF4500;
+  font-family:'Playfair Display', serif;
+  white-space:nowrap;
+  line-height:1.2;
+}
+.lp-brand-axiora {
+  grid-column: 1 / 2;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .42em;
+  color: rgba(7, 5, 3, .46);
+  text-transform: uppercase;
+  transform: translateY(3px);
+}
+.lp-brand-pulse {
+  grid-column: 1 / 2;
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: 34px;
+  font-weight: 900;
+  letter-spacing: 0;
+  color: var(--pulse-ink);
+}
+.lp-brand-dot {
+  grid-column: 2 / 3;
+  grid-row: 2 / 3;
+  position: relative;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--pulse-orange);
+  box-shadow: 0 0 0 8px rgba(255, 69, 0, .12), 0 0 24px rgba(255, 69, 0, .28);
+  transform: translateY(-13px);
+}
+.lp-brand-dot::before,
+.lp-brand-dot::after {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 69, 0, .24);
+}
+.lp-brand-dot::after {
+  inset: -15px;
+  opacity: .45;
+}
+.lp-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  font-family: "Syne", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--pulse-muted);
+}
+.lp-nav-links a { text-decoration: none; }
+.lp-nav-links a:hover { color: var(--pulse-ink); }
+.lp-nav-actions { display: flex; align-items: center; gap: 10px; }
+.lp-mobile-menu { display: none; }
+
+.lp-btn {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0 18px;
+  font-size: 14px;
+  font-weight: 800;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform .18s ease, box-shadow .18s ease, background .18s ease, border-color .18s ease;
+}
+.lp-btn:hover { transform: translateY(-1px); }
+.lp-btn-primary {
+  background: var(--pulse-orange);
+  color: #fff;
+  box-shadow: 0 12px 26px rgba(255, 149, 0, .24);
+}
+.lp-btn-primary:hover { background: var(--pulse-orange-dark); }
+.lp-btn-secondary {
+  background: var(--pulse-white);
+  color: var(--pulse-ink);
+  border-color: var(--pulse-line);
+}
+.lp-btn-secondary:hover { border-color: rgba(0, 82, 204, .32); }
+.lp-btn-blue {
+  background: var(--pulse-blue);
+  color: #fff;
+  box-shadow: 0 12px 26px rgba(0, 82, 204, .22);
+}
+.lp-icon-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--pulse-line);
+  background: var(--pulse-white);
+  cursor: pointer;
+}
+
+.lp-hero {
+  min-height: 60vh;
+  display: grid;
+  align-items: center;
+  padding: 64px 0 34px;
+  background:
+    radial-gradient(circle at 75% 38%, rgba(255, 69, 0, .16), transparent 13%),
+    linear-gradient(118deg, rgba(255, 69, 0, .16) 0%, rgba(255, 184, 0, .1) 34%, rgba(253, 245, 232, .96) 76%),
+    var(--pulse-bg);
+}
+.lp-hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(360px, .95fr);
+  align-items: center;
+  gap: 56px;
+}
+.lp-hero h1 {
+  margin: 16px 0 18px;
+  font-family: "Playfair Display", serif;
+  font-size: clamp(58px, 6.5vw, 96px);
+  font-weight: 900;
+  line-height: 1.02;  max-width: 760px;
+}
+.lp-hero h1 span { color: var(--pulse-orange-dark); }
+.lp-hero-copy {
+  max-width: 590px;
+  color: var(--pulse-muted);
+  font-family: "Fraunces", serif;
+  font-size: 20px;
+  line-height: 1.8;  line-height: 1.65;
+  margin: 0 0 28px;
+}
+.lp-hero-ctas { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 24px; }
+.lp-hero-note {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  color: var(--pulse-muted);
+  font-size: 13px;
+}
+.lp-note-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.72);
+  border: 1px solid rgba(230,233,239,.9);
+}
+.lp-proof-panel {
+  background: rgba(255, 247, 239, .86);
+  border: 1px solid rgba(237, 215, 201, .92);
+  border-radius: 8px;
+  box-shadow: 0 24px 70px rgba(94, 43, 9, .14);
+  padding: 22px;
+}
+.lp-proof-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.lp-proof-title { font-weight: 900; font-size: 16px; }
+.lp-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #128A4A;
+  font-size: 12px;
+  font-weight: 800;
+}
+.lp-live::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #16A34A;
+}
+.lp-report-card {
+  border-radius: 8px;
+  border: 1px solid var(--pulse-line);
+  background: #fff;
+  padding: 18px;
+}
+.lp-report-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid #F1F3F6;
+}
+.lp-report-row:last-child { border-bottom: 0; }
+.lp-report-label { color: var(--pulse-muted); font-size: 13px; }
+.lp-report-value { font-weight: 900; }
+.lp-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: #EEF0F4;
+  overflow: hidden;
+  margin-top: 8px;
+}
+.lp-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--pulse-orange), var(--pulse-blue));
+}
+.lp-mini-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 12px;
+}
+.lp-mini-stat {
+  border-radius: 8px;
+  background: var(--pulse-soft);
+  padding: 12px;
+}
+.lp-mini-stat strong { display: block; font-size: 22px; line-height: 1; }
+.lp-mini-stat span { display: block; margin-top: 5px; color: var(--pulse-muted); font-size: 11px; line-height: 1.35; }
+
+.lp-social {
+  border-top: 1px solid rgba(253,245,232,.08);
+  border-bottom: 1px solid rgba(253,245,232,.08);
+  background: var(--pulse-ink);
+  padding: 24px 0;
+  color: var(--pulse-cream);
+}
+.lp-social-inner {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr 1fr;
+  gap: 24px;
+  align-items: center;
+}
+.lp-avatar-row { display: flex; align-items: center; gap: 14px; }
+.lp-avatars { display: flex; }
+.lp-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  margin-left: -10px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-weight: 900;
+}
+.lp-avatar:first-child { margin-left: 0; }
+.lp-social-copy { color: rgba(253,245,232,.62); font-size: 14px; line-height: 1.5; }
+.lp-social-stat strong { display: block; font-size: 28px; line-height: 1; }
+.lp-social-stat span { color: rgba(253,245,232,.48); font-size: 13px; }
+
+.lp-steps-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+.lp-step {
+  background: #fff;
+  border: 1px solid var(--pulse-line);
+  border-radius: 8px;
+  padding: 22px;
+}
+.lp-step-num {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: var(--pulse-soft);
+  color: var(--pulse-orange-dark);
+  font-weight: 900;
+  margin-bottom: 18px;
+}
+.lp-step h3 { margin: 0 0 10px; font-size: 18px; }
+.lp-step p { margin: 0; color: var(--pulse-muted); line-height: 1.6; font-size: 14px; }
+
+.lp-testimonials { background: #fff; }
+.lp-testimonial-wrap {
+  display: grid;
+  grid-template-columns: 42px 1fr 42px;
+  gap: 18px;
+  align-items: center;
+}
+.lp-testimonial-card {
+  border: 1px solid var(--pulse-line);
+  border-radius: 8px;
+  padding: 30px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 24px;
+  background: var(--pulse-bg);
+}
+.lp-testimonial-quote {
+  margin: 0 0 22px;
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: clamp(22px, 2.4vw, 32px);
+  line-height: 1.22;
+}
+.lp-founder { display: flex; align-items: center; gap: 14px; }
+.lp-founder-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-weight: 900;
+}
+.lp-founder-name { font-weight: 900; }
+.lp-founder-role { color: var(--pulse-muted); font-size: 13px; margin-top: 2px; }
+.lp-result-box {
+  min-width: 210px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid var(--pulse-line);
+  padding: 18px;
+  align-self: stretch;
+}
+.lp-result-box strong { display: block; font-size: 34px; color: var(--pulse-blue); line-height: 1; }
+.lp-result-box span { display: block; color: var(--pulse-muted); margin-top: 8px; font-size: 13px; line-height: 1.45; }
+.lp-carousel-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  border: 1px solid var(--pulse-line);
+  background: #fff;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+.lp-template-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+.lp-template {
+  min-height: 210px;
+  border-radius: 8px;
+  border: 1px solid var(--pulse-line);
+  background: #fff;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+}
+.lp-template-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  color: var(--pulse-blue);
+  background: var(--pulse-blue-soft);
+  margin-bottom: 18px;
+}
+.lp-template h3 { margin: 0 0 8px; font-size: 18px; }
+.lp-template p { margin: 0; color: var(--pulse-muted); line-height: 1.55; font-size: 14px; }
+.lp-template button { margin-top: auto; align-self: flex-start; }
+
+.lp-symbol-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+.lp-symbol {
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid var(--pulse-line);
+  padding: 22px;
+  min-height: 178px;
+}
+.lp-symbol-icon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(255, 69, 0, .09);
+  color: var(--pulse-orange);
+  margin-bottom: 18px;
+}
+.lp-symbol h3 { margin: 0 0 8px; font-size: 18px; }
+.lp-symbol p { margin: 0; color: var(--pulse-muted); font-size: 14px; line-height: 1.58; }
+
+.lp-analytics {
+  background: var(--pulse-ink);
+  color: var(--pulse-cream);
+}
+.lp-analytics .lp-heading,
+.lp-analytics .lp-section-title { color: var(--pulse-cream); }
+.lp-analytics .lp-section-copy { color: rgba(253,245,232,.58); }
+.lp-analytics .lp-eyebrow { color: var(--pulse-saffron); }
+.lp-analytics-board {
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(253,245,232,.08), rgba(253,245,232,.025)),
+    rgba(253,245,232,.04);
+  border: 1px solid rgba(253,245,232,.08);
+  padding: 24px;
+  box-shadow: 0 24px 80px rgba(0,0,0,.2);
+}
+.lp-analytics-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding-bottom: 18px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid rgba(253,245,232,.08);
+}
+.lp-analytics-title { font-weight: 900; font-size: 20px; }
+.lp-analytics-sub { color: rgba(253,245,232,.46); font-size: 13px; margin-top: 4px; }
+.lp-analytics-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border-radius: 999px;
+  background: rgba(255,69,0,.14);
+  color: var(--pulse-saffron);
+  padding: 8px 12px;
+  font-family: "Syne", Inter, sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+}
+.lp-analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.lp-analytics-kpi {
+  border-radius: 8px;
+  background: rgba(253,245,232,.05);
+  border: 1px solid rgba(253,245,232,.08);
+  padding: 16px;
+  position: relative;
+  overflow: hidden;
+}
+.lp-analytics-kpi::after {
+  content: "";
+  position: absolute;
+  right: -24px;
+  top: -26px;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: rgba(255,69,0,.16);
+}
+.lp-analytics-kpi span {
+  display: block;
+  color: rgba(253,245,232,.48);
+  font-family: "Syne", Inter, sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.lp-analytics-kpi strong {
+  display: block;
+  margin-top: 10px;
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: 34px;
+  line-height: 1;
+  color: var(--pulse-cream);
+}
+.lp-analytics-kpi em {
+  display: block;
+  margin-top: 8px;
+  color: #81E6A2;
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 800;
+}
+.lp-analytics-lower {
+  display: grid;
+  grid-template-columns: 1.22fr .78fr;
+  gap: 14px;
+  align-items: stretch;
+}
+.lp-chart-panel,
+.lp-recommend-panel,
+.lp-ring-panel,
+.lp-funnel-panel,
+.lp-segment-panel,
+.lp-money-panel,
+.lp-plain-panel {
+  border-radius: 8px;
+  background: rgba(253,245,232,.05);
+  border: 1px solid rgba(253,245,232,.08);
+  padding: 18px;
+}
+.lp-chart-panel {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 270px;
+}
+.lp-side-stack {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 14px;
+}
+.lp-analytics-bottom {
+  display: grid;
+  grid-template-columns: .82fr 1.08fr .9fr;
+  gap: 14px;
+  margin-top: 14px;
+}
+.lp-decision-row {
+  grid-template-columns: 1fr;
+}
+.lp-chart-title {
+  font-family: "Syne", Inter, sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  color: rgba(253,245,232,.5);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+.lp-chart-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+}
+.lp-chart-note {
+  color: rgba(253,245,232,.54);
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: right;
+  max-width: 220px;
+}
+.lp-chart-stage {
+  display: grid;
+  grid-template-columns: 42px 1fr;
+  gap: 12px;
+  min-height: 198px;
+}
+.lp-axis-y {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  color: rgba(253,245,232,.38);
+  font-size: 11px;
+  padding: 8px 0 24px;
+}
+.lp-chart-bars {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  align-items: end;
+  gap: 10px;
+  min-height: 198px;
+  padding-top: 10px;
+  background-image: linear-gradient(rgba(253,245,232,.07) 1px, transparent 1px);
+  background-size: 100% 25%;
+}
+.lp-bar-wrap {
+  height: 100%;
+  display: grid;
+  align-items: end;
+  gap: 8px;
+  position: relative;
+}
+.lp-chart-bar {
+  width: 100%;
+  border-radius: 6px 6px 0 0;
+  background: linear-gradient(180deg, var(--pulse-saffron), var(--pulse-orange));
+  transform-origin: bottom;
+  animation: lpBarRise 1.8s ease-in-out infinite alternate;
+  box-shadow: 0 0 20px rgba(255,69,0,.18);
+}
+.lp-bar-label {
+  color: rgba(253,245,232,.48);
+  font-size: 11px;
+  text-align: center;
+}
+.lp-bar-value {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(var(--h) + 10px);
+  color: rgba(253,245,232,.82);
+  font-size: 11px;
+  font-weight: 900;
+  z-index: 2;
+  text-shadow: 0 1px 10px rgba(0,0,0,.35);
+}
+.lp-bar-wrap:nth-child(2) .lp-chart-bar { animation-delay: .12s; }
+.lp-bar-wrap:nth-child(3) .lp-chart-bar { animation-delay: .24s; }
+.lp-bar-wrap:nth-child(4) .lp-chart-bar { animation-delay: .36s; }
+.lp-bar-wrap:nth-child(5) .lp-chart-bar { animation-delay: .48s; }
+.lp-bar-wrap:nth-child(6) .lp-chart-bar { animation-delay: .6s; }
+.lp-bar-wrap:nth-child(7) .lp-chart-bar { animation-delay: .72s; }
+@keyframes lpBarRise {
+  from { transform: scaleY(.72); filter: saturate(.82); }
+  to { transform: scaleY(1); filter: saturate(1.08); }
+}
+.lp-recommend-list { display: grid; gap: 12px; }
+.lp-recommend-item {
+  display: flex;
+  gap: 10px;
+  color: rgba(253,245,232,.76);
+  line-height: 1.5;
+  font-size: 14px;
+}
+.lp-recommend-item svg { color: var(--pulse-saffron); flex-shrink: 0; margin-top: 2px; }
+.lp-recommend-item strong {
+  display: block;
+  color: var(--pulse-cream);
+  margin-bottom: 2px;
+}
+.lp-recommend-item span { color: rgba(253,245,232,.62); }
+.lp-ring-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.lp-ring {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  text-align: center;
+}
+.lp-ring svg {
+  width: 82px;
+  height: 82px;
+  transform: rotate(-90deg);
+}
+.lp-ring-bg { stroke: rgba(253,245,232,.1); }
+.lp-ring-fg {
+  stroke: var(--pulse-orange);
+  stroke-linecap: round;
+  stroke-dasharray: 220;
+  stroke-dashoffset: calc(220 - (220 * var(--score)) / 100);
+  animation: lpRingPulse 2.4s ease-in-out infinite alternate;
+}
+@keyframes lpRingPulse {
+  from { stroke-width: 11; opacity: .78; }
+  to { stroke-width: 13; opacity: 1; }
+}
+.lp-ring strong {
+  position: absolute;
+  color: var(--pulse-cream);
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: 22px;
+}
+.lp-ring-visual {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+.lp-ring span {
+  color: rgba(253,245,232,.58);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.lp-funnel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+}
+.lp-funnel-row {
+  width: var(--w);
+  min-width: 46%;
+  min-height: 33px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 12px;
+  border-radius: 6px;
+  color: rgba(253,245,232,.84);
+  font-size: 13px;
+  background: linear-gradient(90deg, var(--pulse-orange), var(--pulse-saffron));
+  animation: lpFunnelBreath 2.8s ease-in-out infinite alternate;
+}
+.lp-funnel-row strong { color: var(--pulse-ink); }
+@keyframes lpFunnelBreath {
+  from { transform: scaleX(.94); transform-origin: center; }
+  to { transform: scaleX(1); transform-origin: center; }
+}
+.lp-money-grid {
+  display: grid;
+  gap: 10px;
+}
+.lp-money-row {
+  display: grid;
+  grid-template-columns: 92px 1fr 54px;
+  gap: 10px;
+  align-items: center;
+  color: rgba(253,245,232,.7);
+  font-size: 13px;
+}
+.lp-money-track {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(253,245,232,.08);
+  overflow: hidden;
+}
+.lp-money-fill {
+  height: 100%;
+  width: var(--w);
+  border-radius: inherit;
+  background: var(--c);
+  animation: lpWidthDrift 2.8s ease-in-out infinite alternate;
+}
+@keyframes lpWidthDrift {
+  from { transform: scaleX(.9); transform-origin: left; }
+  to { transform: scaleX(1); transform-origin: left; }
+}
+.lp-segment-list {
+  display: grid;
+  gap: 10px;
+}
+.lp-segment-row {
+  display: grid;
+  grid-template-columns: 100px 1fr 44px;
+  gap: 10px;
+  align-items: center;
+  color: rgba(253,245,232,.72);
+  font-size: 13px;
+}
+.lp-segment-track {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(253,245,232,.08);
+}
+.lp-segment-fill {
+  width: var(--w);
+  height: 100%;
+  border-radius: inherit;
+  background: var(--c, var(--pulse-orange));
+  box-shadow: 0 0 18px color-mix(in srgb, var(--c, var(--pulse-orange)) 40%, transparent);
+}
+.lp-plain-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.lp-plain-card {
+  border-radius: 8px;
+  border: 1px solid rgba(253,245,232,.08);
+  background: rgba(253,245,232,.045);
+  padding: 14px;
+}
+.lp-plain-card strong {
+  display: block;
+  color: var(--pulse-cream);
+  font-size: 18px;
+  margin-bottom: 6px;
+}
+.lp-plain-card span {
+  display: block;
+  color: rgba(253,245,232,.58);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.lp-reviews-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+.lp-review-card {
+  background: #fff;
+  border: 1px solid var(--pulse-line);
+  border-radius: 8px;
+  padding: 24px;
+}
+.lp-stars {
+  display: flex;
+  gap: 4px;
+  color: var(--pulse-orange);
+  margin-bottom: 18px;
+}
+.lp-review-card p {
+  margin: 0 0 18px;
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: 22px;
+  line-height: 1.35;
+}
+.lp-review-meta { display: flex; align-items: center; gap: 12px; }
+.lp-review-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: var(--pulse-ink);
+  font-weight: 900;
+}
+.lp-review-name { font-weight: 900; }
+.lp-review-role { color: var(--pulse-muted); font-size: 13px; margin-top: 2px; }
+
+.lp-success-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+.lp-success-card {
+  background: #fff;
+  border: 1px solid var(--pulse-line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.lp-success-band {
+  min-height: 92px;
+  background: linear-gradient(135deg, rgba(255,69,0,.88), rgba(255,184,0,.78));
+  padding: 18px;
+  color: #fff;
+  display: flex;
+  align-items: flex-end;
+  font-family: "Syne", Inter, sans-serif;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.lp-success-body { padding: 22px; }
+.lp-success-body h3 { margin: 0 0 10px; font-size: 20px; }
+.lp-success-body p { margin: 0 0 18px; color: var(--pulse-muted); line-height: 1.58; font-size: 14px; }
+.lp-success-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+.lp-success-metric {
+  border-radius: 8px;
+  background: var(--pulse-cream);
+  padding: 12px;
+}
+.lp-success-metric strong { display: block; font-size: 22px; line-height: 1; }
+.lp-success-metric span { display: block; color: var(--pulse-muted); font-size: 11px; line-height: 1.35; margin-top: 6px; }
+
+.lp-pricing { background: #fff; }
+.lp-pricing-toggle {
+  display: inline-flex;
+  padding: 4px;
+  border: 1px solid var(--pulse-line);
+  border-radius: 8px;
+  background: #fff;
+  gap: 4px;
+}
+.lp-pricing-toggle button {
+  min-height: 36px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  padding: 0 14px;
+  font-weight: 800;
+  color: var(--pulse-muted);
+  cursor: pointer;
+}
+.lp-pricing-toggle button.active {
+  color: #fff;
+  background: var(--pulse-blue);
+}
+.lp-pricing-stage {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 42px;
+  gap: 18px;
+  align-items: center;
+}
+.lp-plan-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  align-items: stretch;
+}
+.lp-price-card {
+  position: relative;
+  border-radius: 8px;
+  border: 1px solid var(--pulse-line);
+  background: #fff;
+  padding: 20px;
+}
+.lp-price-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 430px;
+}
+.lp-price-card.featured {
+  border-color: rgba(255,149,0,.5);
+  box-shadow: 0 20px 50px rgba(255, 149, 0, .13);
+}
+.lp-price-card.dark {
+  background: var(--pulse-ink);
+  color: #fff;
+  border-color: var(--pulse-ink);
+}
+.lp-price-badge {
+  display: inline-flex;
+  align-self: flex-start;
+  border-radius: 999px;
+  padding: 5px 10px;
+  background: var(--pulse-soft);
+  color: var(--pulse-orange-dark);
+  font-size: 11px;
+  font-weight: 900;
+  margin-bottom: 16px;
+}
+.dark .lp-price-badge { background: rgba(255,255,255,.12); color: #fff; }
+.lp-price-name { font-size: 20px; font-weight: 900; margin-bottom: 8px; }
+.lp-price-amount {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.lp-price-amount strong { font-size: 40px; line-height: 1; }
+.lp-price-amount span { color: var(--pulse-muted); font-size: 13px; }
+.lp-price-original {
+  color: var(--pulse-muted);
+  text-decoration: line-through;
+  font-size: 15px;
+  font-weight: 800;
+}
+.lp-price-offer {
+  display: inline-flex;
+  align-self: flex-start;
+  margin-bottom: 16px;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: rgba(255, 122, 47, .12);
+  color: var(--pulse-orange-dark);
+  font-size: 12px;
+  font-weight: 900;
+}
+.dark .lp-price-amount span, .dark .lp-price-desc, .dark .lp-price-list li { color: rgba(255,255,255,.72); }
+.dark .lp-price-original { color: rgba(255,255,255,.46); }
+.dark .lp-price-offer { background: rgba(255,255,255,.12); color: #fff; }
+.lp-price-desc { margin: 0 0 18px; color: var(--pulse-muted); font-size: 14px; line-height: 1.55; }
+.lp-price-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0;
+  margin: 0 0 22px;
+  list-style: none;
+}
+.lp-price-list li {
+  display: flex;
+  gap: 9px;
+  color: var(--pulse-muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.lp-price-card .lp-btn { margin-top: auto; width: 100%; }
+.lp-rate-nav {
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  border: 1px solid var(--pulse-line);
+  background: #fff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.lp-rate-nav:disabled {
+  opacity: .32;
+  cursor: default;
+}
+.lp-rate-progress {
+  margin-top: 14px;
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+}
+.lp-rate-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 0;
+  background: rgba(110,94,83,.28);
+  cursor: pointer;
+}
+.lp-rate-dot.active { width: 22px; border-radius: 999px; background: var(--pulse-orange); }
+.lp-faq-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.lp-faq-item {
+  border: 1px solid var(--pulse-line);
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+.lp-faq-q {
+  width: 100%;
+  min-height: 64px;
+  border: 0;
+  background: #fff;
+  padding: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  text-align: left;
+  font-weight: 900;
+  cursor: pointer;
+}
+.lp-faq-a {
+  padding: 0 18px 18px;
+  color: var(--pulse-muted);
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+.lp-footer {
+  background: var(--pulse-ink);
+  color: #fff;
+  padding: 64px 0 34px;
+}
+.lp-footer-grid {
+  display: grid;
+  grid-template-columns: 1.7fr 1fr 1fr 1.15fr;
+  gap: 42px;
+  padding-bottom: 36px;
+  border-bottom: 1px solid rgba(255,255,255,.12);
+}
+.lp-footer p, .lp-footer a, .lp-footer-bottom { color: rgba(255,255,255,.66); }
+.lp-footer .lp-brand-pulse { color: #fff; }
+.lp-footer .lp-brand-axiora { color: rgba(255,255,255,.46); }
+.lp-footer p { margin: 16px 0 0; line-height: 1.6; max-width: 320px; }
+.lp-footer h4 {
+  margin: 0 0 14px;
+  font-size: 12px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.lp-footer ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.lp-footer a,
+.lp-footer-link {
+  text-decoration: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  color: rgba(255,255,255,.66);
+  font-size: 14px;
+}
+.lp-footer-link:hover,
+.lp-footer a:hover { color: #fff; }
+.lp-footer-note {
+  margin-top: 18px;
+  padding: 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,.1);
+  color: rgba(255,255,255,.54);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.lp-social-links {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+.lp-social-link {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.12);
+  display: grid;
+  place-items: center;
+  color: rgba(255,255,255,.72);
+  background: rgba(255,255,255,.04);
+  transition: color .18s ease, border-color .18s ease, background .18s ease;
+}
+.lp-social-link:hover {
+  color: var(--pulse-orange);
+  border-color: rgba(255,69,0,.5);
+  background: rgba(255,69,0,.12);
+}
+.lp-social-link svg { width: 18px; height: 18px; fill: currentColor; }
+.lp-footer-bottom {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding-top: 24px;
+  font-size: 13px;
+}
+
+.lp-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(17,24,39,.52);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+.lp-modal {
+  width: min(480px, 100%);
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 30px 90px rgba(0,0,0,.24);
+  padding: 24px;
+}
+.lp-modal.legal {
+  width: min(860px, 100%);
+  max-height: min(84vh, 760px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.lp-legal-body {
+  overflow: auto;
+  padding-right: 8px;
+}
+.lp-legal-body h4 {
+  margin: 22px 0 8px;
+  font-size: 15px;
+  font-family: "Syne", Inter, sans-serif;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.lp-legal-body ul {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 8px;
+}
+.lp-legal-body li,
+.lp-legal-body p {
+  color: var(--pulse-muted);
+  font-size: 14px;
+  line-height: 1.65;
+}
+.lp-legal-updated {
+  display: inline-flex;
+  align-self: flex-start;
+  margin-top: 8px;
+  border-radius: 999px;
+  background: var(--pulse-cream);
+  padding: 6px 10px;
+  color: var(--pulse-orange-dark);
+  font-size: 12px;
+  font-weight: 800;
+}
+.lp-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.lp-modal h3 {
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: 30px;
+  margin: 0 0 6px;
+}
+.lp-modal p { margin: 0; color: var(--pulse-muted); line-height: 1.55; }
+.lp-form { display: grid; gap: 12px; margin-top: 18px; }
+.lp-input {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid var(--pulse-line);
+  border-radius: 8px;
+  padding: 0 13px;
+  outline: none;
+}
+.lp-input:focus { border-color: var(--pulse-blue); box-shadow: 0 0 0 3px rgba(0,82,204,.12); }
+.lp-modal-actions { display: flex; gap: 10px; margin-top: 18px; }
+.lp-flow-options { display: grid; gap: 10px; margin-top: 18px; }
+.lp-flow-option {
+  border: 1px solid var(--pulse-line);
+  border-radius: 8px;
+  padding: 14px;
+  display: flex;
+  gap: 12px;
+  cursor: pointer;
+  background: #fff;
+  text-align: left;
+}
+.lp-flow-option:hover { border-color: var(--pulse-orange); background: var(--pulse-soft); }
+.lp-flow-option strong { display: block; margin-bottom: 3px; }
+.lp-flow-option span { color: var(--pulse-muted); font-size: 13px; line-height: 1.4; }
+
+@media (max-width: 960px) {
+  .lp-nav-links { display: none; }
+  .lp-mobile-menu { display: inline-flex; }
+  .lp-hero-grid,
+  .lp-social-inner,
+  .lp-steps-grid,
+  .lp-template-grid,
+  .lp-symbol-grid,
+  .lp-analytics-grid,
+  .lp-analytics-lower,
+  .lp-analytics-bottom,
+  .lp-reviews-grid,
+  .lp-success-grid,
+  .lp-pricing-stage,
+  .lp-plan-strip,
+  .lp-footer-grid,
+  .lp-faq-grid { grid-template-columns: 1fr; }
+  .lp-hero { padding-top: 40px; }
+  .lp-section-head { display: block; }
+  .lp-section-copy { margin-top: 16px; }
+  .lp-chart-note { text-align: left; max-width: none; }
+  .lp-testimonial-card { grid-template-columns: 1fr; }
+  .lp-result-box { min-width: 0; }
+}
+
+@media (max-width: 640px) {
+  .lp-shell { width: min(100% - 32px, 1184px); }
+  .lp-nav-inner { height: 64px; }
+  .lp-nav-actions .lp-btn-secondary { display: none; }
+  .lp-hero h1 { font-size: 36px; }
+  .lp-hero-copy { font-size: 17px; }
+  .lp-hero-ctas .lp-btn { width: 100%; }
+  .lp-proof-panel { padding: 16px; }
+  .lp-mini-grid { grid-template-columns: 1fr; }
+  .lp-testimonial-wrap { grid-template-columns: 1fr; }
+  .lp-carousel-btn { display: none; }
+  .lp-rate-nav { display: none; }
+  .lp-footer-bottom { flex-direction: column; }
+  .lp-analytics-board { padding: 14px; }
+  .lp-analytics-top { align-items: flex-start; flex-direction: column; }
+  .lp-chart-head { flex-direction: column; }
+  .lp-chart-stage { grid-template-columns: 1fr; min-height: 190px; }
+  .lp-axis-y { display: none; }
+  .lp-chart-bars { min-height: 156px; gap: 6px; }
+  .lp-bar-label,
+  .lp-bar-value { font-size: 10px; }
+  .lp-ring-row { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .lp-ring svg { width: 76px; height: 76px; }
+  .lp-ring strong { font-size: 20px; }
+  .lp-plain-grid { grid-template-columns: 1fr; }
+  .lp-segment-row { grid-template-columns: 86px 1fr 42px; font-size: 12px; }
+  .lp-money-row { grid-template-columns: 76px 1fr 42px; font-size: 12px; }
+}
+  .lp-logo { text-decoration: none; display: flex; align-items: flex-start; gap: 0; line-height: 1; }
 .lp-logo-parent {
   font-family: 'Syne', sans-serif; font-size: 9px; font-weight: 700;
   letter-spacing: .2em; text-transform: uppercase; color: var(--espresso);
@@ -78,1082 +1436,1304 @@ const CSS = `
   60%  { opacity: .3; }
   100% { transform: translate(-50%,-50%) scale(3.8); opacity: 0; }
 }
-.lp-nav-links { display: flex; align-items: center; gap: 40px; list-style: none; margin: 0; padding: 0; }
-.lp-nav-links a {
-  font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 600;
-  letter-spacing: .1em; text-transform: uppercase; color: var(--espresso);
-  text-decoration: none; opacity: .55; transition: opacity .2s;
-}
-.lp-nav-links a:hover { opacity: 1; }
-.lp-nav-pill {
-  background: var(--espresso) !important; color: var(--cream) !important;
-  opacity: 1 !important; padding: 12px 28px; border-radius: 100px;
-}
-.lp-nav-pill:hover { background: var(--coral) !important; transform: translateY(-1px); }
-.lp-nav-btn {
-  font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 600;
-  letter-spacing: .1em; text-transform: uppercase;
-  background: var(--espresso); color: var(--cream);
-  border: none; padding: 12px 28px; border-radius: 100px;
-  cursor: pointer; transition: background .3s ease, transform .2s ease;
-}
-.lp-nav-btn:hover { background: var(--coral); transform: translateY(-1px); }
-.lp-nav-burger { display: none; }
-
-/* ─── HERO ─── */
-#lp-hero {
-  min-height: 100vh; position: relative;
-  display: flex; flex-direction: column; justify-content: center;
-  overflow: hidden; background: var(--warm-white); padding-bottom: 100px;
-}
-.lp-mesh { position: absolute; inset: 0; z-index: 0; }
-.lp-mb { position: absolute; border-radius: 50%; filter: blur(90px); animation: lpDrift 14s ease-in-out infinite; }
-.lp-mb1 { width: 900px; height: 900px; background: radial-gradient(circle,rgba(255,69,0,.45),rgba(255,184,0,.2),transparent 70%); top: -300px; right: -200px; animation-delay: 0s; }
-.lp-mb2 { width: 600px; height: 600px; background: radial-gradient(circle,rgba(255,107,53,.35),rgba(242,213,194,.5),transparent 70%); bottom: -150px; left: 100px; animation-delay: -5s; }
-.lp-mb3 { width: 500px; height: 500px; background: radial-gradient(circle,rgba(255,184,0,.3),rgba(255,69,0,.15),transparent 70%); top: 40%; left: 35%; animation-delay: -9s; }
-.lp-mb4 { width: 350px; height: 350px; background: radial-gradient(circle,rgba(0,71,255,.12),rgba(0,212,255,.08),transparent 70%); top: 20%; left: 10%; animation-delay: -3s; }
-@keyframes lpDrift {
-  0%,100% { transform: translate(0,0) scale(1); }
-  33% { transform: translate(40px,-50px) scale(1.07); }
-  66% { transform: translate(-25px,30px) scale(.95); }
-}
-.lp-grain {
-  position: absolute; inset: 0; z-index: 1; opacity: .035; pointer-events: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E");
-  background-size: 250px;
-}
-.lp-ghost {
-  position: absolute; pointer-events: none; user-select: none;
-  font-family: 'Playfair Display', serif; font-weight: 900;
-  color: transparent; letter-spacing: -5px; line-height: 1;
-}
-.lp-ghost-h {
-  font-size: clamp(160px,18vw,260px);
-  -webkit-text-stroke: 1px rgba(255,69,0,.055);
-  bottom: -50px; left: -20px; z-index: 1;
-}
-.lp-hero-wrap {
-  position: relative; z-index: 2; max-width: 1360px; margin: 0 auto; width: 100%;
-  padding: 160px 72px 0;
-  display: grid; grid-template-columns: 1fr 480px; gap: 60px; align-items: center;
-}
-.lp-h-tag {
-  display: inline-flex; align-items: center; gap: 10px;
-  font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700;
-  letter-spacing: .16em; text-transform: uppercase; color: var(--coral);
-  margin-bottom: 36px; opacity: 0; animation: lpRiseUp .7s ease forwards .3s;
-}
-.lp-h-tag-line { width: 30px; height: 1.5px; background: var(--coral); }
-.lp-h-head {
-  font-family: 'Playfair Display', serif;
-  font-size: clamp(58px,6.5vw,96px);
-  font-weight: 900; line-height: .97; letter-spacing: -3px;
-  color: var(--espresso); margin-bottom: 36px;
-}
-.lp-h-head em { font-style: italic; color: var(--coral); position: relative; display: inline-block; }
-.lp-h-head em::after {
-  content: ''; position: absolute; bottom: -4px; left: 0; right: 0; height: 3px;
-  background: linear-gradient(90deg,var(--coral),var(--saffron)); border-radius: 2px;
-  transform: scaleX(0); transform-origin: left;
-  animation: lpUnderline 1s ease forwards 1.8s;
-}
-@keyframes lpUnderline { to { transform: scaleX(1); } }
-.lp-hline { overflow: hidden; display: block; line-height: 1.05; }
-.lp-h-word { display: inline-block; opacity: 0; transform: translateY(110%); animation: lpWordUp .8s cubic-bezier(.16,1,.3,1) forwards; }
-.lp-hw1 { animation-delay: .5s; } .lp-hw2 { animation-delay: .65s; } .lp-hw3 { animation-delay: .75s; }
-.lp-hw4 { animation-delay: .85s; } .lp-hw5 { animation-delay: 1s; }  .lp-hw6 { animation-delay: 1.1s; }
-@keyframes lpWordUp { to { opacity: 1; transform: translateY(0); } }
-.lp-h-sub {
-  font-family: 'Fraunces', serif; font-size: 20px; font-weight: 300;
-  line-height: 1.72; color: var(--espresso);
-  max-width: 520px; margin-bottom: 52px;
-  opacity: 0; animation: lpFadeIn .9s ease forwards 1.4s;
-}
-@keyframes lpFadeIn { to { opacity: .68; } }
-.lp-h-ctas { display: flex; align-items: center; gap: 24px; opacity: 0; animation: lpRiseUp .8s ease forwards 1.6s; }
-@keyframes lpRiseUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
-
-/* Buttons */
-.lp-btn-fire {
-  display: inline-flex; align-items: center; gap: 14px;
-  background: var(--coral); color: #fff;
-  font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700;
-  letter-spacing: .06em; padding: 20px 40px; border-radius: 100px;
-  text-decoration: none; border: none; position: relative; overflow: hidden; cursor: pointer;
-  transition: transform .3s cubic-bezier(.34,1.56,.64,1), box-shadow .3s ease;
-}
-.lp-btn-fire::before {
-  content: ''; position: absolute; inset: 0;
-  background: linear-gradient(135deg,var(--saffron),var(--coral-bright));
-  opacity: 0; transition: opacity .4s ease; border-radius: 100px;
-}
-.lp-btn-fire:hover { transform: translateY(-3px) scale(1.02); box-shadow: 0 24px 48px rgba(255,69,0,.35); }
-.lp-btn-fire:hover::before { opacity: 1; }
-.lp-btn-fire span, .lp-btn-fire-arr { position: relative; z-index: 1; }
-.lp-btn-fire-arr {
-  width: 22px; height: 22px; border: 1.5px solid rgba(255,255,255,.5); border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  position: relative; z-index: 1; transition: transform .3s ease;
-}
-.lp-btn-fire:hover .lp-btn-fire-arr { transform: rotate(45deg); }
-.lp-btn-outline {
-  display: inline-flex; align-items: center; gap: 12px;
-  font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 600;
-  letter-spacing: .06em; color: var(--espresso); text-decoration: none;
-  opacity: .6; transition: opacity .2s ease; background: none; border: none; cursor: pointer;
-}
-.lp-btn-outline:hover { opacity: 1; }
-.lp-play-ring {
-  width: 46px; height: 46px; border: 1.5px solid rgba(22,15,8,.2); border-radius: 50%;
-  display: flex; align-items: center; justify-content: center; transition: all .3s ease;
-}
-.lp-btn-outline:hover .lp-play-ring { border-color: var(--coral); background: var(--coral); }
-.lp-btn-outline:hover .lp-play-ring svg { stroke: #fff; }
-
-/* Hero cards */
-.lp-hero-cards {
-  position: relative; height: 560px;
-  opacity: 0; animation: lpRiseUp 1s ease forwards 1.9s;
-}
-.lp-hcard {
-  position: absolute; background: #fff; border-radius: 22px;
-  box-shadow: 0 12px 48px rgba(22,15,8,.09), 0 2px 8px rgba(22,15,8,.04);
-  overflow: hidden;
-}
-.lp-hcard::before {
-  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
-  background: linear-gradient(90deg,var(--coral),var(--saffron));
-}
-.lp-hcard:nth-child(1) { width: 280px; top: 0; left: 0; padding: 28px; animation: hcFloat 7s ease-in-out infinite 0s; }
-.lp-hcard:nth-child(2) { width: 220px; top: 100px; right: 0; padding: 24px; animation: hcFloat 7s ease-in-out infinite -2.3s; }
-.lp-hcard:nth-child(3) { width: 260px; bottom: 100px; left: 10px; padding: 26px; animation: hcFloat 7s ease-in-out infinite -4.5s; }
-.lp-hcard:nth-child(4) { width: 190px; bottom: 20px; right: 10px; padding: 22px; animation: hcFloat 7s ease-in-out infinite -1.5s; }
-@keyframes hcFloat { 0%,100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-16px) rotate(.5deg); } }
-.lp-hc-label { font-family: 'Syne', sans-serif; font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--coral); margin-bottom: 12px; }
-.lp-hc-big { font-family: 'Playfair Display', serif; font-size: 44px; font-weight: 900; color: var(--espresso); line-height: 1; margin-bottom: 6px; }
-.lp-hc-sub { font-family: 'Fraunces', serif; font-size: 12px; font-weight: 300; color: var(--espresso); opacity: .55; line-height: 1.5; }
-.lp-gbar { height: 6px; background: var(--blush); border-radius: 10px; margin-top: 16px; overflow: hidden; }
-.lp-gbar-fill { height: 100%; border-radius: 10px; background: linear-gradient(90deg,var(--coral),var(--saffron),var(--lime)); animation: fillPulse 3s ease-in-out infinite alternate; width: 84%; }
-@keyframes fillPulse { from { width: 42%; } to { width: 86%; } }
-.lp-edots { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
-.lp-edot { display: flex; align-items: center; gap: 9px; }
-.lp-edot-pip { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; animation: pipFade 3s ease-in-out infinite; }
-.lp-edot:nth-child(1) .lp-edot-pip { background: var(--coral); animation-delay: 0s; }
-.lp-edot:nth-child(2) .lp-edot-pip { background: var(--saffron); animation-delay: .4s; }
-.lp-edot:nth-child(3) .lp-edot-pip { background: var(--sage); animation-delay: .8s; }
-.lp-edot:nth-child(4) .lp-edot-pip { background: var(--cobalt); animation-delay: 1.2s; }
-.lp-edot:nth-child(5) .lp-edot-pip { background: var(--espresso-mid); animation-delay: 1.6s; }
-@keyframes pipFade { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
-.lp-edot-bar-track { flex: 1; height: 3px; background: var(--blush); border-radius: 4px; overflow: hidden; }
-.lp-edot-bar-fill { height: 100%; border-radius: 4px; animation: edotAnim 3s ease-in-out infinite alternate; }
-.lp-edot:nth-child(1) .lp-edot-bar-fill { background: var(--coral); width: 72%; animation-delay: 0s; }
-.lp-edot:nth-child(2) .lp-edot-bar-fill { background: var(--saffron); width: 54%; animation-delay: .3s; }
-.lp-edot:nth-child(3) .lp-edot-bar-fill { background: var(--sage); width: 40%; animation-delay: .6s; }
-.lp-edot:nth-child(4) .lp-edot-bar-fill { background: var(--cobalt); width: 28%; animation-delay: .9s; }
-.lp-edot:nth-child(5) .lp-edot-bar-fill { background: var(--espresso-mid); width: 18%; animation-delay: 1.2s; }
-@keyframes edotAnim { from { opacity: .7; } to { opacity: 1; } }
-.lp-edot-lbl { font-family: 'Syne', sans-serif; font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--espresso); opacity: .45; white-space: nowrap; min-width: 54px; }
-.lp-sparkline { display: flex; align-items: flex-end; gap: 3px; height: 44px; margin-top: 14px; }
-.lp-sp { flex: 1; border-radius: 3px 3px 0 0; background: var(--blush); animation: spGrow 3s ease-in-out infinite alternate; }
-.lp-sp:nth-child(1) { height: 35%; }
-.lp-sp:nth-child(2) { height: 65%; background: var(--coral-bright); animation-delay: .15s; }
-.lp-sp:nth-child(3) { height: 50%; animation-delay: .3s; }
-.lp-sp:nth-child(4) { height: 90%; background: var(--coral); animation-delay: .45s; }
-.lp-sp:nth-child(5) { height: 42%; animation-delay: .6s; }
-.lp-sp:nth-child(6) { height: 78%; background: var(--saffron); animation-delay: .75s; }
-.lp-sp:nth-child(7) { height: 55%; animation-delay: .9s; }
-.lp-sp:nth-child(8) { height: 88%; background: var(--coral); animation-delay: 1.05s; }
-@keyframes spGrow { from { transform: scaleY(.75); } to { transform: scaleY(1); } }
-.lp-trend { display: inline-flex; align-items: center; gap: 6px; background: rgba(30,122,74,.12); color: var(--sage); font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700; padding: 6px 12px; border-radius: 100px; margin-top: 12px; }
-.lp-scroll-cue { position: absolute; bottom: 44px; left: 72px; z-index: 3; display: flex; align-items: center; gap: 16px; opacity: 0; animation: lpRiseUp .8s ease forwards 2.4s; }
-.lp-sc-line { width: 44px; height: 1px; background: var(--espresso); opacity: .2; overflow: hidden; position: relative; }
-.lp-sc-line::after { content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%; background: var(--coral); animation: lpScan 2.2s ease-in-out infinite; }
-@keyframes lpScan { to { left: 100%; } }
-.lp-sc-txt { font-family: 'Syne', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--espresso); opacity: .35; }
-.lp-ticker-bar { position: absolute; bottom: 0; left: 0; right: 0; z-index: 3; background: var(--espresso); padding: 0 72px; display: flex; align-items: center; overflow: hidden; height: 52px; border-top: 1px solid rgba(253,245,232,.06); }
-.lp-ticker-lbl { font-family: 'Syne', sans-serif; font-size: 9px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: rgba(253,245,232,.25); white-space: nowrap; flex-shrink: 0; padding-right: 40px; border-right: 1px solid rgba(253,245,232,.1); margin-right: 40px; }
-.lp-ticker-overflow { overflow: hidden; flex: 1; }
-.lp-ticker-track { display: flex; animation: ticker 28s linear infinite; white-space: nowrap; }
-@keyframes ticker { to { transform: translateX(-50%); } }
-.lp-ticker-item { font-family: 'Playfair Display', serif; font-size: 13px; font-style: italic; color: rgba(253,245,232,.28); white-space: nowrap; padding: 0 36px; display: inline-flex; align-items: center; position: relative; }
-.lp-ticker-item::after { content: '·'; position: absolute; right: 0; color: rgba(255,69,0,.3); font-style: normal; font-family: 'Syne', sans-serif; font-size: 16px; }
-
-/* ─── HOW IT WORKS ─── */
-#lp-how { background: var(--cream); padding: 160px 72px; position: relative; overflow: hidden; }
-#lp-how .lp-ghost { font-size: clamp(120px,14vw,220px); -webkit-text-stroke: 1px rgba(255,69,0,.04); top: -40px; right: -30px; z-index: 0; letter-spacing: -3px; }
-.lp-sec-head { max-width: 1216px; margin: 0 auto 100px; display: flex; align-items: flex-end; justify-content: space-between; position: relative; z-index: 1; }
-.lp-sec-tag { font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--coral); display: flex; align-items: center; gap: 10px; margin-bottom: 24px; }
-.lp-sec-tag::before { content: ''; width: 28px; height: 1.5px; background: var(--coral); }
-.lp-sec-title { font-family: 'Playfair Display', serif; font-size: clamp(40px,4.8vw,68px); font-weight: 900; line-height: 1.02; letter-spacing: -2px; color: var(--espresso); max-width: 580px; }
-.lp-sec-title em { font-style: italic; color: var(--coral); }
-.lp-sec-aside { font-family: 'Fraunces', serif; font-size: 17px; font-weight: 300; line-height: 1.72; color: var(--espresso); opacity: .55; max-width: 320px; text-align: right; }
-.lp-steps { display: grid; grid-template-columns: repeat(3,1fr); gap: 3px; max-width: 1216px; margin: 0 auto; position: relative; z-index: 1; }
-.lp-step { background: var(--warm-white); padding: 64px 52px; position: relative; overflow: hidden; transition: transform .5s cubic-bezier(.34,1.56,.64,1); cursor: default; }
-.lp-step:first-child { border-radius: 28px 0 0 28px; }
-.lp-step:last-child { border-radius: 0 28px 28px 0; }
-.lp-step::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: var(--blush); transition: background .3s ease; }
-.lp-step:nth-child(1)::before { background: linear-gradient(90deg,var(--coral),var(--coral-bright)); }
-.lp-step:nth-child(2)::before { background: linear-gradient(90deg,var(--saffron),var(--saffron-light)); }
-.lp-step:nth-child(3)::before { background: linear-gradient(90deg,var(--sage),#2ecc71); }
-.lp-step-flood { position: absolute; inset: 0; opacity: 0; transition: opacity .45s ease; }
-.lp-step:nth-child(1) .lp-step-flood { background: linear-gradient(145deg,var(--coral),var(--terracotta)); }
-.lp-step:nth-child(2) .lp-step-flood { background: linear-gradient(145deg,var(--saffron),#E6900A); }
-.lp-step:nth-child(3) .lp-step-flood { background: linear-gradient(145deg,var(--sage),#155C38); }
-.lp-step:hover .lp-step-flood { opacity: 1; }
-.lp-step:hover { transform: translateY(-10px); }
-.lp-step-n { font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: .16em; color: var(--coral); margin-bottom: 44px; position: relative; z-index: 1; transition: color .3s; }
-.lp-step:hover .lp-step-n { color: rgba(255,255,255,.6); }
-.lp-step-ico { width: 58px; height: 58px; border: 1.5px solid rgba(22,15,8,.1); border-radius: 18px; display: flex; align-items: center; justify-content: center; margin-bottom: 36px; position: relative; z-index: 1; transition: all .3s ease; }
-.lp-step-ico svg { width: 24px; height: 24px; stroke: var(--espresso); stroke-width: 1.5; fill: none; transition: stroke .3s; }
-.lp-step:hover .lp-step-ico { border-color: rgba(255,255,255,.25); }
-.lp-step:hover .lp-step-ico svg { stroke: #fff; }
-.lp-step-ttl { font-family: 'Playfair Display', serif; font-size: 30px; font-weight: 700; line-height: 1.15; color: var(--espresso); margin-bottom: 18px; position: relative; z-index: 1; transition: color .3s; }
-.lp-step:hover .lp-step-ttl { color: #fff; }
-.lp-step-dsc { font-family: 'Fraunces', serif; font-size: 15.5px; font-weight: 300; line-height: 1.72; color: var(--espresso); opacity: .6; margin-bottom: 44px; position: relative; z-index: 1; transition: color .3s, opacity .3s; }
-.lp-step:hover .lp-step-dsc { color: #fff; opacity: .8; }
-.lp-step-stats { display: flex; gap: 36px; position: relative; z-index: 1; }
-.lp-step-stat-l { font-family: 'Syne', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--espresso); opacity: .38; margin-bottom: 5px; transition: color .3s, opacity .3s; }
-.lp-step:hover .lp-step-stat-l { color: #fff; opacity: .55; }
-.lp-step-stat-v { font-family: 'Playfair Display', serif; font-size: 26px; font-weight: 700; color: var(--espresso); transition: color .3s; }
-.lp-step:hover .lp-step-stat-v { color: #fff; }
-
-/* ─── DIAGONAL CUTS ─── */
-.lp-cut-r { height: 70px; background: linear-gradient(to bottom right, var(--from-color) 49.9%, var(--to-color) 50%); }
-.lp-cut-l { height: 70px; background: linear-gradient(to bottom left, var(--from-color) 49.9%, var(--to-color) 50%); }
-
-/* ─── BUILDER ─── */
-#lp-builder { background: var(--cream-deep); padding: 160px 72px; position: relative; overflow: hidden; }
-#lp-builder .lp-ghost { -webkit-text-stroke: 1px rgba(255,69,0,.04); font-size: clamp(100px,12vw,200px); bottom: -30px; left: -20px; z-index: 0; }
-.lp-builder-inner { max-width: 1216px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1.15fr; gap: 90px; align-items: center; position: relative; z-index: 1; }
-.lp-builder-canvas { background: #fff; border-radius: 28px; box-shadow: 0 24px 80px rgba(22,15,8,.1), 0 4px 12px rgba(22,15,8,.05); overflow: hidden; }
-.lp-canvas-topbar { background: var(--espresso); padding: 16px 24px; display: flex; align-items: center; gap: 10px; }
-.lp-tbar-dots { display: flex; gap: 7px; }
-.lp-tbar-dot { width: 11px; height: 11px; border-radius: 50%; }
-.lp-tbar-dot:nth-child(1) { background: #FF5F57; }
-.lp-tbar-dot:nth-child(2) { background: #FEBC2E; }
-.lp-tbar-dot:nth-child(3) { background: #28C840; }
-.lp-tbar-title { font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: .1em; color: rgba(253,245,232,.45); margin-left: auto; margin-right: auto; }
-.lp-canvas-body { padding: 36px 32px; display: flex; flex-direction: column; gap: 14px; }
-.lp-q-card { border: 1.5px solid var(--blush); border-radius: 16px; padding: 20px 22px; transition: all .35s cubic-bezier(.34,1.56,.64,1); cursor: default; position: relative; overflow: hidden; }
-.lp-q-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: linear-gradient(180deg,var(--coral),var(--saffron)); transform: scaleY(0); transform-origin: top; transition: transform .35s ease; }
-.lp-q-card:hover { border-color: transparent; box-shadow: 0 8px 32px rgba(255,69,0,.12); transform: translateX(4px); }
-.lp-q-card:hover::before { transform: scaleY(1); }
-.lp-q-card.active { border-color: var(--coral); box-shadow: 0 8px 32px rgba(255,69,0,.15); }
-.lp-q-card.active::before { transform: scaleY(1); }
-.lp-q-type { font-family: 'Syne', sans-serif; font-size: 9px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--coral); margin-bottom: 8px; }
-.lp-q-text { font-family: 'Fraunces', serif; font-size: 14px; font-weight: 400; color: var(--espresso); line-height: 1.5; margin-bottom: 12px; }
-.lp-q-options { display: flex; flex-wrap: wrap; gap: 7px; }
-.lp-q-opt { background: var(--blush); border-radius: 100px; padding: 6px 14px; font-family: 'Syne', sans-serif; font-size: 10px; font-weight: 600; color: var(--espresso); transition: all .25s ease; }
-.lp-q-card:hover .lp-q-opt:first-child, .lp-q-card.active .lp-q-opt:first-child { background: var(--coral); color: #fff; }
-.lp-q-slider-track { height: 6px; background: var(--blush); border-radius: 10px; position: relative; }
-.lp-q-slider-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 62%; background: linear-gradient(90deg,var(--coral),var(--saffron)); border-radius: 10px; }
-.lp-q-slider-thumb { position: absolute; right: 38%; top: 50%; transform: translate(50%,-50%); width: 16px; height: 16px; background: #fff; border-radius: 50%; box-shadow: 0 2px 8px rgba(255,69,0,.3), 0 0 0 3px rgba(255,69,0,.15); }
-.lp-q-stars { display: flex; gap: 6px; }
-.lp-star { font-size: 20px; animation: lpStarPop 1.5s ease-in-out infinite alternate; }
-.lp-star:nth-child(1) { animation-delay: 0s; } .lp-star:nth-child(2) { animation-delay: .15s; } .lp-star:nth-child(3) { animation-delay: .3s; } .lp-star:nth-child(4) { animation-delay: .45s; }
-@keyframes lpStarPop { from { transform: scale(1); } to { transform: scale(1.15); } }
-.lp-canvas-add-btn { display: flex; align-items: center; gap: 10px; border: 1.5px dashed rgba(255,69,0,.25); border-radius: 14px; padding: 16px 22px; cursor: default; transition: all .3s ease; font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--coral); opacity: .55; }
-.lp-canvas-add-btn:hover { opacity: 1; border-color: var(--coral); background: rgba(255,69,0,.04); }
-.lp-plus-ico { width: 22px; height: 22px; background: rgba(255,69,0,.1); border-radius: 6px; display: flex; align-items: center; justify-content: center; }
-.lp-builder-txt .lp-sec-aside { text-align: left; max-width: 440px; margin-bottom: 44px; }
-.lp-q-types-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 44px; }
-.lp-qt-chip { display: flex; align-items: center; gap: 10px; background: var(--warm-white); border: 1.5px solid transparent; border-radius: 14px; padding: 14px 16px; font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: .06em; color: var(--espresso); transition: all .3s cubic-bezier(.34,1.56,.64,1); cursor: default; }
-.lp-qt-chip:hover { border-color: var(--coral); background: #fff; transform: translateY(-2px); box-shadow: 0 8px 24px rgba(255,69,0,.1); }
-.lp-qt-ico { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
-
-/* ─── ANALYTICS ─── */
-#lp-analytics { background: var(--espresso); padding: 160px 72px; position: relative; overflow: hidden; }
-.lp-analytics-glow { position: absolute; width: 800px; height: 800px; border-radius: 50%; background: radial-gradient(circle,rgba(255,69,0,.12),rgba(255,184,0,.06),transparent 70%); top: -200px; right: -200px; pointer-events: none; animation: glowPulse 8s ease-in-out infinite; }
-@keyframes glowPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.1); } }
-#lp-analytics .lp-ghost { -webkit-text-stroke: 1px rgba(253,245,232,.04); font-size: clamp(100px,13vw,210px); bottom: -50px; right: -30px; z-index: 0; }
-.lp-analytics-head { max-width: 1216px; margin: 0 auto 90px; display: flex; align-items: flex-end; justify-content: space-between; position: relative; z-index: 1; }
-.lp-analytics-head .lp-sec-tag { color: var(--saffron); }
-.lp-analytics-head .lp-sec-tag::before { background: var(--saffron); }
-.lp-analytics-head .lp-sec-title { color: var(--cream); }
-.lp-analytics-head .lp-sec-title em { color: var(--saffron); }
-.lp-analytics-head .lp-sec-aside { color: rgba(253,245,232,.5); }
-.lp-dash-wrap { max-width: 1216px; margin: 0 auto; position: relative; z-index: 1; background: rgba(253,245,232,.04); border: 1px solid rgba(253,245,232,.07); border-radius: 28px; padding: 40px; backdrop-filter: blur(10px); }
-.lp-dash-topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 36px; padding-bottom: 24px; border-bottom: 1px solid rgba(253,245,232,.07); }
-.lp-dash-ttl { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 700; color: var(--cream); }
-.lp-dash-sub { font-family: 'Fraunces', serif; font-size: 13px; font-weight: 300; color: rgba(253,245,232,.4); margin-top: 4px; }
-.lp-dash-badges { display: flex; gap: 10px; }
-.lp-dash-badge { display: flex; align-items: center; gap: 7px; background: rgba(253,245,232,.07); border: 1px solid rgba(253,245,232,.1); border-radius: 100px; padding: 8px 16px; font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: .06em; color: rgba(253,245,232,.6); }
-.lp-live-pip { width: 7px; height: 7px; background: #22c55e; border-radius: 50%; animation: lpPip 2s ease-in-out infinite; }
-@keyframes lpPip { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
-.lp-kpi-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; margin-bottom: 32px; }
-.lp-kpi-box { background: rgba(253,245,232,.05); border: 1px solid rgba(253,245,232,.07); border-radius: 18px; padding: 24px; transition: all .35s cubic-bezier(.34,1.56,.64,1); cursor: default; }
-.lp-kpi-box:hover { background: rgba(255,69,0,.12); border-color: rgba(255,69,0,.3); transform: translateY(-4px); }
-.lp-kpi-lbl { font-family: 'Syne', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: rgba(253,245,232,.4); margin-bottom: 12px; }
-.lp-kpi-val { font-family: 'Playfair Display', serif; font-size: 42px; font-weight: 900; color: var(--cream); line-height: 1; margin-bottom: 8px; }
-.lp-kpi-chg { display: inline-flex; align-items: center; gap: 5px; font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 100px; }
-.lp-kpi-chg.up { background: rgba(30,122,74,.2); color: #4ade80; }
-.lp-kpi-chg.dn { background: rgba(214,59,31,.2); color: #fca5a5; }
-.lp-dash-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 20px; }
-.lp-chart-card { background: rgba(253,245,232,.04); border: 1px solid rgba(253,245,232,.07); border-radius: 20px; padding: 28px; }
-.lp-chart-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; }
-.lp-chart-ttl { font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: rgba(253,245,232,.5); }
-.lp-chart-leg { display: flex; gap: 16px; }
-.lp-leg-item { display: flex; align-items: center; gap: 6px; font-family: 'Syne', sans-serif; font-size: 10px; font-weight: 600; color: rgba(253,245,232,.4); }
-.lp-leg-dot { width: 7px; height: 7px; border-radius: 50%; }
-.lp-donut-wrap { display: flex; flex-direction: column; align-items: center; gap: 24px; }
-.lp-donut-center { position: relative; width: 180px; height: 180px; }
-.lp-donut-lbl { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-.lp-donut-big { font-family: 'Playfair Display', serif; font-size: 38px; font-weight: 900; color: var(--cream); line-height: 1; }
-.lp-donut-small { font-family: 'Syne', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: rgba(253,245,232,.4); }
-.lp-donut-legend { width: 100%; display: flex; flex-direction: column; gap: 10px; }
-.lp-dl-row { display: flex; align-items: center; gap: 10px; font-family: 'Fraunces', serif; font-size: 13px; font-weight: 300; color: rgba(253,245,232,.7); }
-.lp-dl-bar-track { flex: 1; height: 4px; background: rgba(253,245,232,.07); border-radius: 4px; overflow: hidden; }
-.lp-dl-bar-fill { height: 100%; border-radius: 4px; animation: dlFill 2s ease-out forwards; }
-.lp-dl-pct { font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700; color: rgba(253,245,232,.5); min-width: 32px; text-align: right; }
-.lp-sentiment-row { display: flex; align-items: center; gap: 10px; margin-top: 20px; }
-.lp-sent-spectrum { flex: 1; height: 10px; border-radius: 10px; background: linear-gradient(90deg,#ef4444 0%,var(--saffron) 40%,#22c55e 80%,var(--cobalt) 100%); position: relative; }
-.lp-sent-needle { position: absolute; top: 50%; left: 68%; width: 18px; height: 18px; background: #fff; border-radius: 50%; transform: translate(-50%,-50%); box-shadow: 0 2px 10px rgba(0,0,0,.4); animation: needleDrift 4s ease-in-out infinite alternate; }
-@keyframes needleDrift { from { left: 64%; } to { left: 72%; } }
-@keyframes dlFill { from { width: 0; } to { width: var(--w, 100%); } }
-
-/* ─── TESTIMONIALS ─── */
-#lp-testimonials { background: var(--cream); padding: 160px 72px; position: relative; overflow: hidden; }
-#lp-testimonials .lp-ghost { -webkit-text-stroke: 1px rgba(255,69,0,.04); font-size: clamp(120px,16vw,240px); top: -30px; left: -20px; z-index: 0; }
-.lp-testi-head { max-width: 1216px; margin: 0 auto 90px; position: relative; z-index: 1; display: flex; align-items: flex-end; justify-content: space-between; }
-.lp-testi-scroll-hint { font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--espresso); opacity: .35; display: flex; align-items: center; gap: 10px; }
-.lp-testi-scroll-hint::after { content: '→'; color: var(--coral); }
-.lp-testi-track { display: grid; grid-template-columns: repeat(3,1fr); gap: 24px; max-width: 1216px; margin: 0 auto; position: relative; z-index: 1; }
-.lp-tcard { background: var(--warm-white); border-radius: 24px; padding: 44px; position: relative; overflow: hidden; transition: all .4s cubic-bezier(.34,1.56,.64,1); cursor: default; border: 1.5px solid transparent; }
-.lp-tcard::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--blush); transition: background .3s ease; }
-.lp-tcard:hover::before { background: linear-gradient(90deg,var(--coral),var(--saffron)); }
-.lp-tcard:hover { transform: translateY(-8px); border-color: rgba(255,69,0,.15); box-shadow: 0 24px 64px rgba(255,69,0,.1); }
-.lp-tcard:nth-child(2) { transform: translateY(24px); }
-.lp-tcard:nth-child(2):hover { transform: translateY(16px); }
-.lp-quote-mark { font-family: 'Playfair Display', serif; font-size: 80px; font-weight: 900; color: var(--coral); opacity: .15; line-height: .7; margin-bottom: 8px; transition: opacity .3s; }
-.lp-tcard:hover .lp-quote-mark { opacity: .25; }
-.lp-tcard-quote { font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 400; font-style: italic; line-height: 1.65; color: var(--espresso); margin-bottom: 36px; }
-.lp-tcard-author { display: flex; align-items: center; gap: 16px; }
-.lp-author-avatar { width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 700; color: #fff; flex-shrink: 0; }
-.lp-author-name { font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; letter-spacing: .04em; color: var(--espresso); margin-bottom: 3px; }
-.lp-author-role { font-family: 'Fraunces', serif; font-size: 12px; font-weight: 300; color: var(--espresso); opacity: .5; }
-.lp-tcard-stars { position: absolute; top: 28px; right: 28px; font-size: 13px; }
-
-/* ─── PRICING ─── */
-#lp-pricing { background: var(--cream-deep); padding: 160px 72px; position: relative; overflow: hidden; }
-#lp-pricing .lp-ghost { -webkit-text-stroke: 1px rgba(255,69,0,.04); font-size: clamp(120px,16vw,240px); bottom: -40px; right: -20px; z-index: 0; }
-.lp-pricing-head { max-width: 1216px; margin: 0 auto 90px; text-align: center; position: relative; z-index: 1; }
-.lp-pricing-head .lp-sec-tag { justify-content: center; margin-bottom: 20px; }
-.lp-pricing-head .lp-sec-tag::before { display: none; }
-.lp-pricing-head .lp-sec-title { margin: 0 auto 20px; text-align: center; }
-.lp-pricing-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 24px; max-width: 1216px; margin: 0 auto; position: relative; z-index: 1; }
-.lp-pcard { border-radius: 28px; padding: 52px 44px; position: relative; overflow: hidden; transition: transform .4s cubic-bezier(.34,1.56,.64,1); cursor: default; }
-.lp-pcard.std { background: var(--warm-white); border: 1.5px solid rgba(22,15,8,.07); }
-.lp-pcard.pro { background: var(--espresso); transform: scale(1.04); box-shadow: 0 32px 80px rgba(22,15,8,.2); }
-.lp-pcard.ent { background: var(--warm-white); border: 1.5px solid rgba(22,15,8,.07); }
-.lp-pcard.std:hover, .lp-pcard.ent:hover { transform: translateY(-6px); }
-.lp-pcard.pro:hover { transform: scale(1.04) translateY(-6px); }
-.lp-pcard-badge { display: inline-flex; align-items: center; gap: 6px; font-family: 'Syne', sans-serif; font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; padding: 6px 14px; border-radius: 100px; margin-bottom: 28px; }
-.std .lp-pcard-badge { background: var(--blush); color: var(--terracotta); }
-.pro .lp-pcard-badge { background: var(--coral); color: #fff; }
-.ent .lp-pcard-badge { background: rgba(22,15,8,.07); color: var(--espresso); opacity: .7; }
-.lp-pcard-name { font-family: 'Playfair Display', serif; font-size: 28px; font-weight: 700; margin-bottom: 12px; }
-.std .lp-pcard-name, .ent .lp-pcard-name { color: var(--espresso); }
-.pro .lp-pcard-name { color: var(--cream); }
-.lp-pcard-price { display: flex; align-items: baseline; gap: 6px; margin-bottom: 8px; }
-.lp-p-curr { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 700; opacity: .5; }
-.lp-p-amt { font-family: 'Playfair Display', serif; font-size: 58px; font-weight: 900; line-height: 1; letter-spacing: -2px; }
-.std .lp-p-curr, .std .lp-p-amt, .ent .lp-p-curr, .ent .lp-p-amt { color: var(--espresso); }
-.pro .lp-p-curr, .pro .lp-p-amt { color: var(--cream); }
-.lp-p-per { font-family: 'Fraunces', serif; font-size: 14px; font-weight: 300; opacity: .5; }
-.std .lp-p-per, .ent .lp-p-per { color: var(--espresso); }
-.pro .lp-p-per { color: var(--cream); }
-.lp-pcard-desc { font-family: 'Fraunces', serif; font-size: 14px; font-weight: 300; line-height: 1.6; margin-bottom: 36px; }
-.std .lp-pcard-desc, .ent .lp-pcard-desc { color: var(--espresso); opacity: .55; }
-.pro .lp-pcard-desc { color: rgba(253,245,232,.55); }
-.lp-pcard-divider { height: 1px; margin-bottom: 32px; }
-.std .lp-pcard-divider, .ent .lp-pcard-divider { background: rgba(22,15,8,.07); }
-.pro .lp-pcard-divider { background: rgba(253,245,232,.1); }
-.lp-pcard-features { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 14px; margin-bottom: 44px; }
-.lp-pcard-features li { display: flex; align-items: flex-start; gap: 12px; font-family: 'Fraunces', serif; font-size: 15px; font-weight: 300; line-height: 1.5; }
-.std .lp-pcard-features li, .ent .lp-pcard-features li { color: var(--espresso); opacity: .7; }
-.pro .lp-pcard-features li { color: rgba(253,245,232,.75); }
-.lp-feat-check { width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0; margin-top: 2px; display: flex; align-items: center; justify-content: center; }
-.std .lp-feat-check, .ent .lp-feat-check { background: rgba(255,69,0,.12); }
-.pro .lp-feat-check { background: rgba(253,245,232,.15); }
-.lp-pcard-btn { width: 100%; padding: 18px; border-radius: 100px; border: none; font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; cursor: pointer; transition: all .3s cubic-bezier(.34,1.56,.64,1); }
-.std .lp-pcard-btn { background: var(--blush); color: var(--terracotta); }
-.std .lp-pcard-btn:hover { background: var(--coral); color: #fff; transform: translateY(-2px); box-shadow: 0 12px 32px rgba(255,69,0,.25); }
-.pro .lp-pcard-btn { background: var(--coral); color: #fff; box-shadow: 0 12px 32px rgba(255,69,0,.3); }
-.pro .lp-pcard-btn:hover { background: var(--saffron); color: var(--espresso); transform: translateY(-2px); }
-.ent .lp-pcard-btn { background: rgba(22,15,8,.06); color: var(--espresso); }
-.ent .lp-pcard-btn:hover { background: var(--espresso); color: var(--cream); transform: translateY(-2px); }
-
-/* ─── FOOTER ─── */
-#lp-footer { background: var(--espresso); padding: 90px 72px 44px; position: relative; overflow: hidden; }
-#lp-footer .lp-ghost { font-size: clamp(100px,15vw,260px); -webkit-text-stroke: 1px rgba(253,245,232,.05); bottom: -50px; left: -10px; z-index: 0; letter-spacing: -6px; }
-.lp-footer-inner { max-width: 1216px; margin: 0 auto; position: relative; z-index: 1; }
-.lp-footer-top { display: grid; grid-template-columns: 2.2fr 1fr 1fr 1fr; gap: 60px; margin-bottom: 72px; padding-bottom: 60px; border-bottom: 1px solid rgba(253,245,232,.07); }
-.lp-f-brand { font-family: 'Playfair Display', serif; font-weight: 900; font-size: 24px; color: var(--cream); margin-bottom: 18px; display: flex; align-items: flex-start; gap: 2px; }
-.lp-f-brand-dot { position: relative; width: 7px; height: 7px; background: var(--coral); border-radius: 50%; align-self: flex-start; margin-top: 5px; margin-left: 7px; flex-shrink: 0; box-shadow: 0 0 8px rgba(255,69,0,.5); }
-.lp-f-brand-dot .sonar-ring { position: absolute; border-radius: 50%; border: 1px solid var(--coral); top: 50%; left: 50%; width: 7px; height: 7px; transform: translate(-50%,-50%) scale(0); opacity: 0; animation: sonarRing 3s ease-out infinite; }
-.lp-f-brand-dot .sonar-ring:nth-child(1) { animation-delay: 0s; }
-.lp-f-brand-dot .sonar-ring:nth-child(2) { animation-delay: .9s; }
-.lp-f-brand-dot .sonar-ring:nth-child(3) { animation-delay: 1.8s; }
-.lp-f-desc { font-family: 'Fraunces', serif; font-size: 14.5px; font-weight: 300; line-height: 1.72; color: rgba(253,245,232,.4); max-width: 300px; margin-bottom: 32px; }
-.lp-f-socials { display: flex; gap: 12px; }
-.lp-f-soc { width: 38px; height: 38px; border: 1px solid rgba(253,245,232,.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700; color: rgba(253,245,232,.4); text-decoration: none; transition: all .3s ease; }
-.lp-f-soc:hover { border-color: var(--coral); color: var(--coral); background: rgba(255,69,0,.1); }
-.lp-f-col-title { font-family: 'Syne', sans-serif; font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: rgba(253,245,232,.28); margin-bottom: 24px; }
-.lp-f-links { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 14px; }
-.lp-f-links a { font-family: 'Fraunces', serif; font-size: 14.5px; font-weight: 300; color: rgba(253,245,232,.5); text-decoration: none; display: inline-block; transition: color .2s ease; position: relative; }
-.lp-f-links a::after { content: ''; position: absolute; bottom: -1px; left: 0; width: 0; height: 1px; background: var(--saffron); transition: width .3s ease; }
-.lp-f-links a:hover { color: var(--cream); }
-.lp-f-links a:hover::after { width: 100%; }
-.lp-footer-bottom { display: flex; align-items: center; justify-content: space-between; padding-top: 28px; border-top: 1px solid rgba(253,245,232,.06); }
-.lp-f-copy { font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 500; letter-spacing: .05em; color: rgba(253,245,232,.22); }
-.lp-f-award { display: flex; align-items: center; gap: 8px; font-family: 'Syne', sans-serif; font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: rgba(253,245,232,.25); }
-.lp-award-star { color: var(--saffron); }
-
-/* ─── SCROLL REVEAL ─── */
-.lp-sr { opacity: 0; transform: translateY(44px); transition: opacity .9s ease, transform .9s cubic-bezier(.16,1,.3,1); }
-.lp-sr.vis { opacity: 1; transform: none; }
-.lp-sr-d1 { transition-delay: .1s; } .lp-sr-d2 { transition-delay: .2s; } .lp-sr-d3 { transition-delay: .3s; } .lp-sr-d4 { transition-delay: .4s; }
-
-/* ─── MOBILE RESPONSIVE ─── */
-@media (max-width: 768px) {
-  /* Nav */
-  .lp-nav { padding: 18px 20px; }
-  .lp-nav.stuck { padding: 14px 20px; }
-  .lp-nav-links { display: none; }
-  .lp-nav-burger { display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; background: none; border: 1.5px solid rgba(22,15,8,.12); border-radius: 10px; cursor: pointer; }
-
-  /* Hero */
-  #lp-hero { padding-bottom: 60px; }
-  .lp-hero-wrap { grid-template-columns: 1fr; gap: 0; padding: 100px 20px 0; }
-  .lp-hero-cards { display: none; }
-  .lp-h-head { font-size: clamp(42px,11vw,64px); letter-spacing: -2px; }
-  .lp-h-sub { font-size: 16px; margin-bottom: 36px; }
-  .lp-h-ctas { flex-direction: column; align-items: flex-start; gap: 16px; }
-  .lp-btn-fire { width: 100%; justify-content: center; }
-  .lp-scroll-cue { display: none; }
-  .lp-ticker-bar { padding: 0 20px; }
-  .lp-ticker-lbl { display: none; }
-
-  /* How it works */
-  #lp-how { padding: 80px 20px; }
-  .lp-sec-head { flex-direction: column; align-items: flex-start; gap: 20px; margin-bottom: 48px; }
-  .lp-sec-aside { text-align: left; max-width: 100%; }
-  .lp-steps { grid-template-columns: 1fr; gap: 3px; }
-  .lp-step { padding: 40px 28px; }
-  .lp-step:first-child { border-radius: 28px 28px 0 0; }
-  .lp-step:last-child { border-radius: 0 0 28px 28px; }
-
-  /* Builder */
-  #lp-builder { padding: 80px 20px; }
-  .lp-builder-inner { grid-template-columns: 1fr; gap: 48px; }
-
-  /* Analytics */
-  #lp-analytics { padding: 80px 20px; }
-  .lp-analytics-head { flex-direction: column; align-items: flex-start; gap: 20px; margin-bottom: 48px; }
-  .lp-kpi-row { grid-template-columns: 1fr 1fr; gap: 12px; }
-  .lp-dash-grid { grid-template-columns: 1fr; }
-  .lp-dash-wrap { padding: 20px; }
-  .lp-dash-topbar { flex-direction: column; align-items: flex-start; gap: 12px; }
-  .lp-dash-badges { flex-wrap: wrap; }
-  .lp-kpi-val { font-size: 32px; }
-
-  /* Testimonials */
-  #lp-testimonials { padding: 80px 20px; }
-  .lp-testi-head { flex-direction: column; align-items: flex-start; gap: 16px; margin-bottom: 48px; }
-  .lp-testi-track { grid-template-columns: 1fr; }
-  .lp-tcard:nth-child(2) { transform: none; }
-  .lp-tcard:nth-child(2):hover { transform: translateY(-8px); }
-  .lp-tcard { padding: 32px 28px; }
-
-  /* Pricing */
-  #lp-pricing { padding: 80px 20px; }
-  .lp-pricing-head { margin-bottom: 48px; }
-  .lp-pricing-grid { grid-template-columns: 1fr; gap: 16px; }
-  .lp-pcard.pro { transform: none; }
-  .lp-pcard.pro:hover { transform: translateY(-6px); }
-  .lp-pcard { padding: 36px 28px; }
-  .lp-p-amt { font-size: 48px; }
-
-  /* Footer */
-  #lp-footer { padding: 60px 20px 32px; }
-  .lp-footer-top { grid-template-columns: 1fr; gap: 40px; margin-bottom: 40px; padding-bottom: 40px; }
-  .lp-footer-bottom { flex-direction: column; align-items: flex-start; gap: 12px; }
-  .lp-f-desc { max-width: 100%; }
-
-  /* Diagonal cuts — collapse on mobile */
-  .lp-cut-r, .lp-cut-l { height: 30px; }
-
-  /* FAQ / other sections */
-  #lp-faq { padding: 80px 20px; }
-  .lp-faq-inner { max-width: 100%; }
+  /* Footer logo colors */
+.lp-footer .lp-logo-parent{
+  color: rgba(255,255,255,.55) !important;
 }
 
-@media (max-width: 480px) {
-  .lp-kpi-row { grid-template-columns: 1fr; }
-  .lp-q-types-grid { grid-template-columns: 1fr; }
+.lp-footer .lp-logo-product{
+  color: #ffffff !important;
+}
+
+.lp-footer .lp-logo-dot{
+  background: var(--pulse-orange);
+  box-shadow: 0 0 12px rgba(255,69,0,.6);
+}
+
+.lp-footer .lp-logo-dot .sonar-ring{
+  border-color: rgba(255,69,0,.7);
 }
 `;
 
-// ─── COMPONENT ───────────────────────────────────────────────────────────────
+const heroLines = [
+  "Know the market pulse before you build.",
+  "Get Pulse guidance from idea to investor readiness.",
+  "Build with clarity, confidence, and capital discipline.",
+  "Turn customer insight into a step-by-step action plan.",
+];
+
+const heroActionPlans = [
+  {
+    title: "Business Idea Validation",
+    idea: "Campus meal subscription MVP",
+    signalLabel: "Problem urgency",
+    signalValue: "68%",
+    signalWidth: "68%",
+    rows: [
+      ["Target customer", "Hostel students"],
+      ["Willingness to pay", "₹149/week"],
+      ["Key objection", "Menu variety"],
+      ["Next action", "Run paid pilot"],
+    ],
+    stats: [["7d", "validation timeline"], ["412", "customer signals"], ["3", "mentor next steps"]],
+  },
+  {
+    title: "Investor Readiness Check",
+    idea: "Early-stage fintech pitch",
+    signalLabel: "Evidence strength",
+    signalValue: "74%",
+    signalWidth: "74%",
+    rows: [
+      ["Sharpest proof", "Pain intensity"],
+      ["Weakest slide", "Go-to-market"],
+      ["Investor question", "CAC clarity"],
+      ["Next action", "Add traction proof"],
+    ],
+    stats: [["5", "pitch gaps"], ["2", "proof points"], ["1", "capital ask edit"]],
+  },
+  {
+    title: "Capital Discipline Plan",
+    idea: "D2C wellness launch",
+    signalLabel: "Spend confidence",
+    signalValue: "61%",
+    signalWidth: "61%",
+    rows: [
+      ["Budget risk", "Paid ads too early"],
+      ["First test", "Landing waitlist"],
+      ["Must avoid", "Bulk inventory"],
+      ["Next action", "Test ₹10k channel"],
+    ],
+    stats: [["₹4.8L", "spend deferred"], ["2", "lean tests"], ["14d", "pilot window"]],
+  },
+  {
+    title: "Step-by-Step Action Plan",
+    idea: "B2B workflow tool",
+    signalLabel: "Action clarity",
+    signalValue: "82%",
+    signalWidth: "82%",
+    rows: [
+      ["Week 1", "Interview 12 buyers"],
+      ["Week 2", "Validate workflow pain"],
+      ["Week 3", "Price pilot offer"],
+      ["Next action", "Book 5 demos"],
+    ],
+    stats: [["3", "weekly moves"], ["12", "buyer calls"], ["5", "pilot demos"]],
+  },
+];
+
+const plans = [
+  {
+    name: "Freemium",
+    price: "₹0",
+    offerPrice: "₹0",
+    period: "forever",
+    badge: "Try first",
+    desc: "Start with one guided idea check and keep your first insights forever.",
+    features: ["1 guided survey", "50 responses", "View insights forever", "Basic mentor summary"],
+    cta: "Try Free",
+  },
+  {
+    name: "Student",
+    price: "₹499",
+    offerPrice: "₹249",
+    period: "month",
+    desc: "For student founders who need clarity before a pitch, grant, or prototype.",
+    features: ["3 guided studies", "500 responses / month", "Idea clarity templates", "Email support"],
+    cta: "Start Student",
+  },
+  {
+    name: "Starter",
+    price: "₹1,999",
+    offerPrice: "₹999",
+    period: "month",
+    badge: "Recommended",
+    featured: true,
+    desc: "For founders who need customer insight and a practical next-step plan.",
+    features: ["5 guided studies", "2,000 responses / month", "Investor-readiness summary", "One-time option available"],
+    cta: "Start Starter",
+  },
+  {
+    name: "Growth",
+    price: "₹4,999",
+    offerPrice: "₹2,499",
+    period: "month",
+    desc: "For teams sharpening positioning, acquisition, and pre-traction strategy.",
+    features: ["20 guided studies", "10,000 responses / month", "Customer insight dashboard", "Team workspace"],
+    cta: "Choose Growth",
+  },
+  {
+    name: "Professional",
+    price: "₹9,999",
+    offerPrice: "₹4,999",
+    period: "month",
+    dark: true,
+    desc: "For accelerators, studios, and advisory teams guiding multiple founders.",
+    features: ["Unlimited guided studies", "White-label ready", "Priority mentor support", "Export-ready reports"],
+    cta: "Go Professional",
+  },
+  {
+    name: "Enterprise",
+    price: "Custom",
+    offerPrice: "Custom",
+    period: "full suite",
+    desc: "For institutions running founder guidance and market learning at scale.",
+    features: ["Custom response volumes", "Dedicated success team", "Security review", "Custom integrations"],
+    cta: "Contact Sales",
+  },
+];
+
+const oneTimePlan = {
+  name: "One-time validation",
+  price: "₹1,999",
+  offerPrice: "₹999",
+  period: "one-time",
+  badge: "Low-risk test",
+  desc: "Run one focused Pulse-guided validation before committing to a monthly plan.",
+  features: ["1 guided validation", "Up to 2,000 responses", "Founder action plan", "No subscription"],
+  cta: "Buy One Study",
+};
+
+const testimonials = [
+  {
+    quote: "Pulse helped us see the buyer, the price ceiling, and the next move. It felt less like a form builder and more like a mentor for our launch.",
+    name: "Aarav Mehta",
+    role: "Founder, fintech pilot",
+    result: "312",
+    resultText: "responses translated into an investor-ready action plan",
+    initials: "AM",
+    color: "#0052CC",
+  },
+  {
+    quote: "The Pulse Mentor pushed us to pause an expensive feature and focus on the segment that was already showing intent.",
+    name: "Nisha Rao",
+    role: "Co-founder, healthtech MVP",
+    result: "9 days",
+    resultText: "from idea check to customer insight summary",
+    initials: "NR",
+    color: "#FF9500",
+  },
+  {
+    quote: "I needed more than encouragement from friends. Pulse gave me market guidance, objections, and a sharper capital plan.",
+    name: "Karan Shah",
+    role: "D2C founder",
+    result: "42%",
+    resultText: "clearer purchase intent after mentor-led repositioning",
+    initials: "KS",
+    color: "#128A4A",
+  },
+];
+
+const templates = [
+  ["Idea Validation", "Check demand, pain intensity, and willingness to pay before you build.", Lightbulb],
+  ["Business Clarity", "Clarify the customer, offer, problem, and first practical action path.", Target],
+  ["Investor Readiness", "Turn customer evidence into a sharper investor update or pitch narrative.", FileText],
+  ["Customer Insights", "Find who cares most, why they care, and what blocks adoption.", Users],
+  ["Capital Discipline", "Prioritize what to test before spending heavily on product or marketing.", BarChart3],
+  ["Pre-Traction Strategy", "Shape positioning, channel focus, and weekly execution priorities.", Rocket],
+];
+
+const symbols = [
+  ["Clarity", "Know the customer, the problem, the offer, and the next best move.", Compass],
+  ["Confidence", "Use market signal before building, pitching, hiring, or spending.", ShieldCheck],
+  ["Capital Discipline", "Protect runway by testing assumptions before committing lakhs.", Gauge],
+  ["Conquer", "Walk into reviews, pilots, and investor meetings with a grounded plan.", Trophy],
+];
+
+const analyticsKpis = [
+  ["Idea Score", "72/100", "Build, but narrow the buyer"],
+  ["Paying Intent", "38%", "Ready to join a pilot"],
+  ["Best Price Signal", "Rs 1,999", "Test before discounting"],
+  ["Runway Risk", "Low", "3 spends to delay"],
+];
+
+const readinessRings = [
+  ["Problem clarity", 82],
+  ["Buyer demand", 68],
+  ["Pitch proof", 74],
+];
+
+const validationFunnel = [
+  ["Reached", "500", "100%"],
+  ["Opened", "370", "82%"],
+  ["Completed", "305", "70%"],
+  ["High intent", "190", "58%"],
+  ["Pilot ready", "90", "42%"],
+];
+
+const segmentSignals = [
+  ["Students", "82%", "#FF4500"],
+  ["Freelancers", "64%", "#FFB800"],
+  ["Small teams", "48%", "#4ADE80"],
+  ["Enterprises", "29%", "#4D7CFF"],
+];
+
+const demandTrend = [
+  ["Day 1", 42],
+  ["Day 2", 58],
+  ["Day 3", 51],
+  ["Day 4", 69],
+  ["Day 5", 74],
+  ["Day 6", 81],
+  ["Day 7", 88],
+];
+
+const capitalSignals = [
+  ["Product", "42%", "#FFB800"],
+  ["Marketing", "27%", "#4ADE80"],
+  ["Hiring", "18%", "#4D7CFF"],
+  ["Inventory", "63%", "#FF4500"],
+];
+
+const decisionCards = [
+  ["Build next", "Interview students and freelancers before adding features."],
+  ["Price test", "Run Rs 1,999 vs Rs 4,999 offer pages for 7 days."],
+  ["Investor note", "Show demand, high-intent users, and delayed spend logic."],
+];
+
+const reviews = [
+  ["Pulse made our idea feel measurable. The Pulse Mentor showed what to ask next instead of leaving us with a spreadsheet.", "Devika Nair", "SaaS founder", "DN"],
+  ["The action plan helped us stop debating internally. We knew the buyer, the objection, and the leanest test to run.", "Rahul Iyer", "Consumer app founder", "RI"],
+  ["For our pitch deck, the investor-readiness summary was the difference between opinion and a clean story.", "Meera Shah", "Healthtech founder", "MS"],
+];
+
+const successStories = [
+  {
+    label: "D2C launch",
+    title: "Saved ad spend before launch",
+    copy: "A wellness founder used Pulse to validate the first customer segment and delay a paid media push until the offer was clearer.",
+    metrics: [["₹4.8L", "spend deferred"], ["14d", "pilot plan"]],
+  },
+  {
+    label: "Student founder",
+    title: "Turned a campus idea into a pilot",
+    copy: "A student team tested willingness to pay, menu objections, and referral intent before approaching local partners.",
+    metrics: [["412", "signals"], ["3", "next moves"]],
+  },
+  {
+    label: "Investor prep",
+    title: "Sharper story for demo day",
+    copy: "A fintech founder used customer pain data and objection patterns to improve the traction and GTM sections of the pitch.",
+    metrics: [["8.4/10", "readiness"], ["5", "deck fixes"]],
+  },
+];
+
+const legalDocs = {
+  privacy: {
+    title: "Privacy Notice",
+    updated: "Draft for product use - June 2026",
+    intro: "This notice explains how Axiora Pulse may handle information when founders, students, teams, respondents, or organizations use the platform for idea validation, customer insight, Pulse Mentor guidance, reports, and related workflows.",
+    sections: [
+      ["Information handled", [
+        "Account details such as name, email address, organization name, role, billing status, and login identifiers may be processed for access, support, security, and account administration.",
+        "Survey, validation, prompt, response, document, report, and dashboard content may be processed to provide the requested product experience, including Pulse Mentor summaries and decision-support outputs.",
+        "Technical data such as device information, browser type, approximate location signals, timestamps, IP address, page events, error logs, and usage analytics may be processed to maintain reliability and improve the service.",
+      ]],
+      ["How information is used", [
+        "Information may be used to operate the platform, generate reports, provide customer support, improve templates and product flows, prevent misuse, process payments, and communicate service updates.",
+        "Aggregated or de-identified patterns may be used to understand product performance and improve guidance quality, without presenting individual respondent identities as public references.",
+        "Respondent information should be collected by users only where they have a lawful and ethical basis to do so and where respondents understand the purpose of the collection.",
+      ]],
+      ["Sharing and retention", [
+        "Information may be shared with service providers that support hosting, analytics, communications, payment processing, security, or Pulse-enabled product functionality under appropriate operational controls.",
+        "Information may be retained for as long as needed to provide the service, comply with legal or accounting obligations, resolve disputes, maintain security, and support legitimate business records.",
+        "Deletion or export requests may be reviewed according to account status, technical feasibility, contractual obligations, and applicable law.",
+      ]],
+      ["User choices", [
+        "Users may update account details, manage survey content, stop collecting responses, or request support with access, correction, export, or deletion where applicable.",
+        "Users remain responsible for notices, consents, and permissions connected with the audiences they invite to respond.",
+      ]],
+    ],
+  },
+  terms: {
+    title: "Terms and Conditions",
+    updated: "Draft for product use - June 2026",
+    intro: "These terms describe the expected use of Axiora Pulse as the Pulse mentor, idea validation, customer insight, and decision-support platform. Use of the platform should be understood as assisted judgment, not a substitute for business, legal, financial, tax, investment, or professional advice.",
+    sections: [
+      ["Nature of the platform", [
+        "Axiora Pulse helps users structure questions, collect responses, analyze signals, generate summaries, and organize action plans for business clarity and investor readiness.",
+        "Outputs may support decision-making, but they should be treated as guidance material rather than a definitive business outcome signal.",
+        "Business outcomes can be affected by execution quality, pricing, timing, unit economics, competition, regulation, capital availability, global events, local market behavior, team capability, distribution, and many other factors outside the platform.",
+      ]],
+      ["User responsibility", [
+        "Users remain responsible for their own decisions, implementation, communications, fundraising claims, financial commitments, product launches, and use of platform outputs.",
+        "Users should independently review reports, validate assumptions, consult qualified professionals where appropriate, and avoid presenting Pulse outputs as assured results.",
+        "Users should not upload content they do not have rights to use or collect respondent information without the required permission, notice, or lawful basis.",
+      ]],
+      ["Acceptable use", [
+        "The platform should not be used for unlawful, deceptive, discriminatory, harmful, infringing, defamatory, exploitative, or privacy-invasive activity.",
+        "Users should not attempt to reverse engineer, overload, scrape, bypass security, interfere with platform operations, or misuse Pulse-generated outputs.",
+        "Survey invitations and respondent communications should be accurate, respectful, and compliant with applicable marketing, privacy, and communication rules.",
+      ]],
+      ["Pulse Mentor outputs and reports", [
+        "Pulse-generated summaries, recommendations, scores, and action plans may contain limitations, assumptions, uncertainty, or errors.",
+        "Reports are intended to help users think through customer signal and strategic options; they should be read with business judgment and market context.",
+        "Where users share reports with investors, customers, partners, or institutions, users should explain methodology, sample limitations, and context honestly.",
+      ]],
+      ["Payments and plans", [
+        "Plan access, response limits, feature availability, discounts, founding-member offers, and pricing may be adjusted according to product policy, commercial terms, or operational requirements.",
+        "Limited-period offers may be subject to eligibility, usage conditions, availability, and verification before activation.",
+      ]],
+      ["Liability posture", [
+        "To the extent permitted by applicable law, Axiora Pulse is provided as a platform for guidance and decision support, with service commitments limited to the applicable plan or agreement.",
+        "Indirect business losses, lost profits, failed launches, fundraising outcomes, market changes, or implementation results remain outside the platform's control.",
+      ]],
+    ],
+  },
+  security: {
+    title: "Security Statement",
+    updated: "Draft for product use - June 2026",
+    intro: "This statement outlines the security posture intended for Axiora Pulse. Security is treated as an operational discipline across account access, data handling, infrastructure, and product workflows.",
+    sections: [
+      ["Platform safeguards", [
+        "Access controls, authentication flows, transport encryption, tenant-aware data handling, and environment-level controls may be used to reduce unauthorized access risk.",
+        "Operational logs and monitoring may be used to detect errors, suspicious behavior, abuse patterns, and system reliability issues.",
+        "Security controls are maintained as layered safeguards; no internet-based system can be described as risk-free.",
+      ]],
+      ["User-side safeguards", [
+        "Users should use strong credentials, restrict team access, review invited collaborators, and avoid sharing confidential report links publicly.",
+        "Users should avoid uploading unnecessary sensitive personal data, financial secrets, health information, government identifiers, or confidential third-party material unless the use case has been properly reviewed.",
+      ]],
+      ["Incident handling", [
+        "Potential security issues may be assessed, contained, investigated, and communicated according to severity, legal requirements, and operational impact.",
+        "Users should report suspected account compromise, unintended data exposure, or suspicious activity through the support or contact channels provided by Axiora Pulse.",
+      ]],
+    ],
+  },
+  data: {
+    title: "Data Policy",
+    updated: "Draft for product use - June 2026",
+    intro: "This policy explains how data responsibilities are divided when users collect responses, generate insights, and use Pulse Mentor outputs through Axiora Pulse.",
+    sections: [
+      ["User content and respondent data", [
+        "Users control the questions they ask, the audiences they invite, the business ideas they describe, and the content they upload or generate through the platform.",
+        "Users should collect only the data needed for the stated validation purpose and should avoid excessive, sensitive, or irrelevant data collection.",
+        "Respondent data should be handled with transparency, respect, and applicable consent or notice obligations.",
+      ]],
+      ["Insight generation", [
+        "Pulse may process user inputs and response data to create summaries, patterns, readiness indicators, recommendations, charts, and action plans.",
+        "Generated insights depend on the quality, volume, context, and honesty of inputs and responses. Weak samples, biased audiences, unclear questions, or incomplete business context may affect usefulness.",
+      ]],
+      ["Data quality and limitations", [
+        "The platform may help identify signals, objections, and patterns, while future customer behavior remains shaped by timing, execution, economics, competition, and market context.",
+        "Users should consider sample size, audience fit, collection channel, timing, local economics, competition, and execution capacity before acting on insights.",
+      ]],
+      ["Exports and sharing", [
+        "Users may export or share reports according to plan features and product permissions.",
+        "When sharing reports externally, users should avoid overstating certainty and should present findings as decision-support evidence rather than assured outcomes.",
+      ]],
+    ],
+  },
+};
+
+const faqs = [
+  ["How is this different from a Google Form?", "Pulse acts as the Pulse mentor and decision-support system. It guides the question flow, interprets customer insight, and turns responses into clarity, not just raw rows."],
+  ["Can I use the free plan forever?", "Yes. The free plan includes one guided survey and 50 responses, and you can view those insights forever."],
+  ["Who is the ₹1,999 one-time option for?", "It is for founders who want one focused Pulse-guided validation before choosing a subscription or spending more on the idea."],
+  ["What is the Founding Member Pass?", "It is a ₹4,999 lifetime pass for the first 100 early adopters who want ongoing idea validation, business clarity, and investor-readiness support."],
+  ["Will I get an investor-ready report?", "Paid plans include report-friendly summaries that connect market evidence, customer insight, capital discipline, and next-step recommendations."],
+  ["Do I need research experience?", "No. Pulse uses founder-friendly prompts and Pulse guidance to help you ask practical questions without research jargon."],
+  ["Can students use it?", "Yes. The Student plan is priced for campus founders, pitch competitions, and early projects."],
+  ["Can I upgrade later?", "Yes. Start free, run a one-time validation, or move to a monthly plan when you need more guided studies and responses."],
+];
+
+function Modal({ type, onClose, onNavigate }) {
+  const isLogin = type === "login";
+  const isSignup = type === "signup";
+  const legalKey = type?.startsWith("legal:") ? type.split(":")[1] : null;
+  const legalDoc = legalKey ? legalDocs[legalKey] : null;
+
+  if (legalDoc) {
+    return (
+      <div className="lp-modal-backdrop" role="dialog" aria-modal="true">
+        <div className="lp-modal legal">
+          <div className="lp-modal-head">
+            <div>
+              <h3>{legalDoc.title}</h3>
+              <p>{legalDoc.intro}</p>
+              <span className="lp-legal-updated">{legalDoc.updated}</span>
+            </div>
+            <button className="lp-icon-btn" onClick={onClose} aria-label="Close"><X className="lp-icon" /></button>
+          </div>
+          <div className="lp-legal-body">
+            {legalDoc.sections.map(([heading, points]) => (
+              <section key={heading}>
+                <h4>{heading}</h4>
+                <ul>
+                  {points.map((point) => <li key={point}>{point}</li>)}
+                </ul>
+              </section>
+            ))}
+          </div>
+          <div className="lp-modal-actions">
+            <button className="lp-btn lp-btn-primary" onClick={onClose}>Close</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (type === "start") {
+    return (
+      <div className="lp-modal-backdrop" role="dialog" aria-modal="true">
+        <div className="lp-modal">
+          <div className="lp-modal-head">
+            <div>
+              <h3>Start with guidance</h3>
+              <p>Pick the path that matches the clarity and action support you need today.</p>
+            </div>
+            <button className="lp-icon-btn" onClick={onClose} aria-label="Close"><X className="lp-icon" /></button>
+          </div>
+          <div className="lp-flow-options">
+            <button className="lp-flow-option" onClick={() => onNavigate("/register")}>
+              <Rocket className="lp-icon" />
+              <span><strong>Try Free</strong><span>1 guided survey, 50 responses, view forever.</span></span>
+            </button>
+            <button className="lp-flow-option" onClick={() => onNavigate("/register")}>
+              <FileText className="lp-icon" />
+              <span><strong>Run one validation</strong><span>₹1,999 one-time Pulse-guided study for cautious builders.</span></span>
+            </button>
+            <button className="lp-flow-option" onClick={() => onNavigate("/register")}>
+              <Sparkles className="lp-icon" />
+              <span><strong>Founding Member Pass</strong><span>₹4,999 lifetime Pulse Mentor access for the first 100.</span></span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="lp-modal-backdrop" role="dialog" aria-modal="true">
+      <div className="lp-modal">
+        <div className="lp-modal-head">
+          <div>
+            <h3>{isLogin ? "Welcome back" : "Create your free account"}</h3>
+            <p>{isLogin ? "Continue to your Pulse Mentor dashboard." : "Start with one guided survey and 50 responses."}</p>
+          </div>
+          <button className="lp-icon-btn" onClick={onClose} aria-label="Close"><X className="lp-icon" /></button>
+        </div>
+        <div className="lp-form">
+          <input className="lp-input" placeholder="Email address" type="email" />
+          <input className="lp-input" placeholder="Password" type="password" />
+        </div>
+        <div className="lp-modal-actions">
+          <button className="lp-btn lp-btn-primary" onClick={() => onNavigate(isLogin ? "/login" : "/register")}>
+            {isLogin ? "Login" : "Start Free"} <ArrowRight className="lp-icon-sm" />
+          </button>
+          <button className="lp-btn lp-btn-secondary" onClick={() => onNavigate(isSignup ? "/login" : "/register")}>
+            {isSignup ? "I have an account" : "Create account"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BrandLogo() {
+  return (
+    <>
+      <div className="lp-logo">
+        <span className="lp-logo-parent">Axiora</span>
+        <span className="lp-logo-product">Pulse</span>
+        <div className="lp-logo-dot">
+          <div className="sonar-ring" />
+          <div className="sonar-ring" />
+          <div className="sonar-ring" />
+        </div>
+      </div>
+    </>
+  );
+}
+
+function SocialIcon({ type }) {
+  const paths = {
+    linkedin: <path d="M20.45 20.45h-3.55v-5.57c0-1.33-.03-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.35V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.45v6.29zM5.34 7.43a2.06 2.06 0 1 1 0-4.13 2.06 2.06 0 0 1 0 4.13zM7.12 20.45H3.56V9h3.56v11.45zM22.23 0H1.77C.79 0 0 .77 0 1.73v20.54C0 23.23.79 24 1.77 24h20.45c.98 0 1.78-.77 1.78-1.73V1.73C24 .77 23.2 0 22.23 0z" />,
+    x: <path d="M18.24 2.25h3.31l-7.23 8.26 8.5 11.24h-6.66l-5.21-6.82-5.97 6.82H1.68l7.73-8.84L1.25 2.25h6.83l4.71 6.23 5.45-6.23zm-1.16 17.52h1.83L7.08 4.13H5.12l11.96 15.64z" />,
+    instagram: <path d="M12 2.16c3.2 0 3.58.01 4.85.07 3.25.15 4.77 1.69 4.92 4.92.06 1.27.07 1.65.07 4.85s-.01 3.58-.07 4.85c-.15 3.23-1.66 4.77-4.92 4.92-1.27.06-1.64.07-4.85.07s-3.58-.01-4.85-.07c-3.26-.15-4.77-1.7-4.92-4.92-.06-1.27-.07-1.64-.07-4.85s.01-3.58.07-4.85c.15-3.23 1.66-4.77 4.92-4.92 1.27-.06 1.65-.07 4.85-.07zM12 0C8.74 0 8.33.01 7.05.07 2.7.27.27 2.69.07 7.05.01 8.33 0 8.74 0 12s.01 3.67.07 4.95c.2 4.36 2.62 6.78 6.98 6.98C8.33 23.99 8.74 24 12 24s3.67-.01 4.95-.07c4.35-.2 6.78-2.62 6.98-6.98.06-1.28.07-1.69.07-4.95s-.01-3.67-.07-4.95c-.2-4.35-2.62-6.78-6.98-6.98C15.67.01 15.26 0 12 0zm0 5.84a6.16 6.16 0 1 0 0 12.32 6.16 6.16 0 0 0 0-12.32zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.41-11.85a1.44 1.44 0 1 0 0 2.88 1.44 1.44 0 0 0 0-2.88z" />,
+    youtube: <path d="M23.5 6.19a3.02 3.02 0 0 0-2.12-2.14C19.5 3.55 12 3.55 12 3.55s-7.5 0-9.38.5A3.02 3.02 0 0 0 .5 6.19C0 8.07 0 12 0 12s0 3.93.5 5.81a3.02 3.02 0 0 0 2.12 2.14c1.88.5 9.38.5 9.38.5s7.5 0 9.38-.5a3.02 3.02 0 0 0 2.12-2.14C24 15.93 24 12 24 12s0-3.93-.5-5.81zM9.55 15.57V8.43L15.82 12l-6.27 3.57z" />,
+  };
+  return <svg viewBox="0 0 24 24" aria-hidden="true">{paths[type]}</svg>;
+}
+
 export default function Landing() {
   const navigate = useNavigate();
-  const onEnterApp = () => navigate('/login');
-  const onSignUp   = () => navigate('/register');
-  const bodyRef = useRef(null);
   const { stopLoading } = useLoading();
+  const [headlineIndex, setHeadlineIndex] = useState(0);
+  const [testimonialIndex, setTestimonialIndex] = useState(0);
+  const [pricingMode, setPricingMode] = useState("monthly");
+  const [pricingWindowStart, setPricingWindowStart] = useState(1);
+  const [openFaq, setOpenFaq] = useState(0);
+  const [modal, setModal] = useState(null);
+
   useEffect(() => { stopLoading(); }, [stopLoading]);
 
-  // Inject CSS once
   useEffect(() => {
     if (!document.getElementById("lp-gfonts")) {
       const link = document.createElement("link");
       link.id = "lp-gfonts";
       link.rel = "stylesheet";
-      link.href = "https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700;1,900&family=Syne:wght@400;500;600;700;800&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&display=swap";
+      link.href = "https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;0,9..144,800;1,9..144,400&family=Inter:wght@400;500;600;700;800;900&family=Playfair+Display:wght@700;800;900&family=Syne:wght@500;600;700;800&display=swap";
       document.head.appendChild(link);
     }
-    // Keep style tag alive across remounts to avoid animation flicker
-    if (!document.getElementById("lp-styles")) {
-      const el = document.createElement("style");
-      el.id = "lp-styles";
-      el.textContent = CSS;
-      document.head.appendChild(el);
+    let style = document.getElementById("lp-founder-styles");
+    if (!style) {
+      style = document.createElement("style");
+      style.id = "lp-founder-styles";
+      document.head.appendChild(style);
     }
+    style.textContent = CSS;
   }, []);
 
-  // Force hero CSS animations to replay on every mount
   useEffect(() => {
-    const heroAnims = document.querySelectorAll(
-      ".lp-h-tag, .lp-h-word, .lp-h-sub, .lp-h-ctas, .lp-hero-cards, .lp-scroll-cue"
-    );
-    heroAnims.forEach(el => {
-      el.style.animation = "none";
-      // Trigger reflow
-      void el.offsetWidth;
-      el.style.animation = "";
-    });
+    const id = window.setInterval(() => {
+      setHeadlineIndex((current) => (current + 1) % heroLines.length);
+    }, 3800);
+    return () => window.clearInterval(id);
   }, []);
 
-  // Nav stuck
-  const [stuck, setStuck] = useState(false);
-  useEffect(() => {
-    const fn = () => setStuck(window.scrollY > 60);
-    window.addEventListener("scroll", fn, { passive: true });
-    return () => window.removeEventListener("scroll", fn);
-  }, []);
+  const displayedPlans = useMemo(() => {
+    if (pricingMode === "one-time") return [oneTimePlan, ...plans.filter((plan) => ["Starter", "Growth", "Enterprise"].includes(plan.name))];
+    const monthlyOrder = ["Freemium", "Student", "Starter", "Growth", "Enterprise", "Professional"];
+    const monthlyPlans = monthlyOrder.map((name) => plans.find((plan) => plan.name === name)).filter(Boolean);
+    return monthlyPlans.slice(pricingWindowStart, pricingWindowStart + 4);
+  }, [pricingMode, pricingWindowStart]);
 
-  // Scroll reveal
-  useEffect(() => {
-    let obs;
-    const t = setTimeout(() => {
-      const elements = document.querySelectorAll(".lp-sr");
+  const go = (path) => {
+    setModal(null);
+    navigate(path);
+  };
 
-      // Any element already scrolled past or in view should be visible immediately
-      elements.forEach(el => {
-        const rect = el.getBoundingClientRect();
-        if (rect.top < window.innerHeight) el.classList.add("vis");
-      });
-
-      // Observer handles the rest as user scrolls down
-      obs = new IntersectionObserver(entries => {
-        entries.forEach(e => { if (e.isIntersecting) e.target.classList.add("vis"); });
-      }, { threshold: 0.12 });
-
-      elements.forEach(el => obs.observe(el));
-    }, 80);
-
-    return () => {
-      clearTimeout(t);
-      if (obs) obs.disconnect();
-    };
-  }, []);
-
-
-  // Counter animation (matching HTML animCount)
-  useEffect(() => {
-    const animCount = (el, end, dur, suffix = '') => {
-      let start = null;
-      const step = ts => {
-        if (!start) start = ts;
-        const p = Math.min((ts - start) / dur, 1);
-        const ease = 1 - Math.pow(1 - p, 4);
-        el.textContent = Math.floor(ease * end).toLocaleString() + suffix;
-        if (p < 1) requestAnimationFrame(step);
-      };
-      requestAnimationFrame(step);
-    };
-
-    // Reset to zero so they re-count on remount
-    document.querySelectorAll("[data-counter]").forEach(el => { el.textContent = "0"; });
-
-    const ctrObs = new IntersectionObserver(entries => {
-      entries.forEach(e => {
-        if (e.isIntersecting) {
-          const el = e.target;
-          if (el.dataset.counter === "ctr1") animCount(el, 84, 2000, '%');
-          if (el.dataset.counter === "kpi1") animCount(el, 4821, 2500);
-          ctrObs.unobserve(el);
-        }
-      });
-    }, { threshold: 0.5 });
-    const t = setTimeout(() => {
-      document.querySelectorAll("[data-counter]").forEach(el => ctrObs.observe(el));
-    }, 100);
-    return () => { clearTimeout(t); ctrObs.disconnect(); };
-  }, []);
-
-  // Parallax blobs on hero
-  const meshRef = useRef(null);
-  useEffect(() => {
-    const fn = e => {
-      if (!meshRef.current) return;
-      const x = (e.clientX / window.innerWidth - 0.5) * 30;
-      const y = (e.clientY / window.innerHeight - 0.5) * 30;
-      meshRef.current.querySelectorAll(".lp-mb").forEach((b, i) => {
-        const f = (i + 1) * 0.55;
-        b.style.transform = `translate(${x * f}px,${y * f}px)`;
-      });
-    };
-    document.addEventListener("mousemove", fn);
-    return () => document.removeEventListener("mousemove", fn);
-  }, []);
-
-  const TICKER = ["Unilever", "HDFC Bank", "Reliance Industries", "Asian Paints", "Titan Company", "Marico", "ITC Limited", "Bajaj Finserv", "Myntra", "Tata Consumer"];
+  const testimonial = testimonials[testimonialIndex];
+  const activeActionPlan = heroActionPlans[headlineIndex];
+  const movePricing = (direction) => {
+    if (pricingMode === "one-time") return;
+    setPricingWindowStart((current) => Math.max(0, Math.min(2, current + direction)));
+  };
 
   return (
-    <div className="lp">
-      {/* ── NAV ── */}
-      <nav className={`lp-nav${stuck ? " stuck" : ""}`}>
-        <a href="#" className="lp-logo">
-          <span className="lp-logo-parent">Axiora</span>
-          <span className="lp-logo-product">Pulse</span>
-          <div className="lp-logo-dot">
-            <div className="sonar-ring" /><div className="sonar-ring" /><div className="sonar-ring" />
-          </div>
-        </a>
-        <ul className="lp-nav-links">
-          <li><a href="#lp-how">Research</a></li>
-          <li><a href="#lp-builder">Builder</a></li>
-          <li><a href="#lp-analytics">Analytics</a></li>
-          <li><a href="#lp-pricing">Pricing</a></li>
-          <li><a href="#" onClick={e => { e.preventDefault(); onEnterApp(); }} style={{ opacity: .55 }}>Sign In</a></li>
-          <li><button className="lp-nav-btn" onClick={onSignUp}>Get Started</button></li>
-        </ul>
-      </nav>
+    <>
+      <div className="lp">
+        <nav className="lp-nav">
+          <div className="lp-shell lp-nav-inner">
+            <a className="lp-logo" href="#" onClick={(event) => event.preventDefault()}>
+              {/* <BrandLogo /> */}
+              <div className="lp-logo-wrapper">
+                <div className="lp-logo">
+                  <span className="lp-logo-parent">AXIORA</span>
 
-      {/* ── HERO ── */}
-      <section id="lp-hero">
-        <div className="lp-mesh" ref={meshRef}>
-          <div className="lp-mb lp-mb1" /><div className="lp-mb lp-mb2" />
-          <div className="lp-mb lp-mb3" /><div className="lp-mb lp-mb4" />
-        </div>
-        <div className="lp-grain" />
-        <div className="lp-ghost lp-ghost-h">Pulse</div>
+                  <span className="lp-logo-product">Pulse</span>
 
-        <div className="lp-hero-wrap">
-          {/* Left */}
-          <div>
-            <div className="lp-h-tag"><span className="lp-h-tag-line" />INDIA’S LARGEST MARKET FEEDBACK & DECISION-MAKING PLATFORM</div>
-            <h1 className="lp-h-head">
-              <span className="lp-hline"><span className="lp-h-word lp-hw1">Opinion&nbsp;</span><span className="lp-h-word lp-hw2">is&nbsp;</span></span>
-              <span className="lp-hline"><span className="lp-h-word lp-hw3"><em>evidence.</em>&nbsp;</span></span>
-              <span className="lp-hline"><span className="lp-h-word lp-hw4">Treat&nbsp;</span><span className="lp-h-word lp-hw5">it&nbsp;</span><span className="lp-h-word lp-hw6">that way.</span></span>
-            </h1>
-            <p className="lp-h-sub">Axiora Pulse is engineered on Likert-scale rigour, cognitive load reduction, and response-bias elimination — so every data point you collect is one you can defend in a boardroom.</p>
-            <div className="lp-h-ctas">
-              <button className="lp-btn-fire" onClick={onSignUp}>
-                <span>Get Started Free</span>
-                <div className="lp-btn-fire-arr">
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 8L8 2M8 2H4M8 2V6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                </div>
-              </button>
-              <button className="lp-btn-outline" onClick={onEnterApp}>
-                <div className="lp-play-ring">
-                  <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M3.5 2.5L10 6.5L3.5 10.5V2.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" /></svg>
-                </div>
-                Sign In
-              </button>
-            </div>
-          </div>
-
-          {/* Right: Hero cards */}
-          <div className="lp-hero-cards">
-            <div className="lp-hcard">
-              <div className="lp-hc-label">Median Completion Rate</div>
-              <div className="lp-hc-big" data-counter="ctr1">84%</div>
-              <div className="lp-hc-sub">Across double-blind field studies</div>
-              <div className="lp-gbar"><div className="lp-gbar-fill" /></div>
-            </div>
-            <div className="lp-hcard">
-              <div className="lp-hc-label">Affective State Mapping</div>
-              <div className="lp-edots">
-                {["Delighted", "Curious", "Satisfied", "Neutral", "Concerned"].map(l => (
-                  <div className="lp-edot" key={l}>
-                    <div className="lp-edot-pip" />
-                    <div className="lp-edot-bar-track"><div className="lp-edot-bar-fill" /></div>
-                    <span className="lp-edot-lbl">{l}</span>
+                  <div className="lp-logo-dot">
+                    <div className="sonar-ring"></div>
+                    <div className="sonar-ring"></div>
+                    <div className="sonar-ring"></div>
                   </div>
-                ))}
-              </div>
-              <div className="lp-hc-sub" style={{ marginTop: 10 }}>Russell's Circumplex · Validated scale</div>
-            </div>
-            <div className="lp-hcard">
-              <div className="lp-hc-label">Coded Responses</div>
-              <div className="lp-hc-big">2.4k</div>
-              <div className="lp-hc-sub">Thematic + sentiment coded</div>
-              <div className="lp-sparkline">
-                {[0, 1, 2, 3, 4, 5, 6, 7].map(i => <div className="lp-sp" key={i} />)}
-              </div>
-            </div>
-            <div className="lp-hcard">
-              <div className="lp-hc-label">Net Promoter Score</div>
-              <div className="lp-hc-big" style={{ fontSize: 32, color: "var(--sage)" }}>+72</div>
-              <div className="lp-trend">↑ 8pt lift · stat. significant</div>
-            </div>
-          </div>
-        </div>
+                </div>
 
-        <div className="lp-scroll-cue">
-          <div className="lp-sc-line" />
-          <div className="lp-sc-txt">Scroll to explore</div>
-        </div>
-
-        <div className="lp-ticker-bar">
-          <span className="lp-ticker-lbl">Research partners</span>
-          <div className="lp-ticker-overflow">
-            <div className="lp-ticker-track">
-              {[...TICKER, ...TICKER].map((name, i) => (
-                <span className="lp-ticker-item" key={i}>{name}</span>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Diagonal cut */}
-      <div style={{ height: 70, background: "linear-gradient(to bottom right,var(--cream-deep) 49.9%,#fff 50%)" }} />
-
-      {/* ── HOW IT WORKS ── */}
-      <section id="lp-how">
-        <div className="lp-ghost" style={{ fontSize: "clamp(120px,14vw,220px)", WebkitTextStroke: "1px rgba(255,69,0,.04)", top: -40, right: -30, zIndex: 0, letterSpacing: -3 }}>Process</div>
-        <div className="lp-sec-head lp-sr">
-          <div>
-            <div className="lp-sec-tag">Survey Science</div>
-            <h2 className="lp-sec-title">Built on three <em>principles</em> of good research</h2>
-          </div>
-          <p className="lp-sec-aside">Rooted in psychometric theory, field-tested with 2.4 million respondents across India. Every feature has a methodological reason to exist.</p>
-        </div>
-        <div className="lp-steps">
-          {[
-            { n: "01 — Design", title: "Instrument Design", desc: "Construct questionnaires that eliminate acquiescence bias, social desirability effects, and primacy order artefacts. Our builder enforces best-practice sequencing — funnelling from broad to specific, never leading, never double-barrelling.", stats: [["Validated scales", "24+"], ["Avg instrument build", "11 min"]], icon: <><rect x="3" y="3" width="18" height="18" rx="3" /><path d="M8 12h8M12 8v8" /></> },
-            { n: "02 — Distribute", title: "Sampling & Field", desc: "Quota-controlled sampling across demographic, psychographic, and behavioural strata. Real-time speedster detection, straight-lining alerts, and open-text gibberish filtering protect data quality before it costs you.", stats: [["Sampling strata", "18"], ["Median field time", "38 hrs"]], icon: <><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="M8.59 13.51L15.42 17.49M15.41 6.51L8.59 10.49" /></> },
-            { n: "03 — Understand", title: "Analysis & Inference", desc: "Cross-tabulation, regression weighting, MaxDiff scoring, and driver analysis run automatically. Statistical significance is flagged at every comparison. You see what is real — not what is merely frequent.", stats: [["Analysis methods", "17"], ["Sig. threshold", "p < .05"]], icon: <><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" /></> },
-          ].map((step, i) => (
-            <div className={`lp-step lp-sr lp-sr-d${i + 1}`} key={i}>
-              <div className="lp-step-flood" />
-              <div className="lp-step-n">{step.n}</div>
-              <div className="lp-step-ico"><svg viewBox="0 0 24 24">{step.icon}</svg></div>
-              <h3 className="lp-step-ttl">{step.title}</h3>
-              <p className="lp-step-dsc">{step.desc}</p>
-              <div className="lp-step-stats">
-                {step.stats.map(([l, v]) => (
-                  <div key={l}><div className="lp-step-stat-l">{l}</div><div className="lp-step-stat-v">{v}</div></div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-
-      {/* ── BUILDER ── */}
-      <section id="lp-builder">
-        <div className="lp-ghost" style={{ fontSize: "clamp(100px,12vw,200px)", WebkitTextStroke: "1px rgba(255,69,0,.04)", bottom: -30, left: -20, zIndex: 0 }}>Builder</div>
-        <div className="lp-builder-inner">
-          <div className="lp-builder-canvas lp-sr lp-sr-d1">
-            <div className="lp-canvas-topbar">
-              <div className="lp-tbar-dots"><div className="lp-tbar-dot" /><div className="lp-tbar-dot" /><div className="lp-tbar-dot" /></div>
-              <div className="lp-tbar-title">Product Feedback — Q1 2025</div>
-            </div>
-            <div className="lp-canvas-body">
-              <div className="lp-q-card active">
-                <div className="lp-q-type">Forced Choice — Single Select</div>
-                <div className="lp-q-text">Which one factor most influenced your decision to purchase?</div>
-                <div className="lp-q-options">
-                  {["Price point", "Brand trust", "Peer referral", "Availability"].map(o => <span className="lp-q-opt" key={o}>{o}</span>)}
+                <div className="lp-logo-tagline">
+                  Idea Validation | AI Mentorship | Smarter Decisions
                 </div>
               </div>
-              <div className="lp-q-card">
-                <div className="lp-q-type">11-point NPS Scale</div>
-                <div className="lp-q-text">How likely are you to recommend this brand to a colleague or peer?</div>
-                <div style={{ padding: "8px 0 4px" }}>
-                  <div className="lp-q-slider-track"><div className="lp-q-slider-fill" /><div className="lp-q-slider-thumb" /></div>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
-                  <span style={{ fontFamily: "Syne,sans-serif", fontSize: 10, color: "var(--espresso)", opacity: .4 }}>0 · Not at all likely</span>
-                  <span style={{ fontFamily: "Syne,sans-serif", fontSize: 10, color: "var(--espresso)", opacity: .4 }}>10 · Extremely likely</span>
-                </div>
-              </div>
-              <div className="lp-q-card">
-                <div className="lp-q-type">Semantic Differential</div>
-                <div className="lp-q-text">Rate your perception of the brand on each dimension</div>
-                <div className="lp-q-stars">
-                  <span className="lp-star">⭐</span><span className="lp-star">⭐</span><span className="lp-star">⭐</span><span className="lp-star">⭐</span><span>☆</span>
-                </div>
-              </div>
-              <div className="lp-canvas-add-btn">
-                <div className="lp-plus-ico">
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M5 1v8M1 5h8" stroke="var(--coral)" strokeWidth="1.5" strokeLinecap="round" /></svg>
-                </div>
-                Add Question
-              </div>
+            </a>
+            <div className="lp-nav-links">
+              <a href="#how">How it works</a>
+              <a href="#analytics">Analytics</a>
+              <a href="#reviews">Reviews</a>
+              <a href="#templates">Templates</a>
+              <a href="#pricing">Pricing</a>
+            </div>
+            <div className="lp-nav-actions">
+              <button className="lp-btn lp-btn-secondary" onClick={() => navigate("/login")}><LogIn className="lp-icon-sm" /> Login</button>
+              <button className="lp-btn lp-btn-primary" onClick={() => setModal("start")}>Try Free <ArrowRight className="lp-icon-sm" /></button>
             </div>
           </div>
-          <div className="lp-builder-txt lp-sr lp-sr-d2">
-            <div className="lp-sec-tag">Instrument Builder</div>
-            <h2 className="lp-sec-title">Every question is a <em>decision</em></h2>
-            <p className="lp-sec-aside">Closed-ended or open? Forced-choice or ranked preference? The builder flags when your wording risks anchoring, framing, or double-barrelling a response — before a single respondent sees it.</p>
-            <div className="lp-q-types-grid">
-              {[
-                { label: "Likert Scale", bg: "rgba(255,69,0,.08)", stroke: "var(--coral)", icon: <><path d="M7 2v10M2 7h10" strokeLinecap="round" /></> },
-                { label: "MaxDiff Ranking", bg: "rgba(255,184,0,.1)", stroke: "#B8870A", icon: <><rect x="1.5" y="2.5" width="11" height="9" rx="2" /><circle cx="4.5" cy="5.5" r="1" /><path d="M1.5 10l3-3 2.5 2.5 2-2L12 10" /></> },
-                { label: "Open Verbatim", bg: "rgba(30,122,74,.1)", stroke: "var(--sage)", icon: <><path d="M2 4h10M2 7h7M2 10h5" strokeLinecap="round" /></> },
-                { label: "Conjoint Grid", bg: "rgba(0,71,255,.08)", stroke: "var(--cobalt)", icon: <><rect x="1.5" y="8" width="2.5" height="4" rx="1" /><rect x="5.75" y="5" width="2.5" height="7" rx="1" /><rect x="10" y="2" width="2.5" height="10" rx="1" /></> },
-                { label: "Semantic Diff", bg: "rgba(255,69,0,.08)", stroke: "var(--coral)", icon: <><path d="M7 1.5l1.5 3.2 3.5.5-2.5 2.5.6 3.5L7 9.5l-3.1 1.7.6-3.5-2.5-2.5 3.5-.5z" strokeLinejoin="round" /></> },
-                { label: "Net Promoter", bg: "rgba(22,15,8,.06)", stroke: "var(--espresso)", icon: <><circle cx="7" cy="7" r="5.5" /><path d="M4.5 7h5M7 4.5v5" strokeLinecap="round" /></> },
-              ].map(qt => (
-                <div className="lp-qt-chip" key={qt.label}>
-                  <div className="lp-qt-ico" style={{ background: qt.bg }}>
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke={qt.stroke} strokeWidth="1.5" strokeLinecap="round">{qt.icon}</svg>
-                  </div>
-                  {qt.label}
-                </div>
-              ))}
-            </div>
-            <button className="lp-btn-fire" onClick={onSignUp}>
-              <span>Build a Study</span>
-              <div className="lp-btn-fire-arr">
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 8L8 2M8 2H4M8 2V6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-              </div>
-            </button>
-          </div>
-        </div>
-      </section>
+        </nav>
 
-      <div style={{ height: 70, background: "linear-gradient(to bottom left,var(--espresso) 49.9%,var(--cream-deep) 50%)" }} />
-
-      {/* ── ANALYTICS ── */}
-      <section id="lp-analytics">
-        <div className="lp-analytics-glow" />
-        <div className="lp-ghost" style={{ WebkitTextStroke: "1px rgba(253,245,232,.04)", fontSize: "clamp(100px,13vw,210px)", bottom: -50, right: -30, zIndex: 0 }}>Data</div>
-        <div className="lp-analytics-head lp-sr">
-          <div>
-            <div className="lp-sec-tag">Analysis Engine</div>
-            <h2 className="lp-sec-title">Significance, not just <em>frequency</em></h2>
-          </div>
-          <p className="lp-sec-aside">Most tools tell you what respondents said. Pulse tells you what they meant — tested against statistical thresholds, weighted for sample representativeness, flagged for significance at every cut.</p>
-        </div>
-        <div className="lp-dash-wrap lp-sr lp-sr-d1">
-          <div className="lp-dash-topbar">
+        <header className="lp-hero">
+          <div className="lp-shell lp-hero-grid">
             <div>
-              <div className="lp-dash-ttl">Brand Equity Tracker — Wave 3</div>
-              <div className="lp-dash-sub">Quant study · n=4,821 · Urban India · SEC A/B · 22–48 yrs</div>
+              <div className="lp-eyebrow"><Sparkles className="lp-icon-sm" /> Know the Market. Get the Guidance. Build with Confidence.</div>
+              <h1 className="lp-heading">{heroLines[headlineIndex].split(" ").slice(0, -3).join(" ")} <span>{heroLines[headlineIndex].split(" ").slice(-3).join(" ")}</span></h1>
+              <p className="lp-hero-copy">Axiora Pulse acts as the Pulse mentor and decision-support system that guides users with idea validation, business clarity, customer insights, capital discipline, pre-traction strategy, investor readiness, and step-by-step action plans.</p>
+              <div className="lp-hero-ctas">
+                <button className="lp-btn lp-btn-primary" onClick={() => setModal("start")}>Start Free <ArrowRight className="lp-icon-sm" /></button>
+                <button className="lp-btn lp-btn-secondary" onClick={() => document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" })}>View Pricing</button>
+              </div>
+              <div className="lp-hero-note">
+                <span className="lp-note-pill"><Check className="lp-icon-sm" /> 50 responses free forever</span>
+                <span className="lp-note-pill"><ShieldCheck className="lp-icon-sm" /> Confidential founder data</span>
+              </div>
             </div>
-            <div className="lp-dash-badges">
-              <div className="lp-dash-badge"><div className="lp-live-pip" />Live tracking</div>
-              <div className="lp-dash-badge">n = 4,821 · 95% CI</div>
-              <div className="lp-dash-badge">MoE ±1.4% · p &lt; .05</div>
+            <div className="lp-proof-panel" aria-label="Example validation report">
+              <div className="lp-proof-top">
+                <div>
+                  <div className="lp-proof-title">{activeActionPlan.title}</div>
+                  <div className="lp-report-label">{activeActionPlan.idea}</div>
+                </div>
+                <span className="lp-live">Live</span>
+              </div>
+              <div className="lp-report-card">
+                <div className="lp-report-row"><span className="lp-report-label">{activeActionPlan.signalLabel}</span><span className="lp-report-value">{activeActionPlan.signalValue}</span></div>
+                <div className="lp-bar"><span style={{ width: activeActionPlan.signalWidth }} /></div>
+                {activeActionPlan.rows.map(([label, value]) => (
+                  <div className="lp-report-row" key={label}><span className="lp-report-label">{label}</span><span className="lp-report-value">{value}</span></div>
+                ))}
+              </div>
+              <div className="lp-mini-grid">
+                {activeActionPlan.stats.map(([value, label]) => (
+                  <div className="lp-mini-stat" key={label}><strong>{value}</strong><span>{label}</span></div>
+                ))}
+              </div>
             </div>
           </div>
-          <div className="lp-kpi-row">
-            {[["Valid Completes", "4,821", "↑ Wave-on-wave +23%", "up"], ["Incidence Rate", "84%", "↑ 8pts vs category norm", "up"], ["Brand Affect Score", "+68", "↑ Sig. above neutral (z=3.2)", "up"], ["Median LOI", "3.2m", "0.4m above target LOI", "dn"]].map(([l, v, ch, cls], idx) => (
-              <div className={`lp-kpi-box lp-sr lp-sr-d${idx + 1}`} key={l}>
-                <div className="lp-kpi-lbl">{l}</div>
-                <div className="lp-kpi-val" {...(idx === 0 ? { "data-counter": "kpi1" } : {})}>{v}</div>
-                <div className={`lp-kpi-chg ${cls}`}>{ch}</div>
+        </header>
+
+        <section className="lp-social">
+          <div className="lp-shell lp-social-inner">
+            <div className="lp-avatar-row">
+              <div className="lp-avatars">
+                {["AM", "NR", "KS", "PV"].map((name, index) => (
+                  <div className="lp-avatar" key={name} style={{ background: ["#0052CC", "#FF9500", "#128A4A", "#7C3AED"][index] }}>{name}</div>
+                ))}
               </div>
-            ))}
-          </div>
-          <div className="lp-dash-grid">
-            <div className="lp-chart-card lp-sr lp-sr-d1">
-              <div className="lp-chart-head">
-                <div className="lp-chart-ttl">Field Completion — Daily Completes</div>
-                <div className="lp-chart-leg">
-                  <div className="lp-leg-item"><div className="lp-leg-dot" style={{ background: "var(--coral)" }} />Wave 3 (current)</div>
-                  <div className="lp-leg-item"><div className="lp-leg-dot" style={{ background: "rgba(253,245,232,.2)" }} />Wave 2 (baseline)</div>
-                </div>
-              </div>
-              <svg viewBox="0 0 520 160" fill="none" style={{ width: "100%" }}>
-                <defs><linearGradient id="lpBarGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#FF6B35" /><stop offset="100%" stopColor="#FF4500" stopOpacity=".7" /></linearGradient></defs>
-                {[140, 100, 60, 20].map(y => <line key={y} x1="0" y1={y} x2="520" y2={y} stroke="rgba(253,245,232,.06)" strokeWidth="1" />)}
-                {[[10, 90], [80, 70], [150, 80], [220, 50], [290, 60], [360, 75], [430, 40]].map(([x, y], i) => <rect key={i} x={x} y={y} width="30" height={140 - y} rx="4" fill="rgba(253,245,232,.08)" />)}
-                {[[44, 60], [114, 30], [184, 50], [254, 20], [324, 35], [394, 45], [464, 10]].map(([x, y], i) => <rect key={i} x={x} y={y} width="30" height={140 - y} rx="4" fill="url(#lpBarGrad)" />)}
-                {["W1", "W2", "W3", "W4", "W5", "W6", "W7"].map((w, i) => <text key={w} x={25 + i * 70} y="158" fill="rgba(253,245,232,.3)" fontFamily="sans-serif" fontSize="10">{w}</text>)}
-              </svg>
-              <div style={{ marginTop: 24 }}>
-                <div style={{ fontFamily: "Syne,sans-serif", fontSize: 10, fontWeight: 600, letterSpacing: ".1em", textTransform: "uppercase", color: "rgba(253,245,232,.35)", marginBottom: 10 }}>Sentiment Polarity — Weighted Distribution</div>
-                <div className="lp-sentiment-row">
-                  <span style={{ fontFamily: "Syne,sans-serif", fontSize: 10, color: "rgba(253,245,232,.3)" }}>—</span>
-                  <div className="lp-sent-spectrum"><div className="lp-sent-needle" /></div>
-                  <span style={{ fontFamily: "Syne,sans-serif", fontSize: 10, color: "rgba(253,245,232,.3)" }}>+</span>
-                </div>
-              </div>
+              <div className="lp-social-copy">Founder teams using Pulse to turn market signals into guidance, clarity, and disciplined action.</div>
             </div>
-            <div className="lp-chart-card lp-sr lp-sr-d2">
-              <div className="lp-chart-head"><div className="lp-chart-ttl">Affective State Distribution</div></div>
-              <div className="lp-donut-wrap">
-                <div className="lp-donut-center">
-                  <svg viewBox="0 0 180 180" width="180" height="180">
-                    <circle cx="90" cy="90" r="70" fill="none" stroke="rgba(253,245,232,.05)" strokeWidth="26" />
-                    <circle cx="90" cy="90" r="70" fill="none" stroke="#FF4500" strokeWidth="26" strokeDasharray="175 264" strokeDashoffset="0" strokeLinecap="round" />
-                    <circle cx="90" cy="90" r="70" fill="none" stroke="#FFB800" strokeWidth="26" strokeDasharray="106 333" strokeDashoffset="-175" strokeLinecap="round" />
-                    <circle cx="90" cy="90" r="70" fill="none" stroke="#1E7A4A" strokeWidth="26" strokeDasharray="66 373" strokeDashoffset="-281" strokeLinecap="round" />
-                    <circle cx="90" cy="90" r="70" fill="none" stroke="#0047FF" strokeWidth="26" strokeDasharray="53 386" strokeDashoffset="-347" strokeLinecap="round" />
-                  </svg>
-                  <div className="lp-donut-lbl">
-                    <div className="lp-donut-big">68%</div>
-                    <div className="lp-donut-small">Positive affect</div>
+            <div className="lp-social-stat"><strong>7 days</strong><span>typical guidance cycle</span></div>
+            <div className="lp-social-stat"><strong>50 free</strong><span>responses viewable forever</span></div>
+            <div className="lp-social-stat"><strong>₹1,999</strong><span>one-time validation option</span></div>
+          </div>
+        </section>
+
+        <section className="lp-section">
+          <div className="lp-shell">
+            <div className="lp-section-head">
+              <div>
+                <div className="lp-eyebrow"><Sparkles className="lp-icon-sm" /> Clarity. Confidence. Conquer.</div>
+                <h2 className="lp-heading lp-section-title">The symbols behind every guided decision.</h2>
+              </div>
+              <p className="lp-section-copy">Pulse is not only a survey layer. It is a decision support layer for founders who need signal, judgment, and action.</p>
+            </div>
+            <div className="lp-symbol-grid">
+              {symbols.map(([title, copy, Icon]) => (
+                <div className="lp-symbol" key={title}>
+                  <div className="lp-symbol-icon"><Icon className="lp-icon" /></div>
+                  <h3>{title}</h3>
+                  <p>{copy}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="lp-section" id="how">
+          <div className="lp-shell">
+            <div className="lp-section-head">
+              <div>
+                <div className="lp-eyebrow"><Rocket className="lp-icon-sm" /> How it works</div>
+                <h2 className="lp-heading lp-section-title">From idea to guided action in four steps.</h2>
+              </div>
+              <p className="lp-section-copy">No research jargon. Pulse helps founders understand the market, sharpen the business, control spend, and move with confidence.</p>
+            </div>
+            <div className="lp-steps-grid">
+              {[
+                ["Choose the clarity path", "Start with idea validation, business clarity, customer insight, or investor readiness."],
+                ["Let the Pulse Mentor guide", "Use founder-friendly prompts that turn uncertainty into structured learning."],
+                ["Read the market pulse", "Collect customer signals and see where demand, doubt, and willingness to pay appear."],
+                ["Follow the action plan", "Move with recommended next steps for traction, capital discipline, and investor prep."],
+              ].map(([title, copy], index) => (
+                <div className="lp-step" key={title}>
+                  <div className="lp-step-num">{index + 1}</div>
+                  <h3>{title}</h3>
+                  <p>{copy}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="lp-section lp-analytics" id="analytics">
+          <div className="lp-shell">
+            <div className="lp-section-head">
+              <div>
+                <div className="lp-eyebrow"><PieChart className="lp-icon-sm" /> Mentor analytics</div>
+                <h2 className="lp-heading lp-section-title">See the market signal, then see the action.</h2>
+              </div>
+              <p className="lp-section-copy">The analytics layer turns customer responses into readiness scores, pricing signal, objections, capital risk, and founder next steps.</p>
+            </div>
+            <div className="lp-analytics-board">
+              <div className="lp-analytics-top">
+                <div>
+                  <div className="lp-analytics-title">Founder Decision Dashboard</div>
+                  <div className="lp-analytics-sub">Market signal | buyer demand | pricing pulse | investor readiness</div>
+                </div>
+                <div className="lp-analytics-pill"><TrendingUp className="lp-icon-sm" /> Live signal improving</div>
+              </div>
+              <div className="lp-analytics-grid">
+                {analyticsKpis.map(([label, value, delta]) => (
+                  <div className="lp-analytics-kpi" key={label}>
+                    <span>{label}</span>
+                    <strong>{value}</strong>
+                    <em>{delta}</em>
+                  </div>
+                ))}
+              </div>
+              <div className="lp-analytics-lower">
+                <div className="lp-chart-panel">
+                  <div className="lp-chart-head">
+                    <div className="lp-chart-title">Demand signal over 7-day validation sprint</div>
+                    <div className="lp-chart-note">Simple read: higher bars mean more people understand the problem and want the solution.</div>
+                  </div>
+                  <div className="lp-chart-stage">
+                    <div className="lp-axis-y"><span>High</span><span>Med</span><span>Low</span></div>
+                    <div className="lp-chart-bars">
+                      {demandTrend.map(([label, height]) => (
+                        <div className="lp-bar-wrap" key={label} style={{ "--h": `${height}%` }}>
+                          <div className="lp-bar-value">{height}%</div>
+                          <div className="lp-chart-bar" style={{ height: `${height}%` }} />
+                          <div className="lp-bar-label">{label}</div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
-                <div className="lp-donut-legend">
-                  {[["#FF4500", "Delighted", "40%"], ["#FFB800", "Curious", "28%"], ["#1E7A4A", "Satisfied", "20%"], ["#0047FF", "Concerned", "12%"]].map(([c, l, p]) => (
-                    <div className="lp-dl-row" key={l}>
-                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: c, flexShrink: 0 }} />
-                      {l}
-                      <div className="lp-dl-bar-track"><div className="lp-dl-bar-fill" style={{ background: c, '--w': p }} /></div>
-                      <div className="lp-dl-pct">{p}</div>
+                <div className="lp-side-stack">
+                  <div className="lp-recommend-panel">
+                    <div className="lp-chart-title">Pulse Mentor recommendations</div>
+                    <div className="lp-recommend-list">
+                      {[
+                        ["Start here", "Interview the highest-intent segment before adding features."],
+                        ["Protect cash", "Test pricing before committing to inventory or paid ads."],
+                        ["Pitch better", "Add customer evidence to the investor-readiness summary."],
+                      ].map(([title, item]) => (
+                        <div className="lp-recommend-item" key={title}>
+                          <Check className="lp-icon-sm" />
+                          <div><strong>{title}</strong><span>{item}</span></div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="lp-ring-panel">
+                    <div className="lp-chart-title">Readiness rings</div>
+                    <div className="lp-ring-row">
+                      {readinessRings.map(([label, score]) => (
+                        <div className="lp-ring" key={label}>
+                          <div className="lp-ring-visual">
+                            <svg viewBox="0 0 100 100">
+                              <circle className="lp-ring-bg" cx="50" cy="50" r="35" fill="none" strokeWidth="12" />
+                              <circle className="lp-ring-fg" cx="50" cy="50" r="35" fill="none" strokeWidth="12" style={{ "--score": score }} />
+                            </svg>
+                            <strong>{score}</strong>
+                          </div>
+                          <span>{label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="lp-analytics-bottom">
+                <div className="lp-funnel-panel">
+                  <div className="lp-chart-title">Validation funnel</div>
+                  <div className="lp-funnel">
+                    {validationFunnel.map(([label, value, width]) => (
+                      <div className="lp-funnel-row" key={label} style={{ "--w": width }}>
+                        <span>{label}</span>
+                        <strong>{value}</strong>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="lp-segment-panel">
+                  <div className="lp-chart-title">Customer segment pull</div>
+                  <div className="lp-segment-list">
+                    {segmentSignals.map(([label, width, color]) => (
+                      <div className="lp-segment-row" key={label}>
+                        <span>{label}</span>
+                        <div className="lp-segment-track"><div className="lp-segment-fill" style={{ "--w": width, "--c": color }} /></div>
+                        <strong>{width}</strong>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="lp-money-panel">
+                  <div className="lp-chart-title">Capital discipline radar</div>
+                  <div className="lp-money-grid">
+                    {capitalSignals.map(([label, width, color]) => (
+                      <div className="lp-money-row" key={label}>
+                        <span>{label}</span>
+                        <div className="lp-money-track"><div className="lp-money-fill" style={{ "--w": width, background: color }} /></div>
+                        <strong>{width}</strong>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="lp-analytics-bottom lp-decision-row">
+                <div className="lp-plain-panel">
+                  <div className="lp-chart-title">Plain-English decision cards</div>
+                  <div className="lp-plain-grid">
+                    {decisionCards.map(([title, copy]) => (
+                      <div className="lp-plain-card" key={title}>
+                        <strong>{title}</strong>
+                        <span>{copy}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="lp-section lp-testimonials">
+          <div className="lp-shell">
+            <div className="lp-section-head">
+              <div>
+                <div className="lp-eyebrow"><MessageSquare className="lp-icon-sm" /> Founder stories</div>
+                <h2 className="lp-heading lp-section-title">Guidance founders can use in the next meeting.</h2>
+              </div>
+              <p className="lp-section-copy">Three early-stage stories, each focused on a decision that became clearer through Pulse Mentor guidance and customer insight.</p>
+            </div>
+            <div className="lp-testimonial-wrap">
+              <button className="lp-carousel-btn" aria-label="Previous testimonial" onClick={() => setTestimonialIndex((testimonialIndex + testimonials.length - 1) % testimonials.length)}><ArrowRight className="lp-icon" style={{ transform: "rotate(180deg)" }} /></button>
+              <div className="lp-testimonial-card">
+                <div>
+                  <p className="lp-testimonial-quote">"{testimonial.quote}"</p>
+                  <div className="lp-founder">
+                    <div className="lp-founder-avatar" style={{ background: testimonial.color }}>{testimonial.initials}</div>
+                    <div>
+                      <div className="lp-founder-name">{testimonial.name}</div>
+                      <div className="lp-founder-role">{testimonial.role}</div>
+                    </div>
+                  </div>
+                </div>
+                <div className="lp-result-box">
+                  <strong>{testimonial.result}</strong>
+                  <span>{testimonial.resultText}</span>
+                </div>
+              </div>
+              <button className="lp-carousel-btn" aria-label="Next testimonial" onClick={() => setTestimonialIndex((testimonialIndex + 1) % testimonials.length)}><ArrowRight className="lp-icon" /></button>
+            </div>
+          </div>
+        </section>
+
+        <section className="lp-section" id="reviews">
+          <div className="lp-shell">
+            <div className="lp-section-head">
+              <div>
+                <div className="lp-eyebrow"><Star className="lp-icon-sm" /> Reviews</div>
+                <h2 className="lp-heading lp-section-title">Founders rate Pulse for clarity, not noise.</h2>
+              </div>
+              <p className="lp-section-copy">Reviews focus on whether Pulse helped founders make better decisions: what to validate, what to pause, and what to do next.</p>
+            </div>
+            <div className="lp-reviews-grid">
+              {reviews.map(([quote, name, role, initials]) => (
+                <div className="lp-review-card" key={name}>
+                  <div className="lp-stars" aria-label="5 star review">
+                    {[0, 1, 2, 3, 4].map((star) => <Star className="lp-icon-sm" fill="currentColor" key={star} />)}
+                  </div>
+                  <p>"{quote}"</p>
+                  <div className="lp-review-meta">
+                    <div className="lp-review-avatar">{initials}</div>
+                    <div>
+                      <div className="lp-review-name">{name}</div>
+                      <div className="lp-review-role">{role}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="lp-section">
+          <div className="lp-shell">
+            <div className="lp-section-head">
+              <div>
+                <div className="lp-eyebrow"><Trophy className="lp-icon-sm" /> Success stories</div>
+                <h2 className="lp-heading lp-section-title">Small decisions that protected time, money, and momentum.</h2>
+              </div>
+              <p className="lp-section-copy">Success is not only funding. For early founders, success often means avoiding the wrong spend and finding the next right test.</p>
+            </div>
+            <div className="lp-success-grid">
+              {successStories.map((story) => (
+                <div className="lp-success-card" key={story.title}>
+                  <div className="lp-success-band">{story.label}</div>
+                  <div className="lp-success-body">
+                    <h3>{story.title}</h3>
+                    <p>{story.copy}</p>
+                    <div className="lp-success-metrics">
+                      {story.metrics.map(([value, label]) => (
+                        <div className="lp-success-metric" key={label}>
+                          <strong>{value}</strong>
+                          <span>{label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="lp-section" id="templates">
+          <div className="lp-shell">
+            <div className="lp-section-head">
+              <div>
+                <div className="lp-eyebrow"><Search className="lp-icon-sm" /> Templates</div>
+                <h2 className="lp-heading lp-section-title">Six guided playbooks for founder decisions.</h2>
+              </div>
+              <p className="lp-section-copy">Each playbook starts with an outcome: validate the idea, clarify the business, protect capital, or prepare for investors.</p>
+            </div>
+            <div className="lp-template-grid">
+              {templates.map(([title, copy, Icon]) => (
+                <div className="lp-template" key={title}>
+                  <div className="lp-template-icon"><Icon className="lp-icon" /></div>
+                  <h3>{title}</h3>
+                  <p>{copy}</p>
+                  <button className="lp-btn lp-btn-secondary" onClick={() => setModal("start")}>Use template</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="lp-section lp-pricing" id="pricing">
+          <div className="lp-shell">
+            <div className="lp-section-head">
+              <div>
+                <div className="lp-eyebrow"><Lock className="lp-icon-sm" /> Pricing</div>
+                <h2 className="lp-heading lp-section-title">Start free. Pay when guidance accelerates action.</h2>
+              </div>
+              <div className="lp-pricing-toggle" aria-label="Pricing mode">
+                <button className={pricingMode === "monthly" ? "active" : ""} onClick={() => { setPricingMode("monthly"); setPricingWindowStart(1); }}>Monthly</button>
+                <button className={pricingMode === "one-time" ? "active" : ""} onClick={() => setPricingMode("one-time")}>One-time</button>
+              </div>
+            </div>
+            <div className="lp-pricing-stage">
+              <button className="lp-rate-nav" aria-label="Previous plans" onClick={() => movePricing(-1)} disabled={pricingMode === "one-time" || pricingWindowStart === 0}>
+                <ArrowRight className="lp-icon" style={{ transform: "rotate(180deg)" }} />
+              </button>
+              <div>
+                <div className="lp-plan-strip">
+                  {displayedPlans.map((plan) => (
+                    <div className={`lp-price-card${plan.featured ? " featured" : ""}${plan.dark ? " dark" : ""}`} key={plan.name}>
+                      {plan.badge && <div className="lp-price-badge">{plan.badge}</div>}
+                      <div className="lp-price-name">{plan.name}</div>
+                      <div className="lp-price-amount">
+                        {plan.offerPrice !== plan.price && <span className="lp-price-original">{plan.price}</span>}
+                        <strong>{plan.offerPrice}</strong>
+                        <span>/ {plan.period}</span>
+                      </div>
+                      {plan.offerPrice !== plan.price && <div className="lp-price-offer">50% off for a limited period</div>}
+                      <p className="lp-price-desc">{plan.desc}</p>
+                      <ul className="lp-price-list">
+                        {plan.features.map((feature) => (
+                          <li key={feature}><Check className="lp-icon-sm" /> {feature}</li>
+                        ))}
+                      </ul>
+                      <button className={`lp-btn ${plan.dark ? "lp-btn-primary" : "lp-btn-secondary"}`} onClick={() => setModal("start")}>{plan.cta}</button>
                     </div>
                   ))}
                 </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <div style={{ height: 70, background: "linear-gradient(to bottom right,var(--espresso) 49.9%,var(--cream) 50%)" }} />
-
-      {/* ── TESTIMONIALS ── */}
-      <section id="lp-testimonials">
-        <div className="lp-ghost" style={{ WebkitTextStroke: "1px rgba(255,69,0,.04)", fontSize: "clamp(120px,16vw,240px)", top: -30, left: -20, zIndex: 0 }}>Love</div>
-        <div className="lp-testi-head lp-sr">
-          <div>
-            <div className="lp-sec-tag">Practitioner Voices</div>
-            <h2 className="lp-sec-title">Trusted by researchers who <em>know the difference</em></h2>
-          </div>
-          <div className="lp-testi-scroll-hint">3 practitioners</div>
-        </div>
-        <div className="lp-testi-track">
-          {[
-            { q: "The forced-choice architecture and automatic straight-line detection genuinely improved our data quality. We retired three legacy tools once we saw what clean data actually looked like.", name: "Priya Nambiar", role: "Senior Research Manager, Hindustan Unilever", init: "P", grad: "linear-gradient(135deg,var(--coral),var(--terracotta))" },
-            { q: "Conjoint and MaxDiff in the same tool — with weighting built in. That alone saved us two weeks per study. The cross-tab interface is the most intuitive I've seen at this price point.", name: "Rohit Desai", role: "Quantitative Research Lead, Ipsos India", init: "R", grad: "linear-gradient(135deg,var(--saffron),#E6900A)" },
-            { q: "Our panel incidence rate went from 31% to 79% after switching. The cognitive load reduction in question design is real — respondents drop off where instruments are poorly constructed, and Pulse won't let you construct them poorly.", name: "Anusha Krishnamurthy", role: "Head of Consumer Insights, Tata Consumer Products", init: "A", grad: "linear-gradient(135deg,var(--sage),#155C38)" },
-          ].map((t, i) => (
-            <div className={`lp-tcard lp-sr lp-sr-d${i + 1}`} key={i}>
-              <div className="lp-tcard-stars">★★★★★</div>
-              <div className="lp-quote-mark">"</div>
-              <p className="lp-tcard-quote">{t.q}</p>
-              <div className="lp-tcard-author">
-                <div className="lp-author-avatar" style={{ background: t.grad }}>{t.init}</div>
-                <div>
-                  <div className="lp-author-name">{t.name}</div>
-                  <div className="lp-author-role">{t.role}</div>
+                <div className="lp-rate-progress" aria-hidden="true">
+                  {[0, 1, 2].map((index) => (
+                    <button className={`lp-rate-dot${pricingMode === "monthly" && index === pricingWindowStart ? " active" : ""}`} key={index} onClick={() => { setPricingMode("monthly"); setPricingWindowStart(index); }} />
+                  ))}
                 </div>
               </div>
+              <button className="lp-rate-nav" aria-label="Next plans" onClick={() => movePricing(1)} disabled={pricingMode === "one-time" || pricingWindowStart === 2}>
+                <ArrowRight className="lp-icon" />
+              </button>
             </div>
-          ))}
-        </div>
-      </section>
+          </div>
+        </section>
 
-      {/* ── PRICING ── */}
-      <section id="lp-pricing">
-        <div className="lp-ghost" style={{ WebkitTextStroke: "1px rgba(255,69,0,.04)", fontSize: "clamp(120px,16vw,240px)", bottom: -40, right: -20, zIndex: 0 }}>Price</div>
-        <div className="lp-pricing-head lp-sr">
-          <div className="lp-sec-tag">Pricing</div>
-          <h2 className="lp-sec-title">Priced for <em>every</em> research cadence</h2>
-          <p style={{ fontFamily: "Fraunces,serif", fontSize: 18, fontWeight: 300, lineHeight: 1.7, color: "var(--espresso)", opacity: .6, maxWidth: 480, margin: "0 auto" }}>Ad hoc or continuous tracking. Single study or always-on panel. The plan fits the methodology, not the other way around.</p>
-        </div>
-        <div className="lp-pricing-grid">
-          {[
-            { cls: "std", badge: "Starter", name: "Free", curr: "₹", amt: "0", per: "/ month", desc: "Ad hoc studies, concept testing, and quick pulse checks. Ideal for brand teams conducting research independently.", feats: ["3 active surveys", "100 responses / month", "Basic analytics", "5 question types"], btn: "Start Free Study" },
-            { cls: "pro", badge: "Most Used", name: "Pro", curr: "₹", amt: "2,499", per: "/ month", desc: "For insight teams running continuous trackers, usage & attitude studies, and brand equity waves.", feats: ["Unlimited surveys", "10,000 responses / month", "Full analytics + AI insights", "All 24+ question types", "Custom branding", "Team collaboration (5 seats)"], btn: "Start 14-Day Trial" },
-            { cls: "ent", badge: "Enterprise", name: "Custom", curr: "", amt: "Talk to us", per: "", desc: "For research agencies, FMCG conglomerates, and financial institutions running multi-country, longitudinal, or panel-based programmes.", feats: ["Unlimited everything", "On-premise deployment", "Dedicated research analyst", "99.9% SLA guarantee", "API + Webhooks"], btn: "Contact Sales" },
-          ].map((p, i) => (
-            <div className={`lp-pcard ${p.cls} lp-sr lp-sr-d${i + 1}`} key={p.cls}>
-              <div className="lp-pcard-badge">{p.badge}</div>
-              <div className="lp-pcard-name">{p.name}</div>
-              <div className="lp-pcard-price">
-                <span className="lp-p-curr">{p.curr}</span>
-                <span className="lp-p-amt" style={p.cls === "ent" ? { fontSize: 40, letterSpacing: -1 } : {}}>{p.amt}</span>
-                <span className="lp-p-per">{p.per}</span>
+        <section className="lp-section" id="faq">
+          <div className="lp-shell">
+            <div className="lp-section-head">
+              <div>
+                <div className="lp-eyebrow"><ChevronDown className="lp-icon-sm" /> FAQ</div>
+                <h2 className="lp-heading lp-section-title">Founder questions, clear guidance.</h2>
               </div>
-              <div className="lp-pcard-desc">{p.desc}</div>
-              <div className="lp-pcard-divider" />
-              <ul className="lp-pcard-features">
-                {p.feats.map(f => (
-                  <li key={f}>
-                    <div className="lp-feat-check">
-                      <svg width="9" height="9" viewBox="0 0 9 9" fill="none" stroke={p.cls === "pro" ? "var(--cream)" : "var(--coral)"} strokeWidth="2.5" strokeLinecap="round"><polyline points="1.5,4.5 3.5,6.5 7.5,2" /></svg>
-                    </div>
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <button className="lp-pcard-btn" onClick={onSignUp}>{p.btn}</button>
+              <p className="lp-section-copy">The shortest path from "what should I do next?" to a market-informed action plan.</p>
             </div>
-          ))}
-        </div>
-      </section>
+            <div className="lp-faq-grid">
+              {faqs.map(([question, answer], index) => (
+                <div className="lp-faq-item" key={question}>
+                  <button className="lp-faq-q" onClick={() => setOpenFaq(openFaq === index ? -1 : index)}>
+                    {question}
+                    <ChevronDown className="lp-icon-sm" style={{ transform: openFaq === index ? "rotate(180deg)" : "none" }} />
+                  </button>
+                  {openFaq === index && <div className="lp-faq-a">{answer}</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
 
-      {/* ── FOOTER ── */}
-      <footer id="lp-footer">
-        <div className="lp-ghost" style={{ fontSize: "clamp(100px,15vw,260px)", WebkitTextStroke: "1px rgba(253,245,232,.05)", bottom: -50, left: -10, zIndex: 0, letterSpacing: -6 }}>PULSE</div>
-        <div className="lp-grain" style={{ opacity: .02 }} />
-        <div className="lp-footer-inner">
-          <div className="lp-footer-top">
-            <div>
-              <div className="lp-f-brand">
-                <span style={{ fontFamily: "Syne,sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: ".2em", textTransform: "uppercase", opacity: .35, marginRight: 7, position: "relative", top: -3 }}>Axiora</span>
-                Pulse
-                <div className="lp-f-brand-dot">
-                  <div className="sonar-ring" /><div className="sonar-ring" /><div className="sonar-ring" />
+        <footer className="lp-footer">
+          <div className="lp-shell">
+            <div className="lp-footer-grid">
+              <div>
+                <div className="lp-logo-wrapper">
+                  <div className="lp-logo">
+                    <span className="lp-logo-parent">AXIORA</span>
+
+                    <span className="lp-logo-product">Pulse</span>
+
+                    <span className="lp-logo-dot">
+                      <span className="sonar-ring"></span>
+                      <span className="sonar-ring"></span>
+                      <span className="sonar-ring"></span>
+                    </span>
+                  </div>
+
+                  <div className="lp-logo-tagline">
+                    Idea Validation | AI Mentorship | Smarter Decisions
+                  </div>
+                </div>
+                <p>Know the Market. Get the Guidance. Build with Confidence.</p>
+                <div className="lp-social-links" aria-label="Axiora Pulse social links">
+                  <a href="https://www.linkedin.com/company/axiora-pulse/" className="lp-social-link" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn"><SocialIcon type="linkedin" /></a>
+                  <a href="https://x.com/AxioraPulse" className="lp-social-link" target="_blank" rel="noopener noreferrer" aria-label="X"><SocialIcon type="x" /></a>
+                  <a href="https://www.instagram.com/axiora_pulse/" className="lp-social-link" target="_blank" rel="noopener noreferrer" aria-label="Instagram"><SocialIcon type="instagram" /></a>
+                  <a href="https://www.youtube.com/@AxioraPulse" className="lp-social-link" target="_blank" rel="noopener noreferrer" aria-label="YouTube"><SocialIcon type="youtube" /></a>
                 </div>
               </div>
-              <p className="lp-f-desc">Market intelligence that feels human. Built for brands who believe understanding people is the greatest competitive advantage.</p>
-              <div className="lp-f-socials">
-                <a href="https://www.linkedin.com/company/axiora-global-solutions/" className="lp-f-soc" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
-                </a>
-                <a href="https://x.com/Axiora_Global" className="lp-f-soc" target="_blank" rel="noopener noreferrer" aria-label="Twitter">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-                </a>
-                <a href="https://www.instagram.com/axioraglobalsolutions?igsh=bmw2eXo2MjB3bXVn" className="lp-f-soc" target="_blank" rel="noopener noreferrer" aria-label="Instagram">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
-                </a>
-                <a href="https://www.youtube.com/@Axioraglobal" className="lp-f-soc" target="_blank" rel="noopener noreferrer" aria-label="YouTube">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
-                </a>
-              </div>
-            </div>
-            {[
-              { title: "Product", links: ["Survey Builder", "Analytics", "Distribution", "Pulse Insights", "Reports"] },
-              { title: "Company", links: ["About Us", "Careers", "Press Kit", "Blog", "Contact"] },
-              { title: "Legal", links: ["Privacy Policy", "Terms of Use", "Security", "GDPR", "Cookie Policy"] },
-            ].map(col => (
-              <div key={col.title}>
-                <div className="lp-f-col-title">{col.title}</div>
-                <ul className="lp-f-links">
-                  {col.links.map(l => <li key={l}><a href="#">{l}</a></li>)}
+              <div>
+                <h4>Product</h4>
+                <ul>
+                  <li><a href="#analytics">Mentor analytics</a></li>
+                  <li><a href="#templates">Guided playbooks</a></li>
+                  <li><a href="#pricing">Pricing</a></li>
+                  <li><a href="#faq">Investor readiness</a></li>
                 </ul>
               </div>
-            ))}
+              <div>
+                <h4>Company</h4>
+                <ul>
+                  <li><a href="mailto:hello@axioralabs.com?subject=Axiora Pulse Enquiry">Contact</a></li>
+                  <li><a href="#reviews">Founder reviews</a></li>
+                  <li><a href="#analytics">Decision support</a></li>
+                  <li><a href="#templates">Validation templates</a></li>
+                </ul>
+              </div>
+              <div>
+                <h4>Legal</h4>
+                <ul>
+                  <li><button className="lp-footer-link" onClick={() => setModal("legal:privacy")}>Privacy Notice</button></li>
+                  <li><button className="lp-footer-link" onClick={() => setModal("legal:terms")}>Terms and Conditions</button></li>
+                  <li><button className="lp-footer-link" onClick={() => setModal("legal:security")}>Security Statement</button></li>
+                  <li><button className="lp-footer-link" onClick={() => setModal("legal:data")}>Data Policy</button></li>
+                </ul>
+              </div>
+            </div>
+            <div className="lp-footer-bottom">
+              <span>© 2026 Axiora Pulse. Built for founders seeking clarity, confidence, and disciplined action.</span>
+              <span>Hyderabad, India</span>
+            </div>
           </div>
-          <div className="lp-footer-bottom">
-            <div className="lp-f-copy">© 2025 Axiora · Pulse is a product of Axiora Pvt Ltd · Built for researchers, by researchers · Bengaluru</div>
-            <div className="lp-f-award"><span className="lp-award-star">★</span>Paris Design Award Nominee 2025<span className="lp-award-star">★</span></div>
-          </div>
-        </div>
-      </footer>
-    </div>
+        </footer>
+
+        {modal && <Modal type={modal} onClose={() => setModal(null)} onNavigate={go} />}
+      </div>
+      <style>{`@media (max-width: 640px) {
+
+  /* Brand */
+  .lp-brand-axiora{
+    font-size:9px;
+    letter-spacing:.35em;
+  }
+
+  .lp-brand-pulse{
+   font-family: "Playfair Display", serif;
+  font-size: 28px;
+  font-weight: 900;
+  }
+
+  /* Hero */
+  .lp-hero h1{
+    font-family:"Playfair Display", serif;
+    font-size:42px;
+    line-height:1.08;
+    letter-spacing:-1px;
+  }
+
+  .lp-hero-copy{
+    font-family:"Fraunces", serif;
+    font-size:18px;
+    line-height:1.75;
+  }
+
+  /* Buttons */
+  .lp-btn{
+    font-family:"Syne", sans-serif;
+    font-size:14px;
+    font-weight:800;
+  }
+
+  /* Section Headings */
+  .lp-section-title{
+    font-family:"Playfair Display", serif;
+    font-size:34px;
+    line-height:1.15;
+  }
+
+  .lp-section-copy{
+     font-family: "Fraunces", serif;
+  font-size: 17px;
+  line-height: 1.75;
+  }
+
+  .lp-eyebrow{
+    font-family:"Syne", sans-serif;
+    font-size:12px;
+    font-weight:800;
+  }
+
+  /* Cards */
+  .lp-step h3,
+  .lp-template h3,
+  .lp-symbol h3{
+    font-size:20px;
+    font-weight:800;
+  }
+
+  .lp-step p,
+  .lp-template p,
+  .lp-symbol p{
+    font-size:14px;
+    line-height:1.7;
+  }
+
+  /* Analytics */
+  .lp-analytics-title{
+    font-size:18px;
+  }
+
+  .lp-analytics-kpi strong{
+    font-family:"Playfair Display", serif;
+    font-size:30px;
+  }
+
+  .lp-analytics-kpi span{
+    font-size:10px;
+  }
+
+  /* Testimonials */
+  .lp-testimonial-quote{
+    font-family:"Playfair Display", serif;
+    font-size:26px;
+    line-height:1.35;
+  }
+
+  .lp-founder-name{
+    font-size:15px;
+  }
+
+  .lp-founder-role{
+    font-size:12px;
+  }
+
+  /* Reviews */
+  .lp-review-card p{
+    font-family:"Playfair Display", serif;
+    font-size:22px;
+    line-height:1.5;
+  }
+
+  /* Success Cards */
+  .lp-success-body h3{
+    font-size:18px;
+  }
+
+  .lp-success-body p{
+    font-size:14px;
+  }
+
+  /* Pricing */
+  .lp-price-name{
+    font-size:22px;
+  }
+
+  .lp-price-amount strong{
+    font-family:"Playfair Display", serif;
+    font-size:44px;
+  }
+
+  .lp-price-desc,
+  .lp-price-list li{
+    font-size:14px;
+  }
+
+  /* FAQ */
+  .lp-faq-q{
+    font-size:15px;
+    font-weight:800;
+  }
+
+  .lp-faq-a{
+    font-size:14px;
+    line-height:1.7;
+  }
+
+  /* Footer */
+  .lp-footer h4{
+    font-size:11px;
+  }
+
+  .lp-footer a,
+  .lp-footer-link,
+  .lp-footer p{
+    font-size:14px;
+  }
+
+  .lp-footer-bottom{
+    font-size:12px;
+  }
+    .lp-footer .lp-logo-tagline{
+  color: var(--pulse-orange);
+}
+  /* Footer tagline */
+.lp-footer .lp-logo-tagline{
+  margin-top:6px;
+  margin-left:1px;
+  font-size:11px;
+  font-weight:700;
+  font-family:'Playfair Display', serif;
+  white-space:nowrap;
+  line-height:1.2;
+  color: var(--pulse-orange);
+}
+
+  /* Existing Layout Rules */
+  .lp-shell { width: min(100% - 32px, 1184px); }
+  .lp-nav-inner { height: 64px; }
+  .lp-nav-actions .lp-btn-secondary { display: none; }
+  .lp-hero-ctas .lp-btn { width: 100%; }
+  .lp-proof-panel { padding: 16px; }
+  .lp-mini-grid { grid-template-columns: 1fr; }
+  .lp-testimonial-wrap { grid-template-columns: 1fr; }
+  .lp-carousel-btn { display: none; }
+  .lp-rate-nav { display: none; }
+  .lp-footer-bottom { flex-direction: column; }
+  .lp-analytics-board { padding: 14px; }
+  .lp-analytics-top { align-items: flex-start; flex-direction: column; }
+  .lp-chart-head { flex-direction: column; }
+  .lp-chart-stage { grid-template-columns: 1fr; min-height: 190px; }
+  .lp-axis-y { display: none; }
+  .lp-chart-bars { min-height: 156px; gap: 6px; }
+  .lp-bar-label,
+  .lp-bar-value { font-size: 10px; }
+  .lp-ring-row { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .lp-ring svg { width: 76px; height: 76px; }
+  .lp-ring strong { font-size: 20px; }
+  .lp-plain-grid { grid-template-columns: 1fr; }
+  .lp-segment-row { grid-template-columns: 86px 1fr 42px; font-size: 12px; }
+  .lp-money-row { grid-template-columns: 76px 1fr 42px; font-size: 12px; }
+}`}</style>
+    </>
   );
 }
