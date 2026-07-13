@@ -1332,7 +1332,7 @@ useEffect(() => {
           {brandedName && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <div style={{ width: 1, height: 14, background: dark ? 'rgba(237,232,223,0.15)' : 'rgba(22,15,8,0.12)' }} />
-              <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: dark ? 'rgba(237,232,223,0.4)' : 'rgba(22,15,8,0.4)' }}>
+              <span style={{ fontFamily: 'Syne,sans-serif', fontSize: 11, fontWeight: 700, letterSpacing: '0.14em',  color: dark ? 'rgba(237,232,223,0.4)' : 'rgba(22,15,8,0.4)' }}>
                 {brandedName}
               </span>
             </div>
