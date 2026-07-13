@@ -40,6 +40,7 @@ class SurveyCreate(BaseModel):
     allow_anonymous: bool = True
     require_email: bool = False
     show_progress_bar: bool = True
+    collect_demographics: bool = True
     theme_color: str = "#FF4500"
     slug: Optional[str] = None
     status: str = "draft"
@@ -55,6 +56,7 @@ class SurveyUpdate(BaseModel):
     allow_anonymous: Optional[bool] = None
     require_email: Optional[bool] = None
     show_progress_bar: Optional[bool] = None
+    collect_demographics: Optional[bool] = None
     theme_color: Optional[str] = None
     slug: Optional[str] = None
     status: Optional[str] = None
@@ -81,6 +83,7 @@ class SurveyOut(BaseModel):
     allow_anonymous: bool
     require_email: bool
     show_progress_bar: bool
+    collect_demographics: bool
     theme_color: str
     slug: str
     status: str

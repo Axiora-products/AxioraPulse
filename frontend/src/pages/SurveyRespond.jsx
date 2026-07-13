@@ -656,7 +656,12 @@ useEffect(() => {
         await API.patch(`/responses/${id}`, { respondent_email: email });
       }
       await API.post(`/responses/${id}/submit`, { metadata: { quality_score: quality } });
-      setShowDemographics(true);
+      // Show demographics step only if the survey creator enabled it
+      if (activeSv?.collect_demographics !== false) {
+        setShowDemographics(true);
+      } else {
+        setDone(true);
+      }
       localStorage.removeItem(`nx_${slug}`);
       localStorage.removeItem(`survey_answers_${slug}`);
       localStorage.removeItem(`survey_step_${slug}`);
