@@ -1823,6 +1823,21 @@ useEffect(() => {
             scroll-behavior:auto !important;
           }
         }
+          /* In the welcome section (step === -1) */
+.np-welcome-stage h1 {
+  font-size: clamp(22px, 4vw, 42px) !important; /* Reduced from clamp(28px,5vw,62px) */
+  letter-spacing: -1px !important; /* Reduced from -2px */
+}
+
+.np-welcome-stage p {
+  font-size: 14px !important; /* Reduced from 16px */
+  line-height: 1.5 !important; /* Tighter line height */
+}
+
+.np-welcome-stage .description-text {
+  font-size: 13px !important; /* Even smaller for description */
+  line-height: 1.4 !important;
+}
       `}</style>
 
       {/* ── Footer ── */}

@@ -22,6 +22,7 @@
     "date-fns": "^3.6.0",
     "framer-motion": "^11.3.0",
     "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
     "lucide-react": "^1.16.0",
     "nanoid": "^5.0.7",
     "process": "^0.11.10",
