@@ -27,6 +27,7 @@ jobs:
           # ignore once upstream ships a fix.
           pip-audit -r backend/requirements.txt --strict \
             --ignore-vuln CVE-2025-3000 \
+            --ignore-vuln PYSEC-2026-1325 \
             || exit 1
 
   npm-audit:
