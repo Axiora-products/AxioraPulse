@@ -16,3 +16,7 @@ f22338e1b722c4c7fa7768e8e992d8410995fc50:backend/tests/test_auth.py:jwt:6
 f22338e1b722c4c7fa7768e8e992d8410995fc50:backend/tests/test_dependencies.py:jwt:9
 f4797f602d752739ae6532f5dc8e0677c8c2e4b4:infra/cdk/deployed-template.json:generic-api-key:882
 6dc0cadc723eeba533d85d4baea1cefcca177edf:backend/tests/conftest.py:jwt:3
+8c284f193b26ebe8610ab8f8e9fcf076eccb29d3:backend/tests/test_auth.py:jwt:6
+8c284f193b26ebe8610ab8f8e9fcf076eccb29d3:backend/tests/test_dependencies.py:jwt:9
+0f5773bd290a0fa8862635a2cbefd14143324717:infra/cdk/deployed-template.json:generic-api-key:882
+2b81cfc30802d34d4e5942f4d2ac61077f10a3c4:backend/tests/conftest.py:jwt:3

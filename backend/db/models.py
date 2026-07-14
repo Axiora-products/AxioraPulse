@@ -176,6 +176,7 @@ class Survey(Base):
     allow_anonymous = Column(Boolean, default=True)
     require_email = Column(Boolean, default=False)
     show_progress_bar = Column(Boolean, default=True)
+    collect_demographics = Column(Boolean, default=True)
     theme_color = Column(String(20), default="#FF4500")
     slug = Column(String(50), unique=True, nullable=False)
     status = Column(SAEnum(SurveyStatusEnum), default=SurveyStatusEnum.draft)
