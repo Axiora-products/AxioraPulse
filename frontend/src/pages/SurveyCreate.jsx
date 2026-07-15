@@ -439,22 +439,9 @@ export default function SurveyCreate() {
   const realQuestions = qs.filter(q => isQuestionComplete(q));
   const hasRealQuestions = realQuestions.length > 0;
   const conciseQuestionCount = realQuestions.filter(q => getQuestionWordCount(q) <= SHORT_SURVEY_RULES.maxHighSignalWords).length;
-  const hasAdaptiveFormats = getFormatDiversityScore(realQuestions) >= 3;
-  // ── Content validity (alphanumeric + min length) ───────────────────────────
-  const titleValid       = isValidSurveyTitle(f.title);
-  const descriptionValid = isValidSurveyLongText(f.description);
-  const welcomeValid     = isValidSurveyLongText(f.welcome_message);
-  const questionsCountOk  = qs.length >= SHORT_SURVEY_RULES.defaultQuestionCount;
-  const questionsDetailed = realQuestions.length > 0 && realQuestions.every(q => isValidQuestionText(q.question_text));
-
-  // Inline field errors — only shown once the user has typed something invalid.
-  const titleError = f.title.trim() && !titleValid
-    ? `Use at least ${SURVEY_TEXT_RULES.titleMinChars} characters including letters (not only numbers).` : '';
-  const descriptionError = f.description.trim() && !descriptionValid
-    ? `Use at least ${SURVEY_TEXT_RULES.longTextMinChars} characters including letters (not only numbers).` : '';
-  const welcomeError = f.welcome_message.trim() && !welcomeValid
-    ? `Use at least ${SURVEY_TEXT_RULES.longTextMinChars} characters including letters (not only numbers).` : '';
-
+  const hasAdaptiveFormats =
+  getFormatDiversityScore(realQuestions) >= 3;
+  const estimatedMinutes = estimateSurveyMinutes(realQuestions);
   // Single source of truth: the same checks drive both the % and the checklist below.
   const healthItems = [
     { ok: titleValid,        label: 'Title' },
@@ -465,8 +452,9 @@ export default function SurveyCreate() {
     { ok: hasAdaptiveFormats, label: 'Adaptive formats' },
     { ok: !!f.expires_at,    label: 'Set expiry date' },
   ];
-  const health = Math.round((healthItems.filter(i => i.ok).length / healthItems.length) * 100);
-  const healthColor = health >= 70 ? 'var(--sage)' : health >= 40 ? 'var(--saffron)' : 'var(--terracotta)';
+  const health = Math.round(
+    (healthChecks.filter(Boolean).length / healthChecks.length) * 100
+  ); const healthColor = health >= 70 ? 'var(--sage)' : health >= 40 ? 'var(--saffron)' : 'var(--terracotta)';
   const TABS = [{ id: 'details', n: '01', label: 'Details' }, { id: 'questions', n: '02', label: 'Questions', count: qs.length }, { id: 'settings', n: '03', label: 'Settings' }];
 
   // Circular health arc
