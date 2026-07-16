@@ -25,9 +25,12 @@ jobs:
           # CVE-2025-3000 (PYSEC-2025-194) — torch; pulled in transitively via
           # openai-whisper. No patched release exists in any version. Drop this
           # ignore once upstream ships a fix.
+          # PYSEC-2026-3447 — setuptools; pre-installed in the pip-audit venv.
+          # Cannot upgrade to 83.0.0 due to a conflict with torch==2.12.0.
           pip-audit -r backend/requirements.txt --strict \
             --ignore-vuln CVE-2025-3000 \
             --ignore-vuln PYSEC-2026-1325 \
+            --ignore-vuln PYSEC-2026-3447 \
             || exit 1
 
   npm-audit:
