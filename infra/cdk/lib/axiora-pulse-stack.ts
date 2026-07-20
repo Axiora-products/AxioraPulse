@@ -98,6 +98,8 @@ export class AxioraPulseStack extends cdk.Stack {
     const database = new rds.DatabaseInstance(this, 'Database', {
       engine: rds.DatabaseInstanceEngine.postgres({ version: rds.PostgresEngineVersion.VER_16 }),
       instanceType: ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.MICRO),
+      allocatedStorage: 20,
+      storageType: rds.StorageType.GP3,
       vpc,
       securityGroups: [dbSg],
       databaseName: 'axiorapulse',
