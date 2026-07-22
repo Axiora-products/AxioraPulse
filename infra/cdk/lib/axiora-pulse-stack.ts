@@ -547,61 +547,63 @@ export class AxioraPulseStack extends cdk.Stack {
     }
 
     if (isProd || shortEnv === 'qa') {
-      // 1. Superadmin Backend Fargate Service (Production and QA)
-      const superadminBackendTaskDef = new ecs.FargateTaskDefinition(this, 'SuperadminBackendTaskDef', {
-        memoryLimitMiB: 1024,
-        cpu: 512,
-        executionRole: taskExecutionRole,
-        taskRole: taskRole,
-        family: `pulse-superadmin-backend-${shortEnv}`,
-      });
+      if (isProd) {
+        // 1. Superadmin Backend Fargate Service (Production only)
+        const superadminBackendTaskDef = new ecs.FargateTaskDefinition(this, 'SuperadminBackendTaskDef', {
+          memoryLimitMiB: 1024,
+          cpu: 512,
+          executionRole: taskExecutionRole,
+          taskRole: taskRole,
+          family: `pulse-superadmin-backend-${shortEnv}`,
+        });
 
-      superadminBackendTaskDef.addContainer('SuperadminBackendContainer', {
-        image: ecs.ContainerImage.fromRegistry('public.ecr.aws/docker/library/python:3.11-alpine'),
-        command: [
-          "python3",
-          "-c",
-          "import http.server\nclass H(http.server.BaseHTTPRequestHandler):\n    def do_GET(self):\n        self.send_response(200)\n        self.end_headers()\n        self.wfile.write(b'OK')\nhttp.server.HTTPServer(('0.0.0.0', 8001), H).serve_forever()"
-        ],
-        portMappings: [{ containerPort: 8001 }],
-        logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'ecs', logGroup: new cdk.aws_logs.LogGroup(this, 'SuperadminBackendLogGroup', {
-          logGroupName: `/ecs/pulse-superadmin-backend-${shortEnv}`,
-          removalPolicy: cdk.RemovalPolicy.DESTROY,
-        }) }),
-        environment: {
-          'ENVIRONMENT': shortEnv,
-          'COGNITO_REGION': this.region,
-          'SUPER_ADMIN_COGNITO_REGION': this.region,
-          'MOCK_COGNITO': 'false',
-        }
-      });
-
-      NagSuppressions.addResourceSuppressions(superadminBackendTaskDef, [
-        {
-          id: 'AwsSolutions-ECS2',
-          reason: 'Superadmin backend environment variables only contain non-sensitive configuration values.'
-        }
-      ]);
-
-      superadminBackendService = new ecs.FargateService(this, 'SuperadminBackendService', {
-        cluster,
-        taskDefinition: superadminBackendTaskDef,
-        desiredCount: 2,
-        serviceName: `pulse-superadmin-backend-${shortEnv}`,
-        vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
-        assignPublicIp: false,
-        cloudMapOptions: {
-          name: 'superadmin-backend',
-        },
-        capacityProviderStrategies: isProd ? undefined : [
-          {
-            capacityProvider: 'FARGATE_SPOT',
-            weight: 1,
+        superadminBackendTaskDef.addContainer('SuperadminBackendContainer', {
+          image: ecs.ContainerImage.fromRegistry('public.ecr.aws/docker/library/python:3.11-alpine'),
+          command: [
+            "python3",
+            "-c",
+            "import http.server\nclass H(http.server.BaseHTTPRequestHandler):\n    def do_GET(self):\n        self.send_response(200)\n        self.end_headers()\n        self.wfile.write(b'OK')\nhttp.server.HTTPServer(('0.0.0.0', 8001), H).serve_forever()"
+          ],
+          portMappings: [{ containerPort: 8001 }],
+          logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'ecs', logGroup: new cdk.aws_logs.LogGroup(this, 'SuperadminBackendLogGroup', {
+            logGroupName: `/ecs/pulse-superadmin-backend-${shortEnv}`,
+            removalPolicy: cdk.RemovalPolicy.DESTROY,
+          }) }),
+          environment: {
+            'ENVIRONMENT': shortEnv,
+            'COGNITO_REGION': this.region,
+            'SUPER_ADMIN_COGNITO_REGION': this.region,
+            'MOCK_COGNITO': 'false',
           }
-        ],
-      });
+        });
 
-      database.connections.allowFrom(superadminBackendService, ec2.Port.tcp(5432), 'Allow superadmin backend to access database');
+        NagSuppressions.addResourceSuppressions(superadminBackendTaskDef, [
+          {
+            id: 'AwsSolutions-ECS2',
+            reason: 'Superadmin backend environment variables only contain non-sensitive configuration values.'
+          }
+        ]);
+
+        superadminBackendService = new ecs.FargateService(this, 'SuperadminBackendService', {
+          cluster,
+          taskDefinition: superadminBackendTaskDef,
+          desiredCount: 2,
+          serviceName: `pulse-superadmin-backend-${shortEnv}`,
+          vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+          assignPublicIp: false,
+          cloudMapOptions: {
+            name: 'superadmin-backend',
+          },
+          capacityProviderStrategies: isProd ? undefined : [
+            {
+              capacityProvider: 'FARGATE_SPOT',
+              weight: 1,
+            }
+          ],
+        });
+
+        database.connections.allowFrom(superadminBackendService, ec2.Port.tcp(5432), 'Allow superadmin backend to access database');
+      }
 
       // 2. Frontend Fargate Service (Production and QA)
       const frontendTaskDef = new ecs.FargateTaskDefinition(this, 'FrontendTaskDef', {
@@ -640,49 +642,53 @@ export class AxioraPulseStack extends cdk.Stack {
         assignPublicIp: false,
       });
 
-      // 3. Superadmin Frontend Fargate Service (Production and QA)
-      const superadminFrontendTaskDef = new ecs.FargateTaskDefinition(this, 'SuperadminFrontendTaskDef', {
-        memoryLimitMiB: 512,
-        cpu: 256,
-        executionRole: taskExecutionRole,
-        taskRole: taskRole,
-        family: `pulse-superadmin-frontend-${shortEnv}`,
-      });
+      if (isProd) {
+        // 3. Superadmin Frontend Fargate Service (Production only)
+        const superadminFrontendTaskDef = new ecs.FargateTaskDefinition(this, 'SuperadminFrontendTaskDef', {
+          memoryLimitMiB: 512,
+          cpu: 256,
+          executionRole: taskExecutionRole,
+          taskRole: taskRole,
+          family: `pulse-superadmin-frontend-${shortEnv}`,
+        });
 
-      superadminFrontendTaskDef.addContainer('SuperadminFrontendContainer', {
-        image: ecs.ContainerImage.fromRegistry('public.ecr.aws/docker/library/python:3.11-alpine'),
-        command: [
-          "python3",
-          "-c",
-          "import http.server\nclass H(http.server.BaseHTTPRequestHandler):\n    def do_GET(self):\n        self.send_response(200)\n        self.end_headers()\n        self.wfile.write(b'OK')\nhttp.server.HTTPServer(('0.0.0.0', 80), H).serve_forever()"
-        ],
-        portMappings: [{ containerPort: 80 }],
-        logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'ecs', logGroup: new cdk.aws_logs.LogGroup(this, 'SuperadminFrontendLogGroup', {
-          logGroupName: `/ecs/pulse-superadmin-frontend-${shortEnv}`,
-          removalPolicy: cdk.RemovalPolicy.DESTROY,
-        }) }),
-        environment: {
-          'BACKEND_INTERNAL_URL': `superadmin-backend.${shortEnv}.local:8001`,
+        superadminFrontendTaskDef.addContainer('SuperadminFrontendContainer', {
+          image: ecs.ContainerImage.fromRegistry('public.ecr.aws/docker/library/python:3.11-alpine'),
+          command: [
+            "python3",
+            "-c",
+            "import http.server\nclass H(http.server.BaseHTTPRequestHandler):\n    def do_GET(self):\n        self.send_response(200)\n        self.end_headers()\n        self.wfile.write(b'OK')\nhttp.server.HTTPServer(('0.0.0.0', 80), H).serve_forever()"
+          ],
+          portMappings: [{ containerPort: 80 }],
+          logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'ecs', logGroup: new cdk.aws_logs.LogGroup(this, 'SuperadminFrontendLogGroup', {
+            logGroupName: `/ecs/pulse-superadmin-frontend-${shortEnv}`,
+            removalPolicy: cdk.RemovalPolicy.DESTROY,
+          }) }),
+          environment: {
+            'BACKEND_INTERNAL_URL': `superadmin-backend.${shortEnv}.local:8001`,
+          }
+        });
+
+        NagSuppressions.addResourceSuppressions(superadminFrontendTaskDef, [
+          {
+            id: 'AwsSolutions-ECS2',
+            reason: 'Superadmin frontend environment variables only contain non-sensitive configuration values.'
+          }
+        ]);
+
+        superadminFrontendService = new ecs.FargateService(this, 'SuperadminFrontendService', {
+          cluster,
+          taskDefinition: superadminFrontendTaskDef,
+          desiredCount: 2,
+          serviceName: `pulse-superadmin-frontend-${shortEnv}`,
+          vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+          assignPublicIp: false,
+        });
+
+        if (superadminBackendService) {
+          superadminBackendService.connections.allowFrom(superadminFrontendService, ec2.Port.tcp(8001), 'Allow internal superadmin frontend to superadmin backend traffic');
         }
-      });
-
-      NagSuppressions.addResourceSuppressions(superadminFrontendTaskDef, [
-        {
-          id: 'AwsSolutions-ECS2',
-          reason: 'Superadmin frontend environment variables only contain non-sensitive configuration values.'
-        }
-      ]);
-
-      superadminFrontendService = new ecs.FargateService(this, 'SuperadminFrontendService', {
-        cluster,
-        taskDefinition: superadminFrontendTaskDef,
-        desiredCount: 2,
-        serviceName: `pulse-superadmin-frontend-${shortEnv}`,
-        vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
-        assignPublicIp: false,
-      });
-
-      superadminBackendService.connections.allowFrom(superadminFrontendService, ec2.Port.tcp(8001), 'Allow internal superadmin frontend to superadmin backend traffic');
+      }
     }
 
     if (isProd) {
