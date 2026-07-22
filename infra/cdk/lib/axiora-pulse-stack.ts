@@ -405,7 +405,7 @@ export class AxioraPulseStack extends cdk.Stack {
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       assignPublicIp: false,
       cloudMapOptions: {
-        name: 'backend',
+        name: shortEnv === 'qa' ? 'backend-app' : 'backend',
       },
       capacityProviderStrategies: isProd ? undefined : [
         {
