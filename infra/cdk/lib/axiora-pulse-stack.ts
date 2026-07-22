@@ -401,7 +401,7 @@ export class AxioraPulseStack extends cdk.Stack {
       cluster,
       taskDefinition: backendTaskDef,
       desiredCount: (isProd || shortEnv === 'qa') ? 2 : 1, // 2 tasks for HA in QA/Prod, 1 for Dev
-      serviceName: `pulse-backend-${shortEnv}`,
+      serviceName: shortEnv === 'qa' ? 'pulse-backend-qa-v2' : `pulse-backend-${shortEnv}`,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       assignPublicIp: false,
       cloudMapOptions: {
