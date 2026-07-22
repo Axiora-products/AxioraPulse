@@ -805,6 +805,19 @@ export class AxioraPulseStack extends cdk.Stack {
           }
         });
 
+        httpsListener.addTargets('BackendTargetHTTPS', {
+          port: 8000,
+          protocol: elbv2.ApplicationProtocol.HTTP,
+          targets: [backendService],
+          priority: 5,
+          conditions: [
+            elbv2.ListenerCondition.pathPatterns(['/api', '/api/*'])
+          ],
+          healthCheck: {
+            path: '/health',
+          }
+        });
+
         if (superadminFrontendService && superadminBackendService) {
           httpsListener.addTargets('SuperadminFrontendTargetHTTPS', {
             port: 80,
