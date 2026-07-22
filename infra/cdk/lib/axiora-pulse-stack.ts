@@ -86,6 +86,14 @@ export class AxioraPulseStack extends cdk.Stack {
     let database: rds.IDatabaseInstance;
 
     if (shortEnv === 'qa') {
+      // Retain existing Subnet Group used by axiorapulse-qa-db-20gb
+      const dbSubnetGroup = new rds.SubnetGroup(this, 'DatabaseSubnetGroup', {
+        vpc,
+        description: 'Subnet group for RDS database',
+        vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      });
+      dbSubnetGroup.applyRemovalPolicy(cdk.RemovalPolicy.RETAIN);
+
       dbSecret = secretsmanager.Secret.fromSecretNameV2(
         this,
         'DbSecret',
