@@ -2,6 +2,7 @@ import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import * as rds from 'aws-cdk-lib/aws-rds';
+import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as cr from 'aws-cdk-lib/custom-resources';
 
 import * as cognito from 'aws-cdk-lib/aws-cognito';
@@ -81,30 +82,48 @@ export class AxioraPulseStack extends cdk.Stack {
       allowAllOutbound: true,
     });
 
-    // Database credentials secret (generates username & password in Secrets Manager)
-    const dbSecret = new rds.DatabaseSecret(this, 'DbSecret', {
-      username: 'postgres',
-      secretName: `/axiorapulse/${shortEnv}/db-credentials`,
-    });
+    let dbSecret: secretsmanager.ISecret;
+    let database: rds.IDatabaseInstance;
 
-    // RDS PostgreSQL database instance
-    const database = new rds.DatabaseInstance(this, 'Database', {
-      engine: rds.DatabaseInstanceEngine.postgres({
-        version: rds.PostgresEngineVersion.VER_16_13,
-      }),
-      instanceType: isProd
-        ? ec2.InstanceType.of(ec2.InstanceClass.BURSTABLE3, ec2.InstanceSize.MEDIUM)
-        : ec2.InstanceType.of(ec2.InstanceClass.BURSTABLE3, ec2.InstanceSize.MICRO),
-      vpc,
-      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
-      securityGroups: [dbSecurityGroup],
-      databaseName: 'axiorapulse',
-      credentials: rds.Credentials.fromSecret(dbSecret),
-      removalPolicy: isProd ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
-      multiAz: isProd,
-      storageEncrypted: isProd,
-      backupRetention: isProd ? cdk.Duration.days(7) : undefined,
-    });
+    if (shortEnv === 'qa') {
+      dbSecret = secretsmanager.Secret.fromSecretNameV2(
+        this,
+        'DbSecret',
+        `/axiorapulse/${shortEnv}/db-credentials`
+      );
+
+      database = rds.DatabaseInstance.fromDatabaseInstanceAttributes(this, 'ExistingQaDatabase', {
+        instanceIdentifier: 'axiorapulse-qa-db-20gb',
+        instanceEndpointAddress: 'axiorapulse-qa-db-20gb.clqkm2moazs2.ap-south-1.rds.amazonaws.com',
+        port: 5432,
+        securityGroups: [dbSecurityGroup],
+      });
+    } else {
+      // Database credentials secret (generates username & password in Secrets Manager)
+      dbSecret = new rds.DatabaseSecret(this, 'DbSecret', {
+        username: 'postgres',
+        secretName: `/axiorapulse/${shortEnv}/db-credentials`,
+      });
+
+      // RDS PostgreSQL database instance
+      database = new rds.DatabaseInstance(this, 'Database', {
+        engine: rds.DatabaseInstanceEngine.postgres({
+          version: rds.PostgresEngineVersion.VER_16_13,
+        }),
+        instanceType: isProd
+          ? ec2.InstanceType.of(ec2.InstanceClass.BURSTABLE3, ec2.InstanceSize.MEDIUM)
+          : ec2.InstanceType.of(ec2.InstanceClass.BURSTABLE3, ec2.InstanceSize.MICRO),
+        vpc,
+        vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+        securityGroups: [dbSecurityGroup],
+        databaseName: 'axiorapulse',
+        credentials: rds.Credentials.fromSecret(dbSecret),
+        removalPolicy: isProd ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
+        multiAz: isProd,
+        storageEncrypted: isProd,
+        backupRetention: isProd ? cdk.Duration.days(7) : undefined,
+      });
+    }
 
     // Store DB connection details in SSM (non-sensitive fields)
     const dbHostParam = new ssm.StringParameter(this, 'DbHostParam', {
