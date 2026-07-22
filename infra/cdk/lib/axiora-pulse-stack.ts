@@ -407,7 +407,7 @@ export class AxioraPulseStack extends cdk.Stack {
       cloudMapOptions: {
         name: shortEnv === 'qa' ? 'backend-app' : 'backend',
       },
-      capacityProviderStrategies: isProd ? undefined : [
+      capacityProviderStrategies: (isProd || shortEnv === 'qa') ? undefined : [
         {
           capacityProvider: 'FARGATE_SPOT',
           weight: 1,
