@@ -172,10 +172,17 @@ export default function ComingSoon() {
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState('idle'); // idle | loading | done | error
 
+  
+  
   useEffect(() => {
-    const id = setInterval(() => setTime(getTimeLeft()), 1000);
-    return () => clearInterval(id);
-  }, []);
+  setTime(getTimeLeft());
+
+  const id = setInterval(() => {
+    setTime(getTimeLeft());
+  }, 1000);
+
+  return () => clearInterval(id);
+}, []);
 
  
 
