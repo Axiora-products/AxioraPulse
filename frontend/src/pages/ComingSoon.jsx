@@ -3,20 +3,38 @@ import { motion, AnimatePresence } from 'framer-motion';
 import API from '../api/axios';
 import useAuthStore from '../hooks/useAuth';
 
+
 // ── Launch target ─────────────────────────────────────────────────────────────
 
-const LAUNCH_DATE = new Date('2026-08-20T23:59:59');
+const LAUNCH_DATE = new Date(2026, 7, 20, 23, 59, 59);
 
 function getTimeLeft() {
-  const diff = LAUNCH_DATE - Date.now();
-  if (diff <= 0) return { days: 0, hours: 0, minutes: 0, seconds: 0 };
+  const now = new Date();
+  const diff = LAUNCH_DATE.getTime() - now.getTime();
+
+  if (diff <= 0) {
+    return {
+      days: 0,
+      hours: 0,
+      minutes: 0,
+      seconds: 0,
+    };
+  }
+
   return {
-    days: Math.floor(diff / 86400000),
-    hours: Math.floor((diff % 86400000) / 3600000),
-    minutes: Math.floor((diff % 3600000) / 60000),
-    seconds: Math.floor((diff % 60000) / 1000),
+    days: Math.floor(diff / (1000 * 60 * 60 * 24)),
+    hours: Math.floor(
+      (diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)
+    ),
+    minutes: Math.floor(
+      (diff % (1000 * 60 * 60)) / (1000 * 60)
+    ),
+    seconds: Math.floor(
+      (diff % (1000 * 60)) / 1000
+    ),
   };
 }
+
 
 // ── Floating particles ────────────────────────────────────────────────────────
 const PARTICLES = Array.from({ length: 18 }, (_, i) => ({
@@ -158,6 +176,8 @@ export default function ComingSoon() {
     const id = setInterval(() => setTime(getTimeLeft()), 1000);
     return () => clearInterval(id);
   }, []);
+
+ 
 
   const handleNotify = async (e) => {
     e.preventDefault();
