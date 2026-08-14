@@ -90,15 +90,48 @@ const CSS = `
   opacity: 1 !important; padding: 12px 28px; border-radius: 100px;
 }
 .lp-nav-pill:hover { background: var(--coral) !important; transform: translateY(-1px); }
+// .lp-nav-btn {
+//   font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 600;
+//   letter-spacing: .1em; text-transform: uppercase;
+//   background: var(--espresso); color: var(--cream);
+//   border: none; padding: 12px 28px; border-radius: 100px;
+//   cursor: pointer; transition: background .3s ease, transform .2s ease;
+// }
+// .lp-nav-btn:hover { background: var(--coral); transform: translateY(-1px); }
+// .lp-nav-burger { display: none; }
 .lp-nav-btn {
-  font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 600;
-  letter-spacing: .1em; text-transform: uppercase;
-  background: var(--espresso); color: var(--cream);
-  border: none; padding: 12px 28px; border-radius: 100px;
-  cursor: pointer; transition: background .3s ease, transform .2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  font-family: 'Syne', sans-serif !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  line-height: 1 !important;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+
+  background: var(--espresso);
+  color: var(--cream) !important;
+
+  border: none;
+  padding: 12px 28px;
+  border-radius: 100px;
+
+  cursor: pointer;
+  text-decoration: none !important;
+
+  opacity: 1 !important;
+  visibility: visible !important;
+
+  transition: background .3s ease, transform .2s ease;
 }
-.lp-nav-btn:hover { background: var(--coral); transform: translateY(-1px); }
-.lp-nav-burger { display: none; }
+
+.lp-nav-btn:hover {
+  background: var(--coral);
+  color: var(--cream) !important;
+  transform: translateY(-1px);
+}
 
 /* ─── HERO ─── */
 #lp-hero {
@@ -737,7 +770,7 @@ export default function Landing() {
           <li><a href="#lp-analytics">Analytics</a></li>
           <li><a href="#lp-pricing">Pricing</a></li>
           <li><a href="#" onClick={e => { e.preventDefault(); onEnterApp(); }} style={{ opacity: .55 }}>Sign In</a></li>
-          <li><button className="lp-nav-btn" onClick={onSignUp}>Get Started</button></li>
+          <li><a className="lp-nav-btn" target="_blank" href="https://forms.zohopublic.in/axioraglobalsolutions1/form/ValidateBeforeYouBuildFreeStudentEntrepreneurshipC/formperma/gPd6VkG_ohtvyfe0Xh8_oKJOhBkXGIm4v6c0zQc5bKk">Get Started</a></li>
         </ul>
       </nav>
 
