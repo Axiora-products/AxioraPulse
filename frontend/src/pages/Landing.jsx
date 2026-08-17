@@ -630,8 +630,16 @@ const CSS = `
 // ─── COMPONENT ───────────────────────────────────────────────────────────────
 export default function Landing() {
   const navigate = useNavigate();
-  const onEnterApp = () => navigate('/coming-soon');
-  const onSignUp   = () => navigate('/coming-soon');
+   const ZOHO_URL =
+  "https://forms.zohopublic.in/axioraglobalsolutions1/form/ValidateBeforeYouBuildFreeStudentEntrepreneurshipC/formperma/gPd6VkG_ohtvyfe0Xh8_oKJOhBkXGIm4v6c0zQc5bKk";
+
+const onEnterApp = () => navigate('/coming-soon');
+
+const onSignUp = () => {
+  window.open(ZOHO_URL, "_blank", "noopener,noreferrer");
+};
+  // const onEnterApp = () => navigate('/coming-soon');
+  // const onSignUp   = () => navigate('/coming-soon');
   const bodyRef = useRef(null);
   const { stopLoading } = useLoading();
   useEffect(() => { stopLoading(); }, [stopLoading]);
