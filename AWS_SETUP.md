@@ -1,7 +1,7 @@
 # AWS ECS Deployment Setup — AxioraPulse
 
 Complete one-time AWS setup for deploying frontend and backend to ECS Fargate behind CloudFront.  
-**Region:** `ap-south-1` (Mumbai) | **Account:** `217757579310` | **Domain:** `axiorapulse.com`
+**Region:** `ap-south-1` (Mumbai) | **Account:** `847013096108` | **Domain:** `axiorapulse.com`
 
 ---
 
@@ -119,8 +119,8 @@ The backend repo already exists. Create the frontend one.
 6. **Create repository**
 
 Your two repos are now:
-- `217757579310.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-fastapi` ✅
-- `217757579310.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-frontend` ✅
+- `847013096108.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-fastapi` ✅
+- `847013096108.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-frontend` ✅
 
 ---
 
@@ -456,22 +456,22 @@ Run from the repository root:
 # Authenticate Docker to ECR
 aws ecr get-login-password --region ap-south-1 | \
   docker login --username AWS --password-stdin \
-  217757579310.dkr.ecr.ap-south-1.amazonaws.com
+  847013096108.dkr.ecr.ap-south-1.amazonaws.com
 
 # ── Backend ──────────────────────────────────────────────────────────────────
 docker build -f backend/Dockerfile.prod \
-  -t 217757579310.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-fastapi:latest \
+  -t 847013096108.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-fastapi:latest \
   ./backend
 
-docker push 217757579310.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-fastapi:latest
+docker push 847013096108.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-fastapi:latest
 
 # ── Frontend ─────────────────────────────────────────────────────────────────
 docker build \
   --build-arg VITE_API_BASE_URL=https://api.axiorapulse.com \
-  -t 217757579310.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-frontend:latest \
+  -t 847013096108.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-frontend:latest \
   ./frontend
 
-docker push 217757579310.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-frontend:latest
+docker push 847013096108.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-frontend:latest
 ```
 
 ---

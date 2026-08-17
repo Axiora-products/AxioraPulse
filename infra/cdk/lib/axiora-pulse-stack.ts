@@ -28,7 +28,7 @@ export class AxioraPulseStack extends cdk.Stack {
     // Safety Check: Verify target account
     const expectedAccounts: { [key: string]: string } = {
       'dev': '079975324160',
-      'prod': '217757579310',
+      'prod': '847013096108',
     };
 
     if (expectedAccounts[envName] && this.account !== expectedAccounts[envName]) {
@@ -171,7 +171,7 @@ export class AxioraPulseStack extends cdk.Stack {
     });
 
     const backendContainer = backendTaskDef.addContainer('BackendContainer', {
-      image: ecs.ContainerImage.fromRegistry('217757579310.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-fastapi:latest'), // Placeholder
+      image: ecs.ContainerImage.fromRegistry('847013096108.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-fastapi:latest'), // Placeholder
       logging: ecs.LogDrivers.awsLogs({ 
         streamPrefix: 'ecs', 
         logGroup: new logs.LogGroup(this, 'BackendLogGroup', {
@@ -240,7 +240,7 @@ export class AxioraPulseStack extends cdk.Stack {
     });
 
     const frontendContainer = frontendTaskDef.addContainer('FrontendContainer', {
-      image: ecs.ContainerImage.fromRegistry('217757579310.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-frontend:latest'), // Placeholder
+      image: ecs.ContainerImage.fromRegistry('847013096108.dkr.ecr.ap-south-1.amazonaws.com/axiora/pulse-frontend:latest'), // Placeholder
       logging: ecs.LogDrivers.awsLogs({ 
         streamPrefix: 'ecs', 
         logGroup: new logs.LogGroup(this, 'FrontendLogGroup', {
