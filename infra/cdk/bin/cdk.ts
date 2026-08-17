@@ -9,7 +9,7 @@ const app = new cdk.App();
 // Global / Shared Infrastructure
 new GitHubOidcStack(app, 'AxioraPulseGitHubOidcStack', {
   env: { 
-    account: '217757579310', 
+    account: '847013096108', 
     region: 'ap-south-1' 
   },
   repositoryConfig: [
@@ -45,7 +45,7 @@ new AxioraPulseStack(app, 'AxioraPulseStackProd', {
   environment: 'prod',
   prodOverride: false, // Must be true to deploy
   env: { 
-    account: '217757579310', 
+    account: '847013096108', 
     region: 'ap-south-1' 
   },
   description: 'Production environment for AxioraPulse',

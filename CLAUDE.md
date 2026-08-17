@@ -57,7 +57,7 @@ Browser → CloudFront/ALB → Nginx (Frontend ECS) → FastAPI (Backend ECS) �
 - **Region:** ap-south-1
 - **ECS Cluster:** axiora-pulse-cluster
 - **ECS Services:** pulse-backend-service, pulse-frontend-service
-- **ECR:** 217757579310.dkr.ecr.ap-south-1.amazonaws.com
+- **ECR:** 847013096108.dkr.ecr.ap-south-1.amazonaws.com
 - **Secrets in SSM:** SECRET_KEY, DATABASE_URL, OPENAI_API_KEY, GOOGLE_API_KEY, RESEND_API_KEY, EMAIL_FROM, FRONTEND_URL
 
 ---
